@@ -1,17 +1,3 @@
-import { query } from "./_generated/server";
-import { authComponent } from "./auth";
+import registeredFunctions from "../confect/_generated/registeredFunctions";
 
-export const get = query({
-  args: {},
-  handler: async (ctx) => {
-    const authUser = await authComponent.safeGetAuthUser(ctx);
-    if (!authUser) {
-      return {
-        message: "Not authenticated",
-      };
-    }
-    return {
-      message: "This is private",
-    };
-  },
-});
+export const get = registeredFunctions.privateData.get;

@@ -9,12 +9,17 @@
     "dev:setup": "convex dev --configure --until-success"
   },
   "dependencies": {
+    "@confect/core": "catalog:",
+    "@confect/server": "catalog:",
     "@convex-dev/better-auth": "catalog:",
     "@convex-dev/polar": "catalog:",
+    "@effect/platform": "catalog:",
+    "@effect/platform-node": "catalog:",
     "@polar-sh/sdk": "^0.47.1",
     "better-auth": "catalog:",
     "convex": "catalog:",
     "dotenv": "catalog:",
+    "effect": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

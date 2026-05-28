@@ -1,6 +1,6 @@
-import { api } from "@church-task/backend/convex/_generated/api";
+import refs from "@church-task/backend/confect/_generated/refs";
+import { QueryResult, useQuery } from "@confect/react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "convex/react";
 
 export const Route = createFileRoute("/")({
   component: HomeComponent,
@@ -23,7 +23,8 @@ const TITLE_TEXT = `
  `;
 
 function HomeComponent() {
-  const healthCheck = useQuery(api.healthCheck.get);
+  const healthCheck = useQuery(refs.public.healthCheck.get);
+  const isConnected = QueryResult.isSuccess(healthCheck) && healthCheck.value === "OK";
 
   return (
     <div className="container mx-auto max-w-3xl px-4 py-2">
@@ -33,12 +34,12 @@ function HomeComponent() {
           <h2 className="mb-2 font-medium">API Status</h2>
           <div className="flex items-center gap-2">
             <div
-              className={`h-2 w-2 rounded-full ${healthCheck === "OK" ? "bg-green-500" : healthCheck === undefined ? "bg-orange-400" : "bg-red-500"}`}
+              className={`h-2 w-2 rounded-full ${isConnected ? "bg-green-500" : QueryResult.isLoading(healthCheck) ? "bg-orange-400" : "bg-red-500"}`}
             />
             <span className="text-sm text-muted-foreground">
-              {healthCheck === undefined
+              {QueryResult.isLoading(healthCheck)
                 ? "Checking..."
-                : healthCheck === "OK"
+                : isConnected
                   ? "Connected"
                   : "Error"}
             </span>

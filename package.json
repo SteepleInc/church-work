@@ -7,7 +7,13 @@
       "packages/*"
     ],
     "catalog": {
+      "@confect/core": "^8.0.0",
+      "@confect/react": "^8.0.0",
+      "@confect/server": "^8.0.0",
+      "@effect/platform": "^0.96.1",
+      "@effect/platform-node": "^0.106.0",
       "dotenv": "^17.2.2",
+      "effect": "^3.21.2",
       "zod": "^4.1.13",
       "typescript": "^6",
       "next-themes": "^0.4.6",

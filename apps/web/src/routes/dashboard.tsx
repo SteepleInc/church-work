@@ -1,5 +1,7 @@
 import { api } from "@church-task/backend/convex/_generated/api";
+import refs from "@church-task/backend/confect/_generated/refs";
 import { buttonVariants } from "@/components/ui/button";
+import { QueryResult, useQuery as useConfectQuery } from "@confect/react";
 import { CheckoutLink, CustomerPortalLink } from "@convex-dev/polar/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Authenticated, AuthLoading, Unauthenticated, useQuery } from "convex/react";
@@ -14,7 +16,7 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 function PrivateDashboardContent() {
-  const privateData = useQuery(api.privateData.get);
+  const privateData = useConfectQuery(refs.public.privateData.get);
   const products = useQuery(api.polar.listAllProducts);
   const subscription = useQuery(api.polar.getCurrentSubscription);
 
@@ -24,7 +26,9 @@ function PrivateDashboardContent() {
   return (
     <div>
       <h1>Dashboard</h1>
-      <p>privateData: {privateData?.message}</p>
+      <p>
+        privateData: {QueryResult.isSuccess(privateData) ? privateData.value.message : "Loading..."}
+      </p>
       <p>Plan: {hasActiveSubscription ? "Active" : "Free"}</p>
       {subscription === undefined ? (
         <p>Loading subscription options...</p>

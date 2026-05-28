@@ -1,7 +1,3 @@
-import { query } from "./_generated/server";
+import registeredFunctions from "../confect/_generated/registeredFunctions";
 
-export const get = query({
-  handler: async () => {
-    return "OK";
-  },
-});
+export const get = registeredFunctions.healthCheck.get;

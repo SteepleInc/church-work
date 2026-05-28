@@ -1,6 +1,6 @@
 import { httpRouter } from "convex/server";
 
-import { authComponent, createAuth } from "./auth";
+import { authComponent, createAuth } from "../authCore";
 import { polar } from "./polar";
 
 const http = httpRouter();

@@ -1,4 +1,3 @@
-import { defineSchema, defineTable } from "convex/server";
-import { v } from "convex/values";
+import schemaDefinition from "../confect/schema";
 
-export default defineSchema({});
+export default schemaDefinition.convexSchemaDefinition;
