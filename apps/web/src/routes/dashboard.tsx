@@ -216,10 +216,17 @@ function invitationRoleLabel(role: string | string[]) {
   return Array.isArray(role) ? role.join(", ") : role;
 }
 
+function memberHasRole(role: string | string[], expectedRole: string) {
+  return Array.isArray(role) ? role.includes(expectedRole) : role === expectedRole;
+}
+
 function ChurchMembersPanel({ activeChurchId }: { activeChurchId: string }) {
   const [members, setMembers] = useState<ChurchMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -227,6 +234,7 @@ function ChurchMembersPanel({ activeChurchId }: { activeChurchId: string }) {
     async function loadMembers() {
       setIsLoading(true);
       setError(null);
+      setSuccess(null);
       const result = await authClient.organization.listMembers({
         query: { organizationId: activeChurchId },
       });
@@ -263,23 +271,100 @@ function ChurchMembersPanel({ activeChurchId }: { activeChurchId: string }) {
           <p className="text-sm text-muted-foreground">Loading Church Members...</p>
         ) : null}
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {success ? <p className="text-sm text-muted-foreground">{success}</p> : null}
         {!isLoading && !error && members.length === 0 ? (
           <p className="text-sm text-muted-foreground">No Church Members found.</p>
         ) : null}
-        {members.map((member) => (
-          <div
-            key={member.id}
-            className="flex items-center justify-between gap-4 rounded-lg border p-3"
-          >
-            <div>
-              <p className="font-medium">{member.user.name ?? "Unnamed member"}</p>
-              <p className="text-sm text-muted-foreground">{member.user.email ?? "No email"}</p>
+        {members.map((member) => {
+          const isOwner = memberHasRole(member.role, "owner");
+          const roleLabel = invitationRoleLabel(member.role);
+          const isUpdating = updatingMemberId === member.id;
+          const isRemoving = removingMemberId === member.id;
+
+          return (
+            <div
+              key={member.id}
+              className="grid gap-3 rounded-lg border p-3 md:grid-cols-[1fr_auto] md:items-center"
+            >
+              <div>
+                <p className="font-medium">{member.user.name ?? "Unnamed member"}</p>
+                <p className="text-sm text-muted-foreground">{member.user.email ?? "No email"}</p>
+              </div>
+              {isOwner ? (
+                <span className="text-sm capitalize text-muted-foreground">{roleLabel}</span>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Label className="sr-only" htmlFor={`member-role-${member.id}`}>
+                    Role for {member.user.email ?? member.user.name ?? "Church member"}
+                  </Label>
+                  <select
+                    id={`member-role-${member.id}`}
+                    value={memberHasRole(member.role, "admin") ? "admin" : "member"}
+                    disabled={isUpdating || isRemoving}
+                    onChange={async (event) => {
+                      const nextRole = event.target.value as InvitationRole;
+                      setError(null);
+                      setSuccess(null);
+                      setUpdatingMemberId(member.id);
+                      const result = await authClient.organization.updateMemberRole({
+                        organizationId: activeChurchId,
+                        memberId: member.id,
+                        role: nextRole,
+                      });
+                      setUpdatingMemberId(null);
+
+                      if (result.error) {
+                        setError(result.error.message ?? "Could not update Church Member role.");
+                        return;
+                      }
+
+                      setMembers((currentMembers) =>
+                        currentMembers.map((currentMember) =>
+                          currentMember.id === member.id
+                            ? { ...currentMember, role: nextRole }
+                            : currentMember,
+                        ),
+                      );
+                      setSuccess(`Updated ${member.user.email ?? "Church Member"} to ${nextRole}.`);
+                    }}
+                    className="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  >
+                    <option value="member">Member</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    aria-label={`Remove ${member.user.email ?? member.user.name ?? "Church Member"}`}
+                    disabled={isUpdating || isRemoving}
+                    onClick={async () => {
+                      setError(null);
+                      setSuccess(null);
+                      setRemovingMemberId(member.id);
+                      const result = await authClient.organization.removeMember({
+                        organizationId: activeChurchId,
+                        memberIdOrEmail: member.id,
+                      });
+                      setRemovingMemberId(null);
+
+                      if (result.error) {
+                        setError(result.error.message ?? "Could not remove Church Member.");
+                        return;
+                      }
+
+                      setMembers((currentMembers) =>
+                        currentMembers.filter((currentMember) => currentMember.id !== member.id),
+                      );
+                      setSuccess(`Removed ${member.user.email ?? "Church Member"}.`);
+                    }}
+                  >
+                    {isRemoving ? "Removing..." : "Remove"}
+                  </Button>
+                </div>
+              )}
             </div>
-            <span className="text-sm capitalize text-muted-foreground">
-              {invitationRoleLabel(member.role)}
-            </span>
-          </div>
-        ))}
+          );
+        })}
       </CardContent>
     </Card>
   );

@@ -196,6 +196,38 @@ test("active Church shell shows the User's Church Membership context", async ({
   await expect(page.getByText("owner")).toBeVisible();
 });
 
+test("owner manages Church Member role and removal", async ({ page }, testInfo) => {
+  const ownerEmail = `e2e-member-owner-${Date.now()}-${testInfo.workerIndex}@example.com`;
+  const memberEmail = `e2e-managed-member-${Date.now()}-${testInfo.workerIndex}@example.com`;
+  const churchName = `E2E Managed Member Church ${Date.now()}`;
+
+  await signUpThroughDashboard(page, ownerEmail, "E2E Member Owner");
+  await createFirstChurch(page, churchName);
+  await page.getByLabel("Invite Member Email").fill(memberEmail);
+  await page.getByRole("button", { name: "Invite Member" }).click();
+  await expect(page.getByText(`Invitation sent to ${memberEmail}.`)).toBeVisible();
+  await page.getByRole("button", { name: "E2E Member Owner" }).click();
+  await page.getByRole("menuitem", { name: "Sign Out" }).click();
+
+  await signUpThroughDashboardToInvitation(page, memberEmail, "E2E Managed Member");
+  await page.getByRole("button", { name: "Accept Invitation" }).click();
+  await expect(page.getByText(`Active Church: ${churchName}`)).toBeVisible();
+  await page.getByRole("button", { name: "E2E Managed Member" }).click();
+  await page.getByRole("menuitem", { name: "Sign Out" }).click();
+
+  await signInThroughDashboard(page, ownerEmail);
+  await expect(page.getByText(memberEmail)).toBeVisible();
+
+  await page.getByLabel(`Role for ${memberEmail}`).selectOption("admin");
+
+  await expect(page.getByText(`Updated ${memberEmail} to admin.`)).toBeVisible();
+
+  await page.getByRole("button", { name: `Remove ${memberEmail}` }).click();
+
+  await expect(page.getByText(`Removed ${memberEmail}.`)).toBeVisible();
+  await expect(page.getByRole("button", { name: `Remove ${memberEmail}` })).not.toBeVisible();
+});
+
 test("invited user accepts pending Church Invitation before creating a Church", async ({
   page,
 }, testInfo) => {
