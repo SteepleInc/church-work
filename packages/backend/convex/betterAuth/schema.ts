@@ -136,7 +136,8 @@ export const tables = {
     createdAt: v.number(),
   })
     .index("organizationId", ["organizationId"])
-    .index("userId", ["userId"]),
+    .index("userId", ["userId"])
+    .index("organizationId_userId", ["organizationId", "userId"]),
   invitation: defineTable({
     organizationId: v.string(),
     email: v.string(),
@@ -146,6 +147,7 @@ export const tables = {
     inviterId: v.string(),
   })
     .index("email", ["email"])
+    .index("email_status", ["email", "status"])
     .index("organizationId", ["organizationId"])
     .index("status", ["status"]),
   apikey: defineTable({
