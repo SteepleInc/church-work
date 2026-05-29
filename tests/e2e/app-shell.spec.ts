@@ -36,6 +36,17 @@ async function createFirstChurch(page: Page, churchName: string) {
   await expect(page.getByText(`Active Church: ${churchName}`)).toBeVisible();
 }
 
+async function signInThroughDashboard(page: Page, email: string) {
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "Already have an account? Sign In" }).click();
+
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill("E2ePassword123!");
+  await page.getByRole("button", { name: "Sign In" }).click();
+
+  await expect(page).toHaveURL("/dashboard");
+}
+
 test("home route shows the app shell and connected API status", async ({ page }) => {
   await page.goto("/");
 
@@ -197,6 +208,36 @@ test("invited user accepts pending Church Invitation before creating a Church", 
 
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
   await expect(page.getByText(`Active Church: ${churchName}`)).toBeVisible();
+});
+
+test("active Church user sees and accepts a pending invitation", async ({ page }, testInfo) => {
+  const inviteeEmail = `e2e-active-invitee-${Date.now()}-${testInfo.workerIndex}@example.com`;
+  const inviterEmail = `e2e-active-inviter-${Date.now()}-${testInfo.workerIndex}@example.com`;
+  const inviteeChurch = `E2E Existing Church ${Date.now()}`;
+  const invitingChurch = `E2E Inviting Active Church ${Date.now()}`;
+
+  await signUpThroughDashboard(page, inviteeEmail, "E2E Active Invitee");
+  await createFirstChurch(page, inviteeChurch);
+  await page.getByRole("button", { name: "E2E Active Invitee" }).click();
+  await page.getByRole("menuitem", { name: "Sign Out" }).click();
+
+  await signUpThroughDashboard(page, inviterEmail, "E2E Active Inviter");
+  await createFirstChurch(page, invitingChurch);
+  await page.getByLabel("Invite Member Email").fill(inviteeEmail);
+  await page.getByRole("button", { name: "Invite Member" }).click();
+  await expect(page.getByText(`Invitation sent to ${inviteeEmail}.`)).toBeVisible();
+  await page.getByRole("button", { name: "E2E Active Inviter" }).click();
+  await page.getByRole("menuitem", { name: "Sign Out" }).click();
+
+  await signInThroughDashboard(page, inviteeEmail);
+
+  await expect(page.getByText(`Active Church: ${inviteeChurch}`)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Pending Church Invitations" })).toBeVisible();
+  await expect(page.getByText(invitingChurch)).toBeVisible();
+
+  await page.getByRole("button", { name: "Accept Invitation" }).click();
+
+  await expect(page.getByText(`Active Church: ${invitingChurch}`)).toBeVisible();
 });
 
 test("authenticated user menu shows account details and signs out", async ({ page }, testInfo) => {

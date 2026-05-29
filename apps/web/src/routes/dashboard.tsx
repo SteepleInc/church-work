@@ -77,6 +77,7 @@ function PrivateDashboardContent() {
             <p>No recurring plans available.</p>
           )}
         </section>
+        <ActiveChurchInvitationPrompt />
         {activeChurch ? (
           <ChurchInvitationPanel
             activeChurchId={activeChurch.id}
@@ -85,6 +86,104 @@ function PrivateDashboardContent() {
         ) : null}
       </main>
     </div>
+  );
+}
+
+function ActiveChurchInvitationPrompt() {
+  const [pendingInvitations, setPendingInvitations] = useState<UserInvitation[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [acceptingInvitationId, setAcceptingInvitationId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadInvitations() {
+      setIsLoading(true);
+      setError(null);
+      const result = await authClient.organization.listUserInvitations({});
+
+      if (ignore) {
+        return;
+      }
+
+      setIsLoading(false);
+
+      if (result.error) {
+        setError(result.error.message ?? "Could not load Church Invitations.");
+        return;
+      }
+
+      setPendingInvitations(
+        (result.data ?? []).filter((invitation) => invitation.status === "pending"),
+      );
+    }
+
+    void loadInvitations();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  if (isLoading || (!error && pendingInvitations.length === 0)) {
+    return null;
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Pending Church Invitations</CardTitle>
+        <CardDescription>
+          You have invitations to other Churches. Accepting one switches your Active Church.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3">
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {pendingInvitations.map((invitation) => {
+          const isAccepting = acceptingInvitationId === invitation.id;
+
+          return (
+            <div
+              key={invitation.id}
+              className="flex items-center justify-between gap-4 rounded-lg border p-4"
+            >
+              <div>
+                <p className="font-medium">{invitation.organizationName}</p>
+                <p className="text-sm text-muted-foreground">
+                  Role: {invitationRoleLabel(invitation.role)}
+                </p>
+              </div>
+              <Button
+                type="button"
+                disabled={isAccepting}
+                onClick={async () => {
+                  setError(null);
+                  setAcceptingInvitationId(invitation.id);
+                  const result = await authClient.organization.acceptInvitation({
+                    invitationId: invitation.id,
+                  });
+                  setAcceptingInvitationId(null);
+
+                  if (result.error) {
+                    setError(result.error.message ?? "Could not accept Church Invitation.");
+                    return;
+                  }
+
+                  setPendingInvitations((currentInvitations) =>
+                    currentInvitations.filter(
+                      (currentInvitation) => currentInvitation.id !== invitation.id,
+                    ),
+                  );
+                }}
+              >
+                {isAccepting ? "Accepting..." : "Accept Invitation"}
+              </Button>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
   );
 }
 
