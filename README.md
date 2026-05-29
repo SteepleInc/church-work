@@ -42,6 +42,16 @@ bun run dev
 Open [http://localhost:5173](http://localhost:5173) in your browser to see the web application.
 Your app will connect to the Convex cloud backend automatically.
 
+## Agent Platform Setup
+
+The CLI and MCP smoke-test path for agents is documented in `docs/agent-platform-setup.md`.
+
+Start with the public CLI health check after Convex is configured:
+
+```bash
+bun packages/cli/src/bin.ts health
+```
+
 ## UI Customization
 
 React web apps in this stack share shadcn/ui primitives through `packages/ui`.
