@@ -35,6 +35,7 @@
     "dev:web": "turbo -F web dev",
     "dev:server": "turbo -F @church-task/backend dev",
     "dev:setup": "turbo -F @church-task/backend dev:setup",
+    "test:backend": "turbo -F @church-task/backend test:backend",
     "check": "oxlint && oxfmt --write"
   },
   "dependencies": {
