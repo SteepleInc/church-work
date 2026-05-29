@@ -3,11 +3,11 @@
 import { Ref } from "@confect/core";
 import { RegisteredConvexFunction } from "@confect/server";
 import { TestConfect as TestConfect_ } from "@confect/test";
-import betterAuthTest from "@convex-dev/better-auth/test";
 import { convexTest } from "convex-test";
 import { Effect, Layer, Schema } from "effect";
 
 import confectSchema from "../confect/schema";
+import betterAuthSchema from "../convex/betterAuth/schema";
 
 process.env.SITE_URL ??= "http://localhost:2101";
 process.env.CONVEX_SITE_URL ??= "http://127.0.0.1:3210";
@@ -15,6 +15,7 @@ process.env.CONVEX_SITE_URL ??= "http://127.0.0.1:3210";
 export const TestConfect = TestConfect_.TestConfect<typeof confectSchema>();
 
 const modules = import.meta.glob("../convex/**/!(*.*.*)*.*s");
+const betterAuthModules = import.meta.glob("../convex/betterAuth/**/*.ts");
 
 const makeTestConfectWithoutIdentity = (testConvex: ReturnType<typeof convexTest>) => ({
   query: (queryRef: Ref.AnyQuery, ...args: Array<unknown>) =>
@@ -65,7 +66,7 @@ const makeTestConfectWithoutIdentity = (testConvex: ReturnType<typeof convexTest
 export const layer = () =>
   Layer.sync(TestConfect, () => {
     const testConvex = convexTest(confectSchema.convexSchemaDefinition, modules);
-    betterAuthTest.register(testConvex);
+    testConvex.registerComponent("betterAuth", betterAuthSchema, betterAuthModules);
 
     const withoutIdentity = makeTestConfectWithoutIdentity(testConvex);
 

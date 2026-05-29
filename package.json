@@ -7,6 +7,7 @@
       "packages/*"
     ],
     "catalog": {
+      "@better-auth/api-key": "~1.6.9",
       "@confect/core": "^8.0.0",
       "@confect/react": "^8.0.0",
       "@confect/server": "^8.0.0",

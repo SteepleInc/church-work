@@ -10,6 +10,7 @@
     "test:backend": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
+    "@better-auth/api-key": "catalog:",
     "@confect/core": "catalog:",
     "@confect/server": "catalog:",
     "@convex-dev/better-auth": "catalog:",

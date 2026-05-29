@@ -147,6 +147,60 @@ describe("Better Auth authenticated state spike", () => {
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 
+  it.effect("CLI API key credential resolves to the current User through bearer auth", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-cli-key-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string; email?: string };
+        token?: string;
+      };
+
+      expect(signUpResponse.status).toBe(200);
+      expect(signUpBody.token).toEqual(expect.any(String));
+
+      const createKeyResponse = yield* c.fetch("/api/auth/api-key/create", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${signUpBody.token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ name: "Agent CLI Test" }),
+      });
+      const createKeyBody = (yield* Effect.promise(() => createKeyResponse.json())) as {
+        id?: string;
+        name?: string;
+        key?: string;
+        start?: string | null;
+      };
+
+      expect(createKeyResponse.status).toBe(200);
+      expect(createKeyBody).toMatchObject({
+        id: expect.any(String),
+        name: "Agent CLI Test",
+        key: expect.stringMatching(/^ctcli_/),
+        start: "ctcli_",
+      });
+
+      const response = yield* c.fetch("/api/agent/current-user", {
+        method: "GET",
+        headers: { authorization: `Bearer ${createKeyBody.key}` },
+      });
+      const body = (yield* Effect.promise(() => response.json())) as unknown;
+
+      expect(response.status).toBe(200);
+      expect(body).toEqual({
+        ok: true,
+        user: {
+          id: signUpBody.user!.id,
+          email,
+          name: "Convex Test User",
+        },
+      });
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
   it.effect("MCP OAuth authorization-server metadata advertises discoverable endpoints", () =>
     Effect.gen(function* () {
       const c = yield* TestConfect.TestConfect;

@@ -1,4 +1,5 @@
 import { createClient, type GenericCtx } from "@convex-dev/better-auth";
+import { apiKey } from "@better-auth/api-key";
 import { convex, crossDomain } from "@convex-dev/better-auth/plugins";
 import { betterAuth } from "better-auth/minimal";
 import { bearer, mcp, organization } from "better-auth/plugins";
@@ -27,6 +28,22 @@ export function createAuth(ctx: GenericCtx<DataModel>) {
       requireEmailVerification: false,
     },
     plugins: [
+      apiKey({
+        apiKeyHeaders: "authorization",
+        customAPIKeyGetter: (ctx) => {
+          const authorization = ctx.headers?.get("authorization");
+          const token = authorization?.startsWith("Bearer ")
+            ? authorization.slice("Bearer ".length)
+            : null;
+
+          return token?.startsWith("ctcli_") ? token : null;
+        },
+        defaultPrefix: "ctcli_",
+        enableSessionForAPIKeys: true,
+        maximumNameLength: 80,
+        rateLimit: { enabled: false },
+        requireName: true,
+      }),
       bearer(),
       mcp({ loginPage: "/" }),
       organization({
