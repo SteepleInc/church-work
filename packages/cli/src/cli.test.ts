@@ -17,11 +17,19 @@ const unauthenticatedCurrentUser = {
   data: { user: null },
 } as const;
 
+const noActiveChurch = {
+  ok: true,
+  operation: "activeChurch",
+  data: { status: "noActiveChurch", activeChurch: null, membership: null },
+} as const;
+
 const fakeBackend = (overrides: Partial<BackendClientService>) =>
   Layer.succeed(BackendClient, {
     healthCheck: Effect.succeed("OK" as const),
     currentUser: Effect.succeed(unauthenticatedCurrentUser),
     currentUserWithToken: () => Effect.succeed(unauthenticatedCurrentUser),
+    activeChurch: () => Effect.succeed(noActiveChurch),
+    activeChurchWithToken: () => Effect.succeed(noActiveChurch),
     createCliCredential: () =>
       Effect.succeed({
         id: "cred_123",
@@ -92,6 +100,71 @@ describe("church-task health", () => {
         message: "Backend operation failed.",
       },
     });
+  });
+});
+
+describe("church-task active-church", () => {
+  it("prints a clear no Active Church result through the CLI path", async () => {
+    const result = await runCli(["active-church"], {
+      env: { CHURCH_TASK_AUTH_TOKEN: "env-token" },
+      backendLayer: fakeBackend({
+        activeChurchWithToken: () => Effect.succeed(noActiveChurch),
+      }),
+    });
+
+    expect(result).toEqual({
+      exitCode: 0,
+      stderr: "",
+      stdout: `${JSON.stringify(noActiveChurch)}\n`,
+    });
+  });
+
+  it("passes a requested Church through the authenticated Active Church path", async () => {
+    const activeChurch = {
+      ok: true,
+      operation: "activeChurch",
+      data: {
+        status: "activeChurchReady",
+        activeChurch: { id: "church_123", name: "Grace Church", slug: "grace-church" },
+        membership: { role: "owner" },
+      },
+    } as const;
+    let requested: { readonly token: string; readonly churchId: string | null } | null = null;
+
+    const result = await runCli(["active-church", "--church-id", "church_123"], {
+      env: { CHURCH_TASK_AUTH_TOKEN: "env-token" },
+      backendLayer: fakeBackend({
+        activeChurchWithToken: (args) => {
+          requested = args;
+          return Effect.succeed(activeChurch);
+        },
+      }),
+    });
+
+    expect(requested).toEqual({ token: "env-token", churchId: "church_123" });
+    expect(result.stdout).toBe(`${JSON.stringify(activeChurch)}\n`);
+  });
+
+  it("returns structured authorization errors for Churches without membership", async () => {
+    const authorizationError = {
+      ok: false,
+      operation: "activeChurch",
+      error: {
+        code: "not_church_member",
+        message: "User does not have Church Membership for requested Church.",
+      },
+    } as const;
+
+    const result = await runCli(["active-church", "--church-id", "church_without_membership"], {
+      env: { CHURCH_TASK_AUTH_TOKEN: "env-token" },
+      backendLayer: fakeBackend({
+        activeChurchWithToken: () => Effect.succeed(authorizationError),
+      }),
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(JSON.parse(result.stderr)).toEqual(authorizationError);
   });
 });
 

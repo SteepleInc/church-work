@@ -1,5 +1,8 @@
 import { api } from "@church-task/backend/convex/_generated/api";
-import type { CurrentUserResponse } from "@church-task/backend/agent/operations";
+import type {
+  ActiveChurchResponse,
+  CurrentUserResponse,
+} from "@church-task/backend/agent/operations";
 import { ConvexHttpClient } from "convex/browser";
 import { Context, Data, Effect, Layer } from "effect";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
@@ -36,6 +39,13 @@ export type BackendClientService = {
   readonly currentUserWithToken: (
     token: string,
   ) => Effect.Effect<CurrentUserResponse, BackendError>;
+  readonly activeChurch: (
+    churchId: string | null,
+  ) => Effect.Effect<ActiveChurchResponse, BackendError>;
+  readonly activeChurchWithToken: (args: {
+    readonly token: string;
+    readonly churchId: string | null;
+  }) => Effect.Effect<ActiveChurchResponse, BackendError>;
   readonly createCliCredential: (args: {
     readonly name: string;
     readonly sessionToken: string;
@@ -172,6 +182,34 @@ const makeConvexBackendLayer = (env: CliEnv) =>
           catch: (cause) => new BackendError({ cause }),
         });
 
+      const queryActiveChurch = (churchId: string | null) =>
+        Effect.tryPromise({
+          try: () => client.query(api.agent.activeChurch, { churchId }),
+          catch: (cause) => new BackendError({ cause }),
+        });
+
+      const queryActiveChurchWithToken = (args: {
+        readonly token: string;
+        readonly churchId: string | null;
+      }) =>
+        Effect.tryPromise({
+          try: async () => {
+            const response = await fetch(`${authBaseUrl}/api/auth/convex/token`, {
+              method: "GET",
+              headers: { authorization: `Bearer ${args.token}` },
+            });
+
+            if (!response.ok) throw new Error("Convex auth token request failed.");
+
+            const body = (await response.json()) as { token?: string };
+            if (!body.token) throw new Error("Convex auth token response was missing a token.");
+
+            client.setAuth(body.token);
+            return await client.query(api.agent.activeChurch, { churchId: args.churchId });
+          },
+          catch: (cause) => new BackendError({ cause }),
+        });
+
       return {
         healthCheck: Effect.tryPromise({
           try: () => client.query(api.healthCheck.get),
@@ -182,6 +220,8 @@ const makeConvexBackendLayer = (env: CliEnv) =>
           catch: (cause) => new BackendError({ cause }),
         }),
         currentUserWithToken: queryCurrentUserWithToken,
+        activeChurch: queryActiveChurch,
+        activeChurchWithToken: queryActiveChurchWithToken,
         createCliCredential: ({ name, sessionToken }) =>
           Effect.tryPromise({
             try: async () => {
@@ -244,6 +284,13 @@ const credentialNameFromArgs = (args: ReadonlyArray<string>) => {
   return name ? Effect.succeed(name) : Effect.fail(new MissingOptionError({ option: "--name" }));
 };
 
+const churchIdFromArgs = (args: ReadonlyArray<string>) => {
+  const churchIdIndex = args.indexOf("--church-id");
+  const churchId = churchIdIndex >= 0 ? args[churchIdIndex + 1]?.trim() : undefined;
+
+  return churchId ?? null;
+};
+
 const readEnvToken = (env: CliEnv) => {
   const token = env.CHURCH_TASK_AUTH_TOKEN?.trim();
   return token ? Effect.succeed(token) : Effect.fail(new MissingLoginTokenError());
@@ -269,6 +316,22 @@ const runCurrentUser = Effect.gen(function* () {
 
   return success(currentUser);
 });
+
+const runActiveChurch = (args: ReadonlyArray<string>) =>
+  Effect.gen(function* () {
+    const churchId = churchIdFromArgs(args);
+    const backend = yield* BackendClient;
+    const storage = yield* CredentialStorage;
+    const envToken = yield* CurrentEnvToken;
+    const storedCredential = envToken ? null : yield* storage.read;
+    const activeChurch = envToken
+      ? yield* backend.activeChurchWithToken({ token: envToken, churchId })
+      : storedCredential
+        ? yield* backend.activeChurchWithToken({ token: storedCredential.token, churchId })
+        : yield* backend.activeChurch(churchId);
+
+    return activeChurch.ok ? success(activeChurch) : operationFailure(activeChurch);
+  });
 
 const safeCredentialMetadata = (credential: CliCredential) => ({
   id: credential.id,
@@ -394,6 +457,10 @@ const runCliEffect = (
     return runCurrentUser;
   }
 
+  if (command === "active-church") {
+    return runActiveChurch(args.slice(1));
+  }
+
   if (command === "auth" && args[1] === "status") {
     return runAuthStatus;
   }
@@ -415,6 +482,12 @@ const failure = (error: { readonly code: string; readonly message: string }): Cl
   exitCode: 1,
   stdout: "",
   stderr: `${JSON.stringify({ ok: false, error })}\n`,
+});
+
+const operationFailure = (body: { readonly ok: false; readonly error: unknown }): CliResult => ({
+  exitCode: 1,
+  stdout: "",
+  stderr: `${JSON.stringify(body)}\n`,
 });
 
 const formatError = (error: CliError) => {
@@ -448,7 +521,7 @@ const formatError = (error: CliError) => {
       return failure({
         code: "unknown_command",
         message:
-          "Run `church-task health`, `church-task login --name <name>`, `church-task current-user`, `church-task auth status`, or `church-task auth logout`.",
+          "Run `church-task health`, `church-task login --name <name>`, `church-task current-user`, `church-task active-church`, `church-task auth status`, or `church-task auth logout`.",
       });
   }
 };
