@@ -1,6 +1,8 @@
 import { FunctionSpec, GroupSpec } from "@confect/core";
 import { Schema } from "effect";
 
+import { BatchReadArgs, BatchReadResponse, CurrentUserResponse } from "../agent/operations";
+
 export const healthCheck = GroupSpec.make("healthCheck").addFunction(
   FunctionSpec.publicQuery({
     name: "get",
@@ -24,3 +26,19 @@ export const auth = GroupSpec.make("auth").addFunction(
     returns: Schema.Any,
   }),
 );
+
+export const agent = GroupSpec.make("agent")
+  .addFunction(
+    FunctionSpec.publicQuery({
+      name: "currentUser",
+      args: Schema.Struct({}),
+      returns: CurrentUserResponse,
+    }),
+  )
+  .addFunction(
+    FunctionSpec.publicQuery({
+      name: "batchRead",
+      args: BatchReadArgs,
+      returns: BatchReadResponse,
+    }),
+  );

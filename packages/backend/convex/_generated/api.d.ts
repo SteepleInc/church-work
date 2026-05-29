@@ -9,6 +9,7 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as agent from "../agent.js";
 import type * as healthCheck from "../healthCheck.js";
 import type * as http from "../http.js";
 import type * as polar from "../polar.js";
@@ -21,6 +22,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  agent: typeof agent;
   auth: typeof auth;
   healthCheck: typeof healthCheck;
   http: typeof http;

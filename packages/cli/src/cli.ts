@@ -1,4 +1,5 @@
 import { api } from "@church-task/backend/convex/_generated/api";
+import type { CurrentUserResponse } from "@church-task/backend/agent/operations";
 import { ConvexHttpClient } from "convex/browser";
 import { Context, Data, Effect, Layer } from "effect";
 
@@ -15,6 +16,7 @@ type CliError = BackendError | MissingBackendConfigError | UnknownCommandError;
 
 export type BackendClientService = {
   readonly healthCheck: Effect.Effect<HealthStatus, BackendError>;
+  readonly currentUser: Effect.Effect<CurrentUserResponse, BackendError>;
 };
 
 export class BackendError extends Data.TaggedError("BackendError")<{
@@ -51,6 +53,10 @@ const makeConvexBackendLayer = (env: CliEnv) =>
           try: () => client.query(api.healthCheck.get),
           catch: (cause) => new BackendError({ cause }),
         }),
+        currentUser: Effect.tryPromise({
+          try: () => client.query(api.agent.currentUser),
+          catch: (cause) => new BackendError({ cause }),
+        }),
       };
     }),
   );
@@ -62,6 +68,13 @@ const runHealth = Effect.gen(function* () {
   return success({ ok: true, operation: "health", status });
 });
 
+const runCurrentUser = Effect.gen(function* () {
+  const backend = yield* BackendClient;
+  const currentUser = yield* backend.currentUser;
+
+  return success(currentUser);
+});
+
 const runCliEffect = (
   args: ReadonlyArray<string>,
 ): Effect.Effect<CliResult, BackendError | UnknownCommandError, BackendClient> => {
@@ -69,6 +82,10 @@ const runCliEffect = (
 
   if (command === "health") {
     return runHealth;
+  }
+
+  if (command === "current-user") {
+    return runCurrentUser;
   }
 
   return Effect.fail(new UnknownCommandError({ command }));
@@ -91,7 +108,7 @@ const formatError = (error: CliError) => {
     case "BackendError":
       return failure({
         code: "backend_unavailable",
-        message: "Backend health check failed.",
+        message: "Backend operation failed.",
       });
     case "MissingBackendConfigError":
       return failure({
@@ -101,7 +118,7 @@ const formatError = (error: CliError) => {
     case "UnknownCommandError":
       return failure({
         code: "unknown_command",
-        message: "Run `church-task health`.",
+        message: "Run `church-task health` or `church-task current-user`.",
       });
   }
 };
