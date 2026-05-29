@@ -1,14 +1,23 @@
 import { api } from "@church-task/backend/convex/_generated/api";
 import refs from "@church-task/backend/confect/_generated/refs";
+import { useAppForm } from "@/components/form/ts-form";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { QueryResult, useQuery as useConfectQuery } from "@confect/react";
 import { CheckoutLink, CustomerPortalLink } from "@convex-dev/polar/react";
+import { revalidateLogic } from "@tanstack/react-form";
 import { createFileRoute } from "@tanstack/react-router";
 import { Authenticated, AuthLoading, Unauthenticated, useQuery } from "convex/react";
+import { Schema } from "effect";
 import { useState } from "react";
 
 import SignInForm from "@/components/sign-in-form";
@@ -163,6 +172,21 @@ function ActiveChurchInvitationPrompt() {
 
 type InvitationRole = "member" | "admin";
 
+const ChurchNameSchema = Schema.Struct({
+  name: Schema.String.pipe(
+    Schema.minLength(2, { message: () => "Church name must be at least 2 characters." }),
+  ),
+});
+
+const ChurchInvitationSchema = Schema.Struct({
+  email: Schema.String.pipe(
+    Schema.pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, {
+      message: () => "Enter a valid email address.",
+    }),
+  ),
+  role: Schema.Literal("member", "admin"),
+});
+
 type PendingInvitation = {
   id: string;
   email: string;
@@ -222,12 +246,11 @@ function ChurchMembersPanel({ activeChurchId }: { activeChurchId: string }) {
                   <Label className="sr-only" htmlFor={`member-role-${member.id}`}>
                     Role for {member.user.email ?? member.user.name ?? "Church member"}
                   </Label>
-                  <select
-                    id={`member-role-${member.id}`}
+                  <Select
                     value={memberHasRole(member.role, "admin") ? "admin" : "member"}
                     disabled={isUpdating || isRemoving}
-                    onChange={async (event) => {
-                      const nextRole = event.target.value as InvitationRole;
+                    onValueChange={async (value) => {
+                      const nextRole = value as InvitationRole;
                       setError(null);
                       setSuccess(null);
                       setUpdatingMemberId(member.id);
@@ -245,11 +268,15 @@ function ChurchMembersPanel({ activeChurchId }: { activeChurchId: string }) {
 
                       setSuccess(`Updated ${member.user.email ?? "Church Member"} to ${nextRole}.`);
                     }}
-                    className="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                   >
-                    <option value="member">Member</option>
-                    <option value="admin">Admin</option>
-                  </select>
+                    <SelectTrigger id={`member-role-${member.id}`} className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="member">Member</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Button
                     type="button"
                     variant="outline"
@@ -292,11 +319,40 @@ function ChurchInvitationPanel({
   activeChurchId: string;
   pendingInvitations: PendingInvitation[];
 }) {
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<InvitationRole>("member");
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
-  const [isInviting, setIsInviting] = useState(false);
+  const inviteForm = useAppForm({
+    defaultValues: {
+      email: "",
+      role: "member" as InvitationRole,
+    },
+    validationLogic: revalidateLogic({
+      mode: "submit",
+      modeAfterSubmission: "blur",
+    }),
+    validators: {
+      onSubmit: Schema.standardSchemaV1(ChurchInvitationSchema),
+    },
+    onSubmit: async ({ value, formApi }) => {
+      setInviteError(null);
+      setInviteSuccess(null);
+
+      const trimmedEmail = value.email.trim().toLowerCase();
+      const result = await authClient.organization.inviteMember({
+        organizationId: activeChurchId,
+        email: trimmedEmail,
+        role: value.role,
+      });
+
+      if (result.error) {
+        setInviteError(result.error.message ?? "Could not invite Church member.");
+        return;
+      }
+
+      formApi.reset();
+      setInviteSuccess(`Invitation sent to ${trimmedEmail}.`);
+    },
+  });
 
   return (
     <Card>
@@ -309,65 +365,46 @@ function ChurchInvitationPanel({
       <CardContent className="grid gap-6">
         <form
           className="grid max-w-xl gap-4"
-          onSubmit={async (event) => {
+          onSubmit={(event) => {
             event.preventDefault();
-            setInviteError(null);
-            setInviteSuccess(null);
-
-            const trimmedEmail = inviteEmail.trim().toLowerCase();
-
-            if (!trimmedEmail.includes("@")) {
-              setInviteError("Enter a valid email address.");
-              return;
-            }
-
-            setIsInviting(true);
-            const result = await authClient.organization.inviteMember({
-              organizationId: activeChurchId,
-              email: trimmedEmail,
-              role: inviteRole,
-            });
-            setIsInviting(false);
-
-            if (result.error) {
-              setInviteError(result.error.message ?? "Could not invite Church member.");
-              return;
-            }
-
-            setInviteEmail("");
-            setInviteRole("member");
-            setInviteSuccess(`Invitation sent to ${trimmedEmail}.`);
+            event.stopPropagation();
+            inviteForm.handleSubmit();
           }}
         >
-          <div className="grid gap-2">
-            <Label htmlFor="invite-email">Invite Member Email</Label>
-            <Input
-              id="invite-email"
-              name="inviteEmail"
-              type="email"
-              value={inviteEmail}
-              onChange={(event) => setInviteEmail(event.target.value)}
-              placeholder="member@example.com"
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="invite-role">Role</Label>
-            <select
-              id="invite-role"
-              name="inviteRole"
-              value={inviteRole}
-              onChange={(event) => setInviteRole(event.target.value as InvitationRole)}
-              className="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            >
-              <option value="member">Member</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
+          <inviteForm.AppField name="email">
+            {(field) => (
+              <field.InputField
+                label="Invite Member Email"
+                placeholder="member@example.com"
+                required
+                type="email"
+              />
+            )}
+          </inviteForm.AppField>
+          <inviteForm.AppField name="role">
+            {(field) => (
+              <field.SelectField
+                label="Role"
+                options={[
+                  { label: "Member", value: "member" },
+                  { label: "Admin", value: "admin" },
+                ]}
+                placeholder="Select a role"
+                required
+              />
+            )}
+          </inviteForm.AppField>
           {inviteError ? <p className="text-sm text-destructive">{inviteError}</p> : null}
           {inviteSuccess ? <p className="text-sm text-muted-foreground">{inviteSuccess}</p> : null}
-          <Button type="submit" disabled={isInviting}>
-            {isInviting ? "Inviting..." : "Invite Member"}
-          </Button>
+          <inviteForm.Subscribe
+            selector={(state) => ({ canSubmit: state.canSubmit, isSubmitting: state.isSubmitting })}
+          >
+            {({ canSubmit, isSubmitting }) => (
+              <Button type="submit" disabled={!canSubmit || isSubmitting}>
+                {isSubmitting ? "Inviting..." : "Invite Member"}
+              </Button>
+            )}
+          </inviteForm.Subscribe>
         </form>
         <div className="grid gap-3">
           <h2 className="text-base font-semibold">Pending Invitations</h2>
@@ -411,10 +448,43 @@ function ChurchSwitcher({
   activeChurchName?: string;
 }) {
   const churches = useQuery(api.dashboard.listOrganizations);
-  const [newChurchName, setNewChurchName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pendingChurchId, setPendingChurchId] = useState<string | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
+  const createChurchForm = useAppForm({
+    defaultValues: {
+      name: "",
+    },
+    validationLogic: revalidateLogic({
+      mode: "submit",
+      modeAfterSubmission: "blur",
+    }),
+    validators: {
+      onSubmit: Schema.standardSchemaV1(ChurchNameSchema),
+    },
+    onSubmit: async ({ value, formApi }) => {
+      setError(null);
+
+      const trimmedName = value.name.trim();
+      const slug = churchSlug(trimmedName);
+
+      if (!slug) {
+        setError("Church name must be at least 2 characters.");
+        return;
+      }
+
+      const result = await authClient.organization.create({
+        name: trimmedName,
+        slug,
+      });
+
+      if (result.error) {
+        setError(result.error.message ?? "Could not create Church.");
+        return;
+      }
+
+      formApi.reset();
+    },
+  });
 
   const churchList = churches ?? [];
 
@@ -464,47 +534,27 @@ function ChurchSwitcher({
       </div>
       <form
         className="grid gap-3 border-t pt-4 lg:mt-auto"
-        onSubmit={async (event) => {
+        onSubmit={(event) => {
           event.preventDefault();
-          setError(null);
-
-          const trimmedName = newChurchName.trim();
-          const slug = churchSlug(trimmedName);
-
-          if (trimmedName.length < 2 || !slug) {
-            setError("Church name must be at least 2 characters.");
-            return;
-          }
-
-          setIsCreating(true);
-          const result = await authClient.organization.create({
-            name: trimmedName,
-            slug,
-          });
-          setIsCreating(false);
-
-          if (result.error) {
-            setError(result.error.message ?? "Could not create Church.");
-            return;
-          }
-
-          setNewChurchName("");
+          event.stopPropagation();
+          createChurchForm.handleSubmit();
         }}
       >
-        <div className="grid gap-2">
-          <Label htmlFor="new-church-name">Create Another Church</Label>
-          <Input
-            id="new-church-name"
-            name="newChurchName"
-            value={newChurchName}
-            onChange={(event) => setNewChurchName(event.target.value)}
-            placeholder="Second Church"
-          />
-        </div>
+        <createChurchForm.AppField name="name">
+          {(field) => (
+            <field.InputField label="Create Another Church" placeholder="Second Church" required />
+          )}
+        </createChurchForm.AppField>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        <Button type="submit" disabled={isCreating}>
-          {isCreating ? "Creating Church..." : "Create Church"}
-        </Button>
+        <createChurchForm.Subscribe
+          selector={(state) => ({ canSubmit: state.canSubmit, isSubmitting: state.isSubmitting })}
+        >
+          {({ canSubmit, isSubmitting }) => (
+            <Button type="submit" disabled={!canSubmit || isSubmitting}>
+              {isSubmitting ? "Creating Church..." : "Create Church"}
+            </Button>
+          )}
+        </createChurchForm.Subscribe>
       </form>
     </div>
   );
@@ -513,12 +563,42 @@ function ChurchSwitcher({
 function ChurchOnboardingGate() {
   const activeChurch = useQuery(api.dashboard.getActiveOrganization);
   const hasActiveChurch = Boolean(activeChurch);
-  const [churchName, setChurchName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [invitationError, setInvitationError] = useState<string | null>(null);
   const pendingInvitations = useQuery(api.dashboard.listUserInvitations);
   const [acceptingInvitationId, setAcceptingInvitationId] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const firstChurchForm = useAppForm({
+    defaultValues: {
+      name: "",
+    },
+    validationLogic: revalidateLogic({
+      mode: "submit",
+      modeAfterSubmission: "blur",
+    }),
+    validators: {
+      onSubmit: Schema.standardSchemaV1(ChurchNameSchema),
+    },
+    onSubmit: async ({ value }) => {
+      setError(null);
+
+      const trimmedName = value.name.trim();
+      const slug = churchSlug(trimmedName);
+
+      if (!slug) {
+        setError("Church name must be at least 2 characters.");
+        return;
+      }
+
+      const result = await authClient.organization.create({
+        name: trimmedName,
+        slug,
+      });
+
+      if (result.error) {
+        setError(result.error.message ?? "Could not create Church.");
+      }
+    },
+  });
 
   if (activeChurch === undefined) {
     return <div>Loading Church...</div>;
@@ -603,44 +683,34 @@ function ChurchOnboardingGate() {
           ) : null}
           <form
             className="flex flex-col gap-4"
-            onSubmit={async (event) => {
+            onSubmit={(event) => {
               event.preventDefault();
-              setError(null);
-
-              const trimmedName = churchName.trim();
-              const slug = churchSlug(trimmedName);
-
-              if (trimmedName.length < 2 || !slug) {
-                setError("Church name must be at least 2 characters.");
-                return;
-              }
-
-              setIsSubmitting(true);
-              const result = await authClient.organization.create({
-                name: trimmedName,
-                slug,
-              });
-              setIsSubmitting(false);
-
-              if (result.error) {
-                setError(result.error.message ?? "Could not create Church.");
-              }
+              event.stopPropagation();
+              firstChurchForm.handleSubmit();
             }}
           >
-            <div className="grid gap-2">
-              <Label htmlFor="church-name">Church Name</Label>
-              <Input
-                id="church-name"
-                name="churchName"
-                value={churchName}
-                onChange={(event) => setChurchName(event.target.value)}
-                placeholder="Grace Community Church"
-              />
-            </div>
+            <firstChurchForm.AppField name="name">
+              {(field) => (
+                <field.InputField
+                  label="Church Name"
+                  placeholder="Grace Community Church"
+                  required
+                />
+              )}
+            </firstChurchForm.AppField>
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Creating Church..." : "Create Church"}
-            </Button>
+            <firstChurchForm.Subscribe
+              selector={(state) => ({
+                canSubmit: state.canSubmit,
+                isSubmitting: state.isSubmitting,
+              })}
+            >
+              {({ canSubmit, isSubmitting }) => (
+                <Button type="submit" disabled={!canSubmit || isSubmitting}>
+                  {isSubmitting ? "Creating Church..." : "Create Church"}
+                </Button>
+              )}
+            </firstChurchForm.Subscribe>
           </form>
         </CardContent>
       </Card>
