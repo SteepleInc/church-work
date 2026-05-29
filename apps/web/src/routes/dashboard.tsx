@@ -9,7 +9,7 @@ import { QueryResult, useQuery as useConfectQuery } from "@confect/react";
 import { CheckoutLink, CustomerPortalLink } from "@convex-dev/polar/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Authenticated, AuthLoading, Unauthenticated, useQuery } from "convex/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import SignInForm from "@/components/sign-in-form";
 import SignUpForm from "@/components/sign-up-form";
@@ -95,6 +95,10 @@ type PendingInvitation = {
   email: string;
   role: string | string[];
   status: string;
+};
+
+type UserInvitation = PendingInvitation & {
+  organizationName: string;
 };
 
 function invitationRoleLabel(role: string | string[]) {
@@ -326,7 +330,44 @@ function ChurchOnboardingGate() {
   const activeChurch = authClient.useActiveOrganization();
   const [churchName, setChurchName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [invitationError, setInvitationError] = useState<string | null>(null);
+  const [pendingInvitations, setPendingInvitations] = useState<UserInvitation[]>([]);
+  const [isLoadingInvitations, setIsLoadingInvitations] = useState(false);
+  const [acceptingInvitationId, setAcceptingInvitationId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (activeChurch.isPending || activeChurch.data) {
+      return;
+    }
+
+    let ignore = false;
+
+    async function loadInvitations() {
+      setIsLoadingInvitations(true);
+      setInvitationError(null);
+      const result = await authClient.organization.listUserInvitations({});
+
+      if (ignore) {
+        return;
+      }
+
+      setIsLoadingInvitations(false);
+
+      if (result.error) {
+        setInvitationError(result.error.message ?? "Could not load Church Invitations.");
+        return;
+      }
+
+      setPendingInvitations(result.data ?? []);
+    }
+
+    void loadInvitations();
+
+    return () => {
+      ignore = true;
+    };
+  }, [activeChurch.data, activeChurch.isPending]);
 
   if (activeChurch.isPending) {
     return <div>Loading Church...</div>;
@@ -334,6 +375,72 @@ function ChurchOnboardingGate() {
 
   if (activeChurch.data) {
     return <PrivateDashboardContent />;
+  }
+
+  if (isLoadingInvitations) {
+    return <div>Loading Church Invitations...</div>;
+  }
+
+  if (pendingInvitations.length > 0) {
+    return (
+      <main className="mx-auto flex w-full max-w-2xl flex-col justify-center p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Accept Church Invitation</CardTitle>
+            <CardDescription>
+              You have pending Church Invitations. Join one before creating a new Church.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            {invitationError ? <p className="text-sm text-destructive">{invitationError}</p> : null}
+            {pendingInvitations.map((invitation) => {
+              const isAccepting = acceptingInvitationId === invitation.id;
+
+              return (
+                <div
+                  key={invitation.id}
+                  className="flex items-center justify-between gap-4 rounded-lg border p-4"
+                >
+                  <div>
+                    <p className="font-medium">{invitation.organizationName}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Role: {invitationRoleLabel(invitation.role)}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    disabled={isAccepting}
+                    onClick={async () => {
+                      setInvitationError(null);
+                      setAcceptingInvitationId(invitation.id);
+                      const result = await authClient.organization.acceptInvitation({
+                        invitationId: invitation.id,
+                      });
+                      setAcceptingInvitationId(null);
+
+                      if (result.error) {
+                        setInvitationError(
+                          result.error.message ?? "Could not accept Church Invitation.",
+                        );
+                        return;
+                      }
+
+                      setPendingInvitations((currentInvitations) =>
+                        currentInvitations.filter(
+                          (currentInvitation) => currentInvitation.id !== invitation.id,
+                        ),
+                      );
+                    }}
+                  >
+                    {isAccepting ? "Accepting..." : "Accept Invitation"}
+                  </Button>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      </main>
+    );
   }
 
   return (
@@ -346,6 +453,9 @@ function ChurchOnboardingGate() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {invitationError ? (
+            <p className="mb-4 text-sm text-destructive">{invitationError}</p>
+          ) : null}
           <form
             className="flex flex-col gap-4"
             onSubmit={async (event) => {

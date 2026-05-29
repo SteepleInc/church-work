@@ -47,6 +47,7 @@ export function createAuth(ctx: GenericCtx<DataModel>) {
       bearer(),
       mcp({ loginPage: "/" }),
       organization({
+        requireEmailVerificationOnInvitation: false,
         teams: { enabled: false },
       }),
       crossDomain({ siteUrl }),

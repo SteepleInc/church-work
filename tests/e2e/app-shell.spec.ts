@@ -12,6 +12,22 @@ async function signUpThroughDashboard(page: Page, email: string, name = "E2E Sig
   await expect(page.getByRole("heading", { name: "Create Your First Church" })).toBeVisible();
 }
 
+async function signUpThroughDashboardToInvitation(
+  page: Page,
+  email: string,
+  name = "E2E Invited User",
+) {
+  await page.goto("/dashboard");
+
+  await page.getByLabel("Name").fill(name);
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill("E2ePassword123!");
+  await page.getByRole("button", { name: "Sign Up" }).click();
+
+  await expect(page).toHaveURL("/dashboard");
+  await expect(page.getByRole("heading", { name: "Accept Church Invitation" })).toBeVisible();
+}
+
 async function createFirstChurch(page: Page, churchName: string) {
   await page.getByLabel("Church Name").fill(churchName);
   await page.getByRole("button", { name: "Create Church" }).click();
@@ -152,6 +168,35 @@ test("active Church shell invites members and shows pending invitations", async 
   await expect(page.getByText(`Invitation sent to ${inviteeEmail}.`)).toBeVisible();
   await expect(page.getByText(inviteeEmail)).toBeVisible();
   await expect(page.getByText("admin")).toBeVisible();
+});
+
+test("invited user accepts pending Church Invitation before creating a Church", async ({
+  page,
+}, testInfo) => {
+  const inviterEmail = `e2e-invite-owner-${Date.now()}-${testInfo.workerIndex}@example.com`;
+  const inviteeEmail = `e2e-invite-accept-${Date.now()}-${testInfo.workerIndex}@example.com`;
+  const churchName = `E2E Accepted Church ${Date.now()}`;
+
+  await signUpThroughDashboard(page, inviterEmail);
+  await createFirstChurch(page, churchName);
+
+  await page.getByLabel("Invite Member Email").fill(inviteeEmail);
+  await page.getByRole("button", { name: "Invite Member" }).click();
+  await expect(page.getByText(`Invitation sent to ${inviteeEmail}.`)).toBeVisible();
+
+  await page.getByRole("button", { name: "E2E Signup User" }).click();
+  await page.getByRole("menuitem", { name: "Sign Out" }).click();
+  await expect(page.getByRole("heading", { name: "Create Account" })).toBeVisible();
+
+  await signUpThroughDashboardToInvitation(page, inviteeEmail);
+
+  await expect(page.getByText(churchName)).toBeVisible();
+  await expect(page.getByText("Role: member")).toBeVisible();
+
+  await page.getByRole("button", { name: "Accept Invitation" }).click();
+
+  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  await expect(page.getByText(`Active Church: ${churchName}`)).toBeVisible();
 });
 
 test("authenticated user menu shows account details and signs out", async ({ page }, testInfo) => {
