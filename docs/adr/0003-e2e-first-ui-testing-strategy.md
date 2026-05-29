@@ -1,0 +1,3 @@
+# E2E-first UI testing strategy
+
+Church Task will test product UI behavior primarily through Playwright workflow tests against the real Vite app and an isolated local Convex backend, because the product needs confidence in authenticated workflows such as onboarding and task creation more than confidence in isolated component rendering. Pure React component tests are not part of the default strategy; backend invariants, authorization rules, and data edge cases are tested separately with Vitest, convex-test, and a Confect/Effect test helper. E2E tests may use one real signup/login smoke path, but most authenticated workflow tests should start from backend-supported Better Auth session seeding and Convex-hosted, environment-gated E2E seed/reset helpers.

@@ -4,6 +4,8 @@ This document lists the first high-level PRDs for Church Task. Each entry is int
 
 ## 1. Church Onboarding and Membership
 
+Status: Speced in [GitHub issue #1](https://github.com/SteepleInc/church-task/issues/1), with implementation slices in child issues #2-#10.
+
 Church Onboarding and Membership lets a new User create their first Church, accept a Church Invitation after authentication, and become productive only after they have a Church Membership. It models each Church as the top-level tenant with `owner`, `admin`, and `member` Roles, supports Users belonging to multiple Churches, and lets them choose their Active Church from the primary app navigation. It includes inviting members, accepting invitations, switching Churches, and creating another Church from the Church switcher; it does not include Teams, task assignment, billing rules, or custom church-specific Roles.
 
 ## 2. Core Work Data Model
