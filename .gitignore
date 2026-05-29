@@ -10,6 +10,7 @@ build
 
 # Environment variables
 .env
+.env.e2e
 .env*.local
 
 # IDEs and editors
@@ -43,6 +44,8 @@ lerna-debug.log*
 # Testing
 coverage
 .nyc_output
+playwright-report
+test-results
 
 # Misc
 *.tgz

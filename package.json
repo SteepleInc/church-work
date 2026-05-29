@@ -36,6 +36,7 @@
     "dev:server": "turbo -F @church-task/backend dev",
     "dev:setup": "turbo -F @church-task/backend dev:setup",
     "test:backend": "turbo -F @church-task/backend test:backend",
+    "test:e2e": "playwright test",
     "check": "oxlint && oxfmt --write"
   },
   "dependencies": {
@@ -45,6 +46,7 @@
   },
   "devDependencies": {
     "@church-task/config": "workspace:*",
+    "@playwright/test": "^1.60.0",
     "oxfmt": "^0.46.0",
     "oxlint": "^1.61.0",
     "turbo": "^2.8.12",
