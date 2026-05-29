@@ -7,6 +7,7 @@ import { bearer, mcp, organization } from "better-auth/plugins";
 import { components } from "./convex/_generated/api";
 import type { DataModel } from "./convex/_generated/dataModel";
 import authConfig from "./convex/auth.config";
+import { sendChurchInvitationEmail } from "./churchInvitationEmail";
 
 const siteUrl = process.env.SITE_URL!;
 const trustedOrigins = [
@@ -48,6 +49,13 @@ export function createAuth(ctx: GenericCtx<DataModel>) {
       mcp({ loginPage: "/" }),
       organization({
         requireEmailVerificationOnInvitation: false,
+        sendInvitationEmail: (data) =>
+          sendChurchInvitationEmail(data, {
+            apiKey: process.env.RESEND_API_KEY,
+            from: process.env.CHURCH_INVITATION_EMAIL_FROM,
+            siteUrl,
+            fetch,
+          }),
         teams: { enabled: false },
       }),
       crossDomain({ siteUrl }),
