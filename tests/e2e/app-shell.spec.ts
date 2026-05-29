@@ -64,3 +64,18 @@ test("signup shows validation errors for invalid values", async ({ page }) => {
   await expect(page.getByText("Invalid email address")).toBeVisible();
   await expect(page.getByText("Password must be at least 8 characters")).toBeVisible();
 });
+
+test("signup reaches the authenticated dashboard with private data", async ({ page }, testInfo) => {
+  const uniqueEmail = `e2e-signup-${Date.now()}-${testInfo.workerIndex}@example.com`;
+
+  await page.goto("/dashboard");
+
+  await page.getByLabel("Name").fill("E2E Signup User");
+  await page.getByLabel("Email").fill(uniqueEmail);
+  await page.getByLabel("Password").fill("E2ePassword123!");
+  await page.getByRole("button", { name: "Sign Up" }).click();
+
+  await expect(page).toHaveURL("/dashboard");
+  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  await expect(page.getByText("privateData: This is private")).toBeVisible();
+});
