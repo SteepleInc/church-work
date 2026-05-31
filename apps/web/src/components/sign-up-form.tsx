@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAppForm } from "@/components/form/ts-form";
 import { revalidateLogic } from "@tanstack/react-form";
 import { useNavigate } from "@tanstack/react-router";
@@ -63,54 +64,55 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
 
   return (
     <div className="mx-auto w-full mt-10 max-w-md p-6">
-      <h1 className="mb-6 text-center text-3xl font-bold">Create Account</h1>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-center text-3xl">Create Account</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              form.handleSubmit();
+            }}
+            className="space-y-4"
+          >
+            <form.AppField name="name">
+              {(field) => <field.InputField label="Name" required />}
+            </form.AppField>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          form.handleSubmit();
-        }}
-        className="space-y-4"
-      >
-        <div>
-          <form.AppField name="name">
-            {(field) => <field.InputField label="Name" required />}
-          </form.AppField>
-        </div>
+            <form.AppField name="email">
+              {(field) => <field.InputField label="Email" required type="email" />}
+            </form.AppField>
 
-        <div>
-          <form.AppField name="email">
-            {(field) => <field.InputField label="Email" required type="email" />}
-          </form.AppField>
-        </div>
+            <form.AppField name="password">
+              {(field) => <field.InputField label="Password" required type="password" />}
+            </form.AppField>
 
-        <div>
-          <form.AppField name="password">
-            {(field) => <field.InputField label="Password" required type="password" />}
-          </form.AppField>
-        </div>
-
-        <form.Subscribe
-          selector={(state) => ({ canSubmit: state.canSubmit, isSubmitting: state.isSubmitting })}
-        >
-          {({ canSubmit, isSubmitting }) => (
-            <Button type="submit" className="w-full" disabled={!canSubmit || isSubmitting}>
-              {isSubmitting ? "Submitting..." : "Sign Up"}
-            </Button>
-          )}
-        </form.Subscribe>
-      </form>
-
-      <div className="mt-4 text-center">
-        <Button
-          variant="link"
-          onClick={onSwitchToSignIn}
-          className="text-indigo-600 hover:text-indigo-800"
-        >
-          Already have an account? Sign In
-        </Button>
-      </div>
+            <form.Subscribe
+              selector={(state) => ({
+                canSubmit: state.canSubmit,
+                isSubmitting: state.isSubmitting,
+              })}
+            >
+              {({ canSubmit, isSubmitting }) => (
+                <Button type="submit" className="w-full" disabled={!canSubmit || isSubmitting}>
+                  {isSubmitting ? "Submitting..." : "Sign Up"}
+                </Button>
+              )}
+            </form.Subscribe>
+          </form>
+        </CardContent>
+        <CardFooter className="justify-center">
+          <Button
+            variant="link"
+            onClick={onSwitchToSignIn}
+            className="text-indigo-600 hover:text-indigo-800"
+          >
+            Already have an account? Sign In
+          </Button>
+        </CardFooter>
+      </Card>
     </div>
   );
 }

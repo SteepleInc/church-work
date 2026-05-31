@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 
 import { ModeToggle } from "./mode-toggle";
+import { Separator } from "./ui/separator";
 
 export default function Header() {
   const links = [
@@ -24,7 +25,7 @@ export default function Header() {
           <ModeToggle />
         </div>
       </div>
-      <hr />
+      <Separator />
     </div>
   );
 }

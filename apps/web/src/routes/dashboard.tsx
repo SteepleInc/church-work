@@ -3,7 +3,17 @@ import refs from "@church-task/backend/confect/_generated/refs";
 import { useAppForm } from "@/components/form/ts-form";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemTitle,
+} from "@/components/ui/item";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -12,6 +22,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarSeparator,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 import { QueryResult, useQuery as useConfectQuery } from "@confect/react";
 import { CheckoutLink, CustomerPortalLink } from "@convex-dev/polar/react";
 import { revalidateLogic } from "@tanstack/react-form";
@@ -41,71 +67,86 @@ function PrivateDashboardContent() {
   const hasActiveSubscription = Boolean(subscription);
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] flex-col bg-muted/30 lg:flex-row">
-      <aside className="border-b bg-background p-4 lg:w-80 lg:border-b-0 lg:border-r">
-        <ChurchSwitcher
-          activeChurchId={activeChurch?.id ?? null}
-          activeChurchName={activeChurch?.name}
-        />
-      </aside>
-      <main className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
-        <div className="flex flex-col gap-4 rounded-xl border bg-background p-4 shadow-xs sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">Church Task</p>
-            <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-            {activeChurch ? (
-              <p className="text-sm text-muted-foreground">Active Church: {activeChurch.name}</p>
-            ) : null}
+    <SidebarProvider className="min-h-[calc(100vh-4rem)] bg-muted/30">
+      <Sidebar className="top-16 h-[calc(100svh-4rem)]" collapsible="offcanvas">
+        <SidebarHeader>
+          <div className="px-2 py-1">
+            <p className="text-sm font-semibold">Church Task</p>
+            <p className="text-xs text-muted-foreground">Church workspace</p>
           </div>
-          <UserMenu />
-        </div>
-        <section className="grid gap-4 rounded-xl border bg-background p-4 shadow-xs">
-          <div>
-            <h2 className="text-base font-semibold">Church Home</h2>
-            <p className="text-sm text-muted-foreground">
-              privateData:{" "}
-              {QueryResult.isSuccess(privateData) ? privateData.value.message : "Loading..."}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Plan: {hasActiveSubscription ? "Active" : "Free"}
-            </p>
+        </SidebarHeader>
+        <SidebarContent>
+          <ChurchSwitcher
+            activeChurchId={activeChurch?.id ?? null}
+            activeChurchName={activeChurch?.name}
+          />
+        </SidebarContent>
+      </Sidebar>
+      <SidebarInset className="bg-muted/30">
+        <main className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
+          <div className="flex flex-col gap-4 rounded-xl border bg-background p-4 shadow-xs sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-start gap-3">
+              <SidebarTrigger className="mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Church Task</p>
+                <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+                {activeChurch ? (
+                  <p className="text-sm text-muted-foreground">
+                    Active Church: {activeChurch.name}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+            <UserMenu />
           </div>
-          {subscription === undefined ? (
-            <p className="text-sm text-muted-foreground">Loading subscription options...</p>
-          ) : hasActiveSubscription ? (
-            <CustomerPortalLink
-              polarApi={api.polar}
-              className={buttonVariants({ variant: "outline" })}
-            >
-              Manage Subscription
-            </CustomerPortalLink>
-          ) : products === undefined ? (
-            <p className="text-sm text-muted-foreground">Loading subscription options...</p>
-          ) : product ? (
-            <CheckoutLink
-              polarApi={api.polar}
-              productIds={[product.id]}
-              embed={false}
-              className={buttonVariants({ variant: "default" })}
-            >
-              Upgrade
-            </CheckoutLink>
-          ) : (
-            <p className="text-sm text-muted-foreground">No recurring plans available.</p>
-          )}
-        </section>
-        <ActiveChurchInvitationPrompt />
-        {activeChurch ? (
-          <>
-            <ChurchMembersPanel activeChurchId={activeChurch.id} />
-            <ChurchInvitationPanel
-              activeChurchId={activeChurch.id}
-              pendingInvitations={pendingInvitations}
-            />
-          </>
-        ) : null}
-      </main>
-    </div>
+          <section className="grid gap-4 rounded-xl border bg-background p-4 shadow-xs">
+            <div>
+              <h2 className="text-base font-semibold">Church Home</h2>
+              <p className="text-sm text-muted-foreground">
+                privateData:{" "}
+                {QueryResult.isSuccess(privateData) ? privateData.value.message : "Loading..."}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Plan: {hasActiveSubscription ? "Active" : "Free"}
+              </p>
+            </div>
+            {subscription === undefined ? (
+              <p className="text-sm text-muted-foreground">Loading subscription options...</p>
+            ) : hasActiveSubscription ? (
+              <CustomerPortalLink
+                polarApi={api.polar}
+                className={buttonVariants({ variant: "outline" })}
+              >
+                Manage Subscription
+              </CustomerPortalLink>
+            ) : products === undefined ? (
+              <p className="text-sm text-muted-foreground">Loading subscription options...</p>
+            ) : product ? (
+              <CheckoutLink
+                polarApi={api.polar}
+                productIds={[product.id]}
+                embed={false}
+                className={buttonVariants({ variant: "default" })}
+              >
+                Upgrade
+              </CheckoutLink>
+            ) : (
+              <p className="text-sm text-muted-foreground">No recurring plans available.</p>
+            )}
+          </section>
+          <ActiveChurchInvitationPrompt />
+          {activeChurch ? (
+            <>
+              <ChurchMembersPanel activeChurchId={activeChurch.id} />
+              <ChurchInvitationPanel
+                activeChurchId={activeChurch.id}
+                pendingInvitations={pendingInvitations}
+              />
+            </>
+          ) : null}
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }
 
@@ -128,21 +169,20 @@ function ActiveChurchInvitationPrompt() {
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
         {pendingInvitations.map((invitation) => {
           const isAccepting = acceptingInvitationId === invitation.id;
 
           return (
-            <div
-              key={invitation.id}
-              className="flex items-center justify-between gap-4 rounded-lg border p-4"
-            >
-              <div>
-                <p className="font-medium">{invitation.organizationName}</p>
-                <p className="text-sm text-muted-foreground">
-                  Role: {invitationRoleLabel(invitation.role)}
-                </p>
-              </div>
+            <Item key={invitation.id} variant="outline">
+              <ItemContent>
+                <ItemTitle>{invitation.organizationName}</ItemTitle>
+                <ItemDescription>Role: {invitationRoleLabel(invitation.role)}</ItemDescription>
+              </ItemContent>
               <Button
                 type="button"
                 disabled={isAccepting}
@@ -162,7 +202,7 @@ function ActiveChurchInvitationPrompt() {
               >
                 {isAccepting ? "Accepting..." : "Accept Invitation"}
               </Button>
-            </div>
+            </Item>
           );
         })}
       </CardContent>
@@ -219,8 +259,16 @@ function ChurchMembersPanel({ activeChurchId }: { activeChurchId: string }) {
         {members === undefined ? (
           <p className="text-sm text-muted-foreground">Loading Church Members...</p>
         ) : null}
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        {success ? <p className="text-sm text-muted-foreground">{success}</p> : null}
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+        {success ? (
+          <Alert>
+            <AlertDescription>{success}</AlertDescription>
+          </Alert>
+        ) : null}
         {members !== undefined && !error && members.length === 0 ? (
           <p className="text-sm text-muted-foreground">No Church Members found.</p>
         ) : null}
@@ -231,18 +279,17 @@ function ChurchMembersPanel({ activeChurchId }: { activeChurchId: string }) {
           const isRemoving = removingMemberId === member.id;
 
           return (
-            <div
-              key={member.id}
-              className="grid gap-3 rounded-lg border p-3 md:grid-cols-[1fr_auto] md:items-center"
-            >
-              <div>
-                <p className="font-medium">{member.user.name ?? "Unnamed member"}</p>
-                <p className="text-sm text-muted-foreground">{member.user.email ?? "No email"}</p>
-              </div>
+            <Item key={member.id} variant="outline">
+              <ItemContent>
+                <ItemTitle>{member.user.name ?? "Unnamed member"}</ItemTitle>
+                <ItemDescription>{member.user.email ?? "No email"}</ItemDescription>
+              </ItemContent>
               {isOwner ? (
-                <span className="text-sm capitalize text-muted-foreground">{roleLabel}</span>
+                <Badge variant="secondary" className="capitalize">
+                  {roleLabel}
+                </Badge>
               ) : (
-                <div className="flex flex-wrap items-center gap-2">
+                <ItemActions className="flex-wrap">
                   <Label className="sr-only" htmlFor={`member-role-${member.id}`}>
                     Role for {member.user.email ?? member.user.name ?? "Church member"}
                   </Label>
@@ -302,9 +349,9 @@ function ChurchMembersPanel({ activeChurchId }: { activeChurchId: string }) {
                   >
                     {isRemoving ? "Removing..." : "Remove"}
                   </Button>
-                </div>
+                </ItemActions>
               )}
-            </div>
+            </Item>
           );
         })}
       </CardContent>
@@ -394,8 +441,16 @@ function ChurchInvitationPanel({
               />
             )}
           </inviteForm.AppField>
-          {inviteError ? <p className="text-sm text-destructive">{inviteError}</p> : null}
-          {inviteSuccess ? <p className="text-sm text-muted-foreground">{inviteSuccess}</p> : null}
+          {inviteError ? (
+            <Alert variant="destructive">
+              <AlertDescription>{inviteError}</AlertDescription>
+            </Alert>
+          ) : null}
+          {inviteSuccess ? (
+            <Alert>
+              <AlertDescription>{inviteSuccess}</AlertDescription>
+            </Alert>
+          ) : null}
           <inviteForm.Subscribe
             selector={(state) => ({ canSubmit: state.canSubmit, isSubmitting: state.isSubmitting })}
           >
@@ -409,19 +464,18 @@ function ChurchInvitationPanel({
         <div className="grid gap-3">
           <h2 className="text-base font-semibold">Pending Invitations</h2>
           {pendingInvitations.length > 0 ? (
-            <div className="grid gap-2">
+            <ItemGroup className="gap-2">
               {pendingInvitations.map((invitation) => (
-                <div
-                  key={invitation.id}
-                  className="flex items-center justify-between gap-4 rounded-lg border p-3"
-                >
-                  <span>{invitation.email}</span>
-                  <span className="text-sm capitalize text-muted-foreground">
+                <Item key={invitation.id} variant="outline">
+                  <ItemContent>
+                    <ItemTitle>{invitation.email}</ItemTitle>
+                  </ItemContent>
+                  <Badge variant="outline" className="capitalize">
                     {invitationRoleLabel(invitation.role)}
-                  </span>
-                </div>
+                  </Badge>
+                </Item>
               ))}
-            </div>
+            </ItemGroup>
           ) : (
             <p className="text-sm text-muted-foreground">No pending invitations.</p>
           )}
@@ -489,74 +543,91 @@ function ChurchSwitcher({
   const churchList = churches ?? [];
 
   return (
-    <div className="flex h-full flex-col gap-6">
-      <div className="rounded-xl border bg-muted/30 p-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Active Church
-        </p>
-        <p className="mt-1 text-lg font-semibold leading-tight">
-          {activeChurchName ?? "Loading..."}
-        </p>
-      </div>
-      <div className="grid gap-2">
-        <p className="text-sm font-medium">Switch Church</p>
-        {churches === undefined ? (
-          <p className="text-sm text-muted-foreground">Loading Churches...</p>
-        ) : null}
-        {churchList.map((church) => {
-          const isActive = church.id === activeChurchId;
-          const isPending = pendingChurchId === church.id;
+    <>
+      <SidebarGroup>
+        <SidebarGroupLabel>Active Church</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <Item variant="muted">
+            <ItemContent>
+              <ItemTitle>{activeChurchName ?? "Loading..."}</ItemTitle>
+            </ItemContent>
+          </Item>
+        </SidebarGroupContent>
+      </SidebarGroup>
+      <SidebarGroup>
+        <SidebarGroupLabel>Switch Church</SidebarGroupLabel>
+        <SidebarGroupContent>
+          {churches === undefined ? (
+            <p className="text-sm text-muted-foreground">Loading Churches...</p>
+          ) : null}
+          <SidebarMenu>
+            {churchList.map((church) => {
+              const isActive = church.id === activeChurchId;
+              const isPending = pendingChurchId === church.id;
 
-          return (
-            <Button
-              key={church.id}
-              type="button"
-              variant={isActive ? "secondary" : "ghost"}
-              className="justify-start"
-              disabled={isActive || isPending}
-              onClick={async () => {
-                setError(null);
-                setPendingChurchId(church.id);
-                const result = await authClient.organization.setActive({
-                  organizationId: church.id,
-                });
-                setPendingChurchId(null);
+              return (
+                <SidebarMenuItem key={church.id}>
+                  <SidebarMenuButton
+                    type="button"
+                    isActive={isActive}
+                    disabled={isActive || isPending}
+                    onClick={async () => {
+                      setError(null);
+                      setPendingChurchId(church.id);
+                      const result = await authClient.organization.setActive({
+                        organizationId: church.id,
+                      });
+                      setPendingChurchId(null);
 
-                if (result.error) {
-                  setError(result.error.message ?? "Could not switch Church.");
-                }
-              }}
-            >
-              {isPending ? "Switching..." : church.name}
-            </Button>
-          );
-        })}
-      </div>
-      <form
-        className="grid gap-3 border-t pt-4 lg:mt-auto"
-        onSubmit={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          createChurchForm.handleSubmit();
-        }}
-      >
-        <createChurchForm.AppField name="name">
-          {(field) => (
-            <field.InputField label="Create Another Church" placeholder="Second Church" required />
-          )}
-        </createChurchForm.AppField>
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        <createChurchForm.Subscribe
-          selector={(state) => ({ canSubmit: state.canSubmit, isSubmitting: state.isSubmitting })}
+                      if (result.error) {
+                        setError(result.error.message ?? "Could not switch Church.");
+                      }
+                    }}
+                  >
+                    <span>{isPending ? "Switching..." : church.name}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+      <SidebarSeparator />
+      <SidebarFooter>
+        <form
+          className="grid gap-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            createChurchForm.handleSubmit();
+          }}
         >
-          {({ canSubmit, isSubmitting }) => (
-            <Button type="submit" disabled={!canSubmit || isSubmitting}>
-              {isSubmitting ? "Creating Church..." : "Create Church"}
-            </Button>
-          )}
-        </createChurchForm.Subscribe>
-      </form>
-    </div>
+          <createChurchForm.AppField name="name">
+            {(field) => (
+              <field.InputField
+                label="Create Another Church"
+                placeholder="Second Church"
+                required
+              />
+            )}
+          </createChurchForm.AppField>
+          {error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null}
+          <createChurchForm.Subscribe
+            selector={(state) => ({ canSubmit: state.canSubmit, isSubmitting: state.isSubmitting })}
+          >
+            {({ canSubmit, isSubmitting }) => (
+              <Button type="submit" disabled={!canSubmit || isSubmitting}>
+                {isSubmitting ? "Creating Church..." : "Create Church"}
+              </Button>
+            )}
+          </createChurchForm.Subscribe>
+        </form>
+      </SidebarFooter>
+    </>
   );
 }
 
@@ -623,21 +694,20 @@ function ChurchOnboardingGate() {
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
-            {invitationError ? <p className="text-sm text-destructive">{invitationError}</p> : null}
+            {invitationError ? (
+              <Alert variant="destructive">
+                <AlertDescription>{invitationError}</AlertDescription>
+              </Alert>
+            ) : null}
             {pendingInvitations.map((invitation) => {
               const isAccepting = acceptingInvitationId === invitation.id;
 
               return (
-                <div
-                  key={invitation.id}
-                  className="flex items-center justify-between gap-4 rounded-lg border p-4"
-                >
-                  <div>
-                    <p className="font-medium">{invitation.organizationName}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Role: {invitationRoleLabel(invitation.role)}
-                    </p>
-                  </div>
+                <Item key={invitation.id} variant="outline">
+                  <ItemContent>
+                    <ItemTitle>{invitation.organizationName}</ItemTitle>
+                    <ItemDescription>Role: {invitationRoleLabel(invitation.role)}</ItemDescription>
+                  </ItemContent>
                   <Button
                     type="button"
                     disabled={isAccepting}
@@ -659,7 +729,7 @@ function ChurchOnboardingGate() {
                   >
                     {isAccepting ? "Accepting..." : "Accept Invitation"}
                   </Button>
-                </div>
+                </Item>
               );
             })}
           </CardContent>
@@ -679,7 +749,9 @@ function ChurchOnboardingGate() {
         </CardHeader>
         <CardContent>
           {invitationError ? (
-            <p className="mb-4 text-sm text-destructive">{invitationError}</p>
+            <Alert variant="destructive" className="mb-4">
+              <AlertDescription>{invitationError}</AlertDescription>
+            </Alert>
           ) : null}
           <form
             className="flex flex-col gap-4"
@@ -698,7 +770,11 @@ function ChurchOnboardingGate() {
                 />
               )}
             </firstChurchForm.AppField>
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+            {error ? (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
             <firstChurchForm.Subscribe
               selector={(state) => ({
                 canSubmit: state.canSubmit,
