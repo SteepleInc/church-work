@@ -1,0 +1,3 @@
+# Local date and UTC instant time model
+
+Church Task will model church-calendar concepts local-date-first while storing UTC instants for clock comparisons and scheduled jobs. A Cycle is identified by the Church-local Monday `startDate` it represents, while `startsAt` and `endsAt` store the UTC instants derived from the Church Time Zone; this keeps user-facing week identity stable even if a Church changes time zone later. Schema fields that pair local dates with UTC instants should include comments explaining which value is the calendar identity and which value is the clock boundary, because Church Task expects recurring time and planning behavior to be a frequent source of bugs.

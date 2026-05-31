@@ -12,6 +12,10 @@ _Avoid_: Planning Center clone, Trello clone
 The top-level tenant in Church Task, presented to users as the church they belong to. In code and technical integrations this same concept may be called an Org.
 _Avoid_: Workspace, account
 
+**Church Time Zone**:
+The local time zone used to determine a Church's weekly Cycle boundaries. It is collected during Church onboarding and may be changed by an owner or admin.
+_Avoid_: User time zone, browser time zone
+
 **Org**:
 The technical synonym for Church used in code, authentication, and internal implementation language. It should not replace Church in user-facing domain language.
 _Avoid_: Organization as a user-facing label
@@ -29,7 +33,7 @@ A repeating rhythm that causes church work to recur, such as weekly, monthly, or
 _Avoid_: Cycle, schedule pattern
 
 **Cycle**:
-The weekly planning surface for work in a specific week, including past, current, and future weeks. Every Task belongs to one Cycle; monthly, quarterly, yearly, and weekly template work flows into the relevant Cycle, and a Cycle may also include one-off work or week-specific adjustments.
+The Monday-to-Sunday weekly planning surface for work in a specific Church week, using the Church Time Zone. Every Task belongs to one Cycle; monthly, quarterly, yearly, and weekly template work flows into the relevant Cycle, and a Cycle may also include one-off work or week-specific adjustments.
 _Avoid_: Sprint, task run, occurrence
 
 **Cycle Adjustment**:
@@ -69,7 +73,7 @@ A unit of church work inside a Cycle that can be assigned, scheduled, tracked, a
 _Avoid_: Card when referring to the domain concept; one-off task, manual task
 
 **Subtask**:
-A Task that belongs to a parent Task. A Subtask may be presented in a checklist-like style, but its defining relationship is that it is subordinate to another Task; parent Task completion is independent from Subtask completion.
+A Task that belongs to a parent Task. A Subtask may belong to a different Cycle than its parent Task; parent Task completion is independent from Subtask completion.
 _Avoid_: Checklist item
 
 **Due Date**:
