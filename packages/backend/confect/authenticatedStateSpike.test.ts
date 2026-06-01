@@ -647,6 +647,178 @@ describe("Better Auth authenticated state spike", () => {
       }).pipe(Effect.provide(TestConfect.layer())),
   );
 
+  it.effect("Task execution smoke path shares MCP and public Confect semantics", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `task-execution-smoke-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const owner = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: owner.token!,
+        name: "Task Execution Smoke Church",
+        slug: `task-execution-smoke-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: owner.user!.id!,
+        sessionToken: owner.token!,
+      });
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
+        churchId: church.id!,
+      });
+      const defaultWorkflow = defaults.data.workflows.find((candidate) => candidate.isDefault)!;
+      const todoStatus = defaults.data.workflowStatuses.find(
+        (status) => status.workflowId === defaultWorkflow.id && status.taskState === "todo",
+      )!;
+      const doingStatus = defaults.data.workflowStatuses.find(
+        (status) => status.workflowId === defaultWorkflow.id && status.taskState === "in_progress",
+      )!;
+      const postTool = (toolPath: string, body: Record<string, unknown>) =>
+        c.fetch(`/api/mcp/tools/${toolPath}`, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${owner.token}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify(body),
+        });
+
+      const createAssignedResponse = yield* postTool("create-task", {
+        churchId: church.id!,
+        title: "Cross-surface assigned Task",
+        assignedUserId: owner.user!.id!,
+        workflowStatusId: todoStatus.id,
+        dueDate: "2026-06-03",
+      });
+      const createAssignedBody = (yield* Effect.promise(() => createAssignedResponse.json())) as {
+        task?: { id: string; assignedUserId: string | null; taskState: string };
+      };
+      const assignedTask = createAssignedBody.task!;
+      const createCancelableResponse = yield* postTool("create-task", {
+        churchId: church.id!,
+        title: "Cross-surface cancelable Task",
+        workflowStatusId: todoStatus.id,
+        dueDate: "2026-06-04",
+      });
+      const createCancelableBody = (yield* Effect.promise(() =>
+        createCancelableResponse.json(),
+      )) as { task?: { id: string } };
+      const cancelableTask = createCancelableBody.task!;
+
+      const publicMyWork = yield* authenticated.query(refs.public.tasks.listForChurch, {
+        churchId: church.id!,
+        surface: "my_work",
+      });
+      const moved = yield* authenticated.mutation(refs.public.tasks.updateBatch, {
+        churchId: church.id!,
+        updates: [{ taskId: assignedTask.id, fields: { workflowStatusId: doingStatus.id } }],
+      });
+      const mcpListAfterMoveResponse = yield* postTool("list-tasks", {
+        churchId: church.id!,
+        surface: "my_work",
+        workflowStatusId: doingStatus.id,
+      });
+      const mcpListAfterMoveBody = (yield* Effect.promise(() =>
+        mcpListAfterMoveResponse.json(),
+      )) as { tasks?: Array<{ id: string; taskState: string; workflowStatusId: string }> };
+      const completed = yield* authenticated.mutation(refs.public.tasks.completeBatch, {
+        churchId: church.id!,
+        taskIds: [assignedTask.id],
+      });
+      const cancelResponse = yield* postTool("cancel-task", {
+        churchId: church.id!,
+        taskId: cancelableTask.id,
+      });
+      const cancelBody = (yield* Effect.promise(() => cancelResponse.json())) as {
+        task?: { id: string; taskState: string; finishedAt: string | null };
+      };
+      const reopenResponse = yield* postTool("reopen-task", {
+        churchId: church.id!,
+        taskId: cancelableTask.id,
+      });
+      const reopenBody = (yield* Effect.promise(() => reopenResponse.json())) as {
+        task?: { id: string; taskState: string; finishedAt: string | null };
+      };
+      const completedTask = completed.data.tasks.find((task) => task.id === assignedTask.id)!;
+      const movedTask = moved.data.tasks.find((task) => task.id === assignedTask.id)!;
+      const assignedActivities = yield* authenticated.query(refs.public.activities.listForEntity, {
+        churchId: church.id!,
+        entityType: "task",
+        entityId: assignedTask.id,
+      });
+      const cancelActivities = yield* authenticated.query(refs.public.activities.listForEntity, {
+        churchId: church.id!,
+        entityType: "task",
+        entityId: cancelableTask.id,
+      });
+
+      expect(createAssignedResponse.status).toBe(200);
+      expect(createAssignedBody).toMatchObject({
+        ok: true,
+        tool: "create_task",
+        task: expect.objectContaining({
+          id: assignedTask.id,
+          assignedUserId: owner.user!.id!,
+          taskState: "todo",
+        }),
+      });
+      expect(publicMyWork.data.tasks).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: assignedTask.id, assignedUserId: owner.user!.id! }),
+        ]),
+      );
+      expect(movedTask).toMatchObject({
+        id: assignedTask.id,
+        workflowStatusId: doingStatus.id,
+        taskState: "in_progress",
+      });
+      expect(mcpListAfterMoveResponse.status).toBe(200);
+      expect(mcpListAfterMoveBody.tasks).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: assignedTask.id,
+            workflowStatusId: doingStatus.id,
+            taskState: "in_progress",
+          }),
+        ]),
+      );
+      expect(completedTask).toMatchObject({ id: assignedTask.id, taskState: "done" });
+      expect(completedTask.finishedAt).toEqual(expect.any(String));
+      expect(cancelResponse.status).toBe(200);
+      expect(cancelBody.task).toMatchObject({ id: cancelableTask.id, taskState: "canceled" });
+      expect(cancelBody.task!.finishedAt).toEqual(expect.any(String));
+      expect(reopenResponse.status).toBe(200);
+      expect(reopenBody.task).toMatchObject({
+        id: cancelableTask.id,
+        taskState: "todo",
+        finishedAt: null,
+      });
+      expect(assignedActivities.data.activities.map((activity) => activity.eventType)).toEqual([
+        "task.created",
+        "task.status_moved",
+        "task.completed",
+      ]);
+      expect(assignedActivities.data.activities.map((activity) => activity.actorId)).toEqual([
+        owner.user!.id!,
+        owner.user!.id!,
+        owner.user!.id!,
+      ]);
+      expect(cancelActivities.data.activities.map((activity) => activity.eventType)).toEqual([
+        "task.created",
+        "task.canceled",
+        "task.reopened",
+      ]);
+      expect(cancelActivities.data.activities.map((activity) => activity.actorId)).toEqual([
+        owner.user!.id!,
+        owner.user!.id!,
+        owner.user!.id!,
+      ]);
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
   it.effect("MCP task tools create, read, list, and expose execution lookups", () =>
     Effect.gen(function* () {
       const c = yield* TestConfect.TestConfect;
