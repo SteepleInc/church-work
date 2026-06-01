@@ -104,6 +104,23 @@ export function getExecutionWorkflowId(args: {
   return args.surface === "team_board" ? args.teamDefaultWorkflowId : args.churchDefaultWorkflowId;
 }
 
+export function getTaskExecutionReadArgs(args: {
+  readonly churchId: string;
+  readonly currentUserId: string;
+  readonly surface: ExecutionSurface;
+  readonly teamId?: string | null;
+  readonly cycleId?: string | null;
+}) {
+  return {
+    churchId: args.churchId,
+    actorUserId: args.currentUserId,
+    ...(args.surface === "team_board"
+      ? { teamId: args.teamId ?? null }
+      : { surface: args.surface }),
+    ...(args.cycleId ? { cycleId: args.cycleId } : {}),
+  };
+}
+
 export function formatTaskActivity(activity: TaskActivitySummary) {
   const eventLabel = activity.eventType.replace(/^task\./, "").replaceAll("_", " ");
   const actorLabel =
@@ -159,12 +176,13 @@ export function TaskExecutionSurface({
     api.tasks.mcpListTasks,
     cyclesResult === undefined
       ? "skip"
-      : {
+      : getTaskExecutionReadArgs({
           churchId,
-          actorUserId: currentUserId,
-          ...(surface === "team_board" ? { teamId: team?.id ?? null } : { surface }),
-          ...(currentCycle ? { cycleId: currentCycle.id } : {}),
-        },
+          currentUserId,
+          surface,
+          teamId: team?.id ?? null,
+          cycleId: currentCycle?.id ?? null,
+        }),
   );
 
   const createTask = useMutation(api.tasks.mcpCreateTask);

@@ -4,6 +4,7 @@ import {
   formatTaskActivity,
   getTaskCreationDefaults,
   getExecutionWorkflowId,
+  getTaskExecutionReadArgs,
   getTaskTeamUpdateFields,
   getTaskTitleUpdateFields,
   selectCurrentExecutionCycle,
@@ -71,6 +72,49 @@ describe("Task execution surface", () => {
         teamDefaultWorkflowId: "team-workflow",
       }),
     ).toBe("team-workflow");
+  });
+
+  test("builds the web execution read contract used to reflect backend Task changes", () => {
+    expect(
+      getTaskExecutionReadArgs({
+        churchId: "church-1",
+        currentUserId: "user-1",
+        surface: "my_work",
+        cycleId: "cycle-1",
+      }),
+    ).toEqual({
+      churchId: "church-1",
+      actorUserId: "user-1",
+      surface: "my_work",
+      cycleId: "cycle-1",
+    });
+
+    expect(
+      getTaskExecutionReadArgs({
+        churchId: "church-1",
+        currentUserId: "user-1",
+        surface: "our_work",
+        cycleId: "cycle-1",
+      }),
+    ).toEqual({
+      churchId: "church-1",
+      actorUserId: "user-1",
+      surface: "our_work",
+      cycleId: "cycle-1",
+    });
+
+    expect(
+      getTaskExecutionReadArgs({
+        churchId: "church-1",
+        currentUserId: "user-1",
+        surface: "team_board",
+        teamId: "team-1",
+      }),
+    ).toEqual({
+      churchId: "church-1",
+      actorUserId: "user-1",
+      teamId: "team-1",
+    });
   });
 
   test("builds trimmed Task title update fields only for changed titles", () => {
