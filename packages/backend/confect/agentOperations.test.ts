@@ -65,6 +65,26 @@ const createChurch = (
     }),
   });
 
+const createTeam = (
+  c: typeof TestConfect.TestConfect.Service,
+  args: {
+    readonly token: string;
+    readonly name: string;
+    readonly organizationId: string;
+  },
+) =>
+  c.fetch("/api/auth/organization/create-team", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${args.token}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      name: args.name,
+      organizationId: args.organizationId,
+    }),
+  });
+
 describe("agent operation boundary", () => {
   it.effect("currentUser returns the stable typed response shape", () =>
     Effect.gen(function* () {
@@ -362,6 +382,96 @@ describe("agent operation boundary", () => {
       expect(result.data.workflows).toHaveLength(1);
       expect(result.data.workflowStatuses).toHaveLength(3);
       expect(result.data.keyDates).toHaveLength(6);
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("Better Auth Teams can be created and updated through Team product fields", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-team-product-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Team Product Church",
+        slug: `team-product-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const teamResponse = yield* createTeam(c, {
+        token: signUpBody.token!,
+        name: "Worship Team",
+        organizationId: church.id!,
+      });
+      const team = (yield* Effect.promise(() => teamResponse.json())) as {
+        id?: string;
+        name?: string;
+        organizationId?: string;
+      };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
+
+      expect(teamResponse.status).toBe(200);
+      expect(team).toMatchObject({
+        name: "Worship Team",
+        organizationId: church.id,
+      });
+
+      const initialRead = yield* authenticated.query(refs.public.teams.listForChurch, {
+        churchId: church.id!,
+      });
+
+      expect(initialRead).toEqual({
+        ok: true,
+        operation: "listTeams",
+        data: {
+          teams: [
+            {
+              id: team.id,
+              name: "Worship Team",
+              churchId: church.id,
+              archivedAt: null,
+              sortOrder: 0,
+              defaultWorkflowId: null,
+            },
+          ],
+        },
+      });
+
+      const updated = yield* authenticated.mutation(refs.public.teams.updateProductFields, {
+        churchId: church.id!,
+        updates: [
+          {
+            teamId: team.id!,
+            fields: {
+              archivedAt: "2026-06-01T00:00:00.000Z",
+              sortOrder: 7,
+              defaultWorkflowId: "workflow-default",
+            },
+          },
+        ],
+      });
+
+      expect(updated).toEqual({
+        ok: true,
+        operation: "updateTeamProductFields",
+        data: {
+          teams: [
+            {
+              id: team.id,
+              name: "Worship Team",
+              churchId: church.id,
+              archivedAt: "2026-06-01T00:00:00.000Z",
+              sortOrder: 7,
+              defaultWorkflowId: "workflow-default",
+            },
+          ],
+        },
+      });
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 

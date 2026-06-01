@@ -60,6 +60,22 @@ export function createAuth(ctx: GenericCtx<DataModel>) {
               },
             },
           },
+          team: {
+            additionalFields: {
+              archivedAt: {
+                type: "string",
+                required: false,
+              },
+              sortOrder: {
+                type: "number",
+                required: false,
+              },
+              defaultWorkflowId: {
+                type: "string",
+                required: false,
+              },
+            },
+          },
         },
         organizationHooks: {
           beforeCreateOrganization: async ({ organization }) => {
@@ -84,7 +100,7 @@ export function createAuth(ctx: GenericCtx<DataModel>) {
             siteUrl,
             fetch,
           }),
-        teams: { enabled: false },
+        teams: { enabled: true, defaultTeam: { enabled: false } },
       }),
       crossDomain({ siteUrl }),
       convex({

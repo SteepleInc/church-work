@@ -1,6 +1,6 @@
 import { Spec } from "@confect/core";
 
-import { activities, agent, auth, healthCheck, privateData, workDefaults } from "./app.spec";
+import { activities, agent, auth, healthCheck, privateData, teams, workDefaults } from "./app.spec";
 
 export default Spec.make()
   .add(activities)
@@ -8,4 +8,5 @@ export default Spec.make()
   .add(auth)
   .add(healthCheck)
   .add(privateData)
+  .add(teams)
   .add(workDefaults);

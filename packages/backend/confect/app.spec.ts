@@ -14,6 +14,12 @@ import {
   BatchReadResponse,
   CurrentUserResponse,
 } from "../agent/operations";
+import {
+  TeamListArgs,
+  TeamProductUpdateArgs,
+  TeamReadResponse,
+  TeamWriteResponse,
+} from "../agent/teamOperations";
 import { WorkDefaultsChurchArgs, WorkDefaultsResponse } from "../agent/workDefaultsOperations";
 
 export const healthCheck = GroupSpec.make("healthCheck").addFunction(
@@ -92,5 +98,21 @@ export const activities = GroupSpec.make("activities")
       name: "listForEntity",
       args: ListActivitiesForEntityArgs,
       returns: ListActivitiesForEntityResponse,
+    }),
+  );
+
+export const teams = GroupSpec.make("teams")
+  .addFunction(
+    FunctionSpec.publicQuery({
+      name: "listForChurch",
+      args: TeamListArgs,
+      returns: TeamReadResponse,
+    }),
+  )
+  .addFunction(
+    FunctionSpec.publicMutation({
+      name: "updateProductFields",
+      args: TeamProductUpdateArgs,
+      returns: TeamWriteResponse,
     }),
   );

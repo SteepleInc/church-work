@@ -31,6 +31,7 @@ export const tables = {
     userAgent: v.optional(v.union(v.null(), v.string())),
     userId: v.string(),
     activeOrganizationId: v.optional(v.union(v.null(), v.string())),
+    activeTeamId: v.optional(v.union(v.null(), v.string())),
   })
     .index("expiresAt", ["expiresAt"])
     .index("expiresAt_userId", ["expiresAt", "userId"])
@@ -146,11 +147,31 @@ export const tables = {
     status: v.string(),
     expiresAt: v.number(),
     inviterId: v.string(),
+    teamId: v.optional(v.union(v.null(), v.string())),
   })
     .index("email", ["email"])
     .index("email_status", ["email", "status"])
     .index("organizationId", ["organizationId"])
     .index("status", ["status"]),
+  team: defineTable({
+    name: v.string(),
+    organizationId: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.union(v.null(), v.number())),
+    archivedAt: v.optional(v.union(v.null(), v.string())),
+    sortOrder: v.optional(v.union(v.null(), v.number())),
+    defaultWorkflowId: v.optional(v.union(v.null(), v.string())),
+  })
+    .index("organizationId", ["organizationId"])
+    .index("organizationId_name", ["organizationId", "name"]),
+  teamMember: defineTable({
+    teamId: v.string(),
+    userId: v.string(),
+    createdAt: v.number(),
+  })
+    .index("teamId", ["teamId"])
+    .index("userId", ["userId"])
+    .index("teamId_userId", ["teamId", "userId"]),
   apikey: defineTable({
     configId: v.string(),
     name: v.optional(v.union(v.null(), v.string())),

@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as activities from "../activities.js";
 import type * as agent from "../agent.js";
 import type * as auth from "../auth.js";
 import type * as dashboard from "../dashboard.js";
@@ -15,6 +16,7 @@ import type * as healthCheck from "../healthCheck.js";
 import type * as http from "../http.js";
 import type * as polar from "../polar.js";
 import type * as privateData from "../privateData.js";
+import type * as teams from "../teams.js";
 import type * as workDefaults from "../workDefaults.js";
 
 import type {
@@ -24,6 +26,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  activities: typeof activities;
   agent: typeof agent;
   auth: typeof auth;
   dashboard: typeof dashboard;
@@ -31,6 +34,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   polar: typeof polar;
   privateData: typeof privateData;
+  teams: typeof teams;
   workDefaults: typeof workDefaults;
 }>;
 

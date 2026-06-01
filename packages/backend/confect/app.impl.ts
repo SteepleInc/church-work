@@ -13,6 +13,7 @@ import {
   noActiveChurchResponse,
   notChurchMemberResponse,
 } from "../agent/operations";
+import { teamErrorResponse, teamsResponse } from "../agent/teamOperations";
 import { workDefaultsResponse } from "../agent/workDefaultsOperations";
 import { listActivitiesForEntity, serializeActivity, writeActivity } from "../activityRegistry";
 import { authComponent } from "../authCore";
@@ -36,7 +37,16 @@ type BetterAuthOrganization = {
   readonly churchTimeZone?: string | null;
 };
 
-type BetterAuthModel = "member" | "organization" | "session";
+type BetterAuthTeam = {
+  readonly _id: string;
+  readonly name: string;
+  readonly organizationId: string;
+  readonly archivedAt?: string | null;
+  readonly sortOrder?: number | null;
+  readonly defaultWorkflowId?: string | null;
+};
+
+type BetterAuthModel = "member" | "organization" | "session" | "team";
 type BetterAuthWhere = {
   field: string;
   operator?: "eq" | "gt";
@@ -88,6 +98,50 @@ const findBetterAuthDocs = <T>(args: {
 
     return result.page;
   });
+
+const serializeTeam = (team: BetterAuthTeam) => ({
+  id: team._id,
+  name: team.name,
+  churchId: team.organizationId,
+  archivedAt: team.archivedAt ?? null,
+  sortOrder: team.sortOrder ?? 0,
+  defaultWorkflowId: team.defaultWorkflowId ?? null,
+});
+
+const getAuthenticatedChurchMember = (churchId: string) =>
+  Effect.gen(function* () {
+    const ctx = yield* QueryCtx.QueryCtx<DataModel>();
+    const authUser = yield* Effect.promise(() => authComponent.safeGetAuthUser(ctx)).pipe(
+      Effect.orDie,
+    );
+
+    if (!authUser) return { status: "notAuthenticated" as const };
+
+    const membership = yield* findBetterAuthDoc<BetterAuthMember>({
+      model: "member",
+      where: [
+        { field: "organizationId", value: churchId },
+        { field: "userId", value: authUser._id },
+      ],
+    });
+
+    if (!membership) return { status: "notChurchMember" as const };
+
+    return { status: "ready" as const, membership };
+  });
+
+const listTeamsForChurch = (churchId: string) =>
+  findBetterAuthDocs<BetterAuthTeam>({
+    model: "team",
+    where: [{ field: "organizationId", value: churchId }],
+  }).pipe(
+    Effect.map((teams) =>
+      [...teams].sort((left, right) => {
+        const sortDifference = (left.sortOrder ?? 0) - (right.sortOrder ?? 0);
+        return sortDifference === 0 ? left.name.localeCompare(right.name) : sortDifference;
+      }),
+    ),
+  );
 
 const getActiveChurch = (churchId: string | null) =>
   Effect.gen(function* () {
@@ -254,6 +308,90 @@ const activitiesListForEntity = FunctionImpl.make(api, "activities", "listForEnt
   }),
 );
 
+const teamListForChurch = FunctionImpl.make(api, "teams", "listForChurch", (args) =>
+  Effect.gen(function* () {
+    const auth = yield* getAuthenticatedChurchMember(args.churchId);
+
+    if (auth.status === "notAuthenticated") {
+      return teamErrorResponse("listTeams", "not_authenticated", "Authentication is required.");
+    }
+    if (auth.status === "notChurchMember") {
+      return teamErrorResponse("listTeams", "not_church_member", "Church membership is required.");
+    }
+
+    const teams = yield* listTeamsForChurch(args.churchId);
+
+    return teamsResponse("listTeams", teams.map(serializeTeam));
+  }),
+);
+
+const teamUpdateProductFields = FunctionImpl.make(api, "teams", "updateProductFields", (args) =>
+  Effect.gen(function* () {
+    const ctx = yield* MutationCtx.MutationCtx<DataModel>();
+    const auth = yield* getAuthenticatedChurchMember(args.churchId).pipe(
+      Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
+    );
+
+    if (auth.status === "notAuthenticated") {
+      return teamErrorResponse(
+        "updateTeamProductFields",
+        "not_authenticated",
+        "Authentication is required.",
+      );
+    }
+    if (auth.status === "notChurchMember") {
+      return teamErrorResponse(
+        "updateTeamProductFields",
+        "not_church_member",
+        "Church membership is required.",
+      );
+    }
+    if (auth.membership.role !== "owner" && auth.membership.role !== "admin") {
+      return teamErrorResponse(
+        "updateTeamProductFields",
+        "not_authorized",
+        "Only Church owners and admins can update Team product settings.",
+      );
+    }
+
+    for (const update of args.updates) {
+      const team = yield* Effect.promise(() =>
+        ctx.runQuery(components.betterAuth.adapter.findOne, {
+          model: "team",
+          where: [
+            { field: "_id", value: update.teamId },
+            { field: "organizationId", value: args.churchId },
+          ],
+        }),
+      ).pipe(Effect.orDie);
+
+      if (!team) {
+        return teamErrorResponse(
+          "updateTeamProductFields",
+          "team_not_found",
+          "Team was not found in the active Church.",
+        );
+      }
+
+      yield* Effect.promise(() =>
+        ctx.runMutation(components.betterAuth.adapter.updateOne, {
+          input: {
+            model: "team",
+            where: [{ field: "_id", value: update.teamId }],
+            update: update.fields,
+          },
+        }),
+      ).pipe(Effect.orDie);
+    }
+
+    const teams = yield* listTeamsForChurch(args.churchId).pipe(
+      Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
+    );
+
+    return teamsResponse("updateTeamProductFields", teams.map(serializeTeam));
+  }),
+);
+
 export const healthCheck = GroupImpl.make(api, "healthCheck").pipe(Layer.provide(healthCheckGet));
 
 export const privateData = GroupImpl.make(api, "privateData").pipe(Layer.provide(privateDataGet));
@@ -270,4 +408,8 @@ export const workDefaults = GroupImpl.make(api, "workDefaults").pipe(
 export const activities = GroupImpl.make(api, "activities").pipe(
   Layer.provide(activitiesRecordForChurch),
   Layer.provide(activitiesListForEntity),
+);
+export const teams = GroupImpl.make(api, "teams").pipe(
+  Layer.provide(teamListForChurch),
+  Layer.provide(teamUpdateProductFields),
 );
