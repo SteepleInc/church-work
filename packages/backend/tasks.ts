@@ -20,7 +20,13 @@ type TaskUpdateInput = {
   readonly fields: {
     readonly title?: string;
     readonly assignedUserId?: string | null;
+    readonly teamId?: string | null;
   };
+};
+
+type TeamWorkflowResolution = {
+  readonly defaultWorkflowId: string;
+  readonly teamWorkflowIds: Readonly<Record<string, string>>;
 };
 
 type TaskState = "todo" | "in_progress" | "done" | "canceled";
@@ -176,6 +182,7 @@ export async function updateTasks(
     readonly updates: ReadonlyArray<TaskUpdateInput>;
     readonly actorId: string | null;
     readonly occurredAt: string;
+    readonly teamWorkflowResolution?: TeamWorkflowResolution;
   },
 ) {
   const updates: Array<() => Promise<void>> = [];
@@ -200,6 +207,58 @@ export async function updateTasks(
     ) {
       patch.assignedUserId = update.fields.assignedUserId ?? null;
       updatedFields.push("assignedUserId");
+    }
+
+    let remappedTeam: {
+      readonly previousTeamId: string | null;
+      readonly teamId: string | null;
+      readonly previousWorkflowId: string;
+      readonly workflowId: string;
+      readonly previousWorkflowStatusId: string;
+      readonly workflowStatusId: Id<"workflowStatuses">;
+    } | null = null;
+
+    if ("teamId" in update.fields && (update.fields.teamId ?? null) !== task.teamId) {
+      const teamId = update.fields.teamId ?? null;
+      const workflowId = teamId
+        ? args.teamWorkflowResolution?.teamWorkflowIds[teamId]
+        : args.teamWorkflowResolution?.defaultWorkflowId;
+
+      if (!workflowId) return { ok: false as const, code: "teamWorkflowNotConfigured" as const };
+
+      const currentStatus = await ctx.db.get(task.workflowStatusId as Id<"workflowStatuses">);
+      if (!currentStatus) return { ok: false as const, code: "workflowStatusRemapFailed" as const };
+
+      const destinationStatuses = await ctx.db
+        .query("workflowStatuses")
+        .withIndex("by_workflowId", (q) => q.eq("workflowId", workflowId))
+        .collect();
+      const activeStatuses = destinationStatuses.filter((status) => status.archivedAt === null);
+      const sameNameAndState = activeStatuses.find(
+        (status) => status.taskState === task.taskState && status.name === currentStatus.name,
+      );
+      const sameStateFallback = [...activeStatuses]
+        .sort((left, right) => left.sortOrder - right.sortOrder)
+        .find((status) => status.taskState === task.taskState);
+      const destinationStatus = sameNameAndState ?? sameStateFallback;
+
+      if (!destinationStatus) {
+        return { ok: false as const, code: "workflowStatusRemapFailed" as const };
+      }
+
+      patch.teamId = teamId;
+      patch.workflowId = workflowId;
+      patch.workflowStatusId = destinationStatus._id;
+      patch.taskState = destinationStatus.taskState;
+      updatedFields.push("teamId");
+      remappedTeam = {
+        previousTeamId: task.teamId,
+        teamId,
+        previousWorkflowId: task.workflowId,
+        workflowId,
+        previousWorkflowStatusId: task.workflowStatusId,
+        workflowStatusId: destinationStatus._id,
+      };
     }
 
     if (updatedFields.length === 0) continue;
@@ -240,7 +299,69 @@ export async function updateTasks(
         }
       }
 
-      const nonAssignmentFields = updatedFields.filter((field) => field !== "assignedUserId");
+      if (remappedTeam) {
+        if (remappedTeam.previousTeamId === null && remappedTeam.teamId !== null) {
+          await writeActivity(ctx, {
+            churchId: args.churchId,
+            entityType: "task",
+            entityId: task._id,
+            eventType: "task.team_assigned",
+            actorType: "user",
+            actorId: args.actorId,
+            occurredAt: args.occurredAt,
+            cycleId: task.cycleId,
+            metadata: {
+              previousTeamId: null,
+              teamId: remappedTeam.teamId,
+              previousWorkflowId: remappedTeam.previousWorkflowId,
+              workflowId: remappedTeam.workflowId,
+              previousWorkflowStatusId: remappedTeam.previousWorkflowStatusId,
+              workflowStatusId: remappedTeam.workflowStatusId,
+            },
+          });
+        } else if (remappedTeam.previousTeamId !== null && remappedTeam.teamId === null) {
+          await writeActivity(ctx, {
+            churchId: args.churchId,
+            entityType: "task",
+            entityId: task._id,
+            eventType: "task.team_unassigned",
+            actorType: "user",
+            actorId: args.actorId,
+            occurredAt: args.occurredAt,
+            cycleId: task.cycleId,
+            metadata: {
+              previousTeamId: remappedTeam.previousTeamId,
+              previousWorkflowId: remappedTeam.previousWorkflowId,
+              workflowId: remappedTeam.workflowId,
+              previousWorkflowStatusId: remappedTeam.previousWorkflowStatusId,
+              workflowStatusId: remappedTeam.workflowStatusId,
+            },
+          });
+        } else if (remappedTeam.previousTeamId !== null && remappedTeam.teamId !== null) {
+          await writeActivity(ctx, {
+            churchId: args.churchId,
+            entityType: "task",
+            entityId: task._id,
+            eventType: "task.team_changed",
+            actorType: "user",
+            actorId: args.actorId,
+            occurredAt: args.occurredAt,
+            cycleId: task.cycleId,
+            metadata: {
+              previousTeamId: remappedTeam.previousTeamId,
+              teamId: remappedTeam.teamId,
+              previousWorkflowId: remappedTeam.previousWorkflowId,
+              workflowId: remappedTeam.workflowId,
+              previousWorkflowStatusId: remappedTeam.previousWorkflowStatusId,
+              workflowStatusId: remappedTeam.workflowStatusId,
+            },
+          });
+        }
+      }
+
+      const nonAssignmentFields = updatedFields.filter(
+        (field) => field !== "assignedUserId" && field !== "teamId",
+      );
       if (nonAssignmentFields.length > 0) {
         await writeActivity(ctx, {
           churchId: args.churchId,

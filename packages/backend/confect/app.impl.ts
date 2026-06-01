@@ -2155,21 +2155,89 @@ const tasksUpdateBatch = FunctionImpl.make(api, "tasks", "updateBatch", (args) =
       }
     }
 
+    const teamIds = [
+      ...new Set(
+        args.updates
+          .filter((update) => "teamId" in update.fields)
+          .map((update) => update.fields.teamId ?? null)
+          .filter((teamId): teamId is string => teamId !== null),
+      ),
+    ];
+    const churchDefaultWorkflow = yield* Effect.promise(() =>
+      ctx.db
+        .query("workflows")
+        .withIndex("by_churchId", (q) => q.eq("churchId", args.churchId))
+        .filter((q) => q.eq(q.field("isDefault"), true))
+        .first(),
+    ).pipe(Effect.orDie);
+
+    if (!churchDefaultWorkflow) {
+      return taskErrorResponse(
+        "updateTasks",
+        "team_workflow_not_configured",
+        "The Church default Workflow is missing.",
+      );
+    }
+
+    const teamWorkflowIds: Record<string, string> = {};
+    for (const teamId of teamIds) {
+      const team = (yield* Effect.promise(() =>
+        ctx.runQuery(components.betterAuth.adapter.findOne, {
+          model: "team",
+          where: [
+            { field: "_id", value: teamId },
+            { field: "organizationId", value: args.churchId },
+          ],
+        }),
+      ).pipe(Effect.orDie)) as BetterAuthTeam | null;
+
+      if (!team || team.archivedAt != null) {
+        return taskErrorResponse(
+          "updateTasks",
+          "team_not_found",
+          "Team was not found in the active Church.",
+        );
+      }
+
+      teamWorkflowIds[teamId] = team.defaultWorkflowId ?? churchDefaultWorkflow._id;
+    }
+
     const updated = yield* Effect.promise(() =>
       updateTasks(ctx, {
         churchId: args.churchId,
         updates: args.updates,
         actorId: auth.authUser._id,
         occurredAt: new Date().toISOString(),
+        teamWorkflowResolution: {
+          defaultWorkflowId: churchDefaultWorkflow._id,
+          teamWorkflowIds,
+        },
       }),
     ).pipe(Effect.orDie);
 
-    if (!updated.ok) {
+    if (!updated.ok && updated.code === "taskNotFound") {
       return taskErrorResponse(
         "updateTasks",
         "task_not_found",
         "Task was not found in the active Church.",
       );
+    }
+    if (!updated.ok && updated.code === "teamWorkflowNotConfigured") {
+      return taskErrorResponse(
+        "updateTasks",
+        "team_workflow_not_configured",
+        "Team Workflow is not configured.",
+      );
+    }
+    if (!updated.ok && updated.code === "workflowStatusRemapFailed") {
+      return taskErrorResponse(
+        "updateTasks",
+        "workflow_status_remap_failed",
+        "Destination Workflow cannot preserve the Task State.",
+      );
+    }
+    if (!updated.ok) {
+      return yield* Effect.dieMessage("Unexpected Task update result.");
     }
 
     const model = yield* Effect.promise(() => readTaskModel(ctx, args.churchId)).pipe(Effect.orDie);

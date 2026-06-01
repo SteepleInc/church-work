@@ -1829,6 +1829,135 @@ describe("agent operation boundary", () => {
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 
+  it.effect("Task update assigns and unassigns Teams with Workflow remap Activity", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const ownerResponse = yield* signUpWithEmail(
+        c,
+        `agent-task-team-update-owner-${crypto.randomUUID()}@example.com`,
+      );
+      const owner = (yield* Effect.promise(() => ownerResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: owner.token!,
+        name: "Task Team Update Church",
+        slug: `task-team-update-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const teamResponse = yield* createTeam(c, {
+        token: owner.token!,
+        name: "Care",
+        organizationId: church.id!,
+      });
+      const team = (yield* Effect.promise(() => teamResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: owner.user!.id!,
+        sessionToken: owner.token!,
+      });
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
+        churchId: church.id!,
+      });
+      const defaultWorkflow = defaults.data.workflows.find((workflow) => workflow.isDefault)!;
+      const defaultTodo = defaults.data.workflowStatuses.find(
+        (status) => status.workflowId === defaultWorkflow.id && status.taskState === "todo",
+      )!;
+      const teamWorkflowResult = yield* authenticated.mutation(
+        refs.public.workflows.createForChurch,
+        {
+          churchId: church.id!,
+          key: "care-flow",
+          name: "Care Flow",
+          isDefault: false,
+          sortOrder: 1,
+          statuses: [
+            { key: "todo", name: "To Do", taskState: "todo", sortOrder: 0 },
+            { key: "doing", name: "Doing", taskState: "in_progress", sortOrder: 1 },
+            { key: "done", name: "Done", taskState: "done", sortOrder: 2 },
+          ],
+        },
+      );
+      const teamWorkflow = teamWorkflowResult.data.workflows.find(
+        (workflow) => workflow.key === "care-flow",
+      )!;
+      const teamTodo = teamWorkflowResult.data.workflowStatuses.find(
+        (status) => status.workflowId === teamWorkflow.id && status.taskState === "todo",
+      )!;
+      yield* authenticated.mutation(refs.public.teams.updateProductFields, {
+        churchId: church.id!,
+        updates: [{ teamId: team.id!, fields: { defaultWorkflowId: teamWorkflow.id } }],
+      });
+      const created = yield* authenticated.mutation(refs.public.tasks.createBatch, {
+        churchId: church.id!,
+        tasks: [
+          {
+            title: "Assign Team through update",
+            teamId: null,
+            workflowStatusId: defaultTodo.id,
+            dueDate: "2026-06-03",
+            parentTaskId: null,
+          },
+        ],
+      });
+      const task = created.data.tasks.find(
+        (candidate) => candidate.title === "Assign Team through update",
+      )!;
+
+      const assigned = yield* authenticated.mutation(refs.public.tasks.updateBatch, {
+        churchId: church.id!,
+        updates: [{ taskId: task.id, fields: { teamId: team.id! } }],
+      });
+      const unassigned = yield* authenticated.mutation(refs.public.tasks.updateBatch, {
+        churchId: church.id!,
+        updates: [{ taskId: task.id, fields: { teamId: null } }],
+      });
+      const activities = yield* authenticated.query(refs.public.activities.listForEntity, {
+        churchId: church.id!,
+        entityType: "task",
+        entityId: task.id,
+      });
+
+      expect(assigned.data.tasks.find((candidate) => candidate.id === task.id)).toMatchObject({
+        teamId: team.id,
+        workflowId: teamWorkflow.id,
+        workflowStatusId: teamTodo.id,
+        taskState: "todo",
+      });
+      expect(unassigned.data.tasks.find((candidate) => candidate.id === task.id)).toMatchObject({
+        teamId: null,
+        workflowId: defaultWorkflow.id,
+        workflowStatusId: defaultTodo.id,
+        taskState: "todo",
+      });
+      expect(activities.data.activities.map((activity) => activity.eventType)).toEqual([
+        "task.created",
+        "task.team_assigned",
+        "task.team_unassigned",
+      ]);
+      expect(activities.data.activities.map((activity) => activity.actorId)).toEqual([
+        owner.user!.id!,
+        owner.user!.id!,
+        owner.user!.id!,
+      ]);
+      expect(activities.data.activities[1]!.metadata).toEqual({
+        previousTeamId: null,
+        teamId: team.id,
+        previousWorkflowId: defaultWorkflow.id,
+        workflowId: teamWorkflow.id,
+        previousWorkflowStatusId: defaultTodo.id,
+        workflowStatusId: teamTodo.id,
+      });
+      expect(activities.data.activities[2]!.metadata).toEqual({
+        previousTeamId: team.id,
+        previousWorkflowId: teamWorkflow.id,
+        workflowId: defaultWorkflow.id,
+        previousWorkflowStatusId: teamTodo.id,
+        workflowStatusId: defaultTodo.id,
+      });
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
   it.effect("Task execution-window reads filter My Work and Our Work", () =>
     Effect.gen(function* () {
       const c = yield* TestConfect.TestConfect;

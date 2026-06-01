@@ -24,6 +24,7 @@ export const TaskCreateBatchArgs = Schema.Struct({
 const TaskUpdateFields = Schema.Struct({
   title: Schema.optional(Schema.String),
   assignedUserId: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
+  teamId: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
 });
 
 export const TaskUpdateBatchArgs = Schema.Struct({
@@ -112,6 +113,9 @@ export const TaskErrorResponse = Schema.Struct({
       Schema.Literal("workflow_status_not_found"),
       Schema.Literal("parent_task_not_found"),
       Schema.Literal("task_not_found"),
+      Schema.Literal("team_not_found"),
+      Schema.Literal("team_workflow_not_configured"),
+      Schema.Literal("workflow_status_remap_failed"),
       Schema.Literal("invalid_task_transition"),
       Schema.Literal("inconsistent_task_status"),
       Schema.Literal("done_workflow_status_not_found"),
