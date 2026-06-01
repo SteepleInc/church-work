@@ -3,6 +3,11 @@ import type { GenericDatabaseReader, GenericMutationCtx } from "convex/server";
 import { buildCycleForLocalDate, cycleStartDateForLocalDate } from "./churchCycleCalendar";
 import type { DataModel, Id } from "./convex/_generated/dataModel";
 import { resolveKeyDateOccurrences } from "./keyDateScheduling";
+import {
+  type CycleAdjustmentOverride,
+  mergeTemplateTaskProjection,
+  validateCycleAdjustmentOverrides,
+} from "./templateProjection";
 
 type MutationCtx = GenericMutationCtx<DataModel>;
 type ReaderCtx = { readonly db: GenericDatabaseReader<DataModel> };
@@ -58,6 +63,13 @@ type TemplateInput = {
   readonly recurrence: TemplateRecurrence;
   readonly focusWindows: ReadonlyArray<FocusWindowInput>;
   readonly templateTasks: ReadonlyArray<TemplateTaskInput>;
+};
+
+type CycleAdjustmentInput = {
+  readonly cycleId: string;
+  readonly templateTaskId: string;
+  readonly lifecycle: "active" | "skipped";
+  readonly overrides: ReadonlyArray<CycleAdjustmentOverride>;
 };
 
 const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -158,8 +170,117 @@ export async function readTemplateModel(ctx: ReaderCtx, churchId: string) {
     .query("templateTasks")
     .withIndex("by_churchId", (q) => q.eq("churchId", churchId))
     .collect();
+  const cycleAdjustments = await ctx.db
+    .query("cycleAdjustments")
+    .withIndex("by_churchId", (q) => q.eq("churchId", churchId))
+    .collect();
 
-  return { templates, focusWindows, templateTasks };
+  return { templates, focusWindows, templateTasks, cycleAdjustments };
+}
+
+export async function setCycleAdjustments(
+  ctx: MutationCtx,
+  args: { readonly churchId: string; readonly adjustments: ReadonlyArray<CycleAdjustmentInput> },
+) {
+  for (const adjustment of args.adjustments) {
+    const cycle = await ctx.db.get(adjustment.cycleId as Id<"cycles">);
+    if (!cycle || cycle.churchId !== args.churchId) {
+      return { ok: false as const, code: "cycleNotFound" as const };
+    }
+
+    const templateTask = await ctx.db.get(adjustment.templateTaskId as Id<"templateTasks">);
+    if (!templateTask || templateTask.churchId !== args.churchId) {
+      return { ok: false as const, code: "templateTaskNotFound" as const };
+    }
+
+    try {
+      validateCycleAdjustmentOverrides(adjustment.overrides);
+    } catch {
+      return { ok: false as const, code: "invalidAdjustment" as const };
+    }
+  }
+
+  for (const adjustment of args.adjustments) {
+    const existing = await ctx.db
+      .query("cycleAdjustments")
+      .withIndex("by_churchId_and_cycleId_and_templateTaskId", (q) =>
+        q
+          .eq("churchId", args.churchId)
+          .eq("cycleId", adjustment.cycleId)
+          .eq("templateTaskId", adjustment.templateTaskId),
+      )
+      .unique();
+
+    const document = {
+      churchId: args.churchId,
+      cycleId: adjustment.cycleId,
+      templateTaskId: adjustment.templateTaskId,
+      lifecycle: adjustment.lifecycle,
+      overrides: [...validateCycleAdjustmentOverrides(adjustment.overrides)],
+    };
+
+    if (existing) {
+      await ctx.db.patch(existing._id, document);
+    } else {
+      await ctx.db.insert("cycleAdjustments", document);
+    }
+  }
+
+  return { ok: true as const };
+}
+
+export async function previewCycleAdjustmentMerge(
+  ctx: ReaderCtx,
+  args: {
+    readonly churchId: string;
+    readonly projections: ReadonlyArray<{
+      readonly cycleId: string;
+      readonly templateTaskId: string;
+      readonly dueDate: string;
+    }>;
+  },
+) {
+  const mergedProjectedTasks = [];
+
+  for (const projection of args.projections) {
+    const cycle = await ctx.db.get(projection.cycleId as Id<"cycles">);
+    const templateTask = await ctx.db.get(projection.templateTaskId as Id<"templateTasks">);
+
+    if (!cycle || cycle.churchId !== args.churchId) {
+      return { ok: false as const, code: "cycleNotFound" as const };
+    }
+    if (!templateTask || templateTask.churchId !== args.churchId) {
+      return { ok: false as const, code: "templateTaskNotFound" as const };
+    }
+
+    const adjustment = await ctx.db
+      .query("cycleAdjustments")
+      .withIndex("by_churchId_and_cycleId_and_templateTaskId", (q) =>
+        q
+          .eq("churchId", args.churchId)
+          .eq("cycleId", projection.cycleId)
+          .eq("templateTaskId", projection.templateTaskId),
+      )
+      .unique();
+    const merged = mergeTemplateTaskProjection(
+      {
+        templateTaskId: templateTask._id,
+        templateTaskKey: templateTask.key,
+        title: templateTask.title,
+        dueDate: projection.dueDate,
+        parentTemplateTaskId: templateTask.parentTemplateTaskId,
+      },
+      adjustment ? { lifecycle: adjustment.lifecycle, overrides: adjustment.overrides } : null,
+    );
+
+    mergedProjectedTasks.push({
+      cycleId: projection.cycleId,
+      templateTaskId: projection.templateTaskId,
+      ...merged,
+    });
+  }
+
+  return { ok: true as const, mergedProjectedTasks };
 }
 
 export async function createTemplates(

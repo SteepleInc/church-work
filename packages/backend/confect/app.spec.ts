@@ -30,8 +30,10 @@ import {
 } from "../agent/teamOperations";
 import {
   TemplateCreateArgs,
+  TemplatePreviewCycleAdjustmentMergeArgs,
   TemplateReadResponse,
   TemplateResolveSchedulesArgs,
+  TemplateSetCycleAdjustmentsArgs,
   TemplateWriteResponse,
 } from "../agent/templateOperations";
 import {
@@ -224,6 +226,20 @@ export const templates = GroupSpec.make("templates")
     FunctionSpec.publicQuery({
       name: "resolveSchedules",
       args: TemplateResolveSchedulesArgs,
+      returns: TemplateReadResponse,
+    }),
+  )
+  .addFunction(
+    FunctionSpec.publicMutation({
+      name: "setCycleAdjustments",
+      args: TemplateSetCycleAdjustmentsArgs,
+      returns: TemplateWriteResponse,
+    }),
+  )
+  .addFunction(
+    FunctionSpec.publicQuery({
+      name: "previewCycleAdjustmentMerge",
+      args: TemplatePreviewCycleAdjustmentMergeArgs,
       returns: TemplateReadResponse,
     }),
   );

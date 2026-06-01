@@ -7,6 +7,7 @@ import {
   ActivityEventType,
   ActivityMetadata,
 } from "../activityRegistry";
+import { CycleAdjustmentLifecycle, CycleAdjustmentOverrides } from "../templateProjection";
 
 export const Workflows = Table.make(
   "workflows",
@@ -219,6 +220,20 @@ export const TemplateTasks = Table.make(
   .index("by_templateId", ["templateId"])
   .index("by_templateId_and_key", ["templateId", "key"]);
 
+export const CycleAdjustments = Table.make(
+  "cycleAdjustments",
+  Schema.Struct({
+    churchId: Schema.String,
+    cycleId: Schema.String,
+    templateTaskId: Schema.String,
+    lifecycle: CycleAdjustmentLifecycle,
+    overrides: CycleAdjustmentOverrides,
+  }),
+)
+  .index("by_churchId", ["churchId"])
+  .index("by_churchId_and_cycleId", ["churchId", "cycleId"])
+  .index("by_churchId_and_cycleId_and_templateTaskId", ["churchId", "cycleId", "templateTaskId"]);
+
 export const Activities = Table.make(
   "activities",
   Schema.Struct({
@@ -246,4 +261,5 @@ export default DatabaseSchema.make()
   .addTable(Templates)
   .addTable(FocusWindows)
   .addTable(TemplateTasks)
+  .addTable(CycleAdjustments)
   .addTable(Activities);

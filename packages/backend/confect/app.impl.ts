@@ -31,7 +31,13 @@ import {
 } from "../keyDateScheduling";
 import { readDefaultWorkModel, seedDefaultWorkModel } from "../workDefaults";
 import { createTasks, readTaskModel } from "../tasks";
-import { createTemplates, readTemplateModel, resolveTemplateTaskSchedules } from "../templates";
+import {
+  createTemplates,
+  previewCycleAdjustmentMerge,
+  readTemplateModel,
+  resolveTemplateTaskSchedules,
+  setCycleAdjustments,
+} from "../templates";
 import {
   archiveWorkflowStatus,
   createWorkflow,
@@ -317,6 +323,23 @@ const serializeTaskModel = (data: Awaited<ReturnType<typeof readTaskModel>>) => 
 const serializeTemplateModel = (
   data: Awaited<ReturnType<typeof readTemplateModel>>,
   resolvedSchedules: Awaited<ReturnType<typeof resolveTemplateTaskSchedules>> = [],
+  mergedProjectedTasks: Array<{
+    readonly cycleId: string;
+    readonly templateTaskId: string;
+    readonly skipped: boolean;
+    readonly effectiveTask: {
+      readonly templateTaskId: string;
+      readonly templateTaskKey: string;
+      readonly title: string;
+      readonly dueDate: string;
+      readonly parentTemplateTaskId: string | null;
+    } | null;
+    readonly appliedOverrides: ReadonlyArray<
+      | { readonly field: "title"; readonly value: string }
+      | { readonly field: "dueDate"; readonly value: string }
+      | { readonly field: "parentTemplateTaskId"; readonly value: string | null }
+    >;
+  }> = [],
 ) => ({
   templates: data.templates.map((template) => ({
     id: template._id,
@@ -346,7 +369,15 @@ const serializeTemplateModel = (
     schedulingRule: templateTask.schedulingRule,
     archivedAt: templateTask.archivedAt,
   })),
+  cycleAdjustments: data.cycleAdjustments.map((adjustment) => ({
+    id: adjustment._id,
+    cycleId: adjustment.cycleId,
+    templateTaskId: adjustment.templateTaskId,
+    lifecycle: adjustment.lifecycle,
+    overrides: adjustment.overrides,
+  })),
   resolvedSchedules,
+  mergedProjectedTasks,
 });
 
 const healthCheckGet = FunctionImpl.make(api, "healthCheck", "get", () =>
@@ -927,6 +958,125 @@ const templatesResolveSchedules = FunctionImpl.make(api, "templates", "resolveSc
   }),
 );
 
+const templatesSetCycleAdjustments = FunctionImpl.make(
+  api,
+  "templates",
+  "setCycleAdjustments",
+  (args) =>
+    Effect.gen(function* () {
+      const ctx = yield* MutationCtx.MutationCtx<DataModel>();
+      const auth = yield* getAuthenticatedChurchMember(args.churchId).pipe(
+        Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
+      );
+
+      if (auth.status === "notAuthenticated") {
+        return templateErrorResponse(
+          "setCycleAdjustments",
+          "not_authenticated",
+          "Authentication is required.",
+        );
+      }
+      if (auth.status === "notChurchMember") {
+        return templateErrorResponse(
+          "setCycleAdjustments",
+          "not_church_member",
+          "Church membership is required.",
+        );
+      }
+      if (auth.membership.role !== "owner" && auth.membership.role !== "admin") {
+        return templateErrorResponse(
+          "setCycleAdjustments",
+          "not_authorized",
+          "Only Church owners and admins can manage Cycle Adjustments.",
+        );
+      }
+
+      const updated = yield* Effect.promise(() => setCycleAdjustments(ctx, args)).pipe(
+        Effect.orDie,
+      );
+      if (!updated.ok && updated.code === "cycleNotFound") {
+        return templateErrorResponse(
+          "setCycleAdjustments",
+          "cycle_not_found",
+          "Cycle was not found in the active Church.",
+        );
+      }
+      if (!updated.ok && updated.code === "templateTaskNotFound") {
+        return templateErrorResponse(
+          "setCycleAdjustments",
+          "template_task_not_found",
+          "Template Task was not found in the active Church.",
+        );
+      }
+      if (!updated.ok) {
+        return templateErrorResponse(
+          "setCycleAdjustments",
+          "invalid_cycle_adjustment",
+          "Cycle Adjustment overrides must be valid.",
+        );
+      }
+
+      const model = yield* Effect.promise(() => readTemplateModel(ctx, args.churchId)).pipe(
+        Effect.orDie,
+      );
+
+      return templateResponse("setCycleAdjustments", serializeTemplateModel(model));
+    }),
+);
+
+const templatesPreviewCycleAdjustmentMerge = FunctionImpl.make(
+  api,
+  "templates",
+  "previewCycleAdjustmentMerge",
+  (args) =>
+    Effect.gen(function* () {
+      const ctx = yield* QueryCtx.QueryCtx<DataModel>();
+      const auth = yield* getAuthenticatedChurchMember(args.churchId);
+
+      if (auth.status === "notAuthenticated") {
+        return templateErrorResponse(
+          "previewCycleAdjustmentMerge",
+          "not_authenticated",
+          "Authentication is required.",
+        );
+      }
+      if (auth.status === "notChurchMember") {
+        return templateErrorResponse(
+          "previewCycleAdjustmentMerge",
+          "not_church_member",
+          "Church membership is required.",
+        );
+      }
+
+      const preview = yield* Effect.promise(() => previewCycleAdjustmentMerge(ctx, args)).pipe(
+        Effect.orDie,
+      );
+      if (!preview.ok && preview.code === "cycleNotFound") {
+        return templateErrorResponse(
+          "previewCycleAdjustmentMerge",
+          "cycle_not_found",
+          "Cycle was not found in the active Church.",
+        );
+      }
+      if (!preview.ok) {
+        return templateErrorResponse(
+          "previewCycleAdjustmentMerge",
+          "template_task_not_found",
+          "Template Task was not found in the active Church.",
+        );
+      }
+
+      const model = yield* Effect.promise(() => readTemplateModel(ctx, args.churchId)).pipe(
+        Effect.orDie,
+      );
+
+      return templateResponse(
+        "previewCycleAdjustmentMerge",
+        serializeTemplateModel(model, [], preview.mergedProjectedTasks),
+      );
+    }),
+);
+
 const workflowsCreateForChurch = FunctionImpl.make(api, "workflows", "createForChurch", (args) =>
   Effect.gen(function* () {
     const ctx = yield* MutationCtx.MutationCtx<DataModel>();
@@ -1234,6 +1384,8 @@ export const tasks = GroupImpl.make(api, "tasks").pipe(
 export const templates = GroupImpl.make(api, "templates").pipe(
   Layer.provide(templatesCreateForChurch),
   Layer.provide(templatesResolveSchedules),
+  Layer.provide(templatesSetCycleAdjustments),
+  Layer.provide(templatesPreviewCycleAdjustmentMerge),
 );
 export const workflows = GroupImpl.make(api, "workflows").pipe(
   Layer.provide(workflowsCreateForChurch),

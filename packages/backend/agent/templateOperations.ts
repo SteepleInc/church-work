@@ -52,6 +52,17 @@ const TemplateTaskInput = Schema.Struct({
   schedulingRule: SchedulingRule,
 });
 
+const CycleAdjustmentLifecycle = Schema.Union(Schema.Literal("active"), Schema.Literal("skipped"));
+
+const CycleAdjustmentOverride = Schema.Union(
+  Schema.Struct({ field: Schema.Literal("title"), value: Schema.String }),
+  Schema.Struct({ field: Schema.Literal("dueDate"), value: Schema.String }),
+  Schema.Struct({
+    field: Schema.Literal("parentTemplateTaskId"),
+    value: Schema.Union(Schema.String, Schema.Null),
+  }),
+);
+
 export const TemplateCreateArgs = Schema.Struct({
   churchId: Schema.String,
   templates: Schema.Array(
@@ -67,6 +78,29 @@ export const TemplateCreateArgs = Schema.Struct({
 
 export const TemplateResolveSchedulesArgs = Schema.Struct({
   churchId: Schema.String,
+});
+
+export const TemplateSetCycleAdjustmentsArgs = Schema.Struct({
+  churchId: Schema.String,
+  adjustments: Schema.Array(
+    Schema.Struct({
+      cycleId: Schema.String,
+      templateTaskId: Schema.String,
+      lifecycle: CycleAdjustmentLifecycle,
+      overrides: Schema.Array(CycleAdjustmentOverride),
+    }),
+  ),
+});
+
+export const TemplatePreviewCycleAdjustmentMergeArgs = Schema.Struct({
+  churchId: Schema.String,
+  projections: Schema.Array(
+    Schema.Struct({
+      cycleId: Schema.String,
+      templateTaskId: Schema.String,
+      dueDate: Schema.String,
+    }),
+  ),
 });
 
 const TemplateSummary = Schema.Struct({
@@ -100,6 +134,31 @@ const TemplateTaskSummary = Schema.Struct({
   archivedAt: Schema.Union(Schema.String, Schema.Null),
 });
 
+const CycleAdjustmentSummary = Schema.Struct({
+  id: Schema.String,
+  cycleId: Schema.String,
+  templateTaskId: Schema.String,
+  lifecycle: CycleAdjustmentLifecycle,
+  overrides: Schema.Array(CycleAdjustmentOverride),
+});
+
+const MergedProjectedTask = Schema.Struct({
+  cycleId: Schema.String,
+  templateTaskId: Schema.String,
+  skipped: Schema.Boolean,
+  effectiveTask: Schema.Union(
+    Schema.Struct({
+      templateTaskId: Schema.String,
+      templateTaskKey: Schema.String,
+      title: Schema.String,
+      dueDate: Schema.String,
+      parentTemplateTaskId: Schema.Union(Schema.String, Schema.Null),
+    }),
+    Schema.Null,
+  ),
+  appliedOverrides: Schema.Array(CycleAdjustmentOverride),
+});
+
 const ResolvedTemplateTaskSchedule = Schema.Struct({
   templateTaskId: Schema.String,
   templateTaskKey: Schema.String,
@@ -118,12 +177,16 @@ export const TemplateSuccessResponse = Schema.Struct({
   operation: Schema.Union(
     Schema.Literal("createTemplates"),
     Schema.Literal("resolveTemplateSchedules"),
+    Schema.Literal("setCycleAdjustments"),
+    Schema.Literal("previewCycleAdjustmentMerge"),
   ),
   data: Schema.Struct({
     templates: Schema.Array(TemplateSummary),
     focusWindows: Schema.Array(FocusWindowSummary),
     templateTasks: Schema.Array(TemplateTaskSummary),
+    cycleAdjustments: Schema.Array(CycleAdjustmentSummary),
     resolvedSchedules: Schema.Array(ResolvedTemplateTaskSchedule),
+    mergedProjectedTasks: Schema.Array(MergedProjectedTask),
   }),
 });
 
@@ -132,6 +195,8 @@ export const TemplateErrorResponse = Schema.Struct({
   operation: Schema.Union(
     Schema.Literal("createTemplates"),
     Schema.Literal("resolveTemplateSchedules"),
+    Schema.Literal("setCycleAdjustments"),
+    Schema.Literal("previewCycleAdjustmentMerge"),
   ),
   error: Schema.Struct({
     code: Schema.Union(
@@ -140,6 +205,9 @@ export const TemplateErrorResponse = Schema.Struct({
       Schema.Literal("not_authorized"),
       Schema.Literal("church_time_zone_missing"),
       Schema.Literal("invalid_template"),
+      Schema.Literal("cycle_not_found"),
+      Schema.Literal("template_task_not_found"),
+      Schema.Literal("invalid_cycle_adjustment"),
     ),
     message: Schema.String,
   }),

@@ -646,6 +646,141 @@ describe("agent operation boundary", () => {
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 
+  it.effect("Cycle Adjustment merge preserves sparse, null, and skipped semantics", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-cycle-adjustment-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Cycle Adjustment Church",
+        slug: `cycle-adjustment-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
+        churchId: church.id!,
+      });
+      const todoStatus = defaults.data.workflowStatuses.find(
+        (status) => status.taskState === "todo",
+      )!;
+      const cycleSeed = yield* authenticated.mutation(refs.public.tasks.createBatch, {
+        churchId: church.id!,
+        tasks: [
+          {
+            title: "Seed cycle",
+            teamId: null,
+            workflowStatusId: todoStatus.id,
+            dueDate: "2026-06-03",
+            parentTaskId: null,
+          },
+        ],
+      });
+      const cycleId = cycleSeed.data.tasks[0]!.cycleId;
+      const created = yield* authenticated.mutation(refs.public.templates.createForChurch, {
+        churchId: church.id!,
+        templates: [
+          {
+            key: "weekly-prep",
+            name: "Weekly Prep",
+            recurrence: "weekly",
+            focusWindows: [],
+            templateTasks: [
+              {
+                key: "parent",
+                title: "Prepare worship plan",
+                parentTemplateTaskKey: null,
+                schedulingRule: { kind: "fixedDate", localDate: "2026-06-03" },
+              },
+              {
+                key: "child",
+                title: "Confirm musicians",
+                parentTemplateTaskKey: "parent",
+                schedulingRule: { kind: "fixedDate", localDate: "2026-06-03" },
+              },
+              {
+                key: "skip-me",
+                title: "Print handouts",
+                parentTemplateTaskKey: null,
+                schedulingRule: { kind: "fixedDate", localDate: "2026-06-03" },
+              },
+            ],
+          },
+        ],
+      });
+      const parent = created.data.templateTasks.find((task) => task.key === "parent")!;
+      const child = created.data.templateTasks.find((task) => task.key === "child")!;
+      const skipped = created.data.templateTasks.find((task) => task.key === "skip-me")!;
+
+      const setAdjustments = yield* authenticated.mutation(
+        refs.public.templates.setCycleAdjustments,
+        {
+          churchId: church.id!,
+          adjustments: [
+            {
+              cycleId,
+              templateTaskId: child.id,
+              lifecycle: "active",
+              overrides: [
+                { field: "title", value: "Confirm substitute musicians" },
+                { field: "parentTemplateTaskId", value: null },
+              ],
+            },
+            {
+              cycleId,
+              templateTaskId: skipped.id,
+              lifecycle: "skipped",
+              overrides: [],
+            },
+          ],
+        },
+      );
+      const preview = yield* authenticated.query(
+        refs.public.templates.previewCycleAdjustmentMerge,
+        {
+          churchId: church.id!,
+          projections: [
+            { cycleId, templateTaskId: parent.id, dueDate: "2026-06-03" },
+            { cycleId, templateTaskId: child.id, dueDate: "2026-06-03" },
+            { cycleId, templateTaskId: skipped.id, dueDate: "2026-06-03" },
+          ],
+        },
+      );
+      const merged = preview.data.mergedProjectedTasks;
+
+      expect(setAdjustments.ok).toBe(true);
+      expect(setAdjustments.data.cycleAdjustments).toHaveLength(2);
+      expect(merged.find((task) => task.templateTaskId === parent.id)).toMatchObject({
+        skipped: false,
+        effectiveTask: {
+          title: "Prepare worship plan",
+          dueDate: "2026-06-03",
+          parentTemplateTaskId: null,
+        },
+        appliedOverrides: [],
+      });
+      expect(merged.find((task) => task.templateTaskId === child.id)).toMatchObject({
+        skipped: false,
+        effectiveTask: {
+          title: "Confirm substitute musicians",
+          dueDate: "2026-06-03",
+          parentTemplateTaskId: null,
+        },
+      });
+      expect(merged.find((task) => task.templateTaskId === skipped.id)).toMatchObject({
+        skipped: true,
+        effectiveTask: null,
+      });
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
   it.effect("Task and Subtask creation assigns Cycles from Due Dates", () =>
     Effect.gen(function* () {
       const c = yield* TestConfect.TestConfect;
