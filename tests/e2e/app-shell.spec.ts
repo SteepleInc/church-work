@@ -245,13 +245,28 @@ test("Team sidebar navigation opens a Team board filtered to that Team", async (
   page,
 }, testInfo) => {
   const ownerEmail = `e2e-team-board-${Date.now()}-${testInfo.workerIndex}@example.com`;
+  const nonTeamMemberEmail = `e2e-team-board-helper-${Date.now()}-${testInfo.workerIndex}@example.com`;
   const ownerName = "E2E Team Board Owner";
+  const nonTeamMemberName = "E2E Cross Team Helper";
   const teamName = `Care Team ${Date.now()}`;
   const teamTaskTitle = `Team Board Task ${Date.now()}`;
   const churchTaskTitle = `Church Wide Task ${Date.now()}`;
 
   await signUpThroughDashboard(page, ownerEmail, ownerName);
   await createFirstChurch(page, `E2E Team Board Church ${Date.now()}`);
+  await page.getByLabel("Invite Member Email").fill(nonTeamMemberEmail);
+  await page.getByRole("button", { name: "Invite Member" }).click();
+  await expect(page.getByText(`Invitation sent to ${nonTeamMemberEmail}.`)).toBeVisible();
+  await page.getByRole("button", { name: ownerName }).click();
+  await page.getByRole("menuitem", { name: "Sign Out" }).click();
+
+  await signUpThroughDashboardToInvitation(page, nonTeamMemberEmail, nonTeamMemberName);
+  await page.getByRole("button", { name: "Accept Invitation" }).click();
+  await expect(page.getByText(/Active Church: E2E Team Board Church/)).toBeVisible();
+  await page.getByRole("button", { name: nonTeamMemberName }).click();
+  await page.getByRole("menuitem", { name: "Sign Out" }).click();
+
+  await signInThroughDashboard(page, ownerEmail);
   await page.getByRole("button", { name: "Active Church Settings" }).click();
 
   const teamsSettings = page.getByRole("region", { name: "Teams" });
@@ -280,6 +295,13 @@ test("Team sidebar navigation opens a Team board filtered to that Team", async (
   await page.getByPlaceholder("Add Team Task").fill(teamTaskTitle);
   await page.getByRole("button", { name: "Create Task" }).click();
   await expect(page.getByText(teamTaskTitle).first()).toBeVisible();
+
+  const teamTaskActions = page.getByRole("group", { name: `Actions for ${teamTaskTitle}` });
+  await expect(teamTaskActions).toBeVisible();
+  await teamTaskActions
+    .getByLabel(`Assign ${teamTaskTitle}`)
+    .selectOption({ label: nonTeamMemberName });
+  await expect(teamTaskActions.getByLabel(`Assign ${teamTaskTitle}`)).toHaveValue(/.+/);
 
   await page
     .getByLabel(`Task card ${teamTaskTitle}`)
