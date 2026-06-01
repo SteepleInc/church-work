@@ -2021,6 +2021,31 @@ const tasksCreateBatch = FunctionImpl.make(api, "tasks", "createBatch", (args) =
       );
     }
 
+    const assignedUserIds = [
+      ...new Set(
+        args.tasks
+          .map((task) => task.assignedUserId ?? null)
+          .filter((userId): userId is string => userId !== null),
+      ),
+    ];
+    for (const assignedUserId of assignedUserIds) {
+      const assignedMembership = yield* findBetterAuthDoc<BetterAuthMember>({
+        model: "member",
+        where: [
+          { field: "organizationId", value: args.churchId },
+          { field: "userId", value: assignedUserId },
+        ],
+      }).pipe(Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx));
+
+      if (!assignedMembership) {
+        return taskErrorResponse(
+          "createTasks",
+          "assigned_user_not_church_member",
+          "Assigned User must be a Church Member of the Task's Church.",
+        );
+      }
+    }
+
     const created = yield* Effect.promise(() =>
       createTasks(ctx, {
         churchId: args.churchId,

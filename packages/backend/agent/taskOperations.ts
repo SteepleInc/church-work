@@ -88,6 +88,7 @@ export const TaskErrorResponse = Schema.Struct({
       Schema.Literal("not_authenticated"),
       Schema.Literal("not_church_member"),
       Schema.Literal("church_time_zone_missing"),
+      Schema.Literal("assigned_user_not_church_member"),
       Schema.Literal("invalid_due_date"),
       Schema.Literal("workflow_status_not_found"),
       Schema.Literal("parent_task_not_found"),

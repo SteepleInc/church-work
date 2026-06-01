@@ -1589,6 +1589,108 @@ describe("agent operation boundary", () => {
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 
+  it.effect("Task creation validates assigned Users through Church Membership", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const ownerResponse = yield* signUpWithEmail(
+        c,
+        `agent-task-assignment-owner-${crypto.randomUUID()}@example.com`,
+      );
+      const memberResponse = yield* signUpWithEmail(
+        c,
+        `agent-task-assignment-member-${crypto.randomUUID()}@example.com`,
+      );
+      const outsiderResponse = yield* signUpWithEmail(
+        c,
+        `agent-task-assignment-outsider-${crypto.randomUUID()}@example.com`,
+      );
+      const owner = (yield* Effect.promise(() => ownerResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const member = (yield* Effect.promise(() => memberResponse.json())) as {
+        user?: { id?: string };
+      };
+      const outsider = (yield* Effect.promise(() => outsiderResponse.json())) as {
+        user?: { id?: string };
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: owner.token!,
+        name: "Task Assignment Church",
+        slug: `task-assignment-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      yield* c.run(
+        Effect.gen(function* () {
+          const ctx = yield* MutationCtx.MutationCtx<DataModel>();
+          yield* Effect.promise(() =>
+            ctx.runMutation(components.betterAuth.adapter.create, {
+              input: {
+                model: "member",
+                data: {
+                  userId: member.user!.id!,
+                  organizationId: church.id!,
+                  role: "member",
+                  createdAt: Date.now(),
+                },
+              },
+            }),
+          );
+        }),
+        Schema.Void,
+      );
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: owner.user!.id!,
+        sessionToken: owner.token!,
+      });
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
+        churchId: church.id!,
+      });
+      const todoStatus = defaults.data.workflowStatuses.find(
+        (status) => status.taskState === "todo",
+      )!;
+
+      const assigned = yield* authenticated.mutation(refs.public.tasks.createBatch, {
+        churchId: church.id!,
+        tasks: [
+          {
+            title: "Call assigned volunteer",
+            teamId: null,
+            assignedUserId: member.user!.id!,
+            workflowStatusId: todoStatus.id,
+            dueDate: "2026-06-03",
+            parentTaskId: null,
+          },
+        ],
+      });
+      const rejected = yield* authenticated.mutation(refs.public.tasks.createBatch, {
+        churchId: church.id!,
+        tasks: [
+          {
+            title: "Call outside volunteer",
+            teamId: null,
+            assignedUserId: outsider.user!.id!,
+            workflowStatusId: todoStatus.id,
+            dueDate: "2026-06-03",
+            parentTaskId: null,
+          },
+        ],
+      });
+
+      expect(
+        assigned.data.tasks.find((task) => task.title === "Call assigned volunteer"),
+      ).toMatchObject({ assignedUserId: member.user!.id! });
+      expect(rejected).toEqual({
+        ok: false,
+        operation: "createTasks",
+        error: {
+          code: "assigned_user_not_church_member",
+          message: "Assigned User must be a Church Member of the Task's Church.",
+        },
+      });
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
   it.effect("Task transitions complete, cancel, and reopen through public operations", () =>
     Effect.gen(function* () {
       const c = yield* TestConfect.TestConfect;
