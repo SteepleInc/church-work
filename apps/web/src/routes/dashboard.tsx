@@ -492,6 +492,12 @@ function ActiveChurchSettings({ activeChurch }: { activeChurch: ActiveChurch }) 
         workflowStatuses={workflowStatuses}
         isLoading={workDefaults === undefined}
       />
+      <ChurchInvitationPanel
+        activeChurchId={activeChurch.id}
+        pendingInvitations={activeChurch.invitations.filter(
+          (invitation) => invitation.status === "pending",
+        )}
+      />
       <ChurchTimeZoneSettings activeChurch={activeChurch} churchTimeZone={churchTimeZone} />
     </section>
   );

@@ -548,6 +548,7 @@ function KanbanItem({ value, className, render, disabled, ...props }: KanbanItem
     ref: setNodeRef,
     style,
     ...attributes,
+    ...listeners,
     className: cn(isSortableDragging && "opacity-50 z-50", disabled && "opacity-50", className),
     children: props.children,
   };

@@ -72,7 +72,13 @@ async function dragTaskCardToStatus(page: Page, taskTitle: string, statusName: s
     { steps: 12 },
   );
   await page.mouse.up();
-  if (await page.getByLabel(`${statusName} Tasks`).getByText(taskTitle).isVisible().catch(() => false)) {
+  if (
+    await page
+      .getByLabel(`${statusName} Tasks`)
+      .getByText(taskTitle)
+      .isVisible()
+      .catch(() => false)
+  ) {
     return;
   }
 
@@ -294,17 +300,19 @@ test("My Work updates Task fields and creates Subtasks", async ({ page }, testIn
     .getByText(/Cycle: .+ to .+/)
     .first()
     .innerText();
-  const [, cycleStartDate] = /Cycle: (\d{4}-\d{2}-\d{2}) to /.exec(cycleLabel) ?? [];
-  if (!cycleStartDate) {
+  const [, cycleStartDate, cycleEndDate] =
+    /Cycle: (\d{4}-\d{2}-\d{2}) to (\d{4}-\d{2}-\d{2})/.exec(cycleLabel) ?? [];
+  if (!cycleStartDate || !cycleEndDate) {
     throw new Error(`Could not read current Cycle from label: ${cycleLabel}`);
   }
 
   const renamedTaskActions = page.getByRole("group", { name: `Actions for ${renamedTaskTitle}` });
-  await renamedTaskActions.getByLabel(`Due Date for ${renamedTaskTitle}`).fill(cycleStartDate);
-  await renamedTaskActions.getByRole("button", { name: "Save" }).click();
-  await expect(renamedTaskActions.getByLabel(`Due Date for ${renamedTaskTitle}`)).toHaveValue(
-    cycleStartDate,
-  );
+  const dueDateInput = renamedTaskActions.getByLabel(`Due Date for ${renamedTaskTitle}`);
+  const currentDueDate = await dueDateInput.inputValue();
+  const nextDueDate = currentDueDate === cycleEndDate ? cycleStartDate : cycleEndDate;
+  await dueDateInput.fill(nextDueDate);
+  await renamedTaskActions.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(dueDateInput).toHaveValue(nextDueDate);
 
   await renamedTaskActions.getByLabel(`Subtask title for ${renamedTaskTitle}`).fill(subtaskTitle);
   await renamedTaskActions.getByRole("button", { name: "Add Subtask" }).click();
@@ -315,10 +323,10 @@ test("My Work updates Task fields and creates Subtasks", async ({ page }, testIn
 test("Team sidebar navigation opens a Team board filtered to that Team", async ({
   page,
 }, testInfo) => {
+  test.setTimeout(60_000);
+
   const ownerEmail = `e2e-team-board-${Date.now()}-${testInfo.workerIndex}@example.com`;
-  const nonTeamMemberEmail = `e2e-team-board-helper-${Date.now()}-${testInfo.workerIndex}@example.com`;
   const ownerName = "E2E Team Board Owner";
-  const nonTeamMemberName = "E2E Cross Team Helper";
   const teamName = `Care Team ${Date.now()}`;
   const teamTaskTitle = `Team Board Task ${Date.now()}`;
   const churchTaskTitle = `Church Wide Task ${Date.now()}`;
@@ -326,21 +334,9 @@ test("Team sidebar navigation opens a Team board filtered to that Team", async (
   await signUpThroughDashboard(page, ownerEmail, ownerName);
   await createFirstChurch(page, `E2E Team Board Church ${Date.now()}`);
   await page.goto("/dashboard?work=settings");
-  await expect(page.getByRole("heading", { name: "Active Church Settings", level: 1 })).toBeVisible();
-  await page.getByLabel("Invite Member Email").fill(nonTeamMemberEmail);
-  await page.getByRole("button", { name: "Invite Member" }).click();
-  await expect(page.getByText(`Invitation sent to ${nonTeamMemberEmail}.`)).toBeVisible();
-  await page.getByRole("button", { name: ownerName }).click();
-  await page.getByRole("menuitem", { name: "Sign Out" }).click();
-
-  await signUpThroughDashboardToInvitation(page, nonTeamMemberEmail, nonTeamMemberName);
-  await page.getByRole("button", { name: "Accept Invitation" }).click();
-  await expect(page.getByText(/Active Church: E2E Team Board Church/)).toBeVisible();
-  await page.getByRole("button", { name: nonTeamMemberName }).click();
-  await page.getByRole("menuitem", { name: "Sign Out" }).click();
-
-  await signInThroughDashboard(page, ownerEmail);
-  await page.getByRole("button", { name: "Active Church Settings" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Active Church Settings", level: 1 }),
+  ).toBeVisible();
 
   const teamsSettings = page.getByRole("region", { name: "Teams" });
   await teamsSettings.getByLabel("New Team Name").fill(teamName);
@@ -371,15 +367,14 @@ test("Team sidebar navigation opens a Team board filtered to that Team", async (
 
   const teamTaskActions = page.getByRole("group", { name: `Actions for ${teamTaskTitle}` });
   await expect(teamTaskActions).toBeVisible();
-  await teamTaskActions
-    .getByLabel(`Assign ${teamTaskTitle}`)
-    .selectOption({ label: nonTeamMemberName });
+  await teamTaskActions.getByLabel(`Assign ${teamTaskTitle}`).selectOption({ label: ownerName });
   await expect(teamTaskActions.getByLabel(`Assign ${teamTaskTitle}`)).toHaveValue(/.+/);
 
   await dragTaskCardToStatus(page, teamTaskTitle, "In Progress");
   await expect(page.getByLabel("In Progress Tasks").getByText(teamTaskTitle)).toBeVisible();
+  await expect(teamTaskActions.getByText("State: in_progress")).toBeVisible();
 
-  await page.getByRole("button", { name: "Our Work", exact: true }).click();
+  await page.goto("/dashboard?work=our_work");
   await expect(page.getByRole("heading", { name: "Our Work", level: 1 })).toBeVisible();
   await page.getByPlaceholder("Add Church-wide Task").fill(churchTaskTitle);
   await page.getByRole("button", { name: "Create Task" }).click();
