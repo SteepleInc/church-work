@@ -678,6 +678,24 @@ const coreWorkBatchRead = FunctionImpl.make(
               ).pipe(Effect.orDie),
             });
             break;
+          case "listTeamMemberships":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runQuery(convexFunctionRefs.teams.listMembershipsForChurch, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "readChurchSettings":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runQuery(convexFunctionRefs.churchSettings.readForChurch, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
           case "readWorkDefaults":
             results.push({
               id: operation.id,
@@ -829,12 +847,75 @@ const coreWorkBatchWrite = FunctionImpl.make(
               ).pipe(Effect.orDie),
             });
             break;
+          case "createTeam":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(convexFunctionRefs.teams.createForChurch, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "renameTeam":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(convexFunctionRefs.teams.renameForChurch, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "archiveTeam":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(convexFunctionRefs.teams.archiveForChurch, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "reorderTeams":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(convexFunctionRefs.teams.reorderForChurch, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
           case "updateTeamProductFields":
             results.push({
               id: operation.id,
               operation: operation.operation,
               result: yield* Effect.promise(() =>
                 ctx.runMutation(convexFunctionRefs.teams.updateProductFields, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "addTeamMember":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(convexFunctionRefs.teams.addMemberForChurch, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "removeTeamMember":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(convexFunctionRefs.teams.removeMemberForChurch, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "updateChurchTimeZone":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(convexFunctionRefs.churchSettings.updateTimeZone, operation.input),
               ).pipe(Effect.orDie),
             });
             break;

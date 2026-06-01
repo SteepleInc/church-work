@@ -3572,6 +3572,16 @@ describe("agent operation boundary", () => {
             operation: "listKeyDates",
             input: { churchId: church.id! },
           },
+          {
+            id: "team-memberships",
+            operation: "listTeamMemberships",
+            input: { churchId: church.id! },
+          },
+          {
+            id: "church-settings",
+            operation: "readChurchSettings",
+            input: { churchId: church.id! },
+          },
         ],
       });
       const defaults = defaultsRead.results.find((result) => result.id === "defaults")!.result;
@@ -3598,6 +3608,16 @@ describe("agent operation boundary", () => {
               ],
             },
           },
+          {
+            id: "create-team",
+            operation: "createTeam",
+            input: { churchId: church.id!, name: "Care" },
+          },
+          {
+            id: "update-time-zone",
+            operation: "updateChurchTimeZone",
+            input: { churchId: church.id!, churchTimeZone: "America/Chicago" },
+          },
         ],
       });
       const tasksRead = yield* authenticated.query(refs.public.coreWork.batchRead, {
@@ -3616,8 +3636,37 @@ describe("agent operation boundary", () => {
         error: { code: "not_authenticated" },
       });
       expect(defaultsRead).toMatchObject({ ok: true, operation: "coreWorkBatchRead" });
-      expect(defaultsRead.results.map((result) => result.id)).toEqual(["defaults", "key-dates"]);
+      expect(defaultsRead.results.map((result) => result.id)).toEqual([
+        "defaults",
+        "key-dates",
+        "team-memberships",
+        "church-settings",
+      ]);
+      expect(
+        defaultsRead.results.find((result) => result.id === "team-memberships")!.result,
+      ).toMatchObject({ ok: true, operation: "listTeamMemberships" });
+      expect(
+        defaultsRead.results.find((result) => result.id === "church-settings")!.result,
+      ).toMatchObject({
+        ok: true,
+        operation: "readChurchSettings",
+        data: { church: { id: church.id!, churchTimeZone: "America/New_York" } },
+      });
       expect(write.results[0]!.result).toMatchObject({ ok: true, operation: "createTasks" });
+      const createTeamResult = write.results.find((result) => result.id === "create-team")!.result;
+      expect(createTeamResult).toMatchObject({ ok: true, operation: "createTeam" });
+      expect(
+        createTeamResult.ok && createTeamResult.operation === "createTeam"
+          ? createTeamResult.data.teams.map((team) => team.name)
+          : [],
+      ).toContain("Care");
+      expect(
+        write.results.find((result) => result.id === "update-time-zone")!.result,
+      ).toMatchObject({
+        ok: true,
+        operation: "updateChurchTimeZone",
+        data: { church: { id: church.id!, churchTimeZone: "America/Chicago" } },
+      });
       expect(tasksRead.results[0]!.result).toMatchObject({
         ok: true,
         operation: "listTasks",

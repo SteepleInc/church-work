@@ -1,5 +1,11 @@
 import { api } from "@church-task/backend/convex/_generated/api";
 import type {
+  CoreWorkBatchReadArgs,
+  CoreWorkBatchReadResponse,
+  CoreWorkBatchWriteArgs,
+  CoreWorkBatchWriteResponse,
+} from "@church-task/backend/agent/coreWorkOperations";
+import type {
   ActiveChurchResponse,
   CurrentUserResponse,
 } from "@church-task/backend/agent/operations";
@@ -54,6 +60,14 @@ export type BackendClientService = {
     readonly credentialId: string;
     readonly token: string;
   }) => Effect.Effect<{ readonly revoked: boolean }, BackendError>;
+  readonly setupBatchRead: (args: {
+    readonly token: string;
+    readonly operations: CoreWorkBatchReadArgs["operations"];
+  }) => Effect.Effect<CoreWorkBatchReadResponse, BackendError>;
+  readonly setupBatchWrite: (args: {
+    readonly token: string;
+    readonly operations: CoreWorkBatchWriteArgs["operations"];
+  }) => Effect.Effect<CoreWorkBatchWriteResponse, BackendError>;
 };
 
 export type CredentialStorageService = {
@@ -273,6 +287,42 @@ const makeConvexBackendLayer = (env: CliEnv) =>
             },
             catch: (cause) => new BackendError({ cause }),
           }),
+        setupBatchRead: ({ token, operations }) =>
+          Effect.tryPromise({
+            try: async () => {
+              const response = await fetch(`${authBaseUrl}/api/auth/convex/token`, {
+                method: "GET",
+                headers: { authorization: `Bearer ${token}` },
+              });
+
+              if (!response.ok) throw new Error("Convex auth token request failed.");
+
+              const body = (await response.json()) as { token?: string };
+              if (!body.token) throw new Error("Convex auth token response was missing a token.");
+
+              client.setAuth(body.token);
+              return await client.query(api.coreWork.batchRead, { operations });
+            },
+            catch: (cause) => new BackendError({ cause }),
+          }),
+        setupBatchWrite: ({ token, operations }) =>
+          Effect.tryPromise({
+            try: async () => {
+              const response = await fetch(`${authBaseUrl}/api/auth/convex/token`, {
+                method: "GET",
+                headers: { authorization: `Bearer ${token}` },
+              });
+
+              if (!response.ok) throw new Error("Convex auth token request failed.");
+
+              const body = (await response.json()) as { token?: string };
+              if (!body.token) throw new Error("Convex auth token response was missing a token.");
+
+              client.setAuth(body.token);
+              return await client.mutation(api.coreWork.batchWrite, { operations });
+            },
+            catch: (cause) => new BackendError({ cause }),
+          }),
       };
     }),
   );
@@ -282,6 +332,13 @@ const credentialNameFromArgs = (args: ReadonlyArray<string>) => {
   const name = nameIndex >= 0 ? args[nameIndex + 1]?.trim() : undefined;
 
   return name ? Effect.succeed(name) : Effect.fail(new MissingOptionError({ option: "--name" }));
+};
+
+const jsonOptionFromArgs = (args: ReadonlyArray<string>) => {
+  const jsonIndex = args.indexOf("--json");
+  const json = jsonIndex >= 0 ? args[jsonIndex + 1]?.trim() : undefined;
+
+  return json ? Effect.succeed(json) : Effect.fail(new MissingOptionError({ option: "--json" }));
 };
 
 const churchIdFromArgs = (args: ReadonlyArray<string>) => {
@@ -295,6 +352,15 @@ const readEnvToken = (env: CliEnv) => {
   const token = env.CHURCH_TASK_AUTH_TOKEN?.trim();
   return token ? Effect.succeed(token) : Effect.fail(new MissingLoginTokenError());
 };
+
+const readAuthToken = Effect.gen(function* () {
+  const storage = yield* CredentialStorage;
+  const envToken = yield* CurrentEnvToken;
+  const storedCredential = envToken ? null : yield* storage.read;
+  const token = envToken ?? storedCredential?.token ?? null;
+
+  return token ? yield* Effect.succeed(token) : yield* Effect.fail(new MissingLoginTokenError());
+});
 
 const runHealth = Effect.gen(function* () {
   const backend = yield* BackendClient;
@@ -331,6 +397,43 @@ const runActiveChurch = (args: ReadonlyArray<string>) =>
         : yield* backend.activeChurch(churchId);
 
     return activeChurch.ok ? success(activeChurch) : operationFailure(activeChurch);
+  });
+
+const runSetupRead = (args: ReadonlyArray<string>) =>
+  Effect.gen(function* () {
+    const churchId = churchIdFromArgs(args);
+    if (!churchId) return yield* Effect.fail(new MissingOptionError({ option: "--church-id" }));
+
+    const backend = yield* BackendClient;
+    const token = yield* readAuthToken;
+    const includeArchived = args.includes("--include-archived");
+    const operations: CoreWorkBatchReadArgs["operations"] = [
+      {
+        id: "teams",
+        operation: "listTeams",
+        input: includeArchived ? { churchId, includeArchived: true } : { churchId },
+      },
+      { id: "team-memberships", operation: "listTeamMemberships", input: { churchId } },
+      { id: "work-defaults", operation: "readWorkDefaults", input: { churchId } },
+      { id: "church-settings", operation: "readChurchSettings", input: { churchId } },
+    ];
+
+    const result = yield* backend.setupBatchRead({ token, operations });
+    return success(result);
+  });
+
+const runSetupWrite = (args: ReadonlyArray<string>) =>
+  Effect.gen(function* () {
+    const json = yield* jsonOptionFromArgs(args);
+    const parsed = JSON.parse(json) as {
+      readonly operations?: CoreWorkBatchWriteArgs["operations"];
+    };
+    const operations = parsed.operations ?? [];
+    const backend = yield* BackendClient;
+    const token = yield* readAuthToken;
+    const result = yield* backend.setupBatchWrite({ token, operations });
+
+    return success(result);
   });
 
 const safeCredentialMetadata = (credential: CliCredential) => ({
@@ -461,6 +564,14 @@ const runCliEffect = (
     return runActiveChurch(args.slice(1));
   }
 
+  if (command === "setup" && args[1] === "read") {
+    return runSetupRead(args.slice(2));
+  }
+
+  if (command === "setup" && args[1] === "write") {
+    return runSetupWrite(args.slice(2));
+  }
+
   if (command === "auth" && args[1] === "status") {
     return runAuthStatus;
   }
@@ -521,7 +632,7 @@ const formatError = (error: CliError) => {
       return failure({
         code: "unknown_command",
         message:
-          "Run `church-task health`, `church-task login --name <name>`, `church-task current-user`, `church-task active-church`, `church-task auth status`, or `church-task auth logout`.",
+          "Run `church-task health`, `church-task login --name <name>`, `church-task current-user`, `church-task active-church`, `church-task setup read --church-id <id>`, `church-task setup write --json <batch>`, `church-task auth status`, or `church-task auth logout`.",
       });
   }
 };

@@ -23,6 +23,18 @@ const noActiveChurch = {
   data: { status: "noActiveChurch", activeChurch: null, membership: null },
 } as const;
 
+const emptySetupRead = {
+  ok: true,
+  operation: "coreWorkBatchRead",
+  results: [],
+} as const;
+
+const emptySetupWrite = {
+  ok: true,
+  operation: "coreWorkBatchWrite",
+  results: [],
+} as const;
+
 const fakeBackend = (overrides: Partial<BackendClientService>) =>
   Layer.succeed(BackendClient, {
     healthCheck: Effect.succeed("OK" as const),
@@ -38,6 +50,8 @@ const fakeBackend = (overrides: Partial<BackendClientService>) =>
         start: "ctcli_",
       }),
     revokeCliCredential: () => Effect.succeed({ revoked: true }),
+    setupBatchRead: () => Effect.succeed(emptySetupRead),
+    setupBatchWrite: () => Effect.succeed(emptySetupWrite),
     ...overrides,
   });
 
@@ -170,6 +184,156 @@ describe("church-task active-church", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toBe("");
     expect(JSON.parse(result.stderr)).toEqual(authorizationError);
+  });
+});
+
+describe("church-task setup read", () => {
+  it("lists setup records through one compact agent-facing CLI command", async () => {
+    const setupRead = {
+      ok: true,
+      operation: "coreWorkBatchRead",
+      results: [
+        {
+          id: "teams",
+          operation: "listTeams",
+          result: { ok: true, operation: "listTeams", data: { teams: [] } },
+        },
+        {
+          id: "team-memberships",
+          operation: "listTeamMemberships",
+          result: {
+            ok: true,
+            operation: "listTeamMemberships",
+            data: { teamMemberships: [] },
+          },
+        },
+        {
+          id: "work-defaults",
+          operation: "readWorkDefaults",
+          result: {
+            ok: true,
+            operation: "readWorkDefaults",
+            data: { workflows: [], workflowStatuses: [], keyDates: [] },
+          },
+        },
+        {
+          id: "church-settings",
+          operation: "readChurchSettings",
+          result: {
+            ok: true,
+            operation: "readChurchSettings",
+            data: { church: { id: "church_123", churchTimeZone: "America/New_York" } },
+          },
+        },
+      ],
+    } as const;
+    let request: {
+      readonly token: string;
+      readonly operations: ReadonlyArray<{
+        readonly id: string;
+        readonly operation: string;
+        readonly input: unknown;
+      }>;
+    } | null = null;
+
+    const result = await runCli(["setup", "read", "--church-id", "church_123"], {
+      env: { CHURCH_TASK_AUTH_TOKEN: "env-token" },
+      backendLayer: fakeBackend({
+        setupBatchRead: (args) => {
+          request = args;
+          return Effect.succeed(setupRead);
+        },
+      }),
+    });
+
+    expect(request).toEqual({
+      token: "env-token",
+      operations: [
+        { id: "teams", operation: "listTeams", input: { churchId: "church_123" } },
+        {
+          id: "team-memberships",
+          operation: "listTeamMemberships",
+          input: { churchId: "church_123" },
+        },
+        {
+          id: "work-defaults",
+          operation: "readWorkDefaults",
+          input: { churchId: "church_123" },
+        },
+        {
+          id: "church-settings",
+          operation: "readChurchSettings",
+          input: { churchId: "church_123" },
+        },
+      ],
+    });
+    expect(result).toEqual({ exitCode: 0, stderr: "", stdout: `${JSON.stringify(setupRead)}\n` });
+  });
+});
+
+describe("church-task setup write", () => {
+  it("runs setup mutations through one compact agent-facing CLI command", async () => {
+    const setupWrite = {
+      ok: true,
+      operation: "coreWorkBatchWrite",
+      results: [
+        {
+          id: "create-care-team",
+          operation: "createTeam",
+          result: {
+            ok: true,
+            operation: "createTeam",
+            data: { teams: [{ id: "team_123", name: "Care", churchId: "church_123" }] },
+          },
+        },
+      ],
+    } as const;
+    let request: {
+      readonly token: string;
+      readonly operations: ReadonlyArray<{
+        readonly id: string;
+        readonly operation: string;
+        readonly input: unknown;
+      }>;
+    } | null = null;
+
+    const result = await runCli(
+      [
+        "setup",
+        "write",
+        "--json",
+        JSON.stringify({
+          operations: [
+            {
+              id: "create-care-team",
+              operation: "createTeam",
+              input: { churchId: "church_123", name: "Care" },
+            },
+          ],
+        }),
+      ],
+      {
+        env: { CHURCH_TASK_AUTH_TOKEN: "env-token" },
+        backendLayer: fakeBackend({
+          setupBatchWrite: (args) => {
+            request = args;
+            return Effect.succeed(setupWrite);
+          },
+        }),
+      },
+    );
+
+    expect(request).toEqual({
+      token: "env-token",
+      operations: [
+        {
+          id: "create-care-team",
+          operation: "createTeam",
+          input: { churchId: "church_123", name: "Care" },
+        },
+      ],
+    });
+    expect(result).toEqual({ exitCode: 0, stderr: "", stdout: `${JSON.stringify(setupWrite)}\n` });
   });
 });
 
