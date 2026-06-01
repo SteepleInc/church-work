@@ -90,7 +90,11 @@ function StatefulTaskKanbanBoard({
     >
       <KanbanBoard className="grid auto-cols-[minmax(16rem,1fr)] grid-flow-col gap-3 overflow-x-auto pb-2 sm:grid-cols-none">
         {columns.map((column) => (
-          <KanbanColumn key={column.id} value={column.id}>
+          <KanbanColumn
+            key={column.id}
+            value={column.id}
+            aria-label={`Workflow Status ${column.title}`}
+          >
             <div className="mb-3 flex items-center justify-between rounded-lg border bg-muted/50 px-3 py-2">
               <div>
                 <h2 className="text-sm font-semibold">{column.title}</h2>
@@ -100,9 +104,18 @@ function StatefulTaskKanbanBoard({
               </div>
               <Badge variant="secondary">{columnTasks[column.id]?.length ?? 0}</Badge>
             </div>
-            <KanbanColumnContent value={column.id} className="min-h-24">
+            <KanbanColumnContent
+              value={column.id}
+              className="min-h-24"
+              aria-label={`${column.title} Tasks`}
+            >
               {(columnTasks[column.id] ?? []).map((task) => (
-                <KanbanItem key={task.id} value={task.id} disabled={task.taskState === "canceled"}>
+                <KanbanItem
+                  key={task.id}
+                  value={task.id}
+                  disabled={task.taskState === "canceled"}
+                  aria-label={`Task card ${task.title}`}
+                >
                   <TaskKanbanCard task={task} />
                 </KanbanItem>
               ))}

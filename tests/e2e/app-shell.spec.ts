@@ -234,10 +234,16 @@ test("Team sidebar navigation opens a Team board filtered to that Team", async (
   await expect(page.getByRole("heading", { name: teamName, level: 1 })).toBeVisible();
   await expect(page.getByText("Team Tasks in the current execution window.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "To Do", level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "In Progress", level: 2 })).toBeVisible();
 
   await page.getByPlaceholder("Add Team Task").fill(teamTaskTitle);
   await page.getByRole("button", { name: "Create Task" }).click();
   await expect(page.getByText(teamTaskTitle).first()).toBeVisible();
+
+  await page
+    .getByLabel(`Task card ${teamTaskTitle}`)
+    .dragTo(page.getByLabel("Workflow Status In Progress"));
+  await expect(page.getByLabel("In Progress Tasks").getByText(teamTaskTitle)).toBeVisible();
 
   await page.getByRole("button", { name: "Our Work" }).click();
   await expect(page.getByRole("heading", { name: "Our Work", level: 1 })).toBeVisible();
@@ -248,7 +254,7 @@ test("Team sidebar navigation opens a Team board filtered to that Team", async (
 
   await page.getByRole("button", { name: teamName }).first().click();
   await expect(page.getByRole("heading", { name: teamName, level: 1 })).toBeVisible();
-  await expect(page.getByText(teamTaskTitle).first()).toBeVisible();
+  await expect(page.getByLabel("In Progress Tasks").getByText(teamTaskTitle)).toBeVisible();
   await expect(page.getByText(churchTaskTitle)).not.toBeVisible();
 });
 
