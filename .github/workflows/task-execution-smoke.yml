@@ -55,6 +55,15 @@ jobs:
       - name: Run full Task execution smoke
         run: bun run test:task-execution-smoke:full
 
+      - name: Publish smoke summary
+        if: always()
+        run: |
+          if [ -f test-results/task-execution-smoke.md ]; then
+            cat test-results/task-execution-smoke.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            printf 'Task execution smoke report was not generated.\n' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload smoke report
         if: always()
         uses: actions/upload-artifact@v4
