@@ -245,6 +245,63 @@ test("owner updates Church Time Zone from settings", async ({ page }, testInfo) 
   ).toBeVisible();
 });
 
+test("owner manages Teams and Team Memberships from settings", async ({ page }, testInfo) => {
+  const ownerEmail = `e2e-team-owner-${Date.now()}-${testInfo.workerIndex}@example.com`;
+  const memberEmail = `e2e-team-member-${Date.now()}-${testInfo.workerIndex}@example.com`;
+  const churchName = `E2E Team Settings Church ${Date.now()}`;
+
+  await signUpThroughDashboard(page, ownerEmail, "E2E Team Owner");
+  await createFirstChurch(page, churchName);
+  await page.getByLabel("Invite Member Email").fill(memberEmail);
+  await page.getByRole("button", { name: "Invite Member" }).click();
+  await expect(page.getByText(`Invitation sent to ${memberEmail}.`)).toBeVisible();
+  await page.getByRole("button", { name: "E2E Team Owner" }).click();
+  await page.getByRole("menuitem", { name: "Sign Out" }).click();
+
+  await signUpThroughDashboardToInvitation(page, memberEmail, "E2E Team Member");
+  await page.getByRole("button", { name: "Accept Invitation" }).click();
+  await expect(page.getByText(`Active Church: ${churchName}`)).toBeVisible();
+  await page.getByRole("button", { name: "E2E Team Member" }).click();
+  await page.getByRole("menuitem", { name: "Sign Out" }).click();
+
+  await signInThroughDashboard(page, ownerEmail);
+  await page.getByRole("button", { name: "Active Church Settings" }).click();
+
+  const teamsSettings = page.getByRole("region", { name: "Teams" });
+  await teamsSettings.getByLabel("New Team Name").fill("Prayer");
+  await teamsSettings.getByRole("button", { name: "Create Team" }).click();
+  await expect(page.getByText("Created Team Prayer.")).toBeVisible();
+  await expect(teamsSettings.getByText("Prayer")).toBeVisible();
+
+  await teamsSettings.getByLabel("Rename Prayer").fill("Care");
+  await teamsSettings.getByRole("button", { name: "Rename Team Prayer" }).click();
+  await expect(page.getByText("Renamed Team to Care.")).toBeVisible();
+  await expect(teamsSettings.getByText("Care")).toBeVisible();
+
+  await teamsSettings.getByRole("button", { name: "Move Care Up" }).click();
+  await expect(page.getByText("Reordered Teams.")).toBeVisible();
+
+  const membershipsSettings = page.getByRole("region", { name: "Team Memberships" });
+  await membershipsSettings.getByLabel("Team").selectOption({ label: "Care" });
+  await membershipsSettings.getByLabel("Church Member").selectOption({ label: memberEmail });
+  await membershipsSettings.getByRole("button", { name: "Add Team Member" }).click();
+  await expect(page.getByText(`Added ${memberEmail} to Care.`)).toBeVisible();
+  await expect(membershipsSettings.getByText("Care")).toBeVisible();
+  await expect(membershipsSettings.getByText(memberEmail)).toBeVisible();
+
+  await membershipsSettings
+    .getByRole("button", { name: `Remove ${memberEmail} from Care` })
+    .click();
+  await expect(page.getByText(`Removed ${memberEmail} from Care.`)).toBeVisible();
+  await expect(
+    membershipsSettings.getByRole("button", { name: `Remove ${memberEmail} from Care` }),
+  ).not.toBeVisible();
+
+  await teamsSettings.getByRole("button", { name: "Archive Team Care" }).click();
+  await expect(page.getByText("Archived Team Care.")).toBeVisible();
+  await expect(teamsSettings.getByText("Care")).not.toBeVisible();
+});
+
 test("owner manages Church Member role and removal", async ({ page }, testInfo) => {
   const ownerEmail = `e2e-member-owner-${Date.now()}-${testInfo.workerIndex}@example.com`;
   const memberEmail = `e2e-managed-member-${Date.now()}-${testInfo.workerIndex}@example.com`;

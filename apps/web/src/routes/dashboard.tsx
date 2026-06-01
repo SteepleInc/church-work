@@ -14,6 +14,7 @@ import {
   ItemGroup,
   ItemTitle,
 } from "@/components/ui/item";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import {
@@ -39,6 +40,14 @@ import {
   SidebarSeparator,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { QueryResult, useQuery as useConfectQuery } from "@confect/react";
 import { CheckoutLink, CustomerPortalLink } from "@convex-dev/polar/react";
 import { revalidateLogic } from "@tanstack/react-form";
@@ -187,6 +196,7 @@ function ActiveChurchSettings({ activeChurch }: { activeChurch: ActiveChurch }) 
   const teamMemberships = useQuery(api.teams.listMembershipsForChurch, {
     churchId: activeChurch.id,
   });
+  const members = useQuery(api.dashboard.listMembers, { organizationId: activeChurch.id });
   const workDefaults = useQuery(api.workDefaults.readForChurch, { churchId: activeChurch.id });
 
   const activeTeams = teams?.ok && teams.operation === "listTeams" ? teams.data.teams : [];
@@ -200,30 +210,18 @@ function ActiveChurchSettings({ activeChurch }: { activeChurch: ActiveChurch }) 
 
   return (
     <section className="grid gap-4 md:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle>Teams</CardTitle>
-          <CardDescription>Active work areas for this Church.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            {teams === undefined ? "Loading Teams..." : `${activeTeams.length} active Teams`}
-          </p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Team Memberships</CardTitle>
-          <CardDescription>Church Members connected to their relevant Teams.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            {teamMemberships === undefined
-              ? "Loading Team Memberships..."
-              : `${memberships.length} Team Memberships`}
-          </p>
-        </CardContent>
-      </Card>
+      <TeamSettingsCard
+        activeChurch={activeChurch}
+        teams={activeTeams}
+        isLoading={teams === undefined}
+      />
+      <TeamMembershipSettingsCard
+        activeChurch={activeChurch}
+        teams={activeTeams}
+        members={members ?? []}
+        memberships={memberships}
+        isLoading={teamMemberships === undefined || members === undefined}
+      />
       <Card>
         <CardHeader>
           <CardTitle>Workflows</CardTitle>
@@ -251,6 +249,413 @@ function ActiveChurchSettings({ activeChurch }: { activeChurch: ActiveChurch }) 
       <ChurchTimeZoneSettings activeChurch={activeChurch} churchTimeZone={churchTimeZone} />
     </section>
   );
+}
+
+type TeamSetupTeam = {
+  id: string;
+  name: string;
+  sortOrder: number;
+};
+
+type TeamSetupMember = {
+  id: string;
+  user: {
+    id: string;
+    name: string | null;
+    email: string | null;
+  };
+};
+
+type TeamSetupMembership = {
+  id: string;
+  teamId: string;
+  userId: string;
+};
+
+function TeamSettingsCard({
+  activeChurch,
+  teams,
+  isLoading,
+}: {
+  activeChurch: ActiveChurch;
+  teams: readonly TeamSetupTeam[];
+  isLoading: boolean;
+}) {
+  const createTeam = useMutation(api.teams.createForChurch);
+  const renameTeam = useMutation(api.teams.renameForChurch);
+  const archiveTeam = useMutation(api.teams.archiveForChurch);
+  const reorderTeams = useMutation(api.teams.reorderForChurch);
+  const canManage = canMutateChurchSettings(activeChurch.role);
+  const [newTeamName, setNewTeamName] = useState("");
+  const [renameDrafts, setRenameDrafts] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
+
+  const runTeamMutation = async (
+    action: string,
+    mutation: () => Promise<{ ok: boolean; error?: { message: string } }>,
+    onSuccess: () => void,
+  ) => {
+    setError(null);
+    setSuccess(null);
+    setPendingAction(action);
+    const result = await mutation();
+    setPendingAction(null);
+
+    if (!result.ok) {
+      setError(result.error?.message ?? "Could not update Teams.");
+      return;
+    }
+
+    onSuccess();
+  };
+
+  const moveTeam = (team: TeamSetupTeam, direction: -1 | 1) => {
+    const fromIndex = teams.findIndex((candidate) => candidate.id === team.id);
+    const toIndex = fromIndex + direction;
+    if (fromIndex < 0 || toIndex < 0 || toIndex >= teams.length) return;
+
+    const teamIds = teams.map((candidate) => candidate.id);
+    const [teamId] = teamIds.splice(fromIndex, 1);
+    teamIds.splice(toIndex, 0, teamId);
+    void runTeamMutation(
+      `reorder-${team.id}`,
+      () => reorderTeams({ churchId: activeChurch.id, teamIds }),
+      () => setSuccess("Reordered Teams."),
+    );
+  };
+
+  return (
+    <Card role="region" aria-labelledby="teams-settings-title">
+      <CardHeader>
+        <CardTitle id="teams-settings-title">Teams</CardTitle>
+        <CardDescription>Active work areas for this Church.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <p className="text-sm text-muted-foreground">
+          {isLoading ? "Loading Teams..." : `${teams.length} active Teams`}
+        </p>
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+        {success ? (
+          <Alert>
+            <AlertDescription>{success}</AlertDescription>
+          </Alert>
+        ) : null}
+        {canManage ? (
+          <form
+            className="flex flex-col gap-3 sm:flex-row sm:items-end"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const name = newTeamName.trim();
+              if (!name) return;
+              void runTeamMutation(
+                "create",
+                () => createTeam({ churchId: activeChurch.id, name }),
+                () => {
+                  setNewTeamName("");
+                  setSuccess(`Created Team ${name}.`);
+                },
+              );
+            }}
+          >
+            <div className="grid gap-2">
+              <Label htmlFor="new-team-name">New Team Name</Label>
+              <Input
+                id="new-team-name"
+                value={newTeamName}
+                disabled={pendingAction === "create"}
+                onChange={(event) => setNewTeamName(event.currentTarget.value)}
+              />
+            </div>
+            <Button type="submit" disabled={pendingAction === "create" || !newTeamName.trim()}>
+              {pendingAction === "create" ? "Creating..." : "Create Team"}
+            </Button>
+          </form>
+        ) : null}
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Team</TableHead>
+              {canManage ? <TableHead className="text-right">Actions</TableHead> : null}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {teams.map((team, index) => {
+              const draftName = renameDrafts[team.id] ?? team.name;
+
+              return (
+                <TableRow key={team.id}>
+                  <TableCell>
+                    {canManage ? (
+                      <div className="grid gap-2">
+                        <Label className="sr-only" htmlFor={`rename-team-${team.id}`}>
+                          Rename {team.name}
+                        </Label>
+                        <Input
+                          id={`rename-team-${team.id}`}
+                          value={draftName}
+                          disabled={pendingAction === `rename-${team.id}`}
+                          onChange={(event) =>
+                            setRenameDrafts((drafts) => ({
+                              ...drafts,
+                              [team.id]: event.currentTarget.value,
+                            }))
+                          }
+                        />
+                      </div>
+                    ) : (
+                      team.name
+                    )}
+                  </TableCell>
+                  {canManage ? (
+                    <TableCell>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={
+                            pendingAction === `rename-${team.id}` ||
+                            !draftName.trim() ||
+                            draftName.trim() === team.name
+                          }
+                          onClick={() => {
+                            const name = draftName.trim();
+                            void runTeamMutation(
+                              `rename-${team.id}`,
+                              () =>
+                                renameTeam({ churchId: activeChurch.id, teamId: team.id, name }),
+                              () => setSuccess(`Renamed Team to ${name}.`),
+                            );
+                          }}
+                        >
+                          Rename Team {team.name}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={index === 0 || pendingAction === `reorder-${team.id}`}
+                          onClick={() => moveTeam(team, -1)}
+                        >
+                          Move {team.name} Up
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={
+                            index === teams.length - 1 || pendingAction === `reorder-${team.id}`
+                          }
+                          onClick={() => moveTeam(team, 1)}
+                        >
+                          Move {team.name} Down
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={pendingAction === `archive-${team.id}`}
+                          onClick={() =>
+                            void runTeamMutation(
+                              `archive-${team.id}`,
+                              () => archiveTeam({ churchId: activeChurch.id, teamId: team.id }),
+                              () => setSuccess(`Archived Team ${team.name}.`),
+                            )
+                          }
+                        >
+                          Archive Team {team.name}
+                        </Button>
+                      </div>
+                    </TableCell>
+                  ) : null}
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TeamMembershipSettingsCard({
+  activeChurch,
+  teams,
+  members,
+  memberships,
+  isLoading,
+}: {
+  activeChurch: ActiveChurch;
+  teams: readonly TeamSetupTeam[];
+  members: readonly TeamSetupMember[];
+  memberships: readonly TeamSetupMembership[];
+  isLoading: boolean;
+}) {
+  const addTeamMember = useMutation(api.teams.addMemberForChurch);
+  const removeTeamMember = useMutation(api.teams.removeMemberForChurch);
+  const canManage = canMutateChurchSettings(activeChurch.role);
+  const [selectedTeamId, setSelectedTeamId] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const teamsById = new Map(teams.map((team) => [team.id, team]));
+  const membersByUserId = new Map(members.map((member) => [member.user.id, member]));
+  const visibleMemberships = memberships.filter(
+    (membership) => teamsById.has(membership.teamId) && membersByUserId.has(membership.userId),
+  );
+
+  const runMembershipMutation = async (
+    action: string,
+    mutation: () => Promise<{ ok: boolean; error?: { message: string } }>,
+    onSuccess: () => void,
+  ) => {
+    setError(null);
+    setSuccess(null);
+    setPendingAction(action);
+    const result = await mutation();
+    setPendingAction(null);
+
+    if (!result.ok) {
+      setError(result.error?.message ?? "Could not update Team Memberships.");
+      return;
+    }
+
+    onSuccess();
+  };
+
+  return (
+    <Card role="region" aria-labelledby="team-memberships-settings-title">
+      <CardHeader>
+        <CardTitle id="team-memberships-settings-title">Team Memberships</CardTitle>
+        <CardDescription>Church Members connected to their relevant Teams.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <p className="text-sm text-muted-foreground">
+          {isLoading
+            ? "Loading Team Memberships..."
+            : `${visibleMemberships.length} Team Memberships`}
+        </p>
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+        {success ? (
+          <Alert>
+            <AlertDescription>{success}</AlertDescription>
+          </Alert>
+        ) : null}
+        {canManage ? (
+          <form
+            className="grid gap-3 lg:grid-cols-[1fr_1fr_auto] lg:items-end"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!selectedTeamId || !selectedUserId) return;
+              const team = teamsById.get(selectedTeamId);
+              const member = membersByUserId.get(selectedUserId);
+              void runMembershipMutation(
+                "add",
+                () =>
+                  addTeamMember({
+                    churchId: activeChurch.id,
+                    teamId: selectedTeamId,
+                    userId: selectedUserId,
+                  }),
+                () => setSuccess(`Added ${memberLabel(member)} to ${team?.name ?? "Team"}.`),
+              );
+            }}
+          >
+            <div className="grid gap-2">
+              <Label htmlFor="team-membership-team">Team</Label>
+              <NativeSelect
+                id="team-membership-team"
+                value={selectedTeamId}
+                disabled={pendingAction === "add"}
+                onChange={(event) => setSelectedTeamId(event.currentTarget.value)}
+              >
+                <NativeSelectOption value="">Select a Team</NativeSelectOption>
+                {teams.map((team) => (
+                  <NativeSelectOption key={team.id} value={team.id}>
+                    {team.name}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="team-membership-member">Church Member</Label>
+              <NativeSelect
+                id="team-membership-member"
+                value={selectedUserId}
+                disabled={pendingAction === "add"}
+                onChange={(event) => setSelectedUserId(event.currentTarget.value)}
+              >
+                <NativeSelectOption value="">Select a Church Member</NativeSelectOption>
+                {members.map((member) => (
+                  <NativeSelectOption key={member.id} value={member.user.id}>
+                    {memberLabel(member)}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </div>
+            <Button
+              type="submit"
+              disabled={pendingAction === "add" || !selectedTeamId || !selectedUserId}
+            >
+              {pendingAction === "add" ? "Adding..." : "Add Team Member"}
+            </Button>
+          </form>
+        ) : null}
+        <ItemGroup className="gap-2">
+          {visibleMemberships.map((membership) => {
+            const team = teamsById.get(membership.teamId)!;
+            const member = membersByUserId.get(membership.userId)!;
+            const label = memberLabel(member);
+
+            return (
+              <Item key={membership.id} variant="outline">
+                <ItemContent>
+                  <ItemTitle>{label}</ItemTitle>
+                  <ItemDescription>{team.name}</ItemDescription>
+                </ItemContent>
+                {canManage ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={pendingAction === `remove-${membership.id}`}
+                    onClick={() =>
+                      void runMembershipMutation(
+                        `remove-${membership.id}`,
+                        () =>
+                          removeTeamMember({
+                            churchId: activeChurch.id,
+                            teamId: membership.teamId,
+                            userId: membership.userId,
+                          }),
+                        () => setSuccess(`Removed ${label} from ${team.name}.`),
+                      )
+                    }
+                  >
+                    Remove {label} from {team.name}
+                  </Button>
+                ) : null}
+              </Item>
+            );
+          })}
+        </ItemGroup>
+      </CardContent>
+    </Card>
+  );
+}
+
+function memberLabel(member: TeamSetupMember | undefined) {
+  return member?.user.email ?? member?.user.name ?? "Church Member";
 }
 
 function ChurchTimeZoneSettings({

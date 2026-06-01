@@ -249,6 +249,7 @@ export const listMembers = query({
           id: member._id,
           role: member.role,
           user: {
+            id: member.userId,
             name: user?.name ?? null,
             email: user?.email ?? null,
           },
