@@ -139,12 +139,24 @@ export function getDashboardPanelFromSearch(search: DashboardSearch): ActiveDash
   return "my_work";
 }
 
-export function getDashboardSearchForPanel(panel: ActiveDashboardPanel): DashboardSearch {
+function getDashboardFilterSearch(search: DashboardSearch): DashboardSearch {
+  return {
+    ...(search.taskState ? { taskState: search.taskState } : {}),
+    ...(search.workflowStatusId ? { workflowStatusId: search.workflowStatusId } : {}),
+  };
+}
+
+export function getDashboardSearchForPanel(
+  panel: ActiveDashboardPanel,
+  currentSearch: DashboardSearch = {},
+): DashboardSearch {
+  const filters = getDashboardFilterSearch(currentSearch);
+
   if (typeof panel === "object") {
-    return { work: "team", teamId: panel.teamId };
+    return { ...filters, work: "team", teamId: panel.teamId };
   }
 
-  return panel === "my_work" ? {} : { work: panel };
+  return panel === "my_work" ? filters : { ...filters, work: panel };
 }
 
 export function getDashboardSearchForExecutionFilters(
@@ -182,7 +194,7 @@ function PrivateDashboardContent() {
   const activeChurch = useQuery(api.dashboard.getActiveOrganization);
   const activePanel = getDashboardPanelFromSearch(search);
   const setActivePanel = (panel: ActiveDashboardPanel) => {
-    navigate({ search: getDashboardSearchForPanel(panel) });
+    navigate({ search: getDashboardSearchForPanel(panel, search) });
   };
   const setExecutionFilters = (filters: TaskExecutionFilters) => {
     navigate({ search: getDashboardSearchForExecutionFilters(search, filters) });

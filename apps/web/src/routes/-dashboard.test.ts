@@ -25,6 +25,33 @@ describe("dashboard execution route search", () => {
     });
   });
 
+  test("preserves temporary execution filters while switching execution routes", () => {
+    expect(
+      getDashboardSearchForPanel(
+        { kind: "team", teamId: "team-1" },
+        { work: "our_work", taskState: "in_progress", workflowStatusId: "status-1" },
+      ),
+    ).toEqual({
+      work: "team",
+      teamId: "team-1",
+      taskState: "in_progress",
+      workflowStatusId: "status-1",
+    });
+
+    expect(
+      getDashboardSearchForPanel("our_work", {
+        work: "team",
+        teamId: "team-1",
+        taskState: "done",
+        workflowStatusId: "team-status",
+      }),
+    ).toEqual({
+      work: "our_work",
+      taskState: "done",
+      workflowStatusId: "team-status",
+    });
+  });
+
   test("falls back to My Work for incomplete Team board search state", () => {
     expect(getDashboardPanelFromSearch({ work: "team" })).toBe("my_work");
   });
