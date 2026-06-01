@@ -196,6 +196,37 @@ test("active Church shell shows the User's Church Membership context", async ({
   await expect(page.getByText("owner")).toBeVisible();
 });
 
+test("active Church member can navigate to readable setup settings", async ({ page }, testInfo) => {
+  const ownerEmail = `e2e-settings-owner-${Date.now()}-${testInfo.workerIndex}@example.com`;
+  const memberEmail = `e2e-settings-member-${Date.now()}-${testInfo.workerIndex}@example.com`;
+  const churchName = `E2E Settings Church ${Date.now()}`;
+
+  await signUpThroughDashboard(page, ownerEmail, "E2E Settings Owner");
+  await createFirstChurch(page, churchName);
+  await page.getByLabel("Invite Member Email").fill(memberEmail);
+  await page.getByRole("button", { name: "Invite Member" }).click();
+  await expect(page.getByText(`Invitation sent to ${memberEmail}.`)).toBeVisible();
+  await page.getByRole("button", { name: "E2E Settings Owner" }).click();
+  await page.getByRole("menuitem", { name: "Sign Out" }).click();
+
+  await signUpThroughDashboardToInvitation(page, memberEmail, "E2E Settings Member");
+  await page.getByRole("button", { name: "Accept Invitation" }).click();
+  await expect(page.getByText(`Active Church: ${churchName}`)).toBeVisible();
+
+  await page.getByRole("button", { name: "Active Church Settings" }).click();
+
+  await expect(page.getByRole("heading", { name: "Active Church Settings" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Teams" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Team Memberships" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Workflows" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Workflow Statuses" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Church Time Zone" })).toBeVisible();
+  await expect(page.getByText(/Organization|Org/)).not.toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Create Team|Archive Team|Update Time Zone/ }),
+  ).not.toBeVisible();
+});
+
 test("owner manages Church Member role and removal", async ({ page }, testInfo) => {
   const ownerEmail = `e2e-member-owner-${Date.now()}-${testInfo.workerIndex}@example.com`;
   const memberEmail = `e2e-managed-member-${Date.now()}-${testInfo.workerIndex}@example.com`;

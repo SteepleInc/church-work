@@ -60,6 +60,7 @@ function PrivateDashboardContent() {
   const products = useQuery(api.polar.listAllProducts);
   const subscription = useQuery(api.polar.getCurrentSubscription);
   const activeChurch = useQuery(api.dashboard.getActiveOrganization);
+  const [activePanel, setActivePanel] = useState<"dashboard" | "settings">("dashboard");
   const pendingInvitations =
     activeChurch?.invitations.filter((invitation) => invitation.status === "pending") ?? [];
 
@@ -80,6 +81,24 @@ function PrivateDashboardContent() {
             activeChurchId={activeChurch?.id ?? null}
             activeChurchName={activeChurch?.name}
           />
+          {activeChurch ? (
+            <SidebarGroup>
+              <SidebarGroupLabel>Church Setup</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      type="button"
+                      isActive={activePanel === "settings"}
+                      onClick={() => setActivePanel("settings")}
+                    >
+                      <span>Active Church Settings</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          ) : null}
         </SidebarContent>
       </Sidebar>
       <SidebarInset className="bg-muted/30">
@@ -89,7 +108,9 @@ function PrivateDashboardContent() {
               <SidebarTrigger className="mt-0.5" />
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Church Task</p>
-                <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+                <h1 className="text-2xl font-semibold tracking-tight">
+                  {activePanel === "settings" ? "Active Church Settings" : "Dashboard"}
+                </h1>
                 {activeChurch ? (
                   <p className="text-sm text-muted-foreground">
                     Active Church: {activeChurch.name}
@@ -99,54 +120,145 @@ function PrivateDashboardContent() {
             </div>
             <UserMenu />
           </div>
-          <section className="grid gap-4 rounded-xl border bg-background p-4 shadow-xs">
-            <div>
-              <h2 className="text-base font-semibold">Church Home</h2>
-              <p className="text-sm text-muted-foreground">
-                privateData:{" "}
-                {QueryResult.isSuccess(privateData) ? privateData.value.message : "Loading..."}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Plan: {hasActiveSubscription ? "Active" : "Free"}
-              </p>
-            </div>
-            {subscription === undefined ? (
-              <p className="text-sm text-muted-foreground">Loading subscription options...</p>
-            ) : hasActiveSubscription ? (
-              <CustomerPortalLink
-                polarApi={api.polar}
-                className={buttonVariants({ variant: "outline" })}
-              >
-                Manage Subscription
-              </CustomerPortalLink>
-            ) : products === undefined ? (
-              <p className="text-sm text-muted-foreground">Loading subscription options...</p>
-            ) : product ? (
-              <CheckoutLink
-                polarApi={api.polar}
-                productIds={[product.id]}
-                embed={false}
-                className={buttonVariants({ variant: "default" })}
-              >
-                Upgrade
-              </CheckoutLink>
-            ) : (
-              <p className="text-sm text-muted-foreground">No recurring plans available.</p>
-            )}
-          </section>
-          <ActiveChurchInvitationPrompt />
-          {activeChurch ? (
+          {activePanel === "settings" && activeChurch ? (
+            <ActiveChurchSettings activeChurch={activeChurch} />
+          ) : (
             <>
-              <ChurchMembersPanel activeChurchId={activeChurch.id} />
-              <ChurchInvitationPanel
-                activeChurchId={activeChurch.id}
-                pendingInvitations={pendingInvitations}
-              />
+              <section className="grid gap-4 rounded-xl border bg-background p-4 shadow-xs">
+                <div>
+                  <h2 className="text-base font-semibold">Church Home</h2>
+                  <p className="text-sm text-muted-foreground">
+                    privateData:{" "}
+                    {QueryResult.isSuccess(privateData) ? privateData.value.message : "Loading..."}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Plan: {hasActiveSubscription ? "Active" : "Free"}
+                  </p>
+                </div>
+                {subscription === undefined ? (
+                  <p className="text-sm text-muted-foreground">Loading subscription options...</p>
+                ) : hasActiveSubscription ? (
+                  <CustomerPortalLink
+                    polarApi={api.polar}
+                    className={buttonVariants({ variant: "outline" })}
+                  >
+                    Manage Subscription
+                  </CustomerPortalLink>
+                ) : products === undefined ? (
+                  <p className="text-sm text-muted-foreground">Loading subscription options...</p>
+                ) : product ? (
+                  <CheckoutLink
+                    polarApi={api.polar}
+                    productIds={[product.id]}
+                    embed={false}
+                    className={buttonVariants({ variant: "default" })}
+                  >
+                    Upgrade
+                  </CheckoutLink>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No recurring plans available.</p>
+                )}
+              </section>
+              <ActiveChurchInvitationPrompt />
+              {activeChurch ? (
+                <>
+                  <ChurchMembersPanel activeChurchId={activeChurch.id} />
+                  <ChurchInvitationPanel
+                    activeChurchId={activeChurch.id}
+                    pendingInvitations={pendingInvitations}
+                  />
+                </>
+              ) : null}
             </>
-          ) : null}
+          )}
         </main>
       </SidebarInset>
     </SidebarProvider>
+  );
+}
+
+type ActiveChurch = NonNullable<
+  ReturnType<typeof useQuery<typeof api.dashboard.getActiveOrganization>>
+>;
+
+function ActiveChurchSettings({ activeChurch }: { activeChurch: ActiveChurch }) {
+  const teams = useQuery(api.teams.listForChurch, { churchId: activeChurch.id });
+  const teamMemberships = useQuery(api.teams.listMembershipsForChurch, {
+    churchId: activeChurch.id,
+  });
+  const workDefaults = useQuery(api.workDefaults.readForChurch, { churchId: activeChurch.id });
+
+  const activeTeams = teams?.ok && teams.operation === "listTeams" ? teams.data.teams : [];
+  const memberships =
+    teamMemberships?.ok && teamMemberships.operation === "listTeamMemberships"
+      ? teamMemberships.data.teamMemberships
+      : [];
+  const workflows = workDefaults?.ok ? workDefaults.data.workflows : [];
+  const workflowStatuses = workDefaults?.ok ? workDefaults.data.workflowStatuses : [];
+  const churchTimeZone = activeChurch.churchTimeZone ?? "Not set";
+
+  return (
+    <section className="grid gap-4 md:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardTitle>Teams</CardTitle>
+          <CardDescription>Active work areas for this Church.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            {teams === undefined ? "Loading Teams..." : `${activeTeams.length} active Teams`}
+          </p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Team Memberships</CardTitle>
+          <CardDescription>Church Members connected to their relevant Teams.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            {teamMemberships === undefined
+              ? "Loading Team Memberships..."
+              : `${memberships.length} Team Memberships`}
+          </p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Workflows</CardTitle>
+          <CardDescription>Church-scoped processes available to Teams and Tasks.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            {workDefaults === undefined ? "Loading Workflows..." : `${workflows.length} Workflows`}
+          </p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Workflow Statuses</CardTitle>
+          <CardDescription>Visible process steps mapped to Task States.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            {workDefaults === undefined
+              ? "Loading Workflow Statuses..."
+              : `${workflowStatuses.length} Workflow Statuses`}
+          </p>
+        </CardContent>
+      </Card>
+      <Card className="md:col-span-2">
+        <CardHeader>
+          <CardTitle>Church Time Zone</CardTitle>
+          <CardDescription>
+            Weekly Cycle boundaries use this Church-local time zone.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">{churchTimeZone}</p>
+        </CardContent>
+      </Card>
+    </section>
   );
 }
 
