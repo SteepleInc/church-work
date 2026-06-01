@@ -41,6 +41,69 @@ const taskToolResponse = (tool: string, body: Record<string, unknown>) => ({
   ...body,
 });
 
+const decodeJwtPayload = (token: string) =>
+  JSON.parse(atob(token.split(".")[1]!.replaceAll("-", "+").replaceAll("_", "/"))) as {
+    sessionId?: string;
+  };
+
+const loadBackendTestHarness = async () => {
+  const backendRoot = "../../backend";
+  const [refsModule, testConfect] = await Promise.all([
+    import(/* @vite-ignore */ `${backendRoot}/confect/_generated/refs`),
+    import(/* @vite-ignore */ `${backendRoot}/test/TestConfect`),
+  ]);
+
+  return { refs: (refsModule as any).default, TestConfect: testConfect as any };
+};
+
+const signUpWithEmail = (c: any, email: string) =>
+  c.fetch("/api/auth/sign-up/email", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      origin: "http://localhost:2101",
+    },
+    body: JSON.stringify({
+      name: "CLI Test User",
+      email,
+      password: "correct horse battery staple",
+    }),
+  });
+
+const createChurch = (
+  c: any,
+  args: { readonly token: string; readonly name: string; readonly slug: string },
+) =>
+  c.fetch("/api/auth/organization/create", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${args.token}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      name: args.name,
+      slug: args.slug,
+      churchTimeZone: "America/New_York",
+    }),
+  });
+
+const authenticatedConfect = function* (
+  c: any,
+  args: { readonly userId: string; readonly sessionToken: string },
+) {
+  const tokenResponse = yield* c.fetch("/api/auth/convex/token", {
+    method: "GET",
+    headers: { authorization: `Bearer ${args.sessionToken}` },
+  });
+  const tokenBody = (yield* Effect.promise(() => tokenResponse.json())) as { token?: string };
+  const tokenPayload = decodeJwtPayload(tokenBody.token!);
+
+  return c.withIdentity({
+    subject: args.userId,
+    sessionId: tokenPayload.sessionId!,
+  });
+};
+
 const fakeBackend = (overrides: Partial<BackendClientService>) =>
   Layer.succeed(BackendClient, {
     healthCheck: Effect.succeed("OK" as const),
@@ -345,6 +408,112 @@ describe("church-task setup write", () => {
 });
 
 describe("church-task task execution", () => {
+  it("records Activity side effects when lifecycle commands run through the public CLI", async () => {
+    const { refs, TestConfect } = await loadBackendTestHarness();
+
+    const program = Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `cli-task-activity-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const owner = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: owner.token!,
+        name: "CLI Task Activity Church",
+        slug: `cli-task-activity-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: owner.user!.id!,
+        sessionToken: owner.token!,
+      });
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
+        churchId: church.id!,
+      });
+      const todoStatus = defaults.data.workflowStatuses.find(
+        (status: { readonly taskState: string }) => status.taskState === "todo",
+      )!;
+      const env = { CHURCH_TASK_AUTH_TOKEN: owner.token! };
+      const backendLayer = fakeBackend({
+        taskTool: ({ token, tool, body }) =>
+          Effect.gen(function* () {
+            const response = yield* c.fetch(`/api/mcp/tools/${tool}`, {
+              method: "POST",
+              headers: {
+                authorization: `Bearer ${token}`,
+                "content-type": "application/json",
+              },
+              body: JSON.stringify(body),
+            }) as Effect.Effect<any, BackendError, never>;
+
+            const status = (response as { readonly status?: number }).status;
+            if (typeof status === "number" && status >= 400) {
+              return yield* Effect.fail(new BackendError({ cause: `Task tool ${tool} failed.` }));
+            }
+
+            if (typeof (response as { readonly json?: unknown }).json === "function") {
+              return (yield* Effect.promise(() =>
+                (response as { json: () => Promise<unknown> }).json(),
+              )) as Record<string, unknown> & { ok?: boolean };
+            }
+
+            return response as unknown as Record<string, unknown> & { ok?: boolean };
+          }),
+      });
+
+      const createResult = yield* Effect.promise(() =>
+        runCli(
+          [
+            "task",
+            "create",
+            "--church-id",
+            church.id!,
+            "--title",
+            "Complete from CLI",
+            "--workflow-status-id",
+            todoStatus.id,
+            "--due-date",
+            "2026-06-03",
+          ],
+          { env, backendLayer },
+        ),
+      );
+      expect(createResult).toEqual({ exitCode: 0, stderr: "", stdout: expect.any(String) });
+      const created = JSON.parse(createResult.stdout) as {
+        task?: { id?: string } | null;
+        data?: { tasks?: ReadonlyArray<{ id?: string }> };
+      };
+      const createdTask = created.task ?? created.data?.tasks?.[0];
+      expect(createdTask?.id).toEqual(expect.any(String));
+      if (!createdTask?.id) throw new Error("CLI task create did not return a Task id.");
+      const completeResult = yield* Effect.promise(() =>
+        runCli(["task", "complete", "--church-id", church.id!, "--task-id", createdTask.id!], {
+          env,
+          backendLayer,
+        }),
+      );
+      const activities = yield* authenticated.query(refs.public.activities.listForEntity, {
+        churchId: church.id!,
+        entityType: "task",
+        entityId: createdTask.id!,
+      });
+
+      expect(createResult.exitCode).toBe(0);
+      expect(completeResult.exitCode).toBe(0);
+      expect(
+        activities.data.activities.map(
+          (activity: { readonly eventType: string }) => activity.eventType,
+        ),
+      ).toEqual(["task.created", "task.completed"]);
+      expect(activities.data.activities[0]).toMatchObject({ actorId: owner.user!.id! });
+      expect(activities.data.activities[1]).toMatchObject({ actorId: owner.user!.id! });
+    }).pipe(Effect.provide(TestConfect.layer() as any)) as Effect.Effect<void, unknown, never>;
+
+    await Effect.runPromise(program);
+  });
+
   it("updates a Task assignment and lists the assigned Task in My Work", async () => {
     const requests: Array<{
       readonly token: string;
