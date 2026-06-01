@@ -43,6 +43,7 @@ export type TaskExecutionSmokeSummary = {
   readonly e2eRequirements: {
     readonly envFile: string;
     readonly requiredEnvNames: readonly string[];
+    readonly ciSecretNames: readonly string[];
   };
   readonly status: "passed" | "failed" | "passed_with_skips";
   readonly closureGate: {
@@ -109,6 +110,7 @@ export function buildTaskExecutionSmokeSummary(input: {
   readonly e2eRequirements: {
     readonly envFile: string;
     readonly requiredEnvNames: readonly string[];
+    readonly ciSecretNames: readonly string[];
   };
   readonly plannedSteps?: readonly TaskExecutionSmokePlannedStep[];
   readonly results: readonly TaskExecutionSmokeStepResult[];
@@ -203,6 +205,7 @@ export function formatTaskExecutionSmokeMarkdown(summary: TaskExecutionSmokeSumm
     `E2E ready: ${summary.e2eReady ? "yes" : "no"}`,
     `E2E env file: ${summary.e2eRequirements.envFile}`,
     `E2E required env: ${summary.e2eRequirements.requiredEnvNames.join(", ")}`,
+    `E2E CI secrets: ${summary.e2eRequirements.ciSecretNames.join(", ")}`,
   ];
 
   if (summary.e2eSkipReason) {

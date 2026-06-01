@@ -18,6 +18,7 @@ describe("Task execution smoke summary", () => {
   const e2eRequirements = {
     envFile: ".env.e2e or CI process environment",
     requiredEnvNames: ["VITE_CONVEX_URL", "VITE_CONVEX_SITE_URL"],
+    ciSecretNames: ["E2E_CONVEX_URL", "E2E_CONVEX_SITE_URL"],
   };
 
   test("marks the smoke path passed when every step passes", () => {
@@ -256,6 +257,7 @@ describe("Task execution smoke summary", () => {
     expect(report).toContain("Status: passed_with_skips");
     expect(report).toContain("E2E env file: .env.e2e or CI process environment");
     expect(report).toContain("E2E required env: VITE_CONVEX_URL, VITE_CONVEX_SITE_URL");
+    expect(report).toContain("E2E CI secrets: E2E_CONVEX_URL, E2E_CONVEX_SITE_URL");
     expect(report).toContain("E2E skip reason: Missing .env.e2e.");
     expect(report).toContain("## Closure Gate");
     expect(report).toContain("Ready to close #71: no");

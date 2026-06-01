@@ -171,6 +171,7 @@ const summary = buildTaskExecutionSmokeSummary({
   e2eRequirements: {
     envFile: `${e2eEnvFile} or CI process environment`,
     requiredEnvNames,
+    ciSecretNames: ["E2E_CONVEX_URL", "E2E_CONVEX_SITE_URL"],
   },
   plannedSteps: steps.map((step) => ({
     name: step.name,
