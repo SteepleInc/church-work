@@ -284,7 +284,7 @@ export const mcpUpdateTask = mutation({
       );
     }
 
-    const model = await readTaskModel(ctx, args.churchId);
+    const model = await readTaskModel(ctx, args.churchId, { taskId: args.taskId });
 
     return taskResponse("updateTasks", serializeTaskModel(model));
   },
@@ -391,9 +391,14 @@ export const mcpCreateTask = mutation({
       });
     }
 
+    const createdTaskIds = new Set(created.createdTaskIds.map(String));
     const model = await readTaskModel(ctx, args.churchId);
+    const data = serializeTaskModel(model);
 
-    return taskResponse("createTasks", serializeTaskModel(model));
+    return taskResponse("createTasks", {
+      cycles: data.cycles,
+      tasks: data.tasks.filter((task) => createdTaskIds.has(task.id)),
+    });
   },
 });
 
@@ -621,7 +626,7 @@ const makeMcpTaskTransition = (
 
       if (!result.ok) return taskTransitionErrorResponse(operation, result.code);
 
-      const model = await readTaskModel(ctx, args.churchId);
+      const model = await readTaskModel(ctx, args.churchId, { taskId: args.taskId });
 
       return taskResponse(operation, serializeTaskModel(model));
     },

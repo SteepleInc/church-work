@@ -28,6 +28,87 @@ const metadataHeaders = {
   "Content-Type": "application/json",
 };
 
+type McpTaskOperationResult = {
+  readonly ok: boolean;
+  readonly error?: { readonly code: string; readonly message: string };
+  readonly data?: {
+    readonly cycles: ReadonlyArray<{
+      readonly id: string;
+      readonly startDate: string;
+      readonly endDate: string;
+      readonly startsAt: string;
+      readonly endsAt: string;
+    }>;
+    readonly tasks: ReadonlyArray<{
+      readonly id: string;
+      readonly title: string;
+      readonly teamId: string | null;
+      readonly assignedUserId: string | null;
+      readonly cycleId: string;
+      readonly dueDate: string;
+      readonly parentTaskId: string | null;
+      readonly workflowId: string;
+      readonly workflowStatusId: string;
+      readonly taskState: "todo" | "in_progress" | "done" | "canceled";
+      readonly finishedAt: string | null;
+    }>;
+  };
+};
+
+const compactTask = (task: NonNullable<McpTaskOperationResult["data"]>["tasks"][number]) => ({
+  id: task.id,
+  title: task.title,
+  taskState: task.taskState,
+  workflowStatusId: task.workflowStatusId,
+  workflowId: task.workflowId,
+  assignedUserId: task.assignedUserId,
+  teamId: task.teamId,
+  cycleId: task.cycleId,
+  dueDate: task.dueDate,
+  parentTaskId: task.parentTaskId,
+  finishedAt: task.finishedAt,
+});
+
+const compactCycles = (cycles: NonNullable<McpTaskOperationResult["data"]>["cycles"]) =>
+  cycles.map((cycle) => ({
+    id: cycle.id,
+    startDate: cycle.startDate,
+    endDate: cycle.endDate,
+    startsAt: cycle.startsAt,
+    endsAt: cycle.endsAt,
+  }));
+
+const mcpTaskResponse = (
+  tool: string,
+  result: McpTaskOperationResult,
+  options: { readonly single?: boolean } = {},
+) => {
+  if (!result.ok) {
+    return {
+      ok: false,
+      tool,
+      error: result.error,
+    };
+  }
+
+  const tasks = (result.data?.tasks ?? []).map(compactTask);
+
+  if (options.single) {
+    return {
+      ok: true,
+      tool,
+      task: tasks[0] ?? null,
+    };
+  }
+
+  return {
+    ok: true,
+    tool,
+    tasks,
+    cycles: compactCycles(result.data?.cycles ?? []),
+  };
+};
+
 authComponent.registerRoutes(http, createAuth, { cors: true });
 
 http.route({
@@ -147,11 +228,7 @@ http.route({
       fields,
     });
 
-    return Response.json({
-      ok: result.ok,
-      tool: "update_task",
-      result,
-    });
+    return Response.json(mcpTaskResponse("update_task", result, { single: true }));
   }),
 });
 
@@ -180,7 +257,7 @@ http.route({
       actorUserId: session.user.id,
     });
 
-    return Response.json({ ok: result.ok, tool: "create_task", result });
+    return Response.json(mcpTaskResponse("create_task", result, { single: true }));
   }),
 });
 
@@ -208,7 +285,7 @@ http.route({
       actorUserId: session.user.id,
     });
 
-    return Response.json({ ok: result.ok, tool: "list_tasks", result });
+    return Response.json(mcpTaskResponse("list_tasks", result));
   }),
 });
 
@@ -229,7 +306,7 @@ http.route({
       taskId: body.taskId,
     });
 
-    return Response.json({ ok: result.ok, tool: "get_task", result });
+    return Response.json(mcpTaskResponse("get_task", result, { single: true }));
   }),
 });
 
@@ -334,11 +411,7 @@ const handleMcpTaskTransition = async (
     taskId: body.taskId,
   });
 
-  return Response.json({
-    ok: result.ok,
-    tool: args.tool,
-    result,
-  });
+  return Response.json(mcpTaskResponse(args.tool, result, { single: true }));
 };
 
 http.route({

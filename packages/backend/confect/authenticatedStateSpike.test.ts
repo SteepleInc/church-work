@@ -420,15 +420,7 @@ describe("Better Auth authenticated state spike", () => {
       expect(body).toMatchObject({
         ok: true,
         tool: "update_task",
-        result: {
-          ok: true,
-          operation: "updateTasks",
-          data: {
-            tasks: expect.arrayContaining([
-              expect.objectContaining({ id: task.id, assignedUserId: owner.user!.id! }),
-            ]),
-          },
-        },
+        task: expect.objectContaining({ id: task.id, assignedUserId: owner.user!.id! }),
       });
       expect(activities.data.activities.map((activity) => activity.eventType)).toEqual([
         "task.created",
@@ -520,15 +512,7 @@ describe("Better Auth authenticated state spike", () => {
         expect(body).toMatchObject({
           ok: true,
           tool: "update_task",
-          result: {
-            ok: true,
-            operation: "updateTasks",
-            data: {
-              tasks: expect.arrayContaining([
-                expect.objectContaining({ id: childTask.id, parentTaskId: parentTask.id }),
-              ]),
-            },
-          },
+          task: expect.objectContaining({ id: childTask.id, parentTaskId: parentTask.id }),
         });
         expect(activities.data.activities.map((activity) => activity.eventType)).toEqual([
           "task.created",
@@ -613,9 +597,7 @@ describe("Better Auth authenticated state spike", () => {
         const cancelBody = (yield* Effect.promise(() => cancelResponse.json())) as unknown;
         const reopenResponse = yield* postTool("reopen-task", cancelTask.id);
         const reopenBody = (yield* Effect.promise(() => reopenResponse.json())) as {
-          result?: {
-            data?: { tasks?: Array<{ id: string; taskState: string; finishedAt: string | null }> };
-          };
+          task?: { id: string; taskState: string; finishedAt: string | null };
         };
         const completeActivities = yield* authenticated.query(
           refs.public.activities.listForEntity,
@@ -635,29 +617,21 @@ describe("Better Auth authenticated state spike", () => {
         expect(completeBody).toMatchObject({
           ok: true,
           tool: "complete_task",
-          result: { ok: true, operation: "completeTasks" },
+          task: expect.objectContaining({ id: completeTask.id, taskState: "done" }),
         });
         expect(cancelResponse.status).toBe(200);
         expect(cancelBody).toMatchObject({
           ok: true,
           tool: "cancel_task",
-          result: { ok: true, operation: "cancelTasks" },
+          task: expect.objectContaining({ id: cancelTask.id, taskState: "canceled" }),
         });
         expect(reopenResponse.status).toBe(200);
         expect(reopenBody).toMatchObject({
           ok: true,
           tool: "reopen_task",
-          result: { ok: true, operation: "reopenTasks" },
+          task: expect.objectContaining({ id: cancelTask.id, taskState: "todo", finishedAt: null }),
         });
-        expect(
-          reopenBody.result!.data!.tasks!.find((task) => task.id === completeTask.id),
-        ).toMatchObject({ taskState: "done", finishedAt: expect.any(String) });
-        expect(
-          reopenBody.result!.data!.tasks!.find((task) => task.id === cancelTask.id),
-        ).toMatchObject({
-          taskState: "todo",
-          finishedAt: null,
-        });
+        expect(reopenBody.task).toMatchObject({ taskState: "todo", finishedAt: null });
         expect(completeActivities.data.activities.map((activity) => activity.eventType)).toEqual([
           "task.created",
           "task.completed",
@@ -716,13 +690,9 @@ describe("Better Auth authenticated state spike", () => {
         dueDate: "2026-06-03",
       });
       const createBody = (yield* Effect.promise(() => createResponse.json())) as {
-        result?: {
-          data?: { tasks?: Array<{ id: string; title: string; assignedUserId: string }> };
-        };
+        task?: { id: string; title: string; assignedUserId: string };
       };
-      const createdTask = createBody.result!.data!.tasks!.find(
-        (task) => task.title === "Create from MCP",
-      )!;
+      const createdTask = createBody.task!;
       const listResponse = yield* postTool("list-tasks", {
         churchId: church.id!,
         surface: "my_work",
@@ -753,41 +723,25 @@ describe("Better Auth authenticated state spike", () => {
       expect(createBody).toMatchObject({
         ok: true,
         tool: "create_task",
-        result: {
-          ok: true,
-          operation: "createTasks",
-          data: {
-            tasks: expect.arrayContaining([
-              expect.objectContaining({
-                id: createdTask.id,
-                title: "Create from MCP",
-                assignedUserId: owner.user!.id!,
-              }),
-            ]),
-          },
-        },
+        task: expect.objectContaining({
+          id: createdTask.id,
+          title: "Create from MCP",
+          assignedUserId: owner.user!.id!,
+        }),
       });
+      expect(createBody).not.toHaveProperty("result");
+      expect(createBody.task).not.toHaveProperty("sourceTemplateId");
       expect(listResponse.status).toBe(200);
       expect(listBody).toMatchObject({
         ok: true,
         tool: "list_tasks",
-        result: {
-          ok: true,
-          operation: "listTasks",
-          data: {
-            tasks: [expect.objectContaining({ id: createdTask.id, title: "Create from MCP" })],
-          },
-        },
+        tasks: [expect.objectContaining({ id: createdTask.id, title: "Create from MCP" })],
       });
       expect(getResponse.status).toBe(200);
       expect(getBody).toMatchObject({
         ok: true,
         tool: "get_task",
-        result: {
-          ok: true,
-          operation: "listTasks",
-          data: { tasks: [expect.objectContaining({ id: createdTask.id })] },
-        },
+        task: expect.objectContaining({ id: createdTask.id }),
       });
       expect(usersResponse.status).toBe(200);
       expect(usersBody).toMatchObject({
