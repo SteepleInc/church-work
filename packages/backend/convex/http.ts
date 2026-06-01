@@ -2,10 +2,12 @@ import { httpRouter } from "convex/server";
 
 import { mcpCurrentUserToolResponse } from "../agent/operations";
 import { authComponent, createAuth } from "../authCore";
+import { api } from "./_generated/api";
 import { httpAction } from "./_generated/server";
 import { polar } from "./polar";
 
 const http = httpRouter();
+const convexFunctionRefs = api as any;
 
 const unauthenticatedResponse = () =>
   Response.json(
@@ -112,6 +114,43 @@ http.route({
         name: session.user.name ?? null,
       }),
     );
+  }),
+});
+
+http.route({
+  path: "/api/mcp/tools/update-task",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const session = await createAuth(ctx).api.getSession({ headers: request.headers });
+
+    if (!session?.user) {
+      return unauthenticatedResponse();
+    }
+
+    const body = (await request.json()) as {
+      readonly churchId: string;
+      readonly taskId: string;
+      readonly title?: string;
+      readonly assignedUserId?: string | null;
+      readonly teamId?: string | null;
+      readonly workflowStatusId?: string;
+      readonly dueDate?: string;
+      readonly cycleId?: string;
+    };
+
+    const { churchId, taskId, ...fields } = body;
+    const result = await ctx.runMutation(convexFunctionRefs.tasks.mcpUpdateTask, {
+      churchId,
+      actorUserId: session.user.id,
+      taskId,
+      fields,
+    });
+
+    return Response.json({
+      ok: result.ok,
+      tool: "update_task",
+      result,
+    });
   }),
 });
 

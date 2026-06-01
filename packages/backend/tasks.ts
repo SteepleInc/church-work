@@ -96,6 +96,36 @@ export async function readTaskModel(
   return { cycles, tasks };
 }
 
+export const serializeTaskModel = (data: Awaited<ReturnType<typeof readTaskModel>>) => ({
+  cycles: data.cycles.map((cycle) => ({
+    id: cycle._id,
+    churchId: cycle.churchId,
+    startDate: cycle.startDate,
+    endDate: cycle.endDate,
+    startsAt: cycle.startsAt,
+    endsAt: cycle.endsAt,
+    churchTimeZone: cycle.churchTimeZone,
+  })),
+  tasks: data.tasks.map((task) => ({
+    id: task._id,
+    churchId: task.churchId,
+    title: task.title,
+    teamId: task.teamId,
+    assignedUserId: task.assignedUserId ?? null,
+    cycleId: task.cycleId,
+    dueDate: task.dueDate,
+    parentTaskId: task.parentTaskId,
+    workflowId: task.workflowId,
+    workflowStatusId: task.workflowStatusId,
+    taskState: task.taskState,
+    finishedAt: task.finishedAt ?? null,
+    sourceTemplateId: task.sourceTemplateId ?? null,
+    sourceTemplateTaskId: task.sourceTemplateTaskId ?? null,
+    sourceTemplateCycleId: task.sourceTemplateCycleId ?? null,
+    sourceTemplateSyncEnabled: task.sourceTemplateSyncEnabled ?? false,
+  })),
+});
+
 async function ensureCycleForDueDate(
   ctx: MutationCtx,
   args: { readonly churchId: string; readonly dueDate: string; readonly churchTimeZone: string },

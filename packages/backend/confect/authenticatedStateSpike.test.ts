@@ -26,6 +26,40 @@ const signUpWithEmail = (c: typeof TestConfect.TestConfect.Service, email: strin
     }),
   });
 
+const authenticatedConfect = function* (
+  c: typeof TestConfect.TestConfect.Service,
+  args: { readonly userId: string; readonly sessionToken: string },
+) {
+  const tokenResponse = yield* c.fetch("/api/auth/convex/token", {
+    method: "GET",
+    headers: { authorization: `Bearer ${args.sessionToken}` },
+  });
+  const tokenBody = (yield* Effect.promise(() => tokenResponse.json())) as { token?: string };
+  const tokenPayload = decodeJwtPayload(tokenBody.token!);
+
+  return c.withIdentity({
+    subject: args.userId,
+    sessionId: tokenPayload.sessionId!,
+  });
+};
+
+const createChurch = (
+  c: typeof TestConfect.TestConfect.Service,
+  args: { readonly token: string; readonly name: string; readonly slug: string },
+) =>
+  c.fetch("/api/auth/organization/create", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${args.token}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      name: args.name,
+      slug: args.slug,
+      churchTimeZone: "America/New_York",
+    }),
+  });
+
 describe("Better Auth authenticated state spike", () => {
   it.effect("convex-test identity alone does not authenticate Better Auth-backed queries", () =>
     Effect.gen(function* () {
@@ -319,6 +353,92 @@ describe("Better Auth authenticated state spike", () => {
               name: "Convex Test User",
             },
           },
+        },
+      });
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("MCP update-task tool assigns a User through the shared Task update contract", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `mcp-update-task-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const owner = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: owner.token!,
+        name: "MCP Task Update Church",
+        slug: `mcp-task-update-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: owner.user!.id!,
+        sessionToken: owner.token!,
+      });
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
+        churchId: church.id!,
+      });
+      const todoStatus = defaults.data.workflowStatuses.find(
+        (status) => status.taskState === "todo",
+      )!;
+      const created = yield* authenticated.mutation(refs.public.tasks.createBatch, {
+        churchId: church.id!,
+        tasks: [
+          {
+            title: "Assign from MCP",
+            teamId: null,
+            workflowStatusId: todoStatus.id,
+            dueDate: "2026-06-03",
+            parentTaskId: null,
+          },
+        ],
+      });
+      const task = created.data.tasks.find((candidate) => candidate.title === "Assign from MCP")!;
+
+      const response = yield* c.fetch("/api/mcp/tools/update-task", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${owner.token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          churchId: church.id!,
+          taskId: task.id,
+          assignedUserId: owner.user!.id!,
+        }),
+      });
+      const body = (yield* Effect.promise(() => response.json())) as unknown;
+      const activities = yield* authenticated.query(refs.public.activities.listForEntity, {
+        churchId: church.id!,
+        entityType: "task",
+        entityId: task.id,
+      });
+
+      expect(response.status).toBe(200);
+      expect(body).toMatchObject({
+        ok: true,
+        tool: "update_task",
+        result: {
+          ok: true,
+          operation: "updateTasks",
+          data: {
+            tasks: expect.arrayContaining([
+              expect.objectContaining({ id: task.id, assignedUserId: owner.user!.id! }),
+            ]),
+          },
+        },
+      });
+      expect(activities.data.activities.map((activity) => activity.eventType)).toEqual([
+        "task.created",
+        "task.user_assigned",
+      ]);
+      expect(activities.data.activities[1]).toMatchObject({
+        actorId: owner.user!.id!,
+        metadata: {
+          previousAssignedUserId: null,
+          assignedUserId: owner.user!.id!,
         },
       });
     }).pipe(Effect.provide(TestConfect.layer())),
