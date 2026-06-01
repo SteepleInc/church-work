@@ -406,6 +406,50 @@ test("owner manages Workflows and Workflow Statuses from settings", async ({ pag
   await expect(statusesSettings.getByText("Reviewing Assets")).not.toBeVisible();
 });
 
+test("admin manages Workflows and Workflow Statuses from settings", async ({ page }, testInfo) => {
+  const ownerEmail = `e2e-workflow-admin-owner-${Date.now()}-${testInfo.workerIndex}@example.com`;
+  const adminEmail = `e2e-workflow-admin-${Date.now()}-${testInfo.workerIndex}@example.com`;
+  const churchName = `E2E Workflow Admin Church ${Date.now()}`;
+
+  await signUpThroughDashboard(page, ownerEmail, "E2E Workflow Admin Owner");
+  await createFirstChurch(page, churchName);
+  await page.getByLabel("Invite Member Email").fill(adminEmail);
+  await page.getByRole("button", { name: "Invite Member" }).click();
+  await expect(page.getByText(`Invitation sent to ${adminEmail}.`)).toBeVisible();
+  await page.getByRole("button", { name: "E2E Workflow Admin Owner" }).click();
+  await page.getByRole("menuitem", { name: "Sign Out" }).click();
+
+  await signUpThroughDashboardToInvitation(page, adminEmail, "E2E Workflow Admin");
+  await page.getByRole("button", { name: "Accept Invitation" }).click();
+  await expect(page.getByText(`Active Church: ${churchName}`)).toBeVisible();
+  await page.getByRole("button", { name: "E2E Workflow Admin" }).click();
+  await page.getByRole("menuitem", { name: "Sign Out" }).click();
+
+  await signInThroughDashboard(page, ownerEmail);
+  await page.getByLabel(`Role for ${adminEmail}`).selectOption("admin");
+  await expect(page.getByText(`Updated ${adminEmail} to admin.`)).toBeVisible();
+  await page.getByRole("button", { name: "E2E Workflow Admin Owner" }).click();
+  await page.getByRole("menuitem", { name: "Sign Out" }).click();
+
+  await signInThroughDashboard(page, adminEmail);
+  await page.getByRole("button", { name: "Active Church Settings" }).click();
+
+  const workflowsSettings = page.getByRole("region", { name: "Workflows" });
+  await workflowsSettings.getByLabel("New Workflow Name").fill("Admin Review");
+  await workflowsSettings.getByRole("button", { name: "Create Workflow" }).click();
+  await expect(page.getByText("Created Workflow Admin Review.")).toBeVisible();
+
+  const statusesSettings = page.getByRole("region", { name: "Workflow Statuses" });
+  await statusesSettings.getByLabel("Workflow for Status Editing").selectOption({
+    label: "Admin Review",
+  });
+  await statusesSettings.getByLabel("New Workflow Status Name").fill("Admin QA");
+  await statusesSettings.getByLabel("New Workflow Status Task State").selectOption("in_progress");
+  await statusesSettings.getByRole("button", { name: "Add Workflow Status" }).click();
+
+  await expect(page.getByText("Added Workflow Status Admin QA.")).toBeVisible();
+});
+
 test("owner manages Church Member role and removal", async ({ page }, testInfo) => {
   const ownerEmail = `e2e-member-owner-${Date.now()}-${testInfo.workerIndex}@example.com`;
   const memberEmail = `e2e-managed-member-${Date.now()}-${testInfo.workerIndex}@example.com`;
