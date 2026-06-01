@@ -2117,7 +2117,13 @@ const tasksListForChurch = FunctionImpl.make(api, "tasks", "listForChurch", (arg
       return taskErrorResponse("listTasks", "not_church_member", "Church membership is required.");
     }
 
-    const model = yield* Effect.promise(() => readTaskModel(ctx, args.churchId)).pipe(Effect.orDie);
+    const model = yield* Effect.promise(() =>
+      readTaskModel(ctx, args.churchId, {
+        surface: args.surface,
+        cycleId: args.cycleId,
+        currentUserId: auth.authUser._id,
+      }),
+    ).pipe(Effect.orDie);
 
     return taskResponse("listTasks", serializeTaskModel(model));
   }),

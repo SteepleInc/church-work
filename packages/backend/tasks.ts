@@ -28,15 +28,35 @@ type TransitionCode =
 export async function readTaskModel(
   ctx: { readonly db: GenericDatabaseReader<DataModel> },
   churchId: string,
+  filters: {
+    readonly surface?: "my_work" | "our_work";
+    readonly cycleId?: string;
+    readonly currentUserId?: string;
+  } = {},
 ) {
   const cycles = await ctx.db
     .query("cycles")
     .withIndex("by_churchId", (q) => q.eq("churchId", churchId))
     .collect();
-  const tasks = await ctx.db
+  const allTasks = await ctx.db
     .query("tasks")
     .withIndex("by_churchId", (q) => q.eq("churchId", churchId))
     .collect();
+  const executionCycle = filters.cycleId
+    ? cycles.find((cycle) => cycle._id === filters.cycleId)
+    : null;
+  const tasks = allTasks.filter((task) => {
+    if (filters.surface === "my_work" && task.assignedUserId !== filters.currentUserId) {
+      return false;
+    }
+
+    if (!executionCycle) return true;
+
+    return (
+      task.dueDate <= executionCycle.endDate &&
+      (task.finishedAt === null || task.finishedAt >= executionCycle.startsAt)
+    );
+  });
 
   return { cycles, tasks };
 }

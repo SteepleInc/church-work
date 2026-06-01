@@ -23,6 +23,8 @@ export const TaskCreateBatchArgs = Schema.Struct({
 
 export const TaskListArgs = Schema.Struct({
   churchId: Schema.String,
+  surface: Schema.optional(Schema.Union(Schema.Literal("my_work"), Schema.Literal("our_work"))),
+  cycleId: Schema.optional(Schema.String),
 });
 
 export const TaskTransitionBatchArgs = Schema.Struct({

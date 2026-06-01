@@ -6,7 +6,7 @@ import { Effect, Schema } from "effect";
 import { expect } from "vitest";
 
 import { components } from "../convex/_generated/api";
-import type { DataModel } from "../convex/_generated/dataModel";
+import type { DataModel, Id } from "../convex/_generated/dataModel";
 import * as TestConfect from "../test/TestConfect";
 import refs from "./_generated/refs";
 
@@ -1688,6 +1688,167 @@ describe("agent operation boundary", () => {
           message: "Assigned User must be a Church Member of the Task's Church.",
         },
       });
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("Task execution-window reads filter My Work and Our Work", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const ownerResponse = yield* signUpWithEmail(
+        c,
+        `agent-task-execution-owner-${crypto.randomUUID()}@example.com`,
+      );
+      const memberResponse = yield* signUpWithEmail(
+        c,
+        `agent-task-execution-member-${crypto.randomUUID()}@example.com`,
+      );
+      const owner = (yield* Effect.promise(() => ownerResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const member = (yield* Effect.promise(() => memberResponse.json())) as {
+        user?: { id?: string };
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: owner.token!,
+        name: "Task Execution Window Church",
+        slug: `task-execution-window-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      yield* c.run(
+        Effect.gen(function* () {
+          const ctx = yield* MutationCtx.MutationCtx<DataModel>();
+          yield* Effect.promise(() =>
+            ctx.runMutation(components.betterAuth.adapter.create, {
+              input: {
+                model: "member",
+                data: {
+                  userId: member.user!.id!,
+                  organizationId: church.id!,
+                  role: "member",
+                  createdAt: Date.now(),
+                },
+              },
+            }),
+          );
+        }),
+        Schema.Void,
+      );
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: owner.user!.id!,
+        sessionToken: owner.token!,
+      });
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
+        churchId: church.id!,
+      });
+      const todoStatus = defaults.data.workflowStatuses.find(
+        (status) => status.taskState === "todo",
+      )!;
+      const doneStatus = defaults.data.workflowStatuses.find(
+        (status) => status.taskState === "done",
+      )!;
+
+      const created = yield* authenticated.mutation(refs.public.tasks.createBatch, {
+        churchId: church.id!,
+        tasks: [
+          {
+            title: "Current assigned to me",
+            teamId: null,
+            assignedUserId: owner.user!.id!,
+            workflowStatusId: todoStatus.id,
+            dueDate: "2026-06-03",
+            parentTaskId: null,
+          },
+          {
+            title: "Current assigned to another member",
+            teamId: null,
+            assignedUserId: member.user!.id!,
+            workflowStatusId: todoStatus.id,
+            dueDate: "2026-06-03",
+            parentTaskId: null,
+          },
+          {
+            title: "Overdue assigned to me",
+            teamId: null,
+            assignedUserId: owner.user!.id!,
+            workflowStatusId: todoStatus.id,
+            dueDate: "2026-05-29",
+            parentTaskId: null,
+          },
+          {
+            title: "Future assigned to me",
+            teamId: null,
+            assignedUserId: owner.user!.id!,
+            workflowStatusId: todoStatus.id,
+            dueDate: "2026-06-10",
+            parentTaskId: null,
+          },
+          {
+            title: "Finished during cycle assigned to me",
+            teamId: null,
+            assignedUserId: owner.user!.id!,
+            workflowStatusId: doneStatus.id,
+            dueDate: "2026-06-02",
+            parentTaskId: null,
+          },
+          {
+            title: "Finished before cycle assigned to me",
+            teamId: null,
+            assignedUserId: owner.user!.id!,
+            workflowStatusId: doneStatus.id,
+            dueDate: "2026-05-28",
+            parentTaskId: null,
+          },
+        ],
+      });
+      const cycle = created.data.cycles.find((candidate) => candidate.startDate === "2026-06-01")!;
+      const finishedDuring = created.data.tasks.find(
+        (task) => task.title === "Finished during cycle assigned to me",
+      )!;
+      const finishedBefore = created.data.tasks.find(
+        (task) => task.title === "Finished before cycle assigned to me",
+      )!;
+      yield* c.run(
+        Effect.gen(function* () {
+          const ctx = yield* MutationCtx.MutationCtx<DataModel>();
+          yield* Effect.promise(() =>
+            ctx.db.patch(finishedDuring.id as Id<"tasks">, {
+              taskState: "done",
+              finishedAt: "2026-06-03T12:00:00.000Z",
+            }),
+          );
+          yield* Effect.promise(() =>
+            ctx.db.patch(finishedBefore.id as Id<"tasks">, {
+              taskState: "done",
+              finishedAt: "2026-05-31T12:00:00.000Z",
+            }),
+          );
+        }),
+        Schema.Void,
+      );
+
+      const myWork = yield* authenticated.query(refs.public.tasks.listForChurch, {
+        churchId: church.id!,
+        surface: "my_work",
+        cycleId: cycle.id,
+      });
+      const ourWork = yield* authenticated.query(refs.public.tasks.listForChurch, {
+        churchId: church.id!,
+        surface: "our_work",
+        cycleId: cycle.id,
+      });
+
+      expect(myWork.data.tasks.map((task) => task.title).sort()).toEqual([
+        "Current assigned to me",
+        "Finished during cycle assigned to me",
+        "Overdue assigned to me",
+      ]);
+      expect(ourWork.data.tasks.map((task) => task.title).sort()).toEqual([
+        "Current assigned to another member",
+        "Current assigned to me",
+        "Finished during cycle assigned to me",
+        "Overdue assigned to me",
+      ]);
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 
