@@ -3,7 +3,7 @@ import { httpRouter } from "convex/server";
 import { mcpCurrentUserToolResponse } from "../agent/operations";
 import { authComponent, createAuth } from "../authCore";
 import { api } from "./_generated/api";
-import { httpAction } from "./_generated/server";
+import { httpAction, type ActionCtx } from "./_generated/server";
 import { polar } from "./polar";
 
 const http = httpRouter();
@@ -152,6 +152,71 @@ http.route({
       result,
     });
   }),
+});
+
+const handleMcpTaskTransition = async (
+  ctx: ActionCtx,
+  request: Request,
+  args: {
+    readonly tool: "complete_task" | "cancel_task" | "reopen_task";
+    readonly mutation: any;
+  },
+) => {
+  const session = await createAuth(ctx).api.getSession({ headers: request.headers });
+
+  if (!session?.user) {
+    return unauthenticatedResponse();
+  }
+
+  const body = (await request.json()) as {
+    readonly churchId: string;
+    readonly taskId: string;
+  };
+
+  const result = await ctx.runMutation(args.mutation, {
+    churchId: body.churchId,
+    actorUserId: session.user.id,
+    taskId: body.taskId,
+  });
+
+  return Response.json({
+    ok: result.ok,
+    tool: args.tool,
+    result,
+  });
+};
+
+http.route({
+  path: "/api/mcp/tools/complete-task",
+  method: "POST",
+  handler: httpAction((ctx, request) =>
+    handleMcpTaskTransition(ctx, request, {
+      tool: "complete_task",
+      mutation: convexFunctionRefs.tasks.mcpCompleteTask,
+    }),
+  ),
+});
+
+http.route({
+  path: "/api/mcp/tools/cancel-task",
+  method: "POST",
+  handler: httpAction((ctx, request) =>
+    handleMcpTaskTransition(ctx, request, {
+      tool: "cancel_task",
+      mutation: convexFunctionRefs.tasks.mcpCancelTask,
+    }),
+  ),
+});
+
+http.route({
+  path: "/api/mcp/tools/reopen-task",
+  method: "POST",
+  handler: httpAction((ctx, request) =>
+    handleMcpTaskTransition(ctx, request, {
+      tool: "reopen_task",
+      mutation: convexFunctionRefs.tasks.mcpReopenTask,
+    }),
+  ),
 });
 
 polar.registerRoutes(http);
