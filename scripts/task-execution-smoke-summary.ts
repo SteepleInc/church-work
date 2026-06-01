@@ -25,6 +25,11 @@ export type TaskExecutionSmokeStepResult = {
   readonly acceptanceCriteria?: readonly TaskExecutionSmokeAcceptanceCriterionKey[];
 };
 
+export type TaskExecutionSmokePlannedStep = {
+  readonly name: string;
+  readonly acceptanceCriteria: readonly TaskExecutionSmokeAcceptanceCriterionKey[];
+};
+
 export type TaskExecutionSmokeBlockingStep = {
   readonly name: string;
   readonly command: string;
@@ -105,6 +110,7 @@ export function buildTaskExecutionSmokeSummary(input: {
     readonly envFile: string;
     readonly requiredEnvNames: readonly string[];
   };
+  readonly plannedSteps?: readonly TaskExecutionSmokePlannedStep[];
   readonly results: readonly TaskExecutionSmokeStepResult[];
 }): TaskExecutionSmokeSummary {
   const status = input.results.some((result) => result.status === "failed")
@@ -152,11 +158,19 @@ export function buildTaskExecutionSmokeSummary(input: {
     const coveringResults = input.results.filter((result) =>
       result.acceptanceCriteria?.includes(criterion.key),
     );
-    const coveredBy = coveringResults.map((result) => result.name);
+    const resultNames = new Set(input.results.map((result) => result.name));
+    const unrunPlannedSteps = (input.plannedSteps ?? []).filter(
+      (step) => !resultNames.has(step.name) && step.acceptanceCriteria.includes(criterion.key),
+    );
+    const coveredBy = [
+      ...coveringResults.map((result) => result.name),
+      ...unrunPlannedSteps.map((step) => `${step.name} (not run)`),
+    ];
     const criterionStatus =
-      coveringResults.length === 0
+      coveredBy.length === 0
         ? "uncovered"
-        : coveringResults.some((result) => result.status !== "passed")
+        : coveringResults.some((result) => result.status !== "passed") ||
+            unrunPlannedSteps.length > 0
           ? "blocked"
           : "passed";
 

@@ -172,6 +172,10 @@ const summary = buildTaskExecutionSmokeSummary({
     envFile: `${e2eEnvFile} or CI process environment`,
     requiredEnvNames,
   },
+  plannedSteps: steps.map((step) => ({
+    name: step.name,
+    acceptanceCriteria: step.acceptanceCriteria,
+  })),
   results,
 });
 

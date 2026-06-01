@@ -109,6 +109,46 @@ describe("Task execution smoke summary", () => {
     });
   });
 
+  test("keeps unrun planned smoke steps visible as blocked coverage", () => {
+    const summary = buildTaskExecutionSmokeSummary({
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      e2eReady: true,
+      e2eSkipReason: null,
+      e2eRequirements,
+      plannedSteps: [
+        {
+          name: "backend public-boundary smoke",
+          acceptanceCriteria: ["cross_surface_lifecycle"],
+        },
+        {
+          name: "browser execution smoke",
+          acceptanceCriteria: ["web_reflects_contract_changes", "kanban_persists_movement"],
+        },
+      ],
+      results: [
+        {
+          ...passedResult,
+          exitCode: 1,
+          status: "failed",
+          acceptanceCriteria: ["cross_surface_lifecycle"],
+        },
+      ],
+    });
+
+    expect(summary.acceptanceCriteriaCoverage).toContainEqual({
+      key: "web_reflects_contract_changes",
+      text: "Web routes reflect changes made through backend/MCP/CLI contracts.",
+      status: "blocked",
+      coveredBy: ["browser execution smoke (not run)"],
+    });
+    expect(summary.acceptanceCriteriaCoverage).toContainEqual({
+      key: "kanban_persists_movement",
+      text: "The ReUI Kanban board persists drag/drop movement through backend state.",
+      status: "blocked",
+      coveredBy: ["browser execution smoke (not run)"],
+    });
+  });
+
   test("marks the smoke path failed when any step fails", () => {
     const summary = buildTaskExecutionSmokeSummary({
       generatedAt: "2026-06-01T00:00:00.000Z",
