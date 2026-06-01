@@ -22,6 +22,10 @@ const browserSmokePattern =
 const e2eEnvFile = ".env.e2e";
 const hasE2eEnvFile = existsSync(e2eEnvFile);
 const requireFull = process.argv.includes("--require-full");
+const issueLinks = {
+  prdIssue: "https://github.com/SteepleInc/church-task/issues/60",
+  taskIssue: "https://github.com/SteepleInc/church-task/issues/71",
+} as const;
 
 if (hasE2eEnvFile) {
   config({ path: e2eEnvFile, quiet: true });
@@ -169,6 +173,7 @@ for (const step of steps) {
 
 const summary = buildTaskExecutionSmokeSummary({
   generatedAt: new Date().toISOString(),
+  issueLinks,
   e2eReady,
   e2eSkipReason: e2eReady ? null : e2eSkipReason,
   e2eRequirements: {

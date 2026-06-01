@@ -21,6 +21,10 @@ describe("Task execution smoke summary", () => {
     requiredEnvNames: ["VITE_CONVEX_URL", "VITE_CONVEX_SITE_URL"],
     ciSecretNames: ["E2E_CONVEX_URL", "E2E_CONVEX_SITE_URL"],
   };
+  const issueLinks = {
+    prdIssue: "https://github.com/SteepleInc/church-task/issues/60",
+    taskIssue: "https://github.com/SteepleInc/church-task/issues/71",
+  };
 
   test("marks the smoke path passed when every step passes", () => {
     const summary = buildTaskExecutionSmokeSummary({
@@ -28,6 +32,7 @@ describe("Task execution smoke summary", () => {
       e2eReady: true,
       e2eSkipReason: null,
       e2eRequirements,
+      issueLinks,
       results: [passedResult],
     });
 
@@ -46,6 +51,7 @@ describe("Task execution smoke summary", () => {
       e2eReady: false,
       e2eSkipReason: "Missing .env.e2e.",
       e2eRequirements,
+      issueLinks,
       results: [
         passedResult,
         {
@@ -81,6 +87,7 @@ describe("Task execution smoke summary", () => {
       e2eReady: false,
       e2eSkipReason: "Missing .env.e2e.",
       e2eRequirements,
+      issueLinks,
       results: [
         {
           ...passedResult,
@@ -119,6 +126,7 @@ describe("Task execution smoke summary", () => {
       e2eReady: true,
       e2eSkipReason: null,
       e2eRequirements,
+      issueLinks,
       plannedSteps: [
         {
           name: "backend public-boundary smoke",
@@ -159,6 +167,7 @@ describe("Task execution smoke summary", () => {
       e2eReady: true,
       e2eSkipReason: null,
       e2eRequirements,
+      issueLinks,
       results: [
         passedResult,
         {
@@ -195,6 +204,7 @@ describe("Task execution smoke summary", () => {
           e2eReady: false,
           e2eSkipReason: "Missing .env.e2e.",
           e2eRequirements,
+          issueLinks,
           results: [
             passedResult,
             {
@@ -221,6 +231,7 @@ describe("Task execution smoke summary", () => {
           e2eReady: false,
           e2eSkipReason: "Missing .env.e2e.",
           e2eRequirements,
+          issueLinks,
           results: [
             passedResult,
             {
@@ -246,6 +257,7 @@ describe("Task execution smoke summary", () => {
         e2eReady: false,
         e2eSkipReason: "Missing .env.e2e.",
         e2eRequirements,
+        issueLinks,
         results: [
           passedResult,
           {
@@ -262,6 +274,8 @@ describe("Task execution smoke summary", () => {
     );
 
     expect(report).toContain("Status: passed_with_skips");
+    expect(report).toContain("Parent PRD: https://github.com/SteepleInc/church-task/issues/60");
+    expect(report).toContain("Task issue: https://github.com/SteepleInc/church-task/issues/71");
     expect(report).toContain("E2E env file: .env.e2e or CI process environment");
     expect(report).toContain("E2E required env: VITE_CONVEX_URL, VITE_CONVEX_SITE_URL");
     expect(report).toContain("E2E CI secrets: E2E_CONVEX_URL, E2E_CONVEX_SITE_URL");

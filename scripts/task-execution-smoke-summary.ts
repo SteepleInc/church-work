@@ -39,6 +39,10 @@ export type TaskExecutionSmokeBlockingStep = {
 
 export type TaskExecutionSmokeSummary = {
   readonly generatedAt: string;
+  readonly issueLinks: {
+    readonly prdIssue: string;
+    readonly taskIssue: string;
+  };
   readonly e2eReady: boolean;
   readonly e2eSkipReason: string | null;
   readonly e2eRequirements: {
@@ -107,6 +111,10 @@ export function getTaskExecutionSmokeExitCode(
 
 export function buildTaskExecutionSmokeSummary(input: {
   readonly generatedAt: string;
+  readonly issueLinks: {
+    readonly prdIssue: string;
+    readonly taskIssue: string;
+  };
   readonly e2eReady: boolean;
   readonly e2eSkipReason: string | null;
   readonly e2eRequirements: {
@@ -206,6 +214,8 @@ export function formatTaskExecutionSmokeMarkdown(summary: TaskExecutionSmokeSumm
     "",
     `Generated: ${summary.generatedAt}`,
     `Status: ${summary.status}`,
+    `Parent PRD: ${summary.issueLinks.prdIssue}`,
+    `Task issue: ${summary.issueLinks.taskIssue}`,
     `E2E ready: ${summary.e2eReady ? "yes" : "no"}`,
     `Total duration: ${formatDuration(summary.totalDurationMs)}`,
     `E2E env file: ${summary.e2eRequirements.envFile}`,
