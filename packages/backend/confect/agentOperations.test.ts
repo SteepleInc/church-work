@@ -2214,6 +2214,166 @@ describe("agent operation boundary", () => {
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 
+  it.effect("Task update moves Due Date and Cycle while preserving Due Date-derived Cycle", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const ownerResponse = yield* signUpWithEmail(
+        c,
+        `agent-task-date-cycle-owner-${crypto.randomUUID()}@example.com`,
+      );
+      const owner = (yield* Effect.promise(() => ownerResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: owner.token!,
+        name: "Task Date Cycle Church",
+        slug: `task-date-cycle-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: owner.user!.id!,
+        sessionToken: owner.token!,
+      });
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
+        churchId: church.id!,
+      });
+      const todoStatus = defaults.data.workflowStatuses.find(
+        (status) => status.taskState === "todo",
+      )!;
+
+      const created = yield* authenticated.mutation(refs.public.tasks.createBatch, {
+        churchId: church.id!,
+        tasks: [
+          {
+            title: "Move date and cycle",
+            teamId: null,
+            workflowStatusId: todoStatus.id,
+            dueDate: "2026-06-03",
+            parentTaskId: null,
+          },
+          {
+            title: "Create next cycle",
+            teamId: null,
+            workflowStatusId: todoStatus.id,
+            dueDate: "2026-06-10",
+            parentTaskId: null,
+          },
+          {
+            title: "Create later cycle",
+            teamId: null,
+            workflowStatusId: todoStatus.id,
+            dueDate: "2026-06-24",
+            parentTaskId: null,
+          },
+        ],
+      });
+      const task = created.data.tasks.find(
+        (candidate) => candidate.title === "Move date and cycle",
+      )!;
+      const originalCycleId = task.cycleId;
+      const nextCycleId = created.data.tasks.find(
+        (candidate) => candidate.title === "Create next cycle",
+      )!.cycleId;
+      const laterCycleId = created.data.tasks.find(
+        (candidate) => candidate.title === "Create later cycle",
+      )!.cycleId;
+
+      const sameWeek = yield* authenticated.mutation(refs.public.tasks.updateBatch, {
+        churchId: church.id!,
+        updates: [{ taskId: task.id, fields: { dueDate: "2026-06-04" } }],
+      });
+      const crossWeek = yield* authenticated.mutation(refs.public.tasks.updateBatch, {
+        churchId: church.id!,
+        updates: [{ taskId: task.id, fields: { dueDate: "2026-06-10" } }],
+      });
+      const oneWeekCycleMove = yield* authenticated.mutation(refs.public.tasks.updateBatch, {
+        churchId: church.id!,
+        updates: [{ taskId: task.id, fields: { cycleId: originalCycleId } }],
+      });
+      const multiWeekCycleMove = yield* authenticated.mutation(refs.public.tasks.updateBatch, {
+        churchId: church.id!,
+        updates: [{ taskId: task.id, fields: { cycleId: laterCycleId } }],
+      });
+      const invalidDueDate = yield* authenticated.mutation(refs.public.tasks.updateBatch, {
+        churchId: church.id!,
+        updates: [{ taskId: task.id, fields: { dueDate: "2026-02-30" } }],
+      });
+      const activities = yield* authenticated.query(refs.public.activities.listForEntity, {
+        churchId: church.id!,
+        entityType: "task",
+        entityId: task.id,
+      });
+
+      expect(sameWeek.data.tasks.find((candidate) => candidate.id === task.id)).toMatchObject({
+        dueDate: "2026-06-04",
+        cycleId: originalCycleId,
+      });
+      expect(crossWeek.data.tasks.find((candidate) => candidate.id === task.id)).toMatchObject({
+        dueDate: "2026-06-10",
+        cycleId: nextCycleId,
+      });
+      expect(
+        oneWeekCycleMove.data.tasks.find((candidate) => candidate.id === task.id),
+      ).toMatchObject({
+        dueDate: "2026-06-03",
+        cycleId: originalCycleId,
+      });
+      expect(
+        multiWeekCycleMove.data.tasks.find((candidate) => candidate.id === task.id),
+      ).toMatchObject({
+        dueDate: "2026-06-24",
+        cycleId: laterCycleId,
+      });
+      expect(invalidDueDate).toEqual({
+        ok: false,
+        operation: "updateTasks",
+        error: {
+          code: "invalid_due_date",
+          message: "Task Due Date must be a real Church-local date in YYYY-MM-DD format.",
+        },
+      });
+      expect(activities.data.activities.map((activity) => activity.eventType)).toEqual([
+        "task.created",
+        "task.due_date_changed",
+        "task.due_date_changed",
+        "task.cycle_changed",
+        "task.cycle_changed",
+      ]);
+      expect(activities.data.activities.map((activity) => activity.actorId)).toEqual([
+        owner.user!.id!,
+        owner.user!.id!,
+        owner.user!.id!,
+        owner.user!.id!,
+        owner.user!.id!,
+      ]);
+      expect(activities.data.activities[1]!.metadata).toEqual({
+        previousDueDate: "2026-06-03",
+        dueDate: "2026-06-04",
+        previousCycleId: originalCycleId,
+        cycleId: originalCycleId,
+      });
+      expect(activities.data.activities[2]!.metadata).toEqual({
+        previousDueDate: "2026-06-04",
+        dueDate: "2026-06-10",
+        previousCycleId: originalCycleId,
+        cycleId: nextCycleId,
+      });
+      expect(activities.data.activities[3]!.metadata).toEqual({
+        previousCycleId: nextCycleId,
+        cycleId: originalCycleId,
+        previousDueDate: "2026-06-10",
+        dueDate: "2026-06-03",
+      });
+      expect(activities.data.activities[4]!.metadata).toEqual({
+        previousCycleId: originalCycleId,
+        cycleId: laterCycleId,
+        previousDueDate: "2026-06-03",
+        dueDate: "2026-06-24",
+      });
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
   it.effect("Task execution-window reads filter My Work and Our Work", () =>
     Effect.gen(function* () {
       const c = yield* TestConfect.TestConfect;

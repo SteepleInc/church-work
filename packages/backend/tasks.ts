@@ -22,6 +22,8 @@ type TaskUpdateInput = {
     readonly assignedUserId?: string | null;
     readonly teamId?: string | null;
     readonly workflowStatusId?: string;
+    readonly dueDate?: string;
+    readonly cycleId?: string;
   };
 };
 
@@ -39,6 +41,24 @@ type TransitionCode =
   | "doneWorkflowStatusNotFound"
   | "restoreActivityNotFound"
   | "restoreWorkflowStatusNotFound";
+
+function addDays(localDate: string, days: number) {
+  const [year, month, day] = localDate.split("-").map(Number) as [number, number, number];
+  const date = new Date(Date.UTC(year, month - 1, day + days));
+  return date.toISOString().slice(0, 10);
+}
+
+function daysBetween(startDate: string, endDate: string) {
+  const [startYear, startMonth, startDay] = startDate.split("-").map(Number) as [
+    number,
+    number,
+    number,
+  ];
+  const [endYear, endMonth, endDay] = endDate.split("-").map(Number) as [number, number, number];
+  const start = Date.UTC(startYear, startMonth - 1, startDay);
+  const end = Date.UTC(endYear, endMonth - 1, endDay);
+  return Math.round((end - start) / 86_400_000);
+}
 
 export async function readTaskModel(
   ctx: { readonly db: GenericDatabaseReader<DataModel> },
@@ -183,6 +203,7 @@ export async function updateTasks(
     readonly updates: ReadonlyArray<TaskUpdateInput>;
     readonly actorId: string | null;
     readonly occurredAt: string;
+    readonly churchTimeZone: string;
     readonly teamWorkflowResolution?: TeamWorkflowResolution;
   },
 ) {
@@ -200,6 +221,75 @@ export async function updateTasks(
     if ("title" in update.fields && update.fields.title !== task.title) {
       patch.title = update.fields.title;
       updatedFields.push("title");
+    }
+
+    let movedDueDate: {
+      readonly previousDueDate: string;
+      readonly dueDate: string;
+      readonly previousCycleId: string;
+      readonly cycleId: Id<"cycles">;
+    } | null = null;
+    let movedCycle: {
+      readonly previousCycleId: string;
+      readonly cycleId: Id<"cycles">;
+      readonly previousDueDate: string;
+      readonly dueDate: string;
+    } | null = null;
+
+    const requestedDueDate = update.fields.dueDate;
+    if (requestedDueDate !== undefined && requestedDueDate !== task.dueDate) {
+      try {
+        buildCycleForLocalDate({
+          localDate: requestedDueDate,
+          churchTimeZone: args.churchTimeZone,
+        });
+      } catch {
+        return { ok: false as const, code: "invalidDueDate" as const };
+      }
+
+      const cycleId = await ensureCycleForDueDate(ctx, {
+        churchId: args.churchId,
+        dueDate: requestedDueDate,
+        churchTimeZone: args.churchTimeZone,
+      });
+
+      patch.dueDate = requestedDueDate;
+      patch.cycleId = cycleId;
+      updatedFields.push("dueDate");
+      movedDueDate = {
+        previousDueDate: task.dueDate,
+        dueDate: requestedDueDate,
+        previousCycleId: task.cycleId,
+        cycleId,
+      };
+    }
+
+    if (!movedDueDate && "cycleId" in update.fields && update.fields.cycleId !== task.cycleId) {
+      const [previousCycle, targetCycle] = await Promise.all([
+        ctx.db.get(task.cycleId as Id<"cycles">),
+        ctx.db.get(update.fields.cycleId as Id<"cycles">),
+      ]);
+
+      if (
+        !previousCycle ||
+        previousCycle.churchId !== args.churchId ||
+        !targetCycle ||
+        targetCycle.churchId !== args.churchId
+      ) {
+        return { ok: false as const, code: "cycleNotFound" as const };
+      }
+
+      const weekdayOffset = daysBetween(previousCycle.startDate, task.dueDate);
+      const dueDate = addDays(targetCycle.startDate, weekdayOffset);
+      patch.dueDate = dueDate;
+      patch.cycleId = targetCycle._id;
+      updatedFields.push("cycleId");
+      movedCycle = {
+        previousCycleId: task.cycleId,
+        cycleId: targetCycle._id,
+        previousDueDate: task.dueDate,
+        dueDate,
+      };
     }
 
     if (
@@ -432,8 +522,41 @@ export async function updateTasks(
         });
       }
 
+      if (movedDueDate) {
+        await writeActivity(ctx, {
+          churchId: args.churchId,
+          entityType: "task",
+          entityId: task._id,
+          eventType: "task.due_date_changed",
+          actorType: "user",
+          actorId: args.actorId,
+          occurredAt: args.occurredAt,
+          cycleId: movedDueDate.cycleId,
+          metadata: movedDueDate,
+        });
+      }
+
+      if (movedCycle) {
+        await writeActivity(ctx, {
+          churchId: args.churchId,
+          entityType: "task",
+          entityId: task._id,
+          eventType: "task.cycle_changed",
+          actorType: "user",
+          actorId: args.actorId,
+          occurredAt: args.occurredAt,
+          cycleId: movedCycle.cycleId,
+          metadata: movedCycle,
+        });
+      }
+
       const nonAssignmentFields = updatedFields.filter(
-        (field) => field !== "assignedUserId" && field !== "teamId" && field !== "workflowStatusId",
+        (field) =>
+          field !== "assignedUserId" &&
+          field !== "teamId" &&
+          field !== "workflowStatusId" &&
+          field !== "dueDate" &&
+          field !== "cycleId",
       );
       if (nonAssignmentFields.length > 0) {
         const metadata: {

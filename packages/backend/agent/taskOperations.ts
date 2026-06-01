@@ -26,6 +26,8 @@ const TaskUpdateFields = Schema.Struct({
   assignedUserId: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
   teamId: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
   workflowStatusId: Schema.optional(Schema.String),
+  dueDate: Schema.optional(Schema.String),
+  cycleId: Schema.optional(Schema.String),
 });
 
 export const TaskUpdateBatchArgs = Schema.Struct({
@@ -111,6 +113,7 @@ export const TaskErrorResponse = Schema.Struct({
       Schema.Literal("church_time_zone_missing"),
       Schema.Literal("assigned_user_not_church_member"),
       Schema.Literal("invalid_due_date"),
+      Schema.Literal("cycle_not_found"),
       Schema.Literal("workflow_status_not_found"),
       Schema.Literal("workflow_status_not_in_effective_workflow"),
       Schema.Literal("parent_task_not_found"),

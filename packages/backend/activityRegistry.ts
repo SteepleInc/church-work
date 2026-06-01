@@ -75,6 +75,18 @@ export const ActivityMetadataByEventType = {
     workflowStatusId: Schema.String,
     workflowStatusName: Schema.Union(Schema.String, Schema.Null),
   }),
+  "task.due_date_changed": Schema.Struct({
+    previousDueDate: Schema.String,
+    dueDate: Schema.String,
+    previousCycleId: Schema.String,
+    cycleId: Schema.String,
+  }),
+  "task.cycle_changed": Schema.Struct({
+    previousCycleId: Schema.String,
+    cycleId: Schema.String,
+    previousDueDate: Schema.String,
+    dueDate: Schema.String,
+  }),
   "task.completed": Schema.Struct({
     previousTaskState: Schema.Union(
       Schema.Literal("todo"),
@@ -255,6 +267,8 @@ export const ActivityEventType = Schema.Literal(
   "task.team_changed",
   "task.team_unassigned",
   "task.status_moved",
+  "task.due_date_changed",
+  "task.cycle_changed",
   "task.completed",
   "task.canceled",
   "task.reopened",
@@ -301,6 +315,8 @@ export const ActivityMetadata = Schema.Union(
   ActivityMetadataByEventType["task.team_changed"],
   ActivityMetadataByEventType["task.team_unassigned"],
   ActivityMetadataByEventType["task.status_moved"],
+  ActivityMetadataByEventType["task.due_date_changed"],
+  ActivityMetadataByEventType["task.cycle_changed"],
   ActivityMetadataByEventType["task.completed"],
   ActivityMetadataByEventType["task.canceled"],
   ActivityMetadataByEventType["task.reopened"],

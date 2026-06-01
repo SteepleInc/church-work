@@ -2253,6 +2253,20 @@ const tasksUpdateBatch = FunctionImpl.make(api, "tasks", "updateBatch", (args) =
       );
     }
 
+    const church = yield* findBetterAuthDoc<BetterAuthOrganization>({
+      model: "organization",
+      where: [{ field: "_id", value: args.churchId }],
+    }).pipe(Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx));
+
+    const churchTimeZone = church?.churchTimeZone;
+    if (!churchTimeZone) {
+      return taskErrorResponse(
+        "updateTasks",
+        "church_time_zone_missing",
+        "Church Time Zone is required before Tasks can be scheduled.",
+      );
+    }
+
     const teamWorkflowIds: Record<string, string> = {};
     for (const teamId of teamIds) {
       const team = (yield* Effect.promise(() =>
@@ -2282,6 +2296,7 @@ const tasksUpdateBatch = FunctionImpl.make(api, "tasks", "updateBatch", (args) =
         updates: args.updates,
         actorId: auth.authUser._id,
         occurredAt: new Date().toISOString(),
+        churchTimeZone,
         teamWorkflowResolution: {
           defaultWorkflowId: churchDefaultWorkflow._id,
           teamWorkflowIds,
@@ -2329,6 +2344,20 @@ const tasksUpdateBatch = FunctionImpl.make(api, "tasks", "updateBatch", (args) =
         "updateTasks",
         "invalid_task_transition",
         "Task cannot perform that transition from its current state.",
+      );
+    }
+    if (!updated.ok && updated.code === "invalidDueDate") {
+      return taskErrorResponse(
+        "updateTasks",
+        "invalid_due_date",
+        "Task Due Date must be a real Church-local date in YYYY-MM-DD format.",
+      );
+    }
+    if (!updated.ok && updated.code === "cycleNotFound") {
+      return taskErrorResponse(
+        "updateTasks",
+        "cycle_not_found",
+        "Cycle was not found in the active Church.",
       );
     }
     if (!updated.ok) {
