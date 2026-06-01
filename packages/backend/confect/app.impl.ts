@@ -7,6 +7,10 @@ import {
   recordActivityResponse,
 } from "../agent/activityOperations";
 import {
+  churchSettingsErrorResponse,
+  churchSettingsResponse,
+} from "../agent/churchSettingsOperations";
+import {
   cycleMaintenanceErrorResponse,
   cycleMaintenanceResponse,
 } from "../agent/cycleMaintenanceOperations";
@@ -31,6 +35,7 @@ import { workDefaultsResponse } from "../agent/workDefaultsOperations";
 import { workflowErrorResponse, workflowResponse } from "../agent/workflowOperations";
 import { listActivitiesForEntity, serializeActivity, writeActivity } from "../activityRegistry";
 import { authComponent } from "../authCore";
+import { isValidChurchTimeZone } from "../churchTimeZone";
 import { api as convexApi, components } from "../convex/_generated/api";
 import type { DataModel } from "../convex/_generated/dataModel";
 import { maintainCyclesForChurch } from "../cycleMaintenance";
@@ -438,6 +443,124 @@ const agentBatchRead = FunctionImpl.make(api, "agent", "batchRead", (args) =>
 
 const agentActiveChurch = FunctionImpl.make(api, "agent", "activeChurch", (args) =>
   getActiveChurch(args.churchId),
+);
+
+const churchSettingsReadForChurch = FunctionImpl.make(
+  api,
+  "churchSettings",
+  "readForChurch",
+  (args) =>
+    Effect.gen(function* () {
+      const auth = yield* getAuthenticatedChurchMember(args.churchId);
+
+      if (auth.status === "notAuthenticated") {
+        return churchSettingsErrorResponse(
+          "readChurchSettings",
+          "not_authenticated",
+          "Authentication is required.",
+        );
+      }
+      if (auth.status === "notChurchMember") {
+        return churchSettingsErrorResponse(
+          "readChurchSettings",
+          "not_church_member",
+          "Church membership is required.",
+        );
+      }
+
+      const church = yield* findBetterAuthDoc<BetterAuthOrganization>({
+        model: "organization",
+        where: [{ field: "_id", value: args.churchId }],
+      });
+
+      if (!church) {
+        return churchSettingsErrorResponse(
+          "readChurchSettings",
+          "church_not_found",
+          "Church was not found.",
+        );
+      }
+
+      return churchSettingsResponse("readChurchSettings", {
+        id: church._id,
+        churchTimeZone: church.churchTimeZone ?? null,
+      });
+    }),
+);
+
+const churchSettingsUpdateTimeZone = FunctionImpl.make(
+  api,
+  "churchSettings",
+  "updateTimeZone",
+  (args) =>
+    Effect.gen(function* () {
+      const ctx = yield* MutationCtx.MutationCtx<DataModel>();
+      const auth = yield* getAuthenticatedChurchMember(args.churchId).pipe(
+        Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
+      );
+
+      if (auth.status === "notAuthenticated") {
+        return churchSettingsErrorResponse(
+          "updateChurchTimeZone",
+          "not_authenticated",
+          "Authentication is required.",
+        );
+      }
+      if (auth.status === "notChurchMember") {
+        return churchSettingsErrorResponse(
+          "updateChurchTimeZone",
+          "not_church_member",
+          "Church membership is required.",
+        );
+      }
+      if (auth.membership.role !== "owner" && auth.membership.role !== "admin") {
+        return churchSettingsErrorResponse(
+          "updateChurchTimeZone",
+          "not_authorized",
+          "Only Church owners and admins can update Church Time Zone.",
+        );
+      }
+      if (!isValidChurchTimeZone(args.churchTimeZone)) {
+        return churchSettingsErrorResponse(
+          "updateChurchTimeZone",
+          "invalid_church_time_zone",
+          "Church Time Zone must be a valid IANA time zone.",
+        );
+      }
+
+      const church = yield* findBetterAuthDoc<BetterAuthOrganization>({
+        model: "organization",
+        where: [{ field: "_id", value: args.churchId }],
+      }).pipe(Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx));
+
+      if (!church) {
+        return churchSettingsErrorResponse(
+          "updateChurchTimeZone",
+          "church_not_found",
+          "Church was not found.",
+        );
+      }
+
+      yield* Effect.promise(() =>
+        ctx.runMutation(components.betterAuth.adapter.updateOne, {
+          input: {
+            model: "organization",
+            where: [{ field: "_id", value: args.churchId }],
+            update: { churchTimeZone: args.churchTimeZone },
+          },
+        }),
+      ).pipe(Effect.orDie);
+
+      const updatedChurch = yield* findBetterAuthDoc<BetterAuthOrganization>({
+        model: "organization",
+        where: [{ field: "_id", value: args.churchId }],
+      }).pipe(Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx));
+
+      return churchSettingsResponse("updateChurchTimeZone", {
+        id: args.churchId,
+        churchTimeZone: updatedChurch?.churchTimeZone ?? args.churchTimeZone,
+      });
+    }),
 );
 
 const coreWorkBatchRead = FunctionImpl.make(
@@ -2027,6 +2150,10 @@ export const agent = GroupImpl.make(api, "agent").pipe(
   Layer.provide(agentCurrentUser),
   Layer.provide(agentBatchRead),
   Layer.provide(agentActiveChurch),
+);
+export const churchSettings = GroupImpl.make(api, "churchSettings").pipe(
+  Layer.provide(churchSettingsReadForChurch),
+  Layer.provide(churchSettingsUpdateTimeZone),
 );
 export const coreWork = GroupImpl.make(api, "coreWork").pipe(
   Layer.provide(coreWorkBatchRead),

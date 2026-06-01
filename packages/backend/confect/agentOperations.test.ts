@@ -5,6 +5,7 @@ import { MutationCtx } from "@confect/server";
 import { Effect, Schema } from "effect";
 import { expect } from "vitest";
 
+import { components } from "../convex/_generated/api";
 import type { DataModel } from "../convex/_generated/dataModel";
 import * as TestConfect from "../test/TestConfect";
 import refs from "./_generated/refs";
@@ -347,6 +348,205 @@ describe("agent operation boundary", () => {
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 
+  it.effect("owners can update Church Time Zone without rewriting existing Cycle boundaries", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-update-church-time-zone-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Update Time Zone Church",
+        slug: `update-time-zone-${crypto.randomUUID()}`,
+        churchTimeZone: "America/New_York",
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
+        churchId: church.id!,
+      });
+      const todoStatus = defaults.data.workflowStatuses.find(
+        (status) => status.taskState === "todo",
+      )!;
+
+      yield* authenticated.mutation(refs.public.tasks.createBatch, {
+        churchId: church.id!,
+        tasks: [
+          {
+            title: "Preserve existing cycle boundary",
+            teamId: null,
+            workflowStatusId: todoStatus.id,
+            dueDate: "2026-06-03",
+            parentTaskId: null,
+          },
+        ],
+      });
+      const beforeUpdate = yield* authenticated.query(refs.public.tasks.listForChurch, {
+        churchId: church.id!,
+      });
+      const existingCycle = beforeUpdate.data.cycles.find(
+        (cycle) => cycle.startDate === "2026-06-01",
+      )!;
+
+      const update = yield* authenticated.mutation(refs.public.churchSettings.updateTimeZone, {
+        churchId: church.id!,
+        churchTimeZone: "America/Los_Angeles",
+      });
+      const read = yield* authenticated.query(refs.public.churchSettings.readForChurch, {
+        churchId: church.id!,
+      });
+      yield* authenticated.mutation(refs.public.cycleMaintenance.runForChurch, {
+        churchId: church.id!,
+        now: "2026-06-08T04:30:00.000Z",
+      });
+      const afterMaintenance = yield* authenticated.query(refs.public.tasks.listForChurch, {
+        churchId: church.id!,
+      });
+      const preservedCycle = afterMaintenance.data.cycles.find(
+        (cycle) => cycle.id === existingCycle.id,
+      )!;
+      const futureCycle = afterMaintenance.data.cycles.find(
+        (cycle) => cycle.startDate === "2026-06-08",
+      )!;
+
+      expect(update).toEqual({
+        ok: true,
+        operation: "updateChurchTimeZone",
+        data: { church: { id: church.id, churchTimeZone: "America/Los_Angeles" } },
+      });
+      expect(read).toEqual({
+        ok: true,
+        operation: "readChurchSettings",
+        data: { church: { id: church.id, churchTimeZone: "America/Los_Angeles" } },
+      });
+      expect(preservedCycle).toMatchObject({
+        churchTimeZone: existingCycle.churchTimeZone,
+        startDate: existingCycle.startDate,
+        endDate: existingCycle.endDate,
+        startsAt: existingCycle.startsAt,
+        endsAt: existingCycle.endsAt,
+      });
+      expect(futureCycle).toMatchObject({
+        churchTimeZone: "America/Los_Angeles",
+        startsAt: "2026-06-08T07:00:00.000Z",
+      });
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("Church Time Zone setup rejects invalid IANA time zones", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-setup-invalid-time-zone-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Setup Invalid Time Zone Church",
+        slug: `setup-invalid-time-zone-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
+
+      const update = yield* authenticated.mutation(refs.public.churchSettings.updateTimeZone, {
+        churchId: church.id!,
+        churchTimeZone: "Not/A_Zone",
+      });
+
+      expect(update).toEqual({
+        ok: false,
+        operation: "updateChurchTimeZone",
+        error: {
+          code: "invalid_church_time_zone",
+          message: "Church Time Zone must be a valid IANA time zone.",
+        },
+      });
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("Church members can read but cannot update Church Time Zone setup", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const ownerEmail = `agent-member-time-zone-owner-${crypto.randomUUID()}@example.com`;
+      const memberEmail = `agent-member-time-zone-member-${crypto.randomUUID()}@example.com`;
+      const ownerResponse = yield* signUpWithEmail(c, ownerEmail);
+      const memberResponse = yield* signUpWithEmail(c, memberEmail);
+      const owner = (yield* Effect.promise(() => ownerResponse.json())) as {
+        token?: string;
+      };
+      const member = (yield* Effect.promise(() => memberResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: owner.token!,
+        name: "Member Time Zone Church",
+        slug: `member-time-zone-${crypto.randomUUID()}`,
+        churchTimeZone: "America/Chicago",
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      yield* c.run(
+        Effect.gen(function* () {
+          const ctx = yield* MutationCtx.MutationCtx<DataModel>();
+          yield* Effect.promise(() =>
+            ctx.runMutation(components.betterAuth.adapter.create, {
+              input: {
+                model: "member",
+                data: {
+                  userId: member.user!.id!,
+                  organizationId: church.id!,
+                  role: "member",
+                  createdAt: Date.now(),
+                },
+              },
+            }),
+          );
+        }),
+        Schema.Void,
+      );
+      const memberAuthenticated = yield* authenticatedConfect(c, {
+        userId: member.user!.id!,
+        sessionToken: member.token!,
+      });
+
+      const read = yield* memberAuthenticated.query(refs.public.churchSettings.readForChurch, {
+        churchId: church.id!,
+      });
+      const update = yield* memberAuthenticated.mutation(
+        refs.public.churchSettings.updateTimeZone,
+        {
+          churchId: church.id!,
+          churchTimeZone: "America/Denver",
+        },
+      );
+
+      expect(read).toEqual({
+        ok: true,
+        operation: "readChurchSettings",
+        data: { church: { id: church.id, churchTimeZone: "America/Chicago" } },
+      });
+      expect(update).toEqual({
+        ok: false,
+        operation: "updateChurchTimeZone",
+        error: {
+          code: "not_authorized",
+          message: "Only Church owners and admins can update Church Time Zone.",
+        },
+      });
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
   it.effect("Church creation seeds the default work model", () =>
     Effect.gen(function* () {
       const c = yield* TestConfect.TestConfect;
@@ -398,65 +598,67 @@ describe("agent operation boundary", () => {
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 
-  it.effect("Church creation seeds editable starter Teams that use the default Workflow fallback", () =>
-    Effect.gen(function* () {
-      const c = yield* TestConfect.TestConfect;
-      const email = `agent-starter-teams-${crypto.randomUUID()}@example.com`;
-      const signUpResponse = yield* signUpWithEmail(c, email);
-      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
-        user?: { id?: string };
-        token?: string;
-      };
-      const churchResponse = yield* createChurch(c, {
-        token: signUpBody.token!,
-        name: "Starter Teams Church",
-        slug: `starter-teams-${crypto.randomUUID()}`,
-      });
-      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
-      const authenticated = yield* authenticatedConfect(c, {
-        userId: signUpBody.user!.id!,
-        sessionToken: signUpBody.token!,
-      });
+  it.effect(
+    "Church creation seeds editable starter Teams that use the default Workflow fallback",
+    () =>
+      Effect.gen(function* () {
+        const c = yield* TestConfect.TestConfect;
+        const email = `agent-starter-teams-${crypto.randomUUID()}@example.com`;
+        const signUpResponse = yield* signUpWithEmail(c, email);
+        const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+          user?: { id?: string };
+          token?: string;
+        };
+        const churchResponse = yield* createChurch(c, {
+          token: signUpBody.token!,
+          name: "Starter Teams Church",
+          slug: `starter-teams-${crypto.randomUUID()}`,
+        });
+        const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+        const authenticated = yield* authenticatedConfect(c, {
+          userId: signUpBody.user!.id!,
+          sessionToken: signUpBody.token!,
+        });
 
-      const teams = yield* authenticated.query(refs.public.teams.listForChurch, {
-        churchId: church.id!,
-      });
-      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
-        churchId: church.id!,
-      });
+        const teams = yield* authenticated.query(refs.public.teams.listForChurch, {
+          churchId: church.id!,
+        });
+        const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
+          churchId: church.id!,
+        });
 
-      expect(teams.ok).toBe(true);
-      expect(teams.data.teams.map((team) => team.name)).toEqual([
-        "Worship",
-        "Production",
-        "Kids",
-        "Experience",
-        "Facilities",
-        "Social Media",
-      ]);
-      expect(teams.data.teams.map((team) => team.sortOrder)).toEqual([0, 1, 2, 3, 4, 5]);
-      expect(teams.data.teams.every((team) => team.archivedAt === null)).toBe(true);
-      expect(teams.data.teams.every((team) => team.defaultWorkflowId === null)).toBe(true);
-      expect(defaults.data.workflows).toMatchObject([
-        { key: "church-default", name: "Default Workflow", isDefault: true },
-      ]);
+        expect(teams.ok).toBe(true);
+        expect(teams.data.teams.map((team) => team.name)).toEqual([
+          "Worship",
+          "Production",
+          "Kids",
+          "Experience",
+          "Facilities",
+          "Social Media",
+        ]);
+        expect(teams.data.teams.map((team) => team.sortOrder)).toEqual([0, 1, 2, 3, 4, 5]);
+        expect(teams.data.teams.every((team) => team.archivedAt === null)).toBe(true);
+        expect(teams.data.teams.every((team) => team.defaultWorkflowId === null)).toBe(true);
+        expect(defaults.data.workflows).toMatchObject([
+          { key: "church-default", name: "Default Workflow", isDefault: true },
+        ]);
 
-      yield* authenticated.mutation(refs.public.workDefaults.seedForChurch, {
-        churchId: church.id!,
-      });
-      const teamsAfterReseed = yield* authenticated.query(refs.public.teams.listForChurch, {
-        churchId: church.id!,
-      });
+        yield* authenticated.mutation(refs.public.workDefaults.seedForChurch, {
+          churchId: church.id!,
+        });
+        const teamsAfterReseed = yield* authenticated.query(refs.public.teams.listForChurch, {
+          churchId: church.id!,
+        });
 
-      expect(teamsAfterReseed.data.teams.map((team) => team.name)).toEqual([
-        "Worship",
-        "Production",
-        "Kids",
-        "Experience",
-        "Facilities",
-        "Social Media",
-      ]);
-    }).pipe(Effect.provide(TestConfect.layer())),
+        expect(teamsAfterReseed.data.teams.map((team) => team.name)).toEqual([
+          "Worship",
+          "Production",
+          "Kids",
+          "Experience",
+          "Facilities",
+          "Social Media",
+        ]);
+      }).pipe(Effect.provide(TestConfect.layer())),
   );
 
   it.effect("default work model seeding is idempotent", () =>

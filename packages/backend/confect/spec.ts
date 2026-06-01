@@ -4,6 +4,7 @@ import {
   activities,
   agent,
   auth,
+  churchSettings,
   coreWork,
   cycleMaintenance,
   healthCheck,
@@ -20,6 +21,7 @@ export default Spec.make()
   .add(activities)
   .add(agent)
   .add(auth)
+  .add(churchSettings)
   .add(coreWork)
   .add(cycleMaintenance)
   .add(healthCheck)

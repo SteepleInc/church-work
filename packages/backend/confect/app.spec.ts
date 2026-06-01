@@ -8,6 +8,12 @@ import {
   RecordActivityOperationResponse,
 } from "../agent/activityOperations";
 import {
+  ChurchSettingsArgs,
+  ChurchSettingsReadResponse,
+  ChurchSettingsWriteResponse,
+  ChurchTimeZoneUpdateArgs,
+} from "../agent/churchSettingsOperations";
+import {
   CycleMaintenanceRunArgs,
   CycleMaintenanceWriteResponse,
 } from "../agent/cycleMaintenanceOperations";
@@ -86,6 +92,22 @@ export const cycleMaintenance = GroupSpec.make("cycleMaintenance").addFunction(
     returns: CycleMaintenanceWriteResponse,
   }),
 );
+
+export const churchSettings = GroupSpec.make("churchSettings")
+  .addFunction(
+    FunctionSpec.publicQuery({
+      name: "readForChurch",
+      args: ChurchSettingsArgs,
+      returns: ChurchSettingsReadResponse,
+    }),
+  )
+  .addFunction(
+    FunctionSpec.publicMutation({
+      name: "updateTimeZone",
+      args: ChurchTimeZoneUpdateArgs,
+      returns: ChurchSettingsWriteResponse,
+    }),
+  );
 
 export const coreWork = GroupSpec.make("coreWork")
   .addFunction(
