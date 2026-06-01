@@ -8,6 +8,10 @@ import {
   RecordActivityOperationResponse,
 } from "../agent/activityOperations";
 import {
+  CycleMaintenanceRunArgs,
+  CycleMaintenanceWriteResponse,
+} from "../agent/cycleMaintenanceOperations";
+import {
   KeyDateCreateArgs,
   KeyDateListArgs,
   KeyDateOccurrenceCreateArgs,
@@ -65,6 +69,14 @@ export const privateData = GroupSpec.make("privateData").addFunction(
     name: "get",
     args: Schema.Struct({}),
     returns: Schema.Struct({ message: Schema.String }),
+  }),
+);
+
+export const cycleMaintenance = GroupSpec.make("cycleMaintenance").addFunction(
+  FunctionSpec.publicMutation({
+    name: "runForChurch",
+    args: CycleMaintenanceRunArgs,
+    returns: CycleMaintenanceWriteResponse,
   }),
 );
 

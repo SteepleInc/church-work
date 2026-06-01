@@ -6,6 +6,10 @@ import {
   listActivitiesForEntityResponse,
   recordActivityResponse,
 } from "../agent/activityOperations";
+import {
+  cycleMaintenanceErrorResponse,
+  cycleMaintenanceResponse,
+} from "../agent/cycleMaintenanceOperations";
 import { keyDateErrorResponse, keyDateResponse } from "../agent/keyDateOperations";
 import {
   activeChurchResponse,
@@ -23,6 +27,7 @@ import { listActivitiesForEntity, serializeActivity, writeActivity } from "../ac
 import { authComponent } from "../authCore";
 import { components } from "../convex/_generated/api";
 import type { DataModel } from "../convex/_generated/dataModel";
+import { maintainCyclesForChurch } from "../cycleMaintenance";
 import {
   createKeyDateOccurrences,
   createKeyDates,
@@ -424,6 +429,83 @@ const agentBatchRead = FunctionImpl.make(api, "agent", "batchRead", (args) =>
 
 const agentActiveChurch = FunctionImpl.make(api, "agent", "activeChurch", (args) =>
   getActiveChurch(args.churchId),
+);
+
+const cycleMaintenanceRunForChurch = FunctionImpl.make(
+  api,
+  "cycleMaintenance",
+  "runForChurch",
+  (args) =>
+    Effect.gen(function* () {
+      const ctx = yield* MutationCtx.MutationCtx<DataModel>();
+      const auth = yield* getAuthenticatedChurchMember(args.churchId).pipe(
+        Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
+      );
+
+      if (auth.status === "notAuthenticated") {
+        return cycleMaintenanceErrorResponse("not_authenticated", "Authentication is required.");
+      }
+      if (auth.status === "notChurchMember") {
+        return cycleMaintenanceErrorResponse("not_church_member", "Church membership is required.");
+      }
+      if (auth.membership.role !== "owner" && auth.membership.role !== "admin") {
+        return cycleMaintenanceErrorResponse(
+          "not_authorized",
+          "Only Church owners and admins can run Cycle maintenance.",
+        );
+      }
+
+      const church = yield* findBetterAuthDoc<BetterAuthOrganization>({
+        model: "organization",
+        where: [{ field: "_id", value: args.churchId }],
+      }).pipe(Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx));
+
+      if (!church?.churchTimeZone) {
+        return cycleMaintenanceErrorResponse(
+          "church_time_zone_missing",
+          "Church Time Zone is required before Cycles can be maintained.",
+        );
+      }
+
+      const maintained = yield* Effect.tryPromise(() =>
+        maintainCyclesForChurch(ctx, {
+          churchId: args.churchId,
+          churchTimeZone: church.churchTimeZone!,
+          now: args.now,
+        }),
+      ).pipe(Effect.catchAll(() => Effect.succeed({ ok: false as const, code: "invalidNow" })));
+
+      if (!maintained.ok && maintained.code === "workflowStatusNotFound") {
+        return cycleMaintenanceErrorResponse(
+          "workflow_status_not_found",
+          "A default To Do Workflow Status is required before Template Tasks can materialize.",
+        );
+      }
+      if (!maintained.ok && maintained.code === "templateTaskNotFound") {
+        return cycleMaintenanceErrorResponse(
+          "template_task_not_found",
+          "Template Task was not found in the active Church.",
+        );
+      }
+      if (!maintained.ok) {
+        return cycleMaintenanceErrorResponse(
+          "invalid_now",
+          "Maintenance timestamp must be a valid ISO date-time.",
+        );
+      }
+
+      const model = yield* Effect.promise(() => readTaskModel(ctx, args.churchId)).pipe(
+        Effect.orDie,
+      );
+
+      return cycleMaintenanceResponse({
+        ...serializeTaskModel(model),
+        ensuredCycleIds: maintained.ensuredCycleIds,
+        createdCycleIds: maintained.createdCycleIds,
+        rolledOverTaskIds: maintained.rolledOverTaskIds,
+        materializedTaskIds: maintained.materializedTaskIds,
+      });
+    }),
 );
 
 const workDefaultsSeedForChurch = FunctionImpl.make(api, "workDefaults", "seedForChurch", (args) =>
@@ -1575,6 +1657,9 @@ export const healthCheck = GroupImpl.make(api, "healthCheck").pipe(Layer.provide
 
 export const privateData = GroupImpl.make(api, "privateData").pipe(Layer.provide(privateDataGet));
 export const auth = GroupImpl.make(api, "auth").pipe(Layer.provide(authGetCurrentUser));
+export const cycleMaintenance = GroupImpl.make(api, "cycleMaintenance").pipe(
+  Layer.provide(cycleMaintenanceRunForChurch),
+);
 export const agent = GroupImpl.make(api, "agent").pipe(
   Layer.provide(agentCurrentUser),
   Layer.provide(agentBatchRead),

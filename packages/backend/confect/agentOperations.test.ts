@@ -874,6 +874,134 @@ describe("agent operation boundary", () => {
       }).pipe(Effect.provide(TestConfect.layer())),
   );
 
+  it.effect("Cycle maintenance rolls unfinished work and materializes upcoming Template work", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-cycle-maintenance-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Cycle Maintenance Church",
+        slug: `cycle-maintenance-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
+        churchId: church.id!,
+      });
+      const todoStatus = defaults.data.workflowStatuses.find(
+        (status) => status.taskState === "todo",
+      )!;
+      const doneStatus = defaults.data.workflowStatuses.find(
+        (status) => status.taskState === "done",
+      )!;
+
+      const seededTasks = yield* authenticated.mutation(refs.public.tasks.createBatch, {
+        churchId: church.id!,
+        tasks: [
+          {
+            title: "Carry sermon outline",
+            teamId: null,
+            workflowStatusId: todoStatus.id,
+            dueDate: "2026-06-03",
+            parentTaskId: null,
+          },
+          {
+            title: "Completed slides",
+            teamId: null,
+            workflowStatusId: doneStatus.id,
+            dueDate: "2026-06-04",
+            parentTaskId: null,
+          },
+        ],
+      });
+      yield* authenticated.mutation(refs.public.templates.createForChurch, {
+        churchId: church.id!,
+        templates: [
+          {
+            key: "next-week-service",
+            name: "Next Week Service",
+            recurrence: "weekly",
+            focusWindows: [],
+            templateTasks: [
+              {
+                key: "prepare-next-week",
+                title: "Prepare next week service plan",
+                parentTemplateTaskKey: null,
+                schedulingRule: { kind: "fixedDate", localDate: "2026-06-10" },
+              },
+            ],
+          },
+        ],
+      });
+
+      const firstMaintenance = yield* authenticated.mutation(
+        refs.public.cycleMaintenance.runForChurch,
+        { churchId: church.id!, now: "2026-06-08T04:30:00.000Z" },
+      );
+      const secondMaintenance = yield* authenticated.mutation(
+        refs.public.cycleMaintenance.runForChurch,
+        { churchId: church.id!, now: "2026-06-08T04:30:00.000Z" },
+      );
+      const listed = yield* authenticated.query(refs.public.tasks.listForChurch, {
+        churchId: church.id!,
+      });
+      const carried = listed.data.tasks.find((task) => task.title === "Carry sermon outline")!;
+      const completed = listed.data.tasks.find((task) => task.title === "Completed slides")!;
+      const projected = listed.data.tasks.find(
+        (task) => task.title === "Prepare next week service plan",
+      )!;
+      const closingCycle = listed.data.cycles.find((cycle) => cycle.startDate === "2026-06-01")!;
+      const nextCycle = listed.data.cycles.find((cycle) => cycle.startDate === "2026-06-08")!;
+      const followingCycle = listed.data.cycles.find((cycle) => cycle.startDate === "2026-06-15")!;
+      const rolloverActivities = yield* authenticated.query(refs.public.activities.listForEntity, {
+        churchId: church.id!,
+        entityType: "task",
+        entityId: carried.id,
+      });
+      const nextCycleActivities = yield* authenticated.query(refs.public.activities.listForEntity, {
+        churchId: church.id!,
+        entityType: "cycle",
+        entityId: nextCycle.id,
+      });
+
+      expect(firstMaintenance.ok).toBe(true);
+      expect(secondMaintenance.ok).toBe(true);
+      expect(firstMaintenance.data.rolledOverTaskIds).toEqual([carried.id]);
+      expect(secondMaintenance.data.rolledOverTaskIds).toEqual([]);
+      expect(firstMaintenance.data.materializedTaskIds).toEqual([projected.id]);
+      expect(secondMaintenance.data.materializedTaskIds).toEqual([]);
+      expect(carried).toMatchObject({
+        cycleId: nextCycle.id,
+        dueDate: "2026-06-10",
+        taskState: "todo",
+        sourceTemplateSyncEnabled: false,
+      });
+      expect(completed).toMatchObject({ cycleId: closingCycle.id, dueDate: "2026-06-04" });
+      expect(projected).toMatchObject({ cycleId: nextCycle.id, dueDate: "2026-06-10" });
+      expect(followingCycle).toMatchObject({ startDate: "2026-06-15", endDate: "2026-06-21" });
+      expect(rolloverActivities.data.activities.map((activity) => activity.eventType)).toContain(
+        "task.rolled_over",
+      );
+      expect(
+        rolloverActivities.data.activities.find(
+          (activity) => activity.eventType === "task.rolled_over",
+        )?.metadata,
+      ).toMatchObject({ fromCycleId: closingCycle.id, toCycleId: nextCycle.id });
+      expect(nextCycleActivities.data.activities.map((activity) => activity.eventType)).toEqual([
+        "cycle.created",
+      ]);
+      expect(seededTasks.data.tasks).toHaveLength(2);
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
   it.effect("Task and Subtask creation assigns Cycles from Due Dates", () =>
     Effect.gen(function* () {
       const c = yield* TestConfect.TestConfect;

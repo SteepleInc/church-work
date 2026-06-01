@@ -55,6 +55,11 @@ export const ActivityMetadataByEventType = {
     previousWorkflowStatusId: Schema.String,
     previousWorkflowStatusName: Schema.Union(Schema.String, Schema.Null),
   }),
+  "cycle.created": Schema.Struct({
+    startDate: Schema.String,
+    endDate: Schema.String,
+    churchTimeZone: Schema.String,
+  }),
   "workflow.created": Schema.Struct({
     name: Schema.String,
     isDefault: Schema.Boolean,
@@ -93,6 +98,7 @@ export const ActivityEventType = Schema.Literal(
   "task.canceled",
   "task.reopened",
   "task.rolled_over",
+  "cycle.created",
   "workflow.created",
   "workflow.status.created",
   "workflow.status.archived",
@@ -107,6 +113,7 @@ export const ActivityMetadata = Schema.Union(
   ActivityMetadataByEventType["task.canceled"],
   ActivityMetadataByEventType["task.reopened"],
   ActivityMetadataByEventType["task.rolled_over"],
+  ActivityMetadataByEventType["cycle.created"],
   ActivityMetadataByEventType["workflow.created"],
   ActivityMetadataByEventType["workflow.status.created"],
   ActivityMetadataByEventType["workflow.status.archived"],

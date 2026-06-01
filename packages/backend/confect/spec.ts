@@ -4,6 +4,7 @@ import {
   activities,
   agent,
   auth,
+  cycleMaintenance,
   healthCheck,
   keyDates,
   privateData,
@@ -18,6 +19,7 @@ export default Spec.make()
   .add(activities)
   .add(agent)
   .add(auth)
+  .add(cycleMaintenance)
   .add(healthCheck)
   .add(keyDates)
   .add(privateData)
