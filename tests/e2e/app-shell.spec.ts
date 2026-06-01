@@ -302,6 +302,93 @@ test("owner manages Teams and Team Memberships from settings", async ({ page }, 
   await expect(teamsSettings.getByText("Care")).not.toBeVisible();
 });
 
+test("owner manages Workflows and Workflow Statuses from settings", async ({ page }, testInfo) => {
+  const ownerEmail = `e2e-workflow-owner-${Date.now()}-${testInfo.workerIndex}@example.com`;
+  const churchName = `E2E Workflow Settings Church ${Date.now()}`;
+
+  await signUpThroughDashboard(page, ownerEmail, "E2E Workflow Owner");
+  await createFirstChurch(page, churchName);
+  await page.getByRole("button", { name: "Active Church Settings" }).click();
+
+  const workflowsSettings = page.getByRole("region", { name: "Workflows" });
+  await workflowsSettings.getByLabel("New Workflow Name").fill("Creative Pipeline");
+  await workflowsSettings.getByRole("button", { name: "Create Workflow" }).click();
+  await expect(page.getByText("Created Workflow Creative Pipeline.")).toBeVisible();
+  await expect(workflowsSettings.getByText("Creative Pipeline")).toBeVisible();
+
+  await workflowsSettings.getByLabel("Rename Creative Pipeline").fill("Creative Review");
+  await workflowsSettings
+    .getByRole("button", { name: "Rename Workflow Creative Pipeline" })
+    .click();
+  await expect(page.getByText("Renamed Workflow to Creative Review.")).toBeVisible();
+
+  await workflowsSettings.getByRole("button", { name: "Move Creative Review Up" }).click();
+  await expect(page.getByText("Reordered Workflows.")).toBeVisible();
+
+  await workflowsSettings.getByLabel("Church Default Workflow").selectOption({
+    label: "Creative Review",
+  });
+  await expect(page.getByText("Set Creative Review as the Church default Workflow.")).toBeVisible();
+
+  const teamsSettings = page.getByRole("region", { name: "Teams" });
+  await teamsSettings.getByLabel("New Team Name").fill("Prayer");
+  await teamsSettings.getByRole("button", { name: "Create Team" }).click();
+  await expect(page.getByText("Created Team Prayer.")).toBeVisible();
+
+  await workflowsSettings.getByLabel("Default Workflow for Prayer").selectOption({
+    label: "Creative Review",
+  });
+  await expect(page.getByText("Set Prayer to use Creative Review by default.")).toBeVisible();
+
+  await workflowsSettings.getByRole("button", { name: "Archive Workflow Creative Review" }).click();
+  await expect(page.getByRole("dialog", { name: "Workflow Cannot Be Archived" })).toBeVisible();
+  await expect(
+    page.getByText("reassign the Church default Workflow, Teams, or Tasks"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Close" }).click();
+
+  await workflowsSettings.getByLabel("Church Default Workflow").selectOption({
+    label: "Default Workflow",
+  });
+  await workflowsSettings.getByLabel("Default Workflow for Prayer").selectOption({
+    label: "Use Church default Workflow",
+  });
+  await workflowsSettings.getByRole("button", { name: "Archive Workflow Creative Review" }).click();
+  await expect(page.getByText("Archived Workflow Creative Review.")).toBeVisible();
+  await expect(workflowsSettings.getByText("Creative Review")).not.toBeVisible();
+
+  await workflowsSettings.getByLabel("New Workflow Name").fill("Production Flow");
+  await workflowsSettings.getByRole("button", { name: "Create Workflow" }).click();
+  await expect(page.getByText("Created Workflow Production Flow.")).toBeVisible();
+
+  const statusesSettings = page.getByRole("region", { name: "Workflow Statuses" });
+  await statusesSettings.getByLabel("Workflow for Status Editing").selectOption({
+    label: "Production Flow",
+  });
+  await statusesSettings.getByLabel("New Workflow Status Name").fill("Needs Review");
+  await statusesSettings.getByLabel("New Workflow Status Task State").selectOption("in_progress");
+  await expect(
+    statusesSettings.getByLabel("New Workflow Status Task State").getByText("Canceled"),
+  ).not.toBeVisible();
+  await statusesSettings.getByRole("button", { name: "Add Workflow Status" }).click();
+  await expect(page.getByText("Added Workflow Status Needs Review.")).toBeVisible();
+
+  await statusesSettings.getByLabel("Rename Needs Review").fill("Reviewing Assets");
+  await statusesSettings
+    .getByRole("button", { name: "Rename Workflow Status Needs Review" })
+    .click();
+  await expect(page.getByText("Renamed Workflow Status to Reviewing Assets.")).toBeVisible();
+
+  await statusesSettings.getByRole("button", { name: "Move Reviewing Assets Up" }).click();
+  await expect(page.getByText("Reordered Workflow Statuses.")).toBeVisible();
+
+  await statusesSettings
+    .getByRole("button", { name: "Archive Workflow Status Reviewing Assets" })
+    .click();
+  await expect(page.getByText("Archived Workflow Status Reviewing Assets.")).toBeVisible();
+  await expect(statusesSettings.getByText("Reviewing Assets")).not.toBeVisible();
+});
+
 test("owner manages Church Member role and removal", async ({ page }, testInfo) => {
   const ownerEmail = `e2e-member-owner-${Date.now()}-${testInfo.workerIndex}@example.com`;
   const memberEmail = `e2e-managed-member-${Date.now()}-${testInfo.workerIndex}@example.com`;
