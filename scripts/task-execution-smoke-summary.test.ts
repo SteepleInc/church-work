@@ -13,6 +13,7 @@ describe("Task execution smoke summary", () => {
     command: "bun --filter @church-task/backend test:backend",
     covers: ["Backend public contracts execute the Task lifecycle."],
     exitCode: 0,
+    durationMs: 1234,
     status: "passed",
   };
   const e2eRequirements = {
@@ -52,6 +53,7 @@ describe("Task execution smoke summary", () => {
           command: "bun run test:e2e tests/e2e/app-shell.spec.ts",
           covers: ["Browser workflows prove persisted web behavior."],
           exitCode: 0,
+          durationMs: 4321,
           status: "skipped",
           skipReason: "Missing .env.e2e.",
         },
@@ -89,6 +91,7 @@ describe("Task execution smoke summary", () => {
           command: "bun run test:e2e tests/e2e/app-shell.spec.ts",
           covers: ["Browser workflows prove persisted web behavior."],
           exitCode: 0,
+          durationMs: 4321,
           status: "skipped",
           skipReason: "Missing .env.e2e.",
           acceptanceCriteria: ["web_reflects_contract_changes", "kanban_persists_movement"],
@@ -163,6 +166,7 @@ describe("Task execution smoke summary", () => {
           command: "bun --filter @church-task/cli test:cli",
           covers: ["CLI commands use the public Task execution contract."],
           exitCode: 1,
+          durationMs: 9876,
           status: "failed",
         },
       ],
@@ -198,6 +202,7 @@ describe("Task execution smoke summary", () => {
               command: "bun run test:e2e tests/e2e/app-shell.spec.ts",
               covers: ["Browser workflows prove persisted web behavior."],
               exitCode: 0,
+              durationMs: 4321,
               status: "skipped",
               skipReason: "Missing .env.e2e.",
             },
@@ -223,6 +228,7 @@ describe("Task execution smoke summary", () => {
               command: "bun run test:e2e tests/e2e/app-shell.spec.ts",
               covers: ["Browser workflows prove persisted web behavior."],
               exitCode: 0,
+              durationMs: 4321,
               status: "skipped",
               skipReason: "Missing .env.e2e.",
             },
@@ -247,6 +253,7 @@ describe("Task execution smoke summary", () => {
             command: "bun run test:e2e tests/e2e/app-shell.spec.ts",
             covers: ["Browser workflows prove persisted web behavior."],
             exitCode: 0,
+            durationMs: 4321,
             status: "skipped",
             skipReason: "Missing .env.e2e.",
           },
@@ -258,6 +265,7 @@ describe("Task execution smoke summary", () => {
     expect(report).toContain("E2E env file: .env.e2e or CI process environment");
     expect(report).toContain("E2E required env: VITE_CONVEX_URL, VITE_CONVEX_SITE_URL");
     expect(report).toContain("E2E CI secrets: E2E_CONVEX_URL, E2E_CONVEX_SITE_URL");
+    expect(report).toContain("Total duration: 5.6s");
     expect(report).toContain("E2E skip reason: Missing .env.e2e.");
     expect(report).toContain("## Closure Gate");
     expect(report).toContain("Ready to close #71: no");
@@ -267,7 +275,10 @@ describe("Task execution smoke summary", () => {
     expect(report).toContain(
       "- browser execution smoke: `bun run test:e2e tests/e2e/app-shell.spec.ts` (skipped: Missing .env.e2e.)",
     );
-    expect(report).toContain("| browser execution smoke | skipped | Missing .env.e2e. | 0 |");
+    expect(report).toContain("| Step | Status | Duration | Skip Reason | Exit Code | Command |");
+    expect(report).toContain(
+      "| browser execution smoke | skipped | 4.3s | Missing .env.e2e. | 0 |",
+    );
     expect(report).toContain("## Acceptance Coverage");
     expect(report).toContain("- Browser workflows prove persisted web behavior.");
     expect(report).toContain("## #71 Acceptance Criteria");

@@ -136,12 +136,14 @@ for (const step of steps) {
   console.log(`\n>>> ${step.name}`);
   console.log(step.command.join(" "));
 
+  const startedAt = performance.now();
   const proc = Bun.spawn(step.command, {
     stdout: "inherit",
     stderr: "inherit",
     env: process.env,
   });
   const exitCode = await proc.exited;
+  const durationMs = Math.round(performance.now() - startedAt);
   const status =
     exitCode !== 0
       ? "failed"
@@ -155,6 +157,7 @@ for (const step of steps) {
     covers: step.covers,
     acceptanceCriteria: step.acceptanceCriteria,
     exitCode,
+    durationMs,
     status,
     skipReason: status === "skipped" ? e2eSkipReason : undefined,
   });

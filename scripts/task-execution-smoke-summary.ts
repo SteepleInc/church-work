@@ -19,6 +19,7 @@ export type TaskExecutionSmokeStepResult = {
   readonly name: string;
   readonly command: string;
   readonly exitCode: number;
+  readonly durationMs: number;
   readonly status: TaskExecutionSmokeStatus;
   readonly skipReason?: string;
   readonly covers: readonly string[];
@@ -46,6 +47,7 @@ export type TaskExecutionSmokeSummary = {
     readonly ciSecretNames: readonly string[];
   };
   readonly status: "passed" | "failed" | "passed_with_skips";
+  readonly totalDurationMs: number;
   readonly closureGate: {
     readonly ready: boolean;
     readonly fullVerificationCommand: string;
@@ -120,6 +122,7 @@ export function buildTaskExecutionSmokeSummary(input: {
     : input.results.some((result) => result.status === "skipped")
       ? "passed_with_skips"
       : "passed";
+  const totalDurationMs = input.results.reduce((total, result) => total + result.durationMs, 0);
   const blockingSteps = input.results.flatMap((result) => {
     if (result.status === "failed") {
       return [`${result.name} failed with exit code ${result.exitCode}`];
@@ -186,6 +189,7 @@ export function buildTaskExecutionSmokeSummary(input: {
   return {
     ...input,
     status,
+    totalDurationMs,
     closureGate: {
       ready: status === "passed",
       fullVerificationCommand: taskExecutionSmokeFullVerificationCommand,
@@ -203,6 +207,7 @@ export function formatTaskExecutionSmokeMarkdown(summary: TaskExecutionSmokeSumm
     `Generated: ${summary.generatedAt}`,
     `Status: ${summary.status}`,
     `E2E ready: ${summary.e2eReady ? "yes" : "no"}`,
+    `Total duration: ${formatDuration(summary.totalDurationMs)}`,
     `E2E env file: ${summary.e2eRequirements.envFile}`,
     `E2E required env: ${summary.e2eRequirements.requiredEnvNames.join(", ")}`,
     `E2E CI secrets: ${summary.e2eRequirements.ciSecretNames.join(", ")}`,
@@ -238,13 +243,13 @@ export function formatTaskExecutionSmokeMarkdown(summary: TaskExecutionSmokeSumm
 
   lines.push(
     "",
-    "| Step | Status | Skip Reason | Exit Code | Command |",
-    "| --- | --- | --- | ---: | --- |",
+    "| Step | Status | Duration | Skip Reason | Exit Code | Command |",
+    "| --- | --- | ---: | --- | ---: | --- |",
   );
 
   for (const result of summary.results) {
     lines.push(
-      `| ${escapeMarkdownTableCell(result.name)} | ${result.status} | ${result.skipReason ? escapeMarkdownTableCell(result.skipReason) : ""} | ${result.exitCode} | ${escapeMarkdownTableCell(result.command)} |`,
+      `| ${escapeMarkdownTableCell(result.name)} | ${result.status} | ${formatDuration(result.durationMs)} | ${result.skipReason ? escapeMarkdownTableCell(result.skipReason) : ""} | ${result.exitCode} | ${escapeMarkdownTableCell(result.command)} |`,
     );
   }
 
@@ -283,4 +288,12 @@ export function formatTaskExecutionSmokeMarkdown(summary: TaskExecutionSmokeSumm
 
 function escapeMarkdownTableCell(value: string) {
   return value.replaceAll("|", "\\|");
+}
+
+function formatDuration(durationMs: number) {
+  if (durationMs < 1_000) {
+    return `${durationMs}ms`;
+  }
+
+  return `${(durationMs / 1_000).toFixed(1)}s`;
 }
