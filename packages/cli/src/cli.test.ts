@@ -408,7 +408,7 @@ describe("church-task setup write", () => {
 });
 
 describe("church-task task execution", () => {
-  it("records Activity side effects when lifecycle commands run through the public CLI", async () => {
+  it("runs the Task execution smoke path through the public CLI", async () => {
     const { refs, TestConfect } = await loadBackendTestHarness();
 
     const program = Effect.gen(function* () {
@@ -434,6 +434,9 @@ describe("church-task task execution", () => {
       });
       const todoStatus = defaults.data.workflowStatuses.find(
         (status: { readonly taskState: string }) => status.taskState === "todo",
+      )!;
+      const doingStatus = defaults.data.workflowStatuses.find(
+        (status: { readonly taskState: string }) => status.taskState === "in_progress",
       )!;
       const env = { CHURCH_TASK_AUTH_TOKEN: owner.token! };
       const backendLayer = fakeBackend({
@@ -476,6 +479,8 @@ describe("church-task task execution", () => {
             todoStatus.id,
             "--due-date",
             "2026-06-03",
+            "--assigned-user-id",
+            owner.user!.id!,
           ],
           { env, backendLayer },
         ),
@@ -488,27 +493,142 @@ describe("church-task task execution", () => {
       const createdTask = created.task ?? created.data?.tasks?.[0];
       expect(createdTask?.id).toEqual(expect.any(String));
       if (!createdTask?.id) throw new Error("CLI task create did not return a Task id.");
+
+      const createCancelableResult = yield* Effect.promise(() =>
+        runCli(
+          [
+            "task",
+            "create",
+            "--church-id",
+            church.id!,
+            "--title",
+            "Cancel from CLI",
+            "--workflow-status-id",
+            todoStatus.id,
+            "--due-date",
+            "2026-06-04",
+          ],
+          { env, backendLayer },
+        ),
+      );
+      const cancelableCreated = JSON.parse(createCancelableResult.stdout) as {
+        task?: { id?: string } | null;
+        data?: { tasks?: ReadonlyArray<{ id?: string }> };
+      };
+      const cancelableTask = cancelableCreated.task ?? cancelableCreated.data?.tasks?.[0];
+      expect(cancelableTask?.id).toEqual(expect.any(String));
+      if (!cancelableTask?.id)
+        throw new Error("CLI task create did not return a cancelable Task id.");
+
+      const listResult = yield* Effect.promise(() =>
+        runCli(["task", "list", "--church-id", church.id!, "--surface", "my_work"], {
+          env,
+          backendLayer,
+        }),
+      );
+      const listed = JSON.parse(listResult.stdout) as {
+        tasks?: ReadonlyArray<{ id?: string; assignedUserId?: string | null }>;
+      };
+
+      const moveResult = yield* Effect.promise(() =>
+        runCli(
+          [
+            "task",
+            "update",
+            "--church-id",
+            church.id!,
+            "--task-id",
+            createdTask.id!,
+            "--workflow-status-id",
+            doingStatus.id,
+          ],
+          { env, backendLayer },
+        ),
+      );
+      const moved = JSON.parse(moveResult.stdout) as {
+        task?: { id?: string; workflowStatusId?: string; taskState?: string } | null;
+      };
+
       const completeResult = yield* Effect.promise(() =>
         runCli(["task", "complete", "--church-id", church.id!, "--task-id", createdTask.id!], {
           env,
           backendLayer,
         }),
       );
+      const completed = JSON.parse(completeResult.stdout) as {
+        task?: { id?: string; taskState?: string; finishedAt?: string | null } | null;
+      };
+      const cancelResult = yield* Effect.promise(() =>
+        runCli(["task", "cancel", "--church-id", church.id!, "--task-id", cancelableTask.id!], {
+          env,
+          backendLayer,
+        }),
+      );
+      const canceled = JSON.parse(cancelResult.stdout) as {
+        task?: { id?: string; taskState?: string; finishedAt?: string | null } | null;
+      };
+      const reopenResult = yield* Effect.promise(() =>
+        runCli(["task", "reopen", "--church-id", church.id!, "--task-id", cancelableTask.id!], {
+          env,
+          backendLayer,
+        }),
+      );
+      const reopened = JSON.parse(reopenResult.stdout) as {
+        task?: { id?: string; taskState?: string; finishedAt?: string | null } | null;
+      };
       const activities = yield* authenticated.query(refs.public.activities.listForEntity, {
         churchId: church.id!,
         entityType: "task",
         entityId: createdTask.id!,
       });
+      const cancelActivities = yield* authenticated.query(refs.public.activities.listForEntity, {
+        churchId: church.id!,
+        entityType: "task",
+        entityId: cancelableTask.id!,
+      });
 
       expect(createResult.exitCode).toBe(0);
+      expect(createCancelableResult.exitCode).toBe(0);
+      expect(listResult.exitCode).toBe(0);
+      expect(listed.tasks).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: createdTask.id!, assignedUserId: owner.user!.id! }),
+        ]),
+      );
+      expect(moveResult.exitCode).toBe(0);
+      expect(moved.task).toMatchObject({
+        id: createdTask.id!,
+        workflowStatusId: doingStatus.id,
+        taskState: "in_progress",
+      });
       expect(completeResult.exitCode).toBe(0);
+      expect(completed.task).toMatchObject({ id: createdTask.id!, taskState: "done" });
+      expect(completed.task?.finishedAt).toEqual(expect.any(String));
+      expect(cancelResult.exitCode).toBe(0);
+      expect(canceled.task).toMatchObject({ id: cancelableTask.id!, taskState: "canceled" });
+      expect(canceled.task?.finishedAt).toEqual(expect.any(String));
+      expect(reopenResult.exitCode).toBe(0);
+      expect(reopened.task).toMatchObject({
+        id: cancelableTask.id!,
+        taskState: "todo",
+        finishedAt: null,
+      });
       expect(
         activities.data.activities.map(
           (activity: { readonly eventType: string }) => activity.eventType,
         ),
-      ).toEqual(["task.created", "task.completed"]);
+      ).toEqual(["task.created", "task.status_moved", "task.completed"]);
       expect(activities.data.activities[0]).toMatchObject({ actorId: owner.user!.id! });
       expect(activities.data.activities[1]).toMatchObject({ actorId: owner.user!.id! });
+      expect(activities.data.activities[2]).toMatchObject({ actorId: owner.user!.id! });
+      expect(
+        cancelActivities.data.activities.map(
+          (activity: { readonly eventType: string }) => activity.eventType,
+        ),
+      ).toEqual(["task.created", "task.canceled", "task.reopened"]);
+      expect(cancelActivities.data.activities[0]).toMatchObject({ actorId: owner.user!.id! });
+      expect(cancelActivities.data.activities[1]).toMatchObject({ actorId: owner.user!.id! });
+      expect(cancelActivities.data.activities[2]).toMatchObject({ actorId: owner.user!.id! });
     }).pipe(Effect.provide(TestConfect.layer() as any)) as Effect.Effect<void, unknown, never>;
 
     await Effect.runPromise(program);
