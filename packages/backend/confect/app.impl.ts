@@ -10,6 +10,12 @@ import {
   cycleMaintenanceErrorResponse,
   cycleMaintenanceResponse,
 } from "../agent/cycleMaintenanceOperations";
+import {
+  coreWorkBatchReadResponse,
+  coreWorkBatchWriteResponse,
+  type CoreWorkBatchReadArgs,
+  type CoreWorkBatchWriteArgs,
+} from "../agent/coreWorkOperations";
 import { keyDateErrorResponse, keyDateResponse } from "../agent/keyDateOperations";
 import {
   activeChurchResponse,
@@ -25,7 +31,7 @@ import { workDefaultsResponse } from "../agent/workDefaultsOperations";
 import { workflowErrorResponse, workflowResponse } from "../agent/workflowOperations";
 import { listActivitiesForEntity, serializeActivity, writeActivity } from "../activityRegistry";
 import { authComponent } from "../authCore";
-import { components } from "../convex/_generated/api";
+import { api as convexApi, components } from "../convex/_generated/api";
 import type { DataModel } from "../convex/_generated/dataModel";
 import { maintainCyclesForChurch } from "../cycleMaintenance";
 import {
@@ -52,6 +58,8 @@ import {
   remapWorkflowStatusForTaskTeam,
 } from "../workflows";
 import api from "./_generated/api";
+
+const convexFunctionRefs = convexApi as any;
 
 type BetterAuthSession = {
   readonly activeOrganizationId?: string | null;
@@ -430,6 +438,272 @@ const agentBatchRead = FunctionImpl.make(api, "agent", "batchRead", (args) =>
 
 const agentActiveChurch = FunctionImpl.make(api, "agent", "activeChurch", (args) =>
   getActiveChurch(args.churchId),
+);
+
+const coreWorkBatchRead = FunctionImpl.make(
+  api,
+  "coreWork",
+  "batchRead",
+  (args: CoreWorkBatchReadArgs) =>
+    Effect.gen(function* () {
+      const ctx = yield* QueryCtx.QueryCtx<DataModel>();
+      const results: Array<{
+        readonly id: string;
+        readonly operation: string;
+        readonly result: unknown;
+      }> = [];
+
+      for (const operation of args.operations) {
+        switch (operation.operation) {
+          case "listTasks":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runQuery(convexFunctionRefs.tasks.listForChurch, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "listTeams":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runQuery(convexFunctionRefs.teams.listForChurch, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "readWorkDefaults":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runQuery(convexFunctionRefs.workDefaults.readForChurch, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "listKeyDates":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runQuery(convexFunctionRefs.keyDates.listForChurch, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "resolveKeyDateOccurrences":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runQuery(convexFunctionRefs.keyDates.resolveOccurrences, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "resolveTemplateSchedules":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runQuery(convexFunctionRefs.templates.resolveSchedules, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "previewCycleAdjustmentMerge":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runQuery(
+                  convexFunctionRefs.templates.previewCycleAdjustmentMerge,
+                  operation.input,
+                ),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "listActivitiesForEntity":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runQuery(convexFunctionRefs.activities.listForEntity, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+        }
+      }
+
+      return coreWorkBatchReadResponse(results);
+    }),
+);
+
+const coreWorkBatchWrite = FunctionImpl.make(
+  api,
+  "coreWork",
+  "batchWrite",
+  (args: CoreWorkBatchWriteArgs) =>
+    Effect.gen(function* () {
+      const ctx = yield* MutationCtx.MutationCtx<DataModel>();
+      const results: Array<{
+        readonly id: string;
+        readonly operation: string;
+        readonly result: unknown;
+      }> = [];
+
+      for (const operation of args.operations) {
+        switch (operation.operation) {
+          case "seedWorkDefaults":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(convexFunctionRefs.workDefaults.seedForChurch, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "maintainCycles":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(convexFunctionRefs.cycleMaintenance.runForChurch, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "createTasks":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(convexFunctionRefs.tasks.createBatch, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "completeTasks":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(convexFunctionRefs.tasks.completeBatch, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "cancelTasks":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(convexFunctionRefs.tasks.cancelBatch, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "reopenTasks":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(convexFunctionRefs.tasks.reopenBatch, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "createKeyDates":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(convexFunctionRefs.keyDates.createForChurch, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "createKeyDateOccurrences":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(convexFunctionRefs.keyDates.createOccurrences, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "updateTeamProductFields":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(convexFunctionRefs.teams.updateProductFields, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "createWorkflow":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(convexFunctionRefs.workflows.createForChurch, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "archiveWorkflowStatus":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(convexFunctionRefs.workflows.archiveStatus, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "remapTaskTeamWorkflow":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(convexFunctionRefs.workflows.remapTaskTeam, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "createTemplates":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(convexFunctionRefs.templates.createForChurch, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "setCycleAdjustments":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(convexFunctionRefs.templates.setCycleAdjustments, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "materializeProjectedTasks":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(
+                  convexFunctionRefs.templates.materializeProjectedTasks,
+                  operation.input,
+                ),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "updateTemplateTasks":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(convexFunctionRefs.templates.updateTemplateTasks, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+        }
+      }
+
+      return coreWorkBatchWriteResponse(results);
+    }),
 );
 
 const cycleMaintenanceRunForChurch = FunctionImpl.make(
@@ -1753,6 +2027,10 @@ export const agent = GroupImpl.make(api, "agent").pipe(
   Layer.provide(agentCurrentUser),
   Layer.provide(agentBatchRead),
   Layer.provide(agentActiveChurch),
+);
+export const coreWork = GroupImpl.make(api, "coreWork").pipe(
+  Layer.provide(coreWorkBatchRead),
+  Layer.provide(coreWorkBatchWrite),
 );
 export const workDefaults = GroupImpl.make(api, "workDefaults").pipe(
   Layer.provide(workDefaultsSeedForChurch),

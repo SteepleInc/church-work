@@ -4,6 +4,7 @@ import {
   activities,
   agent,
   auth,
+  coreWork,
   cycleMaintenance,
   healthCheck,
   keyDates,
@@ -19,6 +20,7 @@ export default Spec.make()
   .add(activities)
   .add(agent)
   .add(auth)
+  .add(coreWork)
   .add(cycleMaintenance)
   .add(healthCheck)
   .add(keyDates)

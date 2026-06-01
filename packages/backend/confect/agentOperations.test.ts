@@ -2368,6 +2368,101 @@ describe("agent operation boundary", () => {
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 
+  it.effect("coreWork batch contracts exercise reads, writes, and safe per-operation errors", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-core-work-batch-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Core Work Batch Church",
+        slug: `core-work-batch-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
+
+      const unauthenticatedRead = yield* c.query(refs.public.coreWork.batchRead, {
+        operations: [
+          {
+            id: "unauthenticated-tasks",
+            operation: "listTasks",
+            input: { churchId: church.id! },
+          },
+        ],
+      });
+      const defaultsRead = yield* authenticated.query(refs.public.coreWork.batchRead, {
+        operations: [
+          {
+            id: "defaults",
+            operation: "readWorkDefaults",
+            input: { churchId: church.id! },
+          },
+          {
+            id: "key-dates",
+            operation: "listKeyDates",
+            input: { churchId: church.id! },
+          },
+        ],
+      });
+      const defaults = defaultsRead.results.find((result) => result.id === "defaults")!.result;
+      const todoStatus =
+        defaults.ok && defaults.operation === "readWorkDefaults"
+          ? defaults.data.workflowStatuses.find((status) => status.taskState === "todo")!
+          : null;
+
+      const write = yield* authenticated.mutation(refs.public.coreWork.batchWrite, {
+        operations: [
+          {
+            id: "create-task",
+            operation: "createTasks",
+            input: {
+              churchId: church.id!,
+              tasks: [
+                {
+                  title: "Batch-created task",
+                  teamId: null,
+                  workflowStatusId: todoStatus!.id,
+                  dueDate: "2026-06-01",
+                  parentTaskId: null,
+                },
+              ],
+            },
+          },
+        ],
+      });
+      const tasksRead = yield* authenticated.query(refs.public.coreWork.batchRead, {
+        operations: [
+          {
+            id: "tasks",
+            operation: "listTasks",
+            input: { churchId: church.id! },
+          },
+        ],
+      });
+
+      expect(unauthenticatedRead.results[0]!.result).toMatchObject({
+        ok: false,
+        operation: "listTasks",
+        error: { code: "not_authenticated" },
+      });
+      expect(defaultsRead).toMatchObject({ ok: true, operation: "coreWorkBatchRead" });
+      expect(defaultsRead.results.map((result) => result.id)).toEqual(["defaults", "key-dates"]);
+      expect(write.results[0]!.result).toMatchObject({ ok: true, operation: "createTasks" });
+      expect(tasksRead.results[0]!.result).toMatchObject({
+        ok: true,
+        operation: "listTasks",
+        data: { tasks: [{ title: "Batch-created task" }] },
+      });
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
   it.effect("rejects invalid batch operation input at the typed boundary", () =>
     Effect.gen(function* () {
       const c = yield* TestConfect.TestConfect;

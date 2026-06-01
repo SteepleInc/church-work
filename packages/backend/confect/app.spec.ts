@@ -12,6 +12,12 @@ import {
   CycleMaintenanceWriteResponse,
 } from "../agent/cycleMaintenanceOperations";
 import {
+  CoreWorkBatchReadArgs,
+  CoreWorkBatchReadResponse,
+  CoreWorkBatchWriteArgs,
+  CoreWorkBatchWriteResponse,
+} from "../agent/coreWorkOperations";
+import {
   KeyDateCreateArgs,
   KeyDateListArgs,
   KeyDateOccurrenceCreateArgs,
@@ -80,6 +86,22 @@ export const cycleMaintenance = GroupSpec.make("cycleMaintenance").addFunction(
     returns: CycleMaintenanceWriteResponse,
   }),
 );
+
+export const coreWork = GroupSpec.make("coreWork")
+  .addFunction(
+    FunctionSpec.publicQuery({
+      name: "batchRead",
+      args: CoreWorkBatchReadArgs,
+      returns: CoreWorkBatchReadResponse,
+    }),
+  )
+  .addFunction(
+    FunctionSpec.publicMutation({
+      name: "batchWrite",
+      args: CoreWorkBatchWriteArgs,
+      returns: CoreWorkBatchWriteResponse,
+    }),
+  );
 
 export const auth = GroupSpec.make("auth").addFunction(
   FunctionSpec.publicQuery({
