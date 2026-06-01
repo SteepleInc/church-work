@@ -23,6 +23,7 @@ type TaskSummary = {
   readonly title: string;
   readonly teamId: string | null;
   readonly assignedUserId: string | null;
+  readonly cycleId: string;
   readonly dueDate: string;
   readonly workflowStatusId: string;
   readonly taskState: TaskState;
@@ -102,6 +103,50 @@ export function getTaskDueDateUpdateFields(currentDueDate: string, nextDueDate: 
   }
 
   return { dueDate: nextDueDate };
+}
+
+function addDays(localDate: string, days: number) {
+  const [year, month, day] = localDate.split("-").map(Number) as [number, number, number];
+  const date = new Date(Date.UTC(year, month - 1, day + days));
+  return date.toISOString().slice(0, 10);
+}
+
+function daysBetween(startDate: string, endDate: string) {
+  const [startYear, startMonth, startDay] = startDate.split("-").map(Number) as [
+    number,
+    number,
+    number,
+  ];
+  const [endYear, endMonth, endDay] = endDate.split("-").map(Number) as [number, number, number];
+  const start = Date.UTC(startYear, startMonth - 1, startDay);
+  const end = Date.UTC(endYear, endMonth - 1, endDay);
+  return Math.round((end - start) / 86_400_000);
+}
+
+export function getTaskCycleUpdatePreview(args: {
+  readonly currentCycleId: string;
+  readonly nextCycleId: string;
+  readonly currentDueDate: string;
+  readonly cycles: readonly ExecutionCycle[];
+}) {
+  if (!args.nextCycleId || args.nextCycleId === args.currentCycleId) {
+    return null;
+  }
+
+  const currentCycle = args.cycles.find((cycle) => cycle.id === args.currentCycleId);
+  const nextCycle = args.cycles.find((cycle) => cycle.id === args.nextCycleId);
+
+  if (!currentCycle || !nextCycle) {
+    return null;
+  }
+
+  const weekdayOffset = daysBetween(currentCycle.startDate, args.currentDueDate);
+
+  return {
+    cycleId: nextCycle.id,
+    previousDueDate: args.currentDueDate,
+    dueDate: addDays(nextCycle.startDate, weekdayOffset),
+  };
 }
 
 export function getTaskTeamUpdateFields(currentTeamId: string | null, nextTeamId: string) {
@@ -375,6 +420,7 @@ export function TaskExecutionSurface({
           churchId={churchId}
           currentUserId={currentUserId}
           tasks={tasks}
+          cycles={cycles}
           users={users}
           teams={teams}
           updateTask={(taskId, fields) =>
@@ -392,6 +438,7 @@ export function TaskExecutionSurface({
 function TaskActionList({
   churchId,
   tasks,
+  cycles,
   users,
   teams,
   updateTask,
@@ -402,6 +449,7 @@ function TaskActionList({
   readonly churchId: string;
   readonly currentUserId: string;
   readonly tasks: readonly TaskSummary[];
+  readonly cycles: readonly ExecutionCycle[];
   readonly users: readonly UserSummary[];
   readonly teams: readonly TeamSummary[];
   readonly updateTask: (
@@ -409,6 +457,7 @@ function TaskActionList({
     fields: {
       readonly title?: string;
       readonly dueDate?: string;
+      readonly cycleId?: string;
       readonly assignedUserId?: string | null;
       readonly teamId?: string | null;
     },
@@ -431,6 +480,7 @@ function TaskActionList({
             key={task.id}
             churchId={churchId}
             task={task}
+            cycles={cycles}
             users={users}
             teams={teams}
             updateTask={updateTask}
@@ -447,6 +497,7 @@ function TaskActionList({
 function TaskActionRow({
   churchId,
   task,
+  cycles,
   users,
   teams,
   updateTask,
@@ -456,6 +507,7 @@ function TaskActionRow({
 }: {
   readonly churchId: string;
   readonly task: TaskSummary;
+  readonly cycles: readonly ExecutionCycle[];
   readonly users: readonly UserSummary[];
   readonly teams: readonly TeamSummary[];
   readonly updateTask: (
@@ -463,6 +515,7 @@ function TaskActionRow({
     fields: {
       readonly title?: string;
       readonly dueDate?: string;
+      readonly cycleId?: string;
       readonly assignedUserId?: string | null;
       readonly teamId?: string | null;
     },
@@ -480,7 +533,7 @@ function TaskActionRow({
   return (
     <div
       aria-label={`Actions for ${task.title}`}
-      className="grid gap-3 rounded-lg border p-3 lg:grid-cols-[minmax(12rem,1fr)_auto_auto_auto] lg:items-center"
+      className="grid gap-3 rounded-lg border p-3 lg:grid-cols-[minmax(12rem,1fr)_auto_auto_auto_auto] lg:items-center"
       role="group"
     >
       <div className="grid gap-2">
@@ -531,6 +584,35 @@ function TaskActionRow({
           </div>
         </div>
       </div>
+      <NativeSelect
+        size="sm"
+        value={task.cycleId}
+        aria-label={`Move Cycle for ${task.title}`}
+        onChange={(event) => {
+          const preview = getTaskCycleUpdatePreview({
+            currentCycleId: task.cycleId,
+            nextCycleId: event.target.value,
+            currentDueDate: task.dueDate,
+            cycles,
+          });
+
+          if (!preview) return;
+
+          const confirmed = window.confirm(
+            `Changing Cycle will shift Due Date from ${preview.previousDueDate} to ${preview.dueDate}. Continue?`,
+          );
+
+          if (!confirmed) return;
+
+          void updateTask(task.id, { cycleId: preview.cycleId });
+        }}
+      >
+        {cycles.map((cycle) => (
+          <NativeSelectOption key={cycle.id} value={cycle.id}>
+            {cycle.startDate} to {cycle.endDate}
+          </NativeSelectOption>
+        ))}
+      </NativeSelect>
       <NativeSelect
         size="sm"
         value={task.assignedUserId ?? ""}
@@ -625,6 +707,7 @@ function toBoardTask(task: TaskSummary) {
     id: task.id,
     title: task.title,
     teamId: task.teamId,
+    cycleId: task.cycleId,
     dueDate: task.dueDate,
     workflowStatusId: task.workflowStatusId,
     taskState: task.taskState,

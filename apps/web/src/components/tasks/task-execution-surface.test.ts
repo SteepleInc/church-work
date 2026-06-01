@@ -4,6 +4,7 @@ import {
   formatTaskActivity,
   getMyWorkEmptyStateActions,
   getTaskAssigneeOptions,
+  getTaskCycleUpdatePreview,
   getTaskCreationDefaults,
   getTaskDueDateUpdateFields,
   getExecutionWorkflowId,
@@ -147,6 +148,36 @@ describe("Task execution surface", () => {
     });
     expect(getTaskDueDateUpdateFields("2026-06-03", "2026-06-03")).toBeNull();
     expect(getTaskDueDateUpdateFields("2026-06-03", "")).toBeNull();
+  });
+
+  test("previews Cycle moves by preserving the Task weekday", () => {
+    const cycles = [
+      { id: "cycle-1", startDate: "2026-06-01", endDate: "2026-06-07" },
+      { id: "cycle-2", startDate: "2026-06-08", endDate: "2026-06-14" },
+      { id: "cycle-3", startDate: "2026-06-15", endDate: "2026-06-21" },
+    ];
+
+    expect(
+      getTaskCycleUpdatePreview({
+        currentCycleId: "cycle-1",
+        nextCycleId: "cycle-3",
+        currentDueDate: "2026-06-04",
+        cycles,
+      }),
+    ).toEqual({
+      cycleId: "cycle-3",
+      previousDueDate: "2026-06-04",
+      dueDate: "2026-06-18",
+    });
+
+    expect(
+      getTaskCycleUpdatePreview({
+        currentCycleId: "cycle-1",
+        nextCycleId: "cycle-1",
+        currentDueDate: "2026-06-04",
+        cycles,
+      }),
+    ).toBeNull();
   });
 
   test("builds Team update fields for Team assignment, changes, and unassignment", () => {
