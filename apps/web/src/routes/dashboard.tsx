@@ -111,6 +111,15 @@ type DashboardSearch = {
   readonly workflowStatusId?: string;
 };
 
+type DashboardTeamSummary = {
+  readonly id: string;
+};
+
+type DashboardTeamMembershipSummary = {
+  readonly teamId: string;
+  readonly userId: string;
+};
+
 export function getUnavailableTeamBoardActions() {
   return [
     { panel: "my_work" as const, label: "Open My Work" },
@@ -149,6 +158,20 @@ export function getDashboardSearchForExecutionFilters(
   };
 }
 
+export function getMemberTeams<Team extends DashboardTeamSummary>(
+  teams: readonly Team[],
+  memberships: readonly DashboardTeamMembershipSummary[],
+  currentUserId: string | null,
+): Team[] {
+  const currentUserTeamIds = new Set(
+    memberships
+      .filter((membership) => membership.userId === currentUserId)
+      .map((membership) => membership.teamId),
+  );
+
+  return teams.filter((team) => currentUserTeamIds.has(team.id));
+}
+
 function PrivateDashboardContent() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: "/dashboard" });
@@ -180,12 +203,7 @@ function PrivateDashboardContent() {
     teamMemberships?.ok && teamMemberships.operation === "listTeamMemberships"
       ? teamMemberships.data.teamMemberships
       : [];
-  const currentUserTeamIds = new Set(
-    memberships
-      .filter((membership) => membership.userId === currentUserId)
-      .map((membership) => membership.teamId),
-  );
-  const memberTeams = activeTeams.filter((team) => currentUserTeamIds.has(team.id));
+  const memberTeams = getMemberTeams(activeTeams, memberships, currentUserId);
   const selectedTeam =
     typeof activePanel === "object"
       ? (activeTeams.find((team) => team.id === activePanel.teamId) ?? null)

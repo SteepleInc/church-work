@@ -4,6 +4,7 @@ import {
   getDashboardPanelFromSearch,
   getDashboardSearchForExecutionFilters,
   getDashboardSearchForPanel,
+  getMemberTeams,
   getUnavailableTeamBoardActions,
 } from "./dashboard";
 
@@ -53,5 +54,24 @@ describe("dashboard execution route search", () => {
       { panel: "my_work", label: "Open My Work" },
       { panel: "our_work", label: "Open Our Work" },
     ]);
+  });
+
+  test("lists only current User Team Memberships in Team navigation", () => {
+    const teams = [
+      { id: "team-1", name: "Hospitality" },
+      { id: "team-2", name: "Production" },
+      { id: "team-3", name: "Care" },
+    ];
+
+    expect(
+      getMemberTeams(
+        teams,
+        [
+          { teamId: "team-1", userId: "current-user" },
+          { teamId: "team-2", userId: "other-user" },
+        ],
+        "current-user",
+      ),
+    ).toEqual([{ id: "team-1", name: "Hospitality" }]);
   });
 });
