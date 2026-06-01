@@ -21,6 +21,12 @@ import {
   TeamWriteResponse,
 } from "../agent/teamOperations";
 import { WorkDefaultsChurchArgs, WorkDefaultsResponse } from "../agent/workDefaultsOperations";
+import {
+  WorkflowArchiveStatusArgs,
+  WorkflowCreateArgs,
+  WorkflowRemapTaskTeamArgs,
+  WorkflowWriteResponse,
+} from "../agent/workflowOperations";
 
 export const healthCheck = GroupSpec.make("healthCheck").addFunction(
   FunctionSpec.publicQuery({
@@ -114,5 +120,28 @@ export const teams = GroupSpec.make("teams")
       name: "updateProductFields",
       args: TeamProductUpdateArgs,
       returns: TeamWriteResponse,
+    }),
+  );
+
+export const workflows = GroupSpec.make("workflows")
+  .addFunction(
+    FunctionSpec.publicMutation({
+      name: "createForChurch",
+      args: WorkflowCreateArgs,
+      returns: WorkflowWriteResponse,
+    }),
+  )
+  .addFunction(
+    FunctionSpec.publicMutation({
+      name: "archiveStatus",
+      args: WorkflowArchiveStatusArgs,
+      returns: WorkflowWriteResponse,
+    }),
+  )
+  .addFunction(
+    FunctionSpec.publicMutation({
+      name: "remapTaskTeam",
+      args: WorkflowRemapTaskTeamArgs,
+      returns: WorkflowWriteResponse,
     }),
   );

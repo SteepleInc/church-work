@@ -15,11 +15,18 @@ import {
 } from "../agent/operations";
 import { teamErrorResponse, teamsResponse } from "../agent/teamOperations";
 import { workDefaultsResponse } from "../agent/workDefaultsOperations";
+import { workflowErrorResponse, workflowResponse } from "../agent/workflowOperations";
 import { listActivitiesForEntity, serializeActivity, writeActivity } from "../activityRegistry";
 import { authComponent } from "../authCore";
 import { components } from "../convex/_generated/api";
 import type { DataModel } from "../convex/_generated/dataModel";
 import { readDefaultWorkModel, seedDefaultWorkModel } from "../workDefaults";
+import {
+  archiveWorkflowStatus,
+  createWorkflow,
+  readWorkflowModel,
+  remapWorkflowStatusForTaskTeam,
+} from "../workflows";
 import api from "./_generated/api";
 
 type BetterAuthSession = {
@@ -219,6 +226,35 @@ const serializeWorkDefaults = (data: Awaited<ReturnType<typeof readDefaultWorkMo
   })),
 });
 
+const serializeWorkflowModel = (data: Awaited<ReturnType<typeof readWorkflowModel>>) => ({
+  workflows: data.workflows.map((workflow) => ({
+    id: workflow._id,
+    key: workflow.key,
+    name: workflow.name,
+    isDefault: workflow.isDefault,
+    sortOrder: workflow.sortOrder,
+    archivedAt: workflow.archivedAt,
+  })),
+  workflowStatuses: data.workflowStatuses.map((status) => ({
+    id: status._id,
+    workflowId: status.workflowId,
+    key: status.key,
+    name: status.name,
+    taskState: status.taskState,
+    sortOrder: status.sortOrder,
+    archivedAt: status.archivedAt,
+  })),
+  tasks: data.tasks.map((task) => ({
+    id: task._id,
+    churchId: task.churchId,
+    title: task.title,
+    teamId: task.teamId,
+    workflowId: task.workflowId,
+    workflowStatusId: task.workflowStatusId,
+    taskState: task.taskState,
+  })),
+});
+
 const healthCheckGet = FunctionImpl.make(api, "healthCheck", "get", () =>
   Effect.succeed("OK" as const),
 );
@@ -392,6 +428,279 @@ const teamUpdateProductFields = FunctionImpl.make(api, "teams", "updateProductFi
   }),
 );
 
+const workflowsCreateForChurch = FunctionImpl.make(api, "workflows", "createForChurch", (args) =>
+  Effect.gen(function* () {
+    const ctx = yield* MutationCtx.MutationCtx<DataModel>();
+    const auth = yield* getAuthenticatedChurchMember(args.churchId).pipe(
+      Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
+    );
+
+    if (auth.status === "notAuthenticated") {
+      return workflowErrorResponse(
+        "createWorkflow",
+        "not_authenticated",
+        "Authentication is required.",
+      );
+    }
+    if (auth.status === "notChurchMember") {
+      return workflowErrorResponse(
+        "createWorkflow",
+        "not_church_member",
+        "Church membership is required.",
+      );
+    }
+    if (auth.membership.role !== "owner" && auth.membership.role !== "admin") {
+      return workflowErrorResponse(
+        "createWorkflow",
+        "not_authorized",
+        "Only Church owners and admins can manage Workflows.",
+      );
+    }
+
+    const created = yield* Effect.promise(() => createWorkflow(ctx, args)).pipe(Effect.orDie);
+
+    if (!created.ok) {
+      return workflowErrorResponse("createWorkflow", "invalid_workflow", created.error);
+    }
+
+    const occurredAt = new Date().toISOString();
+    yield* Effect.promise(() =>
+      writeActivity(ctx, {
+        churchId: args.churchId,
+        entityType: "workflow",
+        entityId: created.workflowId,
+        eventType: "workflow.created",
+        actorType: "user",
+        actorId: null,
+        occurredAt,
+        cycleId: null,
+        metadata: { name: args.name, isDefault: args.isDefault },
+      }),
+    ).pipe(Effect.orDie);
+
+    const model = yield* Effect.promise(() => readWorkflowModel(ctx, args.churchId)).pipe(
+      Effect.orDie,
+    );
+    for (const status of model.workflowStatuses.filter(
+      (candidate) => candidate.workflowId === created.workflowId,
+    )) {
+      yield* Effect.promise(() =>
+        writeActivity(ctx, {
+          churchId: args.churchId,
+          entityType: "workflow",
+          entityId: status._id,
+          eventType: "workflow.status.created",
+          actorType: "user",
+          actorId: null,
+          occurredAt,
+          cycleId: null,
+          metadata: {
+            workflowId: created.workflowId,
+            name: status.name,
+            taskState: status.taskState,
+          },
+        }),
+      ).pipe(Effect.orDie);
+    }
+
+    return workflowResponse("createWorkflow", serializeWorkflowModel(model));
+  }),
+);
+
+const workflowsArchiveStatus = FunctionImpl.make(api, "workflows", "archiveStatus", (args) =>
+  Effect.gen(function* () {
+    const ctx = yield* MutationCtx.MutationCtx<DataModel>();
+    const auth = yield* getAuthenticatedChurchMember(args.churchId).pipe(
+      Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
+    );
+
+    if (auth.status === "notAuthenticated") {
+      return workflowErrorResponse(
+        "archiveWorkflowStatus",
+        "not_authenticated",
+        "Authentication is required.",
+      );
+    }
+    if (auth.status === "notChurchMember") {
+      return workflowErrorResponse(
+        "archiveWorkflowStatus",
+        "not_church_member",
+        "Church membership is required.",
+      );
+    }
+    if (auth.membership.role !== "owner" && auth.membership.role !== "admin") {
+      return workflowErrorResponse(
+        "archiveWorkflowStatus",
+        "not_authorized",
+        "Only Church owners and admins can manage Workflows.",
+      );
+    }
+
+    const archived = yield* Effect.promise(() => archiveWorkflowStatus(ctx, args)).pipe(
+      Effect.orDie,
+    );
+
+    if (!archived.ok && archived.code === "notFound") {
+      return workflowErrorResponse(
+        "archiveWorkflowStatus",
+        "workflow_status_not_found",
+        "Workflow Status was not found in the active Church.",
+      );
+    }
+    if (!archived.ok && archived.code === "inUse") {
+      return workflowErrorResponse(
+        "archiveWorkflowStatus",
+        "workflow_status_in_use",
+        "Workflow Statuses with active Tasks cannot be archived before Tasks are moved.",
+      );
+    }
+    if (!archived.ok && archived.code === "invalidWorkflow") {
+      return workflowErrorResponse(
+        "archiveWorkflowStatus",
+        "invalid_workflow",
+        archived.message ?? "Archiving this Workflow Status would make the Workflow invalid.",
+      );
+    }
+    if (!archived.ok) {
+      return yield* Effect.dieMessage("Unexpected Workflow Status archive result.");
+    }
+
+    yield* Effect.promise(() =>
+      writeActivity(ctx, {
+        churchId: args.churchId,
+        entityType: "workflow",
+        entityId: archived.status._id,
+        eventType: "workflow.status.archived",
+        actorType: "user",
+        actorId: null,
+        occurredAt: args.archivedAt,
+        cycleId: null,
+        metadata: {
+          workflowId: archived.status.workflowId,
+          name: archived.status.name,
+          taskState: archived.status.taskState,
+        },
+      }),
+    ).pipe(Effect.orDie);
+
+    const model = yield* Effect.promise(() => readWorkflowModel(ctx, args.churchId)).pipe(
+      Effect.orDie,
+    );
+
+    return workflowResponse("archiveWorkflowStatus", serializeWorkflowModel(model));
+  }),
+);
+
+const workflowsRemapTaskTeam = FunctionImpl.make(api, "workflows", "remapTaskTeam", (args) =>
+  Effect.gen(function* () {
+    const ctx = yield* MutationCtx.MutationCtx<DataModel>();
+    const auth = yield* getAuthenticatedChurchMember(args.churchId).pipe(
+      Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
+    );
+
+    if (auth.status === "notAuthenticated") {
+      return workflowErrorResponse(
+        "remapTaskTeamWorkflow",
+        "not_authenticated",
+        "Authentication is required.",
+      );
+    }
+    if (auth.status === "notChurchMember") {
+      return workflowErrorResponse(
+        "remapTaskTeamWorkflow",
+        "not_church_member",
+        "Church membership is required.",
+      );
+    }
+
+    const destinationTeam = (yield* Effect.promise(() =>
+      ctx.runQuery(components.betterAuth.adapter.findOne, {
+        model: "team",
+        where: [
+          { field: "_id", value: args.destinationTeamId },
+          { field: "organizationId", value: args.churchId },
+        ],
+      }),
+    ).pipe(Effect.orDie)) as BetterAuthTeam | null;
+
+    if (!destinationTeam) {
+      return workflowErrorResponse(
+        "remapTaskTeamWorkflow",
+        "team_not_found",
+        "Destination Team was not found in the active Church.",
+      );
+    }
+    if (!destinationTeam.defaultWorkflowId) {
+      return workflowErrorResponse(
+        "remapTaskTeamWorkflow",
+        "team_workflow_not_configured",
+        "Destination Team does not have a default Workflow.",
+      );
+    }
+
+    const remapped = yield* Effect.promise(() =>
+      remapWorkflowStatusForTaskTeam(ctx, {
+        churchId: args.churchId,
+        taskId: args.taskId,
+        destinationTeamId: args.destinationTeamId,
+        destinationWorkflowId: destinationTeam.defaultWorkflowId!,
+      }),
+    ).pipe(Effect.orDie);
+
+    if (!remapped.ok && remapped.code === "taskNotFound") {
+      return workflowErrorResponse(
+        "remapTaskTeamWorkflow",
+        "task_not_found",
+        "Task was not found in the active Church.",
+      );
+    }
+    if (!remapped.ok && remapped.code === "workflowNotFound") {
+      return workflowErrorResponse(
+        "remapTaskTeamWorkflow",
+        "workflow_not_found",
+        "Destination Workflow was not found in the active Church.",
+      );
+    }
+    if (!remapped.ok && remapped.code === "remapFailed") {
+      return workflowErrorResponse(
+        "remapTaskTeamWorkflow",
+        "workflow_status_remap_failed",
+        "Destination Workflow cannot preserve the Task State.",
+      );
+    }
+    if (!remapped.ok) {
+      return yield* Effect.dieMessage("Unexpected Workflow Status remap result.");
+    }
+
+    yield* Effect.promise(() =>
+      writeActivity(ctx, {
+        churchId: args.churchId,
+        entityType: "task",
+        entityId: args.taskId,
+        eventType: "task.team.changed",
+        actorType: "user",
+        actorId: null,
+        occurredAt: new Date().toISOString(),
+        cycleId: null,
+        metadata: {
+          fromTeamId: remapped.task.teamId,
+          toTeamId: args.destinationTeamId,
+          fromWorkflowId: remapped.task.workflowId,
+          toWorkflowId: destinationTeam.defaultWorkflowId,
+          previousWorkflowStatusId: remapped.currentStatus._id,
+          restoredWorkflowStatusId: remapped.destinationStatus._id,
+        },
+      }),
+    ).pipe(Effect.orDie);
+
+    const model = yield* Effect.promise(() => readWorkflowModel(ctx, args.churchId)).pipe(
+      Effect.orDie,
+    );
+
+    return workflowResponse("remapTaskTeamWorkflow", serializeWorkflowModel(model));
+  }),
+);
+
 export const healthCheck = GroupImpl.make(api, "healthCheck").pipe(Layer.provide(healthCheckGet));
 
 export const privateData = GroupImpl.make(api, "privateData").pipe(Layer.provide(privateDataGet));
@@ -412,4 +721,9 @@ export const activities = GroupImpl.make(api, "activities").pipe(
 export const teams = GroupImpl.make(api, "teams").pipe(
   Layer.provide(teamListForChurch),
   Layer.provide(teamUpdateProductFields),
+);
+export const workflows = GroupImpl.make(api, "workflows").pipe(
+  Layer.provide(workflowsCreateForChurch),
+  Layer.provide(workflowsArchiveStatus),
+  Layer.provide(workflowsRemapTaskTeam),
 );

@@ -40,7 +40,27 @@ export const WorkflowStatuses = Table.make(
   }),
 )
   .index("by_workflowId_and_key", ["workflowId", "key"])
-  .index("by_churchId", ["churchId"]);
+  .index("by_churchId", ["churchId"])
+  .index("by_workflowId", ["workflowId"]);
+
+export const Tasks = Table.make(
+  "tasks",
+  Schema.Struct({
+    churchId: Schema.String,
+    title: Schema.String,
+    teamId: Schema.Union(Schema.String, Schema.Null),
+    workflowId: Schema.String,
+    workflowStatusId: Schema.String,
+    taskState: Schema.Union(
+      Schema.Literal("todo"),
+      Schema.Literal("in_progress"),
+      Schema.Literal("done"),
+      Schema.Literal("canceled"),
+    ),
+  }),
+)
+  .index("by_churchId", ["churchId"])
+  .index("by_workflowStatusId", ["workflowStatusId"]);
 
 export const KeyDates = Table.make(
   "keyDates",
@@ -91,5 +111,6 @@ export const Activities = Table.make(
 export default DatabaseSchema.make()
   .addTable(Workflows)
   .addTable(WorkflowStatuses)
+  .addTable(Tasks)
   .addTable(KeyDates)
   .addTable(Activities);
