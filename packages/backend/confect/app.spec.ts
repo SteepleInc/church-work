@@ -39,6 +39,7 @@ import {
   TemplateReadResponse,
   TemplateResolveSchedulesArgs,
   TemplateSetCycleAdjustmentsArgs,
+  TemplateUpdateTasksArgs,
   TemplateWriteResponse,
 } from "../agent/templateOperations";
 import {
@@ -282,6 +283,13 @@ export const templates = GroupSpec.make("templates")
     FunctionSpec.publicMutation({
       name: "materializeProjectedTasks",
       args: TemplateMaterializeProjectedTasksArgs,
+      returns: TemplateWriteResponse,
+    }),
+  )
+  .addFunction(
+    FunctionSpec.publicMutation({
+      name: "updateTemplateTasks",
+      args: TemplateUpdateTasksArgs,
       returns: TemplateWriteResponse,
     }),
   );

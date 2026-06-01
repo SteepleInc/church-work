@@ -108,6 +108,18 @@ export const TemplateMaterializeProjectedTasksArgs = Schema.Struct({
   occurrenceCycleIds: Schema.Array(Schema.String),
 });
 
+export const TemplateUpdateTasksArgs = Schema.Struct({
+  churchId: Schema.String,
+  now: Schema.String,
+  templateTasks: Schema.Array(
+    Schema.Struct({
+      templateTaskId: Schema.String,
+      title: Schema.String,
+      schedulingRule: SchedulingRule,
+    }),
+  ),
+});
+
 const TemplateSummary = Schema.Struct({
   id: Schema.String,
   key: Schema.String,
@@ -185,6 +197,7 @@ export const TemplateSuccessResponse = Schema.Struct({
     Schema.Literal("setCycleAdjustments"),
     Schema.Literal("previewCycleAdjustmentMerge"),
     Schema.Literal("materializeProjectedTasks"),
+    Schema.Literal("updateTemplateTasks"),
   ),
   data: Schema.Struct({
     templates: Schema.Array(TemplateSummary),
@@ -204,6 +217,7 @@ export const TemplateErrorResponse = Schema.Struct({
     Schema.Literal("setCycleAdjustments"),
     Schema.Literal("previewCycleAdjustmentMerge"),
     Schema.Literal("materializeProjectedTasks"),
+    Schema.Literal("updateTemplateTasks"),
   ),
   error: Schema.Struct({
     code: Schema.Union(
@@ -216,6 +230,7 @@ export const TemplateErrorResponse = Schema.Struct({
       Schema.Literal("template_task_not_found"),
       Schema.Literal("invalid_cycle_adjustment"),
       Schema.Literal("workflow_status_not_found"),
+      Schema.Literal("template_not_found"),
     ),
     message: Schema.String,
   }),

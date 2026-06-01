@@ -918,6 +918,181 @@ describe("agent operation boundary", () => {
       }).pipe(Effect.provide(TestConfect.layer())),
   );
 
+  it.effect("Template Task edits sync only future unadjusted projected Tasks", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-template-sync-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Template Sync Church",
+        slug: `template-sync-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
+        churchId: church.id!,
+      });
+      const todoStatus = defaults.data.workflowStatuses.find(
+        (status) => status.taskState === "todo",
+      )!;
+
+      const cycleSeed = yield* authenticated.mutation(refs.public.tasks.createBatch, {
+        churchId: church.id!,
+        tasks: [
+          {
+            title: "Seed future adjustment cycle",
+            teamId: null,
+            workflowStatusId: todoStatus.id,
+            dueDate: "2026-06-17",
+            parentTaskId: null,
+          },
+        ],
+      });
+      const futureCycleId = cycleSeed.data.tasks[0]!.cycleId;
+      const created = yield* authenticated.mutation(refs.public.templates.createForChurch, {
+        churchId: church.id!,
+        templates: [
+          {
+            key: "template-sync",
+            name: "Template Sync",
+            recurrence: "weekly",
+            focusWindows: [],
+            templateTasks: [
+              {
+                key: "past",
+                title: "Past projected work",
+                parentTemplateTaskKey: null,
+                schedulingRule: { kind: "fixedDate", localDate: "2026-06-03" },
+              },
+              {
+                key: "current",
+                title: "Current projected work",
+                parentTemplateTaskKey: null,
+                schedulingRule: { kind: "fixedDate", localDate: "2026-06-10" },
+              },
+              {
+                key: "future",
+                title: "Future projected work",
+                parentTemplateTaskKey: null,
+                schedulingRule: { kind: "fixedDate", localDate: "2026-06-17" },
+              },
+              {
+                key: "adjusted",
+                title: "Adjusted projected work",
+                parentTemplateTaskKey: null,
+                schedulingRule: { kind: "fixedDate", localDate: "2026-06-17" },
+              },
+              {
+                key: "rolled",
+                title: "Rolled projected work",
+                parentTemplateTaskKey: null,
+                schedulingRule: { kind: "fixedDate", localDate: "2026-06-03" },
+              },
+            ],
+          },
+        ],
+      });
+      const templateTasksByKey = new Map(
+        created.data.templateTasks.map((templateTask) => [templateTask.key, templateTask]),
+      );
+      yield* authenticated.mutation(refs.public.templates.setCycleAdjustments, {
+        churchId: church.id!,
+        adjustments: [
+          {
+            cycleId: futureCycleId,
+            templateTaskId: templateTasksByKey.get("adjusted")!.id,
+            lifecycle: "active",
+            overrides: [{ field: "title", value: "Adjusted one-off coverage" }],
+          },
+        ],
+      });
+      yield* authenticated.mutation(refs.public.templates.materializeProjectedTasks, {
+        churchId: church.id!,
+        occurrenceCycleIds: [],
+      });
+
+      const beforeMaintenance = yield* authenticated.query(refs.public.tasks.listForChurch, {
+        churchId: church.id!,
+      });
+      const pastTask = beforeMaintenance.data.tasks.find(
+        (task) => task.sourceTemplateTaskId === templateTasksByKey.get("past")!.id,
+      )!;
+      const rolledTaskBefore = beforeMaintenance.data.tasks.find(
+        (task) => task.sourceTemplateTaskId === templateTasksByKey.get("rolled")!.id,
+      )!;
+      yield* authenticated.mutation(refs.public.tasks.completeBatch, {
+        churchId: church.id!,
+        taskIds: [pastTask.id],
+      });
+      yield* authenticated.mutation(refs.public.cycleMaintenance.runForChurch, {
+        churchId: church.id!,
+        now: "2026-06-08T04:30:00.000Z",
+      });
+
+      const update = yield* authenticated.mutation(refs.public.templates.updateTemplateTasks, {
+        churchId: church.id!,
+        now: "2026-06-10T12:00:00.000Z",
+        templateTasks: created.data.templateTasks.map((templateTask) => ({
+          templateTaskId: templateTask.id,
+          title: `Updated ${templateTask.key}`,
+          schedulingRule:
+            templateTask.key === "adjusted"
+              ? { kind: "fixedDate" as const, localDate: "2026-06-18" }
+              : templateTask.schedulingRule,
+        })),
+      });
+      const listed = yield* authenticated.query(refs.public.tasks.listForChurch, {
+        churchId: church.id!,
+      });
+      const taskFor = (key: string) =>
+        listed.data.tasks.find(
+          (task) => task.sourceTemplateTaskId === templateTasksByKey.get(key)!.id,
+        )!;
+      const futureTask = taskFor("future");
+      const adjustedTask = taskFor("adjusted");
+      const currentTask = taskFor("current");
+      const rolledTask = taskFor("rolled");
+      const templateActivities = yield* authenticated.query(refs.public.activities.listForEntity, {
+        churchId: church.id!,
+        entityType: "template",
+        entityId: created.data.templates[0]!.id,
+      });
+      const futureActivities = yield* authenticated.query(refs.public.activities.listForEntity, {
+        churchId: church.id!,
+        entityType: "task",
+        entityId: futureTask.id,
+      });
+
+      expect(update.ok).toBe(true);
+      expect(futureTask).toMatchObject({ title: "Updated future", dueDate: "2026-06-17" });
+      expect(adjustedTask).toMatchObject({
+        title: "Adjusted one-off coverage",
+        dueDate: "2026-06-18",
+      });
+      expect(currentTask).toMatchObject({ title: "Current projected work" });
+      expect(taskFor("past")).toMatchObject({ title: "Past projected work", taskState: "done" });
+      expect(rolledTask).toMatchObject({
+        id: rolledTaskBefore.id,
+        title: "Rolled projected work",
+        sourceTemplateSyncEnabled: false,
+      });
+      expect(templateActivities.data.activities.map((activity) => activity.eventType)).toContain(
+        "template.updated",
+      );
+      expect(futureActivities.data.activities.map((activity) => activity.eventType)).toContain(
+        "task.template_synced",
+      );
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
   it.effect("Cycle maintenance rolls unfinished work and materializes upcoming Template work", () =>
     Effect.gen(function* () {
       const c = yield* TestConfect.TestConfect;

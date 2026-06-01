@@ -74,6 +74,7 @@ export const Tasks = Table.make(
     "sourceTemplateTaskId",
     "sourceTemplateCycleId",
   ])
+  .index("by_churchId_and_sourceTemplateTaskId", ["churchId", "sourceTemplateTaskId"])
   .index("by_parentTaskId", ["parentTaskId"])
   .index("by_workflowStatusId", ["workflowStatusId"]);
 

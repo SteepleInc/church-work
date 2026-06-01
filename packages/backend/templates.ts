@@ -1,5 +1,6 @@
 import type { GenericDatabaseReader, GenericMutationCtx } from "convex/server";
 
+import { writeActivity } from "./activityRegistry";
 import { buildCycleForLocalDate, cycleStartDateForLocalDate } from "./churchCycleCalendar";
 import type { DataModel, Id } from "./convex/_generated/dataModel";
 import { resolveKeyDateOccurrences } from "./keyDateScheduling";
@@ -70,6 +71,12 @@ type CycleAdjustmentInput = {
   readonly templateTaskId: string;
   readonly lifecycle: "active" | "skipped";
   readonly overrides: ReadonlyArray<CycleAdjustmentOverride>;
+};
+
+type TemplateTaskUpdateInput = {
+  readonly templateTaskId: string;
+  readonly title: string;
+  readonly schedulingRule: SchedulingRule;
 };
 
 const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -448,6 +455,161 @@ export async function materializeProjectedTasks(
   }
 
   return { ok: true as const, taskIds, createdTaskIds };
+}
+
+function overrideFields(overrides: ReadonlyArray<CycleAdjustmentOverride>) {
+  return new Set(overrides.map((override) => override.field));
+}
+
+function changedFields(
+  task: DataModel["tasks"]["document"],
+  next: { readonly title: string; readonly dueDate: string; readonly parentTaskId: string | null },
+) {
+  const fields = [];
+  if (task.title !== next.title) fields.push("title");
+  if (task.dueDate !== next.dueDate) fields.push("dueDate");
+  if (task.parentTaskId !== next.parentTaskId) fields.push("parentTaskId");
+  return fields;
+}
+
+export async function updateTemplateTasksAndSyncFutureProjectedTasks(
+  ctx: MutationCtx,
+  args: {
+    readonly churchId: string;
+    readonly churchTimeZone: string;
+    readonly templateTasks: ReadonlyArray<TemplateTaskUpdateInput>;
+    readonly now: string;
+    readonly actorId: string | null;
+  },
+) {
+  const templateTaskIds = args.templateTasks.map((templateTask) => templateTask.templateTaskId);
+  const templateIds = new Set<string>();
+
+  for (const update of args.templateTasks) {
+    validateSchedulingRule(update.schedulingRule);
+    const templateTask = await ctx.db.get(update.templateTaskId as Id<"templateTasks">);
+    if (!templateTask || templateTask.churchId !== args.churchId) {
+      return { ok: false as const, code: "templateTaskNotFound" as const };
+    }
+    const template = await ctx.db.get(templateTask.templateId as Id<"templates">);
+    if (!template || template.churchId !== args.churchId || template.archivedAt !== null) {
+      return { ok: false as const, code: "templateNotFound" as const };
+    }
+    templateIds.add(template._id);
+  }
+
+  for (const update of args.templateTasks) {
+    await ctx.db.patch(update.templateTaskId as Id<"templateTasks">, {
+      title: update.title,
+      schedulingRule: update.schedulingRule,
+    });
+  }
+
+  const schedules = await resolveTemplateTaskSchedules(ctx, {
+    churchId: args.churchId,
+    churchTimeZone: args.churchTimeZone,
+  });
+  const schedulesByTemplateTaskId = new Map<string, (typeof schedules)[number]>(
+    schedules.map((schedule) => [String(schedule.templateTaskId), schedule]),
+  );
+  const syncedTaskIds: Array<Id<"tasks">> = [];
+
+  for (const update of args.templateTasks) {
+    const templateTask = await ctx.db.get(update.templateTaskId as Id<"templateTasks">);
+    const schedule = schedulesByTemplateTaskId.get(update.templateTaskId);
+    if (!templateTask || !schedule) continue;
+
+    const projectedTasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_churchId_and_sourceTemplateTaskId", (q) =>
+        q.eq("churchId", args.churchId).eq("sourceTemplateTaskId", update.templateTaskId),
+      )
+      .collect();
+
+    for (const task of projectedTasks) {
+      if (!task.sourceTemplateSyncEnabled || !task.sourceTemplateCycleId) continue;
+      const currentCycle = await ctx.db.get(task.cycleId as Id<"cycles">);
+      if (!currentCycle || currentCycle.startsAt <= args.now) continue;
+
+      const adjustment = await ctx.db
+        .query("cycleAdjustments")
+        .withIndex("by_churchId_and_cycleId_and_templateTaskId", (q) =>
+          q
+            .eq("churchId", args.churchId)
+            .eq("cycleId", task.sourceTemplateCycleId!)
+            .eq("templateTaskId", templateTask._id),
+        )
+        .unique();
+      const merged = mergeTemplateTaskProjection(
+        {
+          templateTaskId: templateTask._id,
+          templateTaskKey: templateTask.key,
+          title: templateTask.title,
+          dueDate: schedule.dueDate,
+          parentTemplateTaskId: templateTask.parentTemplateTaskId,
+        },
+        adjustment ? { lifecycle: adjustment.lifecycle, overrides: adjustment.overrides } : null,
+      );
+      if (merged.skipped || !merged.effectiveTask) continue;
+
+      const adjustedFields = overrideFields(merged.appliedOverrides);
+      const nextDueDate = adjustedFields.has("dueDate")
+        ? task.dueDate
+        : merged.effectiveTask.dueDate;
+      const nextCycleId = await ensureCycleForProjection(ctx, {
+        churchId: args.churchId,
+        dueDate: nextDueDate,
+        churchTimeZone: args.churchTimeZone,
+      });
+      const nextValues = {
+        title: adjustedFields.has("title") ? task.title : merged.effectiveTask.title,
+        dueDate: nextDueDate,
+        parentTaskId: task.parentTaskId,
+      };
+      const fields = changedFields(task, nextValues);
+      if (task.cycleId !== nextCycleId) fields.push("cycleId");
+      if (fields.length === 0) continue;
+
+      await ctx.db.patch(task._id, {
+        title: nextValues.title,
+        dueDate: nextValues.dueDate,
+        cycleId: nextCycleId,
+      });
+      await writeActivity(ctx, {
+        churchId: args.churchId,
+        entityType: "task",
+        entityId: task._id,
+        eventType: "task.template_synced",
+        actorType: args.actorId ? "user" : "system",
+        actorId: args.actorId,
+        occurredAt: args.now,
+        cycleId: nextCycleId,
+        metadata: {
+          templateId: templateTask.templateId,
+          templateTaskId: templateTask._id,
+          sourceTemplateCycleId: task.sourceTemplateCycleId,
+          updatedFields: fields,
+        },
+      });
+      syncedTaskIds.push(task._id);
+    }
+  }
+
+  for (const templateId of templateIds) {
+    await writeActivity(ctx, {
+      churchId: args.churchId,
+      entityType: "template",
+      entityId: templateId,
+      eventType: "template.updated",
+      actorType: args.actorId ? "user" : "system",
+      actorId: args.actorId,
+      occurredAt: args.now,
+      cycleId: null,
+      metadata: { templateTaskIds, syncedTaskIds },
+    });
+  }
+
+  return { ok: true as const, syncedTaskIds };
 }
 
 export async function createTemplates(

@@ -43,6 +43,7 @@ import {
   readTemplateModel,
   resolveTemplateTaskSchedules,
   setCycleAdjustments,
+  updateTemplateTasksAndSyncFutureProjectedTasks,
 } from "../templates";
 import {
   archiveWorkflowStatus,
@@ -1380,6 +1381,94 @@ const templatesMaterializeProjectedTasks = FunctionImpl.make(
     }),
 );
 
+const templatesUpdateTemplateTasks = FunctionImpl.make(
+  api,
+  "templates",
+  "updateTemplateTasks",
+  (args) =>
+    Effect.gen(function* () {
+      const ctx = yield* MutationCtx.MutationCtx<DataModel>();
+      const auth = yield* getAuthenticatedChurchMember(args.churchId).pipe(
+        Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
+      );
+
+      if (auth.status === "notAuthenticated") {
+        return templateErrorResponse(
+          "updateTemplateTasks",
+          "not_authenticated",
+          "Authentication is required.",
+        );
+      }
+      if (auth.status === "notChurchMember") {
+        return templateErrorResponse(
+          "updateTemplateTasks",
+          "not_church_member",
+          "Church membership is required.",
+        );
+      }
+      if (auth.membership.role !== "owner" && auth.membership.role !== "admin") {
+        return templateErrorResponse(
+          "updateTemplateTasks",
+          "not_authorized",
+          "Only Church owners and admins can update Templates.",
+        );
+      }
+
+      const church = yield* findBetterAuthDoc<BetterAuthOrganization>({
+        model: "organization",
+        where: [{ field: "_id", value: args.churchId }],
+      }).pipe(Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx));
+
+      if (!church?.churchTimeZone) {
+        return templateErrorResponse(
+          "updateTemplateTasks",
+          "church_time_zone_missing",
+          "Church Time Zone is required before Template Tasks can sync.",
+        );
+      }
+
+      const updated = yield* Effect.tryPromise(() =>
+        updateTemplateTasksAndSyncFutureProjectedTasks(ctx, {
+          ...args,
+          churchTimeZone: church.churchTimeZone!,
+          actorId: auth.authUser._id,
+        }),
+      ).pipe(
+        Effect.catchAll(() =>
+          Effect.succeed({ ok: false as const, code: "invalidTemplate" as const }),
+        ),
+      );
+
+      if (!updated.ok && updated.code === "templateTaskNotFound") {
+        return templateErrorResponse(
+          "updateTemplateTasks",
+          "template_task_not_found",
+          "Template Task was not found in the active Church.",
+        );
+      }
+      if (!updated.ok && updated.code === "templateNotFound") {
+        return templateErrorResponse(
+          "updateTemplateTasks",
+          "template_not_found",
+          "Template was not found in the active Church.",
+        );
+      }
+      if (!updated.ok) {
+        return templateErrorResponse(
+          "updateTemplateTasks",
+          "invalid_template",
+          "Template Task updates and Scheduling Rules must be valid.",
+        );
+      }
+
+      const model = yield* Effect.promise(() => readTemplateModel(ctx, args.churchId)).pipe(
+        Effect.orDie,
+      );
+
+      return templateResponse("updateTemplateTasks", serializeTemplateModel(model));
+    }),
+);
+
 const workflowsCreateForChurch = FunctionImpl.make(api, "workflows", "createForChurch", (args) =>
   Effect.gen(function* () {
     const ctx = yield* MutationCtx.MutationCtx<DataModel>();
@@ -1696,6 +1785,7 @@ export const templates = GroupImpl.make(api, "templates").pipe(
   Layer.provide(templatesSetCycleAdjustments),
   Layer.provide(templatesPreviewCycleAdjustmentMerge),
   Layer.provide(templatesMaterializeProjectedTasks),
+  Layer.provide(templatesUpdateTemplateTasks),
 );
 export const workflows = GroupImpl.make(api, "workflows").pipe(
   Layer.provide(workflowsCreateForChurch),

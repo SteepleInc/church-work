@@ -6,3 +6,4 @@ export const setCycleAdjustments = registeredFunctions.templates.setCycleAdjustm
 export const previewCycleAdjustmentMerge =
   registeredFunctions.templates.previewCycleAdjustmentMerge;
 export const materializeProjectedTasks = registeredFunctions.templates.materializeProjectedTasks;
+export const updateTemplateTasks = registeredFunctions.templates.updateTemplateTasks;
