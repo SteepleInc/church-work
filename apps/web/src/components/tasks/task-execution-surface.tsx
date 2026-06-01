@@ -62,6 +62,16 @@ export function getTaskCreationDefaults(args: {
   };
 }
 
+export function getTaskTitleUpdateFields(currentTitle: string, nextTitle: string) {
+  const trimmedTitle = nextTitle.trim();
+
+  if (!trimmedTitle || trimmedTitle === currentTitle) {
+    return null;
+  }
+
+  return { title: trimmedTitle };
+}
+
 export function TaskExecutionSurface({
   churchId,
   currentUserId,
@@ -282,64 +292,97 @@ function TaskActionList({
       </CardHeader>
       <CardContent className="grid gap-3">
         {tasks.map((task) => (
-          <div
+          <TaskActionRow
             key={task.id}
-            className="grid gap-3 rounded-lg border p-3 md:grid-cols-[1fr_auto_auto] md:items-center"
-          >
-            <div>
-              <p className="text-sm font-medium">{task.title}</p>
-              <p className="text-xs text-muted-foreground">State: {task.taskState}</p>
-            </div>
-            <NativeSelect
-              size="sm"
-              value={task.assignedUserId ?? ""}
-              aria-label={`Assign ${task.title}`}
-              onChange={(event) => {
-                void updateTask(task.id, { assignedUserId: event.target.value || null });
-              }}
-            >
-              <NativeSelectOption value="">Unassigned</NativeSelectOption>
-              {users.map((user) => (
-                <NativeSelectOption key={user.id} value={user.id}>
-                  {user.name ?? user.email ?? user.id}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-            <div className="flex flex-wrap gap-2">
-              {task.taskState === "canceled" ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => reopenTask(task.id)}
-                >
-                  Reopen
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => completeTask(task.id)}
-                  >
-                    Complete
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => cancelTask(task.id)}
-                  >
-                    Cancel
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
+            task={task}
+            users={users}
+            updateTask={updateTask}
+            completeTask={completeTask}
+            cancelTask={cancelTask}
+            reopenTask={reopenTask}
+          />
         ))}
       </CardContent>
     </Card>
+  );
+}
+
+function TaskActionRow({
+  task,
+  users,
+  updateTask,
+  completeTask,
+  cancelTask,
+  reopenTask,
+}: {
+  readonly task: TaskSummary;
+  readonly users: readonly UserSummary[];
+  readonly updateTask: (
+    taskId: string,
+    fields: { readonly title?: string; readonly assignedUserId?: string | null },
+  ) => void | Promise<unknown>;
+  readonly completeTask: (taskId: string) => void | Promise<unknown>;
+  readonly cancelTask: (taskId: string) => void | Promise<unknown>;
+  readonly reopenTask: (taskId: string) => void | Promise<unknown>;
+}) {
+  const [draftTitle, setDraftTitle] = useState(task.title);
+  const titleUpdateFields = getTaskTitleUpdateFields(task.title, draftTitle);
+
+  return (
+    <div className="grid gap-3 rounded-lg border p-3 md:grid-cols-[minmax(12rem,1fr)_auto_auto] md:items-center">
+      <div className="grid gap-2">
+        <Input
+          aria-label={`Title for ${task.title}`}
+          value={draftTitle}
+          onChange={(event) => setDraftTitle(event.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">State: {task.taskState}</p>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="w-fit"
+          disabled={!titleUpdateFields}
+          onClick={() => {
+            if (!titleUpdateFields) return;
+            void updateTask(task.id, titleUpdateFields);
+          }}
+        >
+          Save Title
+        </Button>
+      </div>
+      <NativeSelect
+        size="sm"
+        value={task.assignedUserId ?? ""}
+        aria-label={`Assign ${task.title}`}
+        onChange={(event) => {
+          void updateTask(task.id, { assignedUserId: event.target.value || null });
+        }}
+      >
+        <NativeSelectOption value="">Unassigned</NativeSelectOption>
+        {users.map((user) => (
+          <NativeSelectOption key={user.id} value={user.id}>
+            {user.name ?? user.email ?? user.id}
+          </NativeSelectOption>
+        ))}
+      </NativeSelect>
+      <div className="flex flex-wrap gap-2">
+        {task.taskState === "canceled" ? (
+          <Button type="button" size="sm" variant="outline" onClick={() => reopenTask(task.id)}>
+            Reopen
+          </Button>
+        ) : (
+          <>
+            <Button type="button" size="sm" variant="outline" onClick={() => completeTask(task.id)}>
+              Complete
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => cancelTask(task.id)}>
+              Cancel
+            </Button>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 

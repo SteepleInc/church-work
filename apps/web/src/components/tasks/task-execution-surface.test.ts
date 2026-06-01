@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
-import { getTaskCreationDefaults, selectCurrentExecutionCycle } from "./task-execution-surface";
+import {
+  getTaskCreationDefaults,
+  getTaskTitleUpdateFields,
+  selectCurrentExecutionCycle,
+} from "./task-execution-surface";
 
 describe("Task execution surface", () => {
   test("selects the Cycle containing today for execution-window reads", () => {
@@ -40,5 +44,13 @@ describe("Task execution surface", () => {
       assignedUserId: null,
       teamId: "team-1",
     });
+  });
+
+  test("builds trimmed Task title update fields only for changed titles", () => {
+    expect(getTaskTitleUpdateFields("Call volunteer", " Call leader ")).toEqual({
+      title: "Call leader",
+    });
+    expect(getTaskTitleUpdateFields("Call volunteer", " Call volunteer ")).toBeNull();
+    expect(getTaskTitleUpdateFields("Call volunteer", "   ")).toBeNull();
   });
 });
