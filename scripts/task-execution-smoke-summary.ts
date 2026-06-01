@@ -15,10 +15,13 @@ export type TaskExecutionSmokeSummary = {
   readonly status: "passed" | "failed" | "passed_with_skips";
   readonly closureGate: {
     readonly ready: boolean;
+    readonly fullVerificationCommand: string;
     readonly blockingSteps: readonly string[];
   };
   readonly results: readonly TaskExecutionSmokeStepResult[];
 };
+
+export const taskExecutionSmokeFullVerificationCommand = "bun run test:task-execution-smoke:full";
 
 export function getTaskExecutionSmokeExitCode(
   summary: Pick<TaskExecutionSmokeSummary, "status">,
@@ -63,6 +66,7 @@ export function buildTaskExecutionSmokeSummary(input: {
     status,
     closureGate: {
       ready: status === "passed",
+      fullVerificationCommand: taskExecutionSmokeFullVerificationCommand,
       blockingSteps,
     },
   };
@@ -86,6 +90,7 @@ export function formatTaskExecutionSmokeMarkdown(summary: TaskExecutionSmokeSumm
     "## Closure Gate",
     "",
     `Ready to close #71: ${summary.closureGate.ready ? "yes" : "no"}`,
+    `Full verification command: ${summary.closureGate.fullVerificationCommand}`,
   );
 
   if (summary.closureGate.blockingSteps.length > 0) {

@@ -25,7 +25,11 @@ describe("Task execution smoke summary", () => {
     });
 
     expect(summary.status).toBe("passed");
-    expect(summary.closureGate).toEqual({ ready: true, blockingSteps: [] });
+    expect(summary.closureGate).toEqual({
+      ready: true,
+      fullVerificationCommand: "bun run test:task-execution-smoke:full",
+      blockingSteps: [],
+    });
   });
 
   test("keeps skipped browser verification visible in the aggregate status", () => {
@@ -48,6 +52,7 @@ describe("Task execution smoke summary", () => {
     expect(summary.status).toBe("passed_with_skips");
     expect(summary.closureGate).toEqual({
       ready: false,
+      fullVerificationCommand: "bun run test:task-execution-smoke:full",
       blockingSteps: ["browser execution smoke was skipped"],
     });
   });
@@ -72,6 +77,7 @@ describe("Task execution smoke summary", () => {
     expect(summary.status).toBe("failed");
     expect(summary.closureGate).toEqual({
       ready: false,
+      fullVerificationCommand: "bun run test:task-execution-smoke:full",
       blockingSteps: ["CLI public smoke failed with exit code 1"],
     });
   });
@@ -145,6 +151,7 @@ describe("Task execution smoke summary", () => {
     expect(report).toContain("E2E skip reason: Missing .env.e2e.");
     expect(report).toContain("## Closure Gate");
     expect(report).toContain("Ready to close #71: no");
+    expect(report).toContain("Full verification command: bun run test:task-execution-smoke:full");
     expect(report).toContain("- browser execution smoke was skipped");
     expect(report).toContain("| browser execution smoke | skipped | 0 |");
     expect(report).toContain("## Acceptance Coverage");
