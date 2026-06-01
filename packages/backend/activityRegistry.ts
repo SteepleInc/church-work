@@ -301,7 +301,38 @@ export function validateActivityMetadata(eventType: ActivityEventType, metadata:
   return Schema.decodeUnknownSync(metadataSchema)(metadata) as ActivityMetadata;
 }
 
+const providerOriginatedBetterAuthEvents = new Set<ActivityEventType>([
+  "church.created",
+  "team.created",
+]);
+
+export function validateActivityActor(
+  input: Pick<ActivityInput, "actorType" | "actorId" | "eventType">,
+) {
+  if (input.actorType === "user" && input.actorId === null) {
+    throw new Error("User Activity actors require an actor id.");
+  }
+
+  if (input.actorType === "system" && input.actorId !== null) {
+    throw new Error("System Activity actors cannot include an actor id.");
+  }
+
+  if (
+    input.actorType === "better_auth" &&
+    input.actorId === null &&
+    !providerOriginatedBetterAuthEvents.has(input.eventType)
+  ) {
+    throw new Error(
+      "Better Auth Activity actors require an actor id except provider-originated events.",
+    );
+  }
+
+  return input;
+}
+
 export function buildActivity(input: ActivityInput) {
+  validateActivityActor(input);
+
   return {
     ...input,
     metadata: validateActivityMetadata(input.eventType, input.metadata),

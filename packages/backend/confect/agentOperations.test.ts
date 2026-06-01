@@ -3489,6 +3489,126 @@ describe("agent operation boundary", () => {
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 
+  it.effect("Activity registry rejects invalid actor invariants before insert", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-invalid-activity-actor-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Invalid Activity Actor Church",
+        slug: `invalid-activity-actor-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
+      const userActorTaskId = `task-${crypto.randomUUID()}`;
+      const systemActorTaskId = `task-${crypto.randomUUID()}`;
+      const betterAuthActorTaskId = `task-${crypto.randomUUID()}`;
+
+      const missingUserActor = yield* authenticated.mutation(
+        refs.public.activities.recordForChurch,
+        {
+          churchId: church.id!,
+          entityType: "task",
+          entityId: userActorTaskId,
+          eventType: "task.created",
+          actorType: "user",
+          actorId: null,
+          occurredAt: "2026-05-31T12:00:00.000Z",
+          cycleId: null,
+          metadata: {},
+        },
+      );
+      const systemWithActor = yield* authenticated.mutation(
+        refs.public.activities.recordForChurch,
+        {
+          churchId: church.id!,
+          entityType: "task",
+          entityId: systemActorTaskId,
+          eventType: "task.created",
+          actorType: "system",
+          actorId: signUpBody.user!.id!,
+          occurredAt: "2026-05-31T12:00:00.000Z",
+          cycleId: null,
+          metadata: {},
+        },
+      );
+      const betterAuthMissingActor = yield* authenticated.mutation(
+        refs.public.activities.recordForChurch,
+        {
+          churchId: church.id!,
+          entityType: "task",
+          entityId: betterAuthActorTaskId,
+          eventType: "task.created",
+          actorType: "better_auth",
+          actorId: null,
+          occurredAt: "2026-05-31T12:00:00.000Z",
+          cycleId: null,
+          metadata: {},
+        },
+      );
+      const missingUserActorActivities = yield* authenticated.query(
+        refs.public.activities.listForEntity,
+        {
+          churchId: church.id!,
+          entityType: "task",
+          entityId: userActorTaskId,
+        },
+      );
+      const systemActorActivities = yield* authenticated.query(
+        refs.public.activities.listForEntity,
+        {
+          churchId: church.id!,
+          entityType: "task",
+          entityId: systemActorTaskId,
+        },
+      );
+      const betterAuthActorActivities = yield* authenticated.query(
+        refs.public.activities.listForEntity,
+        {
+          churchId: church.id!,
+          entityType: "task",
+          entityId: betterAuthActorTaskId,
+        },
+      );
+
+      expect(missingUserActor).toEqual({
+        ok: false,
+        operation: "recordActivity",
+        error: {
+          code: "invalid_activity_metadata",
+          message: "Activity metadata does not match the registered event schema.",
+        },
+      });
+      expect(systemWithActor).toEqual({
+        ok: false,
+        operation: "recordActivity",
+        error: {
+          code: "invalid_activity_metadata",
+          message: "Activity metadata does not match the registered event schema.",
+        },
+      });
+      expect(betterAuthMissingActor).toEqual({
+        ok: false,
+        operation: "recordActivity",
+        error: {
+          code: "invalid_activity_metadata",
+          message: "Activity metadata does not match the registered event schema.",
+        },
+      });
+      expect(missingUserActorActivities.data.activities).toEqual([]);
+      expect(systemActorActivities.data.activities).toEqual([]);
+      expect(betterAuthActorActivities.data.activities).toEqual([]);
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
   it.effect("Activity reads are scoped to the requested entity", () =>
     Effect.gen(function* () {
       const c = yield* TestConfect.TestConfect;

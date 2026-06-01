@@ -2693,7 +2693,7 @@ const workflowsCreateForChurch = FunctionImpl.make(api, "workflows", "createForC
         entityId: created.workflowId,
         eventType: "workflow.created",
         actorType: "user",
-        actorId: null,
+        actorId: auth.authUser._id,
         occurredAt,
         cycleId: null,
         metadata: { name: args.name, isDefault: args.isDefault },
@@ -2713,7 +2713,7 @@ const workflowsCreateForChurch = FunctionImpl.make(api, "workflows", "createForC
           entityId: status._id,
           eventType: "workflow.status.created",
           actorType: "user",
-          actorId: null,
+          actorId: auth.authUser._id,
           occurredAt,
           cycleId: null,
           metadata: {
@@ -3399,7 +3399,7 @@ const workflowsRemapTaskTeam = FunctionImpl.make(api, "workflows", "remapTaskTea
         entityId: args.taskId,
         eventType: "task.team.changed",
         actorType: "user",
-        actorId: null,
+        actorId: auth.authUser._id,
         occurredAt: new Date().toISOString(),
         cycleId: null,
         metadata: {
