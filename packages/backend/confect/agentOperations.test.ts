@@ -471,6 +471,181 @@ describe("agent operation boundary", () => {
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 
+  it.effect("Template Scheduling Rules resolve one Due Date and containing Cycle", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-template-scheduling-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Template Scheduling Church",
+        slug: `template-scheduling-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
+      const keyDates = yield* authenticated.query(refs.public.keyDates.listForChurch, {
+        churchId: church.id!,
+      });
+      const easter = keyDates.data.keyDates.find((keyDate) => keyDate.key === "easter")!;
+
+      const created = yield* authenticated.mutation(refs.public.templates.createForChurch, {
+        churchId: church.id!,
+        templates: [
+          {
+            key: "easter-prep",
+            name: "Easter Prep",
+            recurrence: "yearly",
+            focusWindows: [
+              {
+                key: "holy-week",
+                name: "Holy Week",
+                type: "seasonal",
+                startDate: "2026-03-30",
+                endDate: "2026-04-05",
+                anchorDate: "2026-04-05",
+                keyDateId: easter.id,
+              },
+            ],
+            templateTasks: [
+              {
+                key: "fixed",
+                title: "Fixed date work",
+                parentTemplateTaskKey: null,
+                schedulingRule: { kind: "fixedDate", localDate: "2026-03-28" },
+              },
+              {
+                key: "window-start",
+                title: "Focus window work",
+                parentTemplateTaskKey: "fixed",
+                schedulingRule: {
+                  kind: "relativeToFocusWindow",
+                  focusWindowId: "holy-week",
+                  edge: "start",
+                  offsetDays: 2,
+                },
+              },
+              {
+                key: "anchor",
+                title: "Anchor date work",
+                parentTemplateTaskKey: null,
+                schedulingRule: {
+                  kind: "relativeToAnchorDate",
+                  focusWindowId: "holy-week",
+                  offsetDays: -3,
+                },
+              },
+              {
+                key: "key-date",
+                title: "Key Date work",
+                parentTemplateTaskKey: null,
+                schedulingRule: {
+                  kind: "relativeToKeyDate",
+                  keyDateId: easter.id,
+                  year: 2026,
+                  offsetDays: -7,
+                },
+              },
+              {
+                key: "cycle-offset",
+                title: "Cycle offset work",
+                parentTemplateTaskKey: null,
+                schedulingRule: {
+                  kind: "cycleOffset",
+                  baseLocalDate: "2026-03-28",
+                  offsetCycles: 1,
+                  dayOffset: 4,
+                },
+              },
+            ],
+          },
+        ],
+      });
+      const resolved = yield* authenticated.query(refs.public.templates.resolveSchedules, {
+        churchId: church.id!,
+      });
+      const schedules = [...resolved.data.resolvedSchedules].sort((left, right) =>
+        left.templateTaskKey.localeCompare(right.templateTaskKey),
+      );
+      const child = created.data.templateTasks.find((task) => task.key === "window-start")!;
+      const parent = created.data.templateTasks.find((task) => task.key === "fixed")!;
+
+      expect(created.ok).toBe(true);
+      expect(created.data.templates.map((template) => template.recurrence)).toEqual(["yearly"]);
+      expect(child.parentTemplateTaskId).toBe(parent.id);
+      expect(schedules.map((schedule) => [schedule.templateTaskKey, schedule.dueDate])).toEqual([
+        ["anchor", "2026-04-02"],
+        ["cycle-offset", "2026-04-03"],
+        ["fixed", "2026-03-28"],
+        ["key-date", "2026-03-29"],
+        ["window-start", "2026-04-01"],
+      ]);
+      expect(
+        schedules.find((schedule) => schedule.templateTaskKey === "key-date")!.cycle,
+      ).toMatchObject({
+        startDate: "2026-03-23",
+        endDate: "2026-03-29",
+        churchTimeZone: "America/New_York",
+      });
+      expect(schedules.every((schedule) => typeof schedule.dueDate === "string")).toBe(true);
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("Template recurrence supports none, weekly, monthly, quarterly, and yearly", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-template-recurrence-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Template Recurrence Church",
+        slug: `template-recurrence-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
+
+      const created = yield* authenticated.mutation(refs.public.templates.createForChurch, {
+        churchId: church.id!,
+        templates: ["none", "weekly", "monthly", "quarterly", "yearly"].map((recurrence) => ({
+          key: `template-${recurrence}`,
+          name: `Template ${recurrence}`,
+          recurrence,
+          focusWindows: [],
+          templateTasks: [
+            {
+              key: "task",
+              title: `Task ${recurrence}`,
+              parentTemplateTaskKey: null,
+              schedulingRule: { kind: "fixedDate", localDate: "2026-06-01" },
+            },
+          ],
+        })),
+      });
+
+      expect(created.ok).toBe(true);
+      expect(created.data.templates.map((template) => template.recurrence).sort()).toEqual([
+        "monthly",
+        "none",
+        "quarterly",
+        "weekly",
+        "yearly",
+      ]);
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
   it.effect("Task and Subtask creation assigns Cycles from Due Dates", () =>
     Effect.gen(function* () {
       const c = yield* TestConfect.TestConfect;

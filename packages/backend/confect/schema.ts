@@ -135,6 +135,90 @@ export const KeyDateOccurrences = Table.make(
   .index("by_keyDateId", ["keyDateId"])
   .index("by_keyDateId_and_localDate", ["keyDateId", "localDate"]);
 
+export const Templates = Table.make(
+  "templates",
+  Schema.Struct({
+    churchId: Schema.String,
+    key: Schema.String,
+    name: Schema.String,
+    recurrence: Schema.Union(
+      Schema.Literal("none"),
+      Schema.Literal("weekly"),
+      Schema.Literal("monthly"),
+      Schema.Literal("quarterly"),
+      Schema.Literal("yearly"),
+    ),
+    archivedAt: Schema.Union(Schema.String, Schema.Null),
+  }),
+)
+  .index("by_churchId_and_key", ["churchId", "key"])
+  .index("by_churchId", ["churchId"]);
+
+export const FocusWindows = Table.make(
+  "focusWindows",
+  Schema.Struct({
+    churchId: Schema.String,
+    templateId: Schema.String,
+    key: Schema.String,
+    name: Schema.String,
+    type: Schema.String,
+    /** Church-local start date for scheduling rules; no UTC instant is stored here. */
+    startDate: Schema.String,
+    /** Optional Church-local end date for scheduling rules; no UTC instant is stored here. */
+    endDate: Schema.Union(Schema.String, Schema.Null),
+    /** Optional Church-local anchor date used by relative scheduling rules. */
+    anchorDate: Schema.Union(Schema.String, Schema.Null),
+    keyDateId: Schema.Union(Schema.String, Schema.Null),
+    archivedAt: Schema.Union(Schema.String, Schema.Null),
+  }),
+)
+  .index("by_churchId", ["churchId"])
+  .index("by_templateId", ["templateId"])
+  .index("by_templateId_and_key", ["templateId", "key"]);
+
+const SchedulingRule = Schema.Union(
+  Schema.Struct({ kind: Schema.Literal("fixedDate"), localDate: Schema.String }),
+  Schema.Struct({
+    kind: Schema.Literal("relativeToFocusWindow"),
+    focusWindowId: Schema.String,
+    edge: Schema.Union(Schema.Literal("start"), Schema.Literal("end")),
+    offsetDays: Schema.Number,
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("relativeToAnchorDate"),
+    focusWindowId: Schema.String,
+    offsetDays: Schema.Number,
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("relativeToKeyDate"),
+    keyDateId: Schema.String,
+    year: Schema.Number,
+    offsetDays: Schema.Number,
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("cycleOffset"),
+    baseLocalDate: Schema.String,
+    offsetCycles: Schema.Number,
+    dayOffset: Schema.Number,
+  }),
+);
+
+export const TemplateTasks = Table.make(
+  "templateTasks",
+  Schema.Struct({
+    churchId: Schema.String,
+    templateId: Schema.String,
+    key: Schema.String,
+    title: Schema.String,
+    parentTemplateTaskId: Schema.Union(Schema.String, Schema.Null),
+    schedulingRule: SchedulingRule,
+    archivedAt: Schema.Union(Schema.String, Schema.Null),
+  }),
+)
+  .index("by_churchId", ["churchId"])
+  .index("by_templateId", ["templateId"])
+  .index("by_templateId_and_key", ["templateId", "key"]);
+
 export const Activities = Table.make(
   "activities",
   Schema.Struct({
@@ -159,4 +243,7 @@ export default DatabaseSchema.make()
   .addTable(Cycles)
   .addTable(KeyDates)
   .addTable(KeyDateOccurrences)
+  .addTable(Templates)
+  .addTable(FocusWindows)
+  .addTable(TemplateTasks)
   .addTable(Activities);

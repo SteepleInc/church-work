@@ -15,6 +15,7 @@ import {
   notChurchMemberResponse,
 } from "../agent/operations";
 import { teamErrorResponse, teamsResponse } from "../agent/teamOperations";
+import { templateErrorResponse, templateResponse } from "../agent/templateOperations";
 import { taskErrorResponse, taskResponse } from "../agent/taskOperations";
 import { workDefaultsResponse } from "../agent/workDefaultsOperations";
 import { workflowErrorResponse, workflowResponse } from "../agent/workflowOperations";
@@ -30,6 +31,7 @@ import {
 } from "../keyDateScheduling";
 import { readDefaultWorkModel, seedDefaultWorkModel } from "../workDefaults";
 import { createTasks, readTaskModel } from "../tasks";
+import { createTemplates, readTemplateModel, resolveTemplateTaskSchedules } from "../templates";
 import {
   archiveWorkflowStatus,
   createWorkflow,
@@ -310,6 +312,41 @@ const serializeTaskModel = (data: Awaited<ReturnType<typeof readTaskModel>>) => 
     workflowStatusId: task.workflowStatusId,
     taskState: task.taskState,
   })),
+});
+
+const serializeTemplateModel = (
+  data: Awaited<ReturnType<typeof readTemplateModel>>,
+  resolvedSchedules: Awaited<ReturnType<typeof resolveTemplateTaskSchedules>> = [],
+) => ({
+  templates: data.templates.map((template) => ({
+    id: template._id,
+    key: template.key,
+    name: template.name,
+    recurrence: template.recurrence,
+    archivedAt: template.archivedAt,
+  })),
+  focusWindows: data.focusWindows.map((focusWindow) => ({
+    id: focusWindow._id,
+    templateId: focusWindow.templateId,
+    key: focusWindow.key,
+    name: focusWindow.name,
+    type: focusWindow.type,
+    startDate: focusWindow.startDate,
+    endDate: focusWindow.endDate,
+    anchorDate: focusWindow.anchorDate,
+    keyDateId: focusWindow.keyDateId,
+    archivedAt: focusWindow.archivedAt,
+  })),
+  templateTasks: data.templateTasks.map((templateTask) => ({
+    id: templateTask._id,
+    templateId: templateTask.templateId,
+    key: templateTask.key,
+    title: templateTask.title,
+    parentTemplateTaskId: templateTask.parentTemplateTaskId,
+    schedulingRule: templateTask.schedulingRule,
+    archivedAt: templateTask.archivedAt,
+  })),
+  resolvedSchedules,
 });
 
 const healthCheckGet = FunctionImpl.make(api, "healthCheck", "get", () =>
@@ -782,6 +819,114 @@ const tasksListForChurch = FunctionImpl.make(api, "tasks", "listForChurch", (arg
   }),
 );
 
+const templatesCreateForChurch = FunctionImpl.make(api, "templates", "createForChurch", (args) =>
+  Effect.gen(function* () {
+    const ctx = yield* MutationCtx.MutationCtx<DataModel>();
+    const auth = yield* getAuthenticatedChurchMember(args.churchId).pipe(
+      Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
+    );
+
+    if (auth.status === "notAuthenticated") {
+      return templateErrorResponse(
+        "createTemplates",
+        "not_authenticated",
+        "Authentication is required.",
+      );
+    }
+    if (auth.status === "notChurchMember") {
+      return templateErrorResponse(
+        "createTemplates",
+        "not_church_member",
+        "Church membership is required.",
+      );
+    }
+    if (auth.membership.role !== "owner" && auth.membership.role !== "admin") {
+      return templateErrorResponse(
+        "createTemplates",
+        "not_authorized",
+        "Only Church owners and admins can manage Templates.",
+      );
+    }
+
+    const created = yield* Effect.tryPromise(() => createTemplates(ctx, args)).pipe(
+      Effect.catchAll(() =>
+        Effect.succeed({ ok: false as const, code: "invalidTemplate" as const }),
+      ),
+    );
+    if (!created.ok) {
+      return templateErrorResponse(
+        "createTemplates",
+        "invalid_template",
+        "Template, Focus Window, and Scheduling Rule fields must be valid.",
+      );
+    }
+
+    const model = yield* Effect.promise(() => readTemplateModel(ctx, args.churchId)).pipe(
+      Effect.orDie,
+    );
+
+    return templateResponse("createTemplates", serializeTemplateModel(model));
+  }),
+);
+
+const templatesResolveSchedules = FunctionImpl.make(api, "templates", "resolveSchedules", (args) =>
+  Effect.gen(function* () {
+    const ctx = yield* QueryCtx.QueryCtx<DataModel>();
+    const auth = yield* getAuthenticatedChurchMember(args.churchId);
+
+    if (auth.status === "notAuthenticated") {
+      return templateErrorResponse(
+        "resolveTemplateSchedules",
+        "not_authenticated",
+        "Authentication is required.",
+      );
+    }
+    if (auth.status === "notChurchMember") {
+      return templateErrorResponse(
+        "resolveTemplateSchedules",
+        "not_church_member",
+        "Church membership is required.",
+      );
+    }
+
+    const church = yield* findBetterAuthDoc<BetterAuthOrganization>({
+      model: "organization",
+      where: [{ field: "_id", value: args.churchId }],
+    });
+
+    if (!church?.churchTimeZone) {
+      return templateErrorResponse(
+        "resolveTemplateSchedules",
+        "church_time_zone_missing",
+        "Church Time Zone is required before Template schedules can resolve.",
+      );
+    }
+
+    const model = yield* Effect.promise(() => readTemplateModel(ctx, args.churchId)).pipe(
+      Effect.orDie,
+    );
+    const resolvedSchedules = yield* Effect.tryPromise(() =>
+      resolveTemplateTaskSchedules(ctx, {
+        churchId: args.churchId,
+        churchTimeZone: church.churchTimeZone!,
+      }),
+    ).pipe(Effect.catchAll(() => Effect.succeed(null)));
+
+    if (!resolvedSchedules) {
+      return templateErrorResponse(
+        "resolveTemplateSchedules",
+        "invalid_template",
+        "A Template Scheduling Rule could not resolve to one Due Date.",
+      );
+    }
+
+    return templateResponse(
+      "resolveTemplateSchedules",
+      serializeTemplateModel(model, resolvedSchedules),
+    );
+  }),
+);
+
 const workflowsCreateForChurch = FunctionImpl.make(api, "workflows", "createForChurch", (args) =>
   Effect.gen(function* () {
     const ctx = yield* MutationCtx.MutationCtx<DataModel>();
@@ -1085,6 +1230,10 @@ export const teams = GroupImpl.make(api, "teams").pipe(
 export const tasks = GroupImpl.make(api, "tasks").pipe(
   Layer.provide(tasksCreateBatch),
   Layer.provide(tasksListForChurch),
+);
+export const templates = GroupImpl.make(api, "templates").pipe(
+  Layer.provide(templatesCreateForChurch),
+  Layer.provide(templatesResolveSchedules),
 );
 export const workflows = GroupImpl.make(api, "workflows").pipe(
   Layer.provide(workflowsCreateForChurch),

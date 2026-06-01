@@ -29,6 +29,12 @@ import {
   TeamWriteResponse,
 } from "../agent/teamOperations";
 import {
+  TemplateCreateArgs,
+  TemplateReadResponse,
+  TemplateResolveSchedulesArgs,
+  TemplateWriteResponse,
+} from "../agent/templateOperations";
+import {
   TaskCreateBatchArgs,
   TaskListArgs,
   TaskReadResponse,
@@ -203,5 +209,21 @@ export const workflows = GroupSpec.make("workflows")
       name: "remapTaskTeam",
       args: WorkflowRemapTaskTeamArgs,
       returns: WorkflowWriteResponse,
+    }),
+  );
+
+export const templates = GroupSpec.make("templates")
+  .addFunction(
+    FunctionSpec.publicMutation({
+      name: "createForChurch",
+      args: TemplateCreateArgs,
+      returns: TemplateWriteResponse,
+    }),
+  )
+  .addFunction(
+    FunctionSpec.publicQuery({
+      name: "resolveSchedules",
+      args: TemplateResolveSchedulesArgs,
+      returns: TemplateReadResponse,
     }),
   );

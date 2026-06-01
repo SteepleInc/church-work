@@ -8,6 +8,7 @@ import {
   keyDates,
   privateData,
   tasks,
+  templates,
   teams,
   workDefaults,
   workflows,
@@ -21,6 +22,7 @@ export default Spec.make()
   .add(keyDates)
   .add(privateData)
   .add(tasks)
+  .add(templates)
   .add(teams)
   .add(workDefaults)
   .add(workflows);
