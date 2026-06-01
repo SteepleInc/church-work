@@ -377,6 +377,13 @@ test("owner manages Workflows and Workflow Statuses from settings", async ({ pag
   await statusesSettings.getByRole("button", { name: "Add Workflow Status" }).click();
   await expect(page.getByText("Added Workflow Status Needs Review.")).toBeVisible();
 
+  await statusesSettings.getByRole("button", { name: "Archive Workflow Status To Do" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Workflow Status Cannot Be Archived" }),
+  ).toBeVisible();
+  await expect(page.getByText("keep one To Do, In Progress, and Done status")).toBeVisible();
+  await page.getByRole("button", { name: "Close" }).click();
+
   await statusesSettings.getByLabel("Rename Needs Review").fill("Reviewing Assets");
   await statusesSettings
     .getByRole("button", { name: "Rename Workflow Status Needs Review" })

@@ -1041,11 +1041,13 @@ function WorkflowStatusSettingsCard({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [archiveBlockMessage, setArchiveBlockMessage] = useState<string | null>(null);
 
   const runStatusMutation = async (
     action: string,
     mutation: () => Promise<{ ok: boolean; error?: { message: string } }>,
     onSuccess: () => void,
+    onFailure?: (message: string) => void,
   ) => {
     setError(null);
     setSuccess(null);
@@ -1054,7 +1056,13 @@ function WorkflowStatusSettingsCard({
     setPendingAction(null);
 
     if (!result.ok) {
-      setError(result.error?.message ?? "Could not update Workflow Statuses.");
+      const message = result.error?.message ?? "Could not update Workflow Statuses.";
+      if (onFailure) {
+        onFailure(message);
+        return;
+      }
+
+      setError(message);
       return;
     }
 
@@ -1273,6 +1281,7 @@ function WorkflowStatusSettingsCard({
                                   archivedAt: new Date().toISOString(),
                                 }),
                               () => setSuccess(`Archived Workflow Status ${status.name}.`),
+                              (message) => setArchiveBlockMessage(message),
                             )
                           }
                         >
@@ -1287,6 +1296,18 @@ function WorkflowStatusSettingsCard({
           </TableBody>
         </Table>
       </CardContent>
+      <Dialog open={archiveBlockMessage !== null} onOpenChange={() => setArchiveBlockMessage(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Workflow Status Cannot Be Archived</DialogTitle>
+            <DialogDescription>
+              {archiveBlockMessage} Move Tasks using this status or keep one To Do, In Progress, and
+              Done status before archiving it.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter showCloseButton />
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
