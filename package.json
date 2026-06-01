@@ -39,7 +39,7 @@
     "test:backend": "turbo -F @church-task/backend test:backend",
     "test:cli": "turbo -F @church-task/cli test:cli",
     "test:e2e": "playwright test",
-    "test:task-execution-smoke": "bun --filter @church-task/backend test:backend -- confect/authenticatedStateSpike.test.ts -t \"Task execution smoke path\" && bun --filter @church-task/cli test:cli -- cli.test.ts -t \"runs the Task execution smoke path through the public CLI\" && bun test apps/web/src/components/tasks/task-execution-surface.test.ts apps/web/src/components/tasks/task-kanban-adapter.test.ts && bun run test:e2e tests/e2e/app-shell.spec.ts -g \"authenticated dashboard lands on My Work|Our Work assignment feeds My Work|My Work lifecycle actions|Team sidebar navigation opens a Team board filtered to that Team\"",
+    "test:task-execution-smoke": "bun scripts/task-execution-smoke.ts",
     "check": "oxlint && oxfmt --write"
   },
   "dependencies": {
