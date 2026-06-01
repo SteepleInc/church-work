@@ -11,6 +11,7 @@ describe("Task execution smoke summary", () => {
   const passedResult: TaskExecutionSmokeStepResult = {
     name: "backend public-boundary smoke",
     command: "bun --filter @church-task/backend test:backend",
+    covers: ["Backend public contracts execute the Task lifecycle."],
     exitCode: 0,
     status: "passed",
   };
@@ -37,6 +38,7 @@ describe("Task execution smoke summary", () => {
           {
             name: "browser execution smoke",
             command: "bun run test:e2e tests/e2e/app-shell.spec.ts",
+            covers: ["Browser workflows prove persisted web behavior."],
             exitCode: 0,
             status: "skipped",
           },
@@ -56,6 +58,7 @@ describe("Task execution smoke summary", () => {
           {
             name: "CLI public smoke",
             command: "bun --filter @church-task/cli test:cli",
+            covers: ["CLI commands use the public Task execution contract."],
             exitCode: 1,
             status: "failed",
           },
@@ -76,6 +79,7 @@ describe("Task execution smoke summary", () => {
             {
               name: "browser execution smoke",
               command: "bun run test:e2e tests/e2e/app-shell.spec.ts",
+              covers: ["Browser workflows prove persisted web behavior."],
               exitCode: 0,
               status: "skipped",
             },
@@ -98,6 +102,7 @@ describe("Task execution smoke summary", () => {
             {
               name: "browser execution smoke",
               command: "bun run test:e2e tests/e2e/app-shell.spec.ts",
+              covers: ["Browser workflows prove persisted web behavior."],
               exitCode: 0,
               status: "skipped",
             },
@@ -119,6 +124,7 @@ describe("Task execution smoke summary", () => {
           {
             name: "browser execution smoke",
             command: "bun run test:e2e tests/e2e/app-shell.spec.ts",
+            covers: ["Browser workflows prove persisted web behavior."],
             exitCode: 0,
             status: "skipped",
           },
@@ -129,5 +135,7 @@ describe("Task execution smoke summary", () => {
     expect(report).toContain("Status: passed_with_skips");
     expect(report).toContain("E2E skip reason: Missing .env.e2e.");
     expect(report).toContain("| browser execution smoke | skipped | 0 |");
+    expect(report).toContain("## Acceptance Coverage");
+    expect(report).toContain("- Browser workflows prove persisted web behavior.");
   });
 });

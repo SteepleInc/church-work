@@ -5,6 +5,7 @@ export type TaskExecutionSmokeStepResult = {
   readonly command: string;
   readonly exitCode: number;
   readonly status: TaskExecutionSmokeStatus;
+  readonly covers: readonly string[];
 };
 
 export type TaskExecutionSmokeSummary = {
@@ -65,6 +66,23 @@ export function formatTaskExecutionSmokeMarkdown(summary: TaskExecutionSmokeSumm
     lines.push(
       `| ${escapeMarkdownTableCell(result.name)} | ${result.status} | ${result.exitCode} | ${escapeMarkdownTableCell(result.command)} |`,
     );
+  }
+
+  lines.push("", "## Acceptance Coverage", "");
+
+  for (const result of summary.results) {
+    lines.push(`### ${result.name}`, "");
+
+    if (result.covers.length === 0) {
+      lines.push("- No explicit acceptance criteria mapped.", "");
+      continue;
+    }
+
+    for (const coverage of result.covers) {
+      lines.push(`- ${coverage}`);
+    }
+
+    lines.push("");
   }
 
   return `${lines.join("\n")}\n`;

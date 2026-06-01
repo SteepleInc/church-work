@@ -12,6 +12,7 @@ import {
 type Step = {
   readonly name: string;
   readonly command: readonly string[];
+  readonly covers: readonly string[];
 };
 
 const browserSmokePattern =
@@ -35,6 +36,9 @@ const steps: readonly Step[] = [
   {
     name: "smoke runner contract",
     command: ["bun", "test", "scripts/task-execution-smoke-summary.test.ts"],
+    covers: [
+      "Regression report preserves skipped browser verification as an explicit closure gate.",
+    ],
   },
   {
     name: "backend public-boundary smoke",
@@ -47,6 +51,11 @@ const steps: readonly Step[] = [
       "confect/authenticatedStateSpike.test.ts",
       "-t",
       "Task execution smoke path",
+    ],
+    covers: [
+      "Task can be created, assigned, moved, completed, canceled, and reopened through public backend/MCP contracts.",
+      "MCP and web-facing public Confect reads share the same Task execution semantics.",
+      "Activity history records event types, metadata, and authenticated actor ids for the smoke path.",
     ],
   },
   {
@@ -61,6 +70,11 @@ const steps: readonly Step[] = [
       "-t",
       "runs the Task execution smoke path through the public CLI",
     ],
+    covers: [
+      "CLI uses the same Task execution semantics as the MCP-backed backend contract.",
+      "CLI smoke covers create, assign, move, complete, cancel, and reopen command behavior.",
+      "CLI path preserves Task State, finishedAt, Activity ordering, and authenticated actor ids.",
+    ],
   },
   {
     name: "fast web execution smoke",
@@ -70,10 +84,19 @@ const steps: readonly Step[] = [
       "apps/web/src/components/tasks/task-execution-surface.test.ts",
       "apps/web/src/components/tasks/task-kanban-adapter.test.ts",
     ],
+    covers: [
+      "Web routes read My Work, Our Work, and Team board Tasks through the shared execution filters.",
+      "Fast web coverage proves creation defaults, assignment controls, lifecycle controls, and Kanban adapter behavior.",
+    ],
   },
   {
     name: "browser execution smoke",
     command: ["bun", "run", "test:e2e", "tests/e2e/app-shell.spec.ts", "-g", browserSmokePattern],
+    covers: [
+      "Web routes reflect backend state through browser-visible My Work, Our Work, lifecycle, and Team board workflows.",
+      "ReUI Kanban drag/drop persists movement through backend state in browser smoke coverage.",
+      "Final #71 closure requires this step to pass, not skip, in an environment with .env.e2e.",
+    ],
   },
 ];
 
@@ -99,6 +122,7 @@ for (const step of steps) {
   results.push({
     name: step.name,
     command: step.command.join(" "),
+    covers: step.covers,
     exitCode,
     status,
   });
