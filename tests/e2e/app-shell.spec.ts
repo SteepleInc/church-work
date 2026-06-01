@@ -169,6 +169,39 @@ test("authenticated dashboard lands on My Work and filters to directly assigned 
   await expect(page.getByText(sharedTaskTitle)).not.toBeVisible();
 });
 
+test("Our Work assignment feeds My Work and board movement persists", async ({
+  page,
+}, testInfo) => {
+  const uniqueEmail = `e2e-our-work-assignment-${Date.now()}-${testInfo.workerIndex}@example.com`;
+  const userName = "E2E Our Work Assignee";
+  const taskTitle = `Assignable Our Work Task ${Date.now()}`;
+
+  await signUpThroughDashboard(page, uniqueEmail, userName);
+  await createFirstChurch(page, `E2E Our Work Assignment Church ${Date.now()}`);
+
+  await page.getByRole("button", { name: "Our Work" }).click();
+  await expect(page.getByRole("heading", { name: "Our Work", level: 1 })).toBeVisible();
+  await page.getByPlaceholder("Add Church-wide Task").fill(taskTitle);
+  await page.getByRole("button", { name: "Create Task" }).click();
+
+  const taskActions = page.getByRole("group", { name: `Actions for ${taskTitle}` });
+  await expect(taskActions).toBeVisible();
+  await taskActions.getByLabel(`Assign ${taskTitle}`).selectOption({ label: userName });
+  await expect(taskActions.getByLabel(`Assign ${taskTitle}`)).toHaveValue(/.+/);
+
+  await page.getByRole("button", { name: "My Work" }).click();
+  await expect(page.getByRole("heading", { name: "My Work", level: 1 })).toBeVisible();
+  await expect(page.getByText(taskTitle).first()).toBeVisible();
+
+  await page
+    .getByLabel(`Task card ${taskTitle}`)
+    .dragTo(page.getByLabel("Workflow Status In Progress"));
+  await expect(page.getByLabel("In Progress Tasks").getByText(taskTitle)).toBeVisible();
+
+  await page.getByRole("button", { name: "Our Work" }).click();
+  await expect(page.getByLabel("In Progress Tasks").getByText(taskTitle)).toBeVisible();
+});
+
 test("My Work lifecycle actions complete, cancel, and reopen Tasks", async ({ page }, testInfo) => {
   const uniqueEmail = `e2e-my-work-lifecycle-${Date.now()}-${testInfo.workerIndex}@example.com`;
   const completedTaskTitle = `Lifecycle Complete Task ${Date.now()}`;
