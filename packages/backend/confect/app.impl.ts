@@ -62,12 +62,15 @@ import {
   updateTemplateTasksAndSyncFutureProjectedTasks,
 } from "../templates";
 import {
+  addWorkflowStatus,
   archiveWorkflow,
   archiveWorkflowStatus,
   createWorkflow,
   readWorkflowModel,
   renameWorkflow,
+  renameWorkflowStatus,
   remapWorkflowStatusForTaskTeam,
+  reorderWorkflowStatuses,
   reorderWorkflows,
   setDefaultWorkflow,
 } from "../workflows";
@@ -877,6 +880,33 @@ const coreWorkBatchWrite = FunctionImpl.make(
               operation: operation.operation,
               result: yield* Effect.promise(() =>
                 ctx.runMutation(convexFunctionRefs.workflows.setDefaultForChurch, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "addWorkflowStatus":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(convexFunctionRefs.workflows.addStatus, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "renameWorkflowStatus":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(convexFunctionRefs.workflows.renameStatus, operation.input),
+              ).pipe(Effect.orDie),
+            });
+            break;
+          case "reorderWorkflowStatuses":
+            results.push({
+              id: operation.id,
+              operation: operation.operation,
+              result: yield* Effect.promise(() =>
+                ctx.runMutation(convexFunctionRefs.workflows.reorderStatuses, operation.input),
               ).pipe(Effect.orDie),
             });
             break;
@@ -2817,6 +2847,229 @@ const workflowsSetDefaultForChurch = FunctionImpl.make(
     }),
 );
 
+const workflowsAddStatus = FunctionImpl.make(api, "workflows", "addStatus", (args) =>
+  Effect.gen(function* () {
+    const ctx = yield* MutationCtx.MutationCtx<DataModel>();
+    const auth = yield* getAuthenticatedChurchMember(args.churchId).pipe(
+      Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
+    );
+
+    if (auth.status === "notAuthenticated") {
+      return workflowErrorResponse(
+        "addWorkflowStatus",
+        "not_authenticated",
+        "Authentication is required.",
+      );
+    }
+    if (auth.status === "notChurchMember") {
+      return workflowErrorResponse(
+        "addWorkflowStatus",
+        "not_church_member",
+        "Church membership is required.",
+      );
+    }
+    if (auth.membership.role !== "owner" && auth.membership.role !== "admin") {
+      return workflowErrorResponse(
+        "addWorkflowStatus",
+        "not_authorized",
+        "Only Church owners and admins can manage Workflows.",
+      );
+    }
+
+    const added = yield* Effect.promise(() => addWorkflowStatus(ctx, args)).pipe(Effect.orDie);
+    if (!added.ok && added.code === "workflowNotFound") {
+      return workflowErrorResponse(
+        "addWorkflowStatus",
+        "workflow_not_found",
+        "Workflow was not found in the active Church.",
+      );
+    }
+    if (!added.ok && added.code === "invalidWorkflow") {
+      return workflowErrorResponse(
+        "addWorkflowStatus",
+        "invalid_workflow",
+        added.message ?? "Workflow Status changes must keep the Workflow valid.",
+      );
+    }
+    if (!added.ok) return yield* Effect.dieMessage("Unexpected Workflow Status add result.");
+
+    yield* Effect.promise(() =>
+      writeActivity(ctx, {
+        churchId: args.churchId,
+        entityType: "workflow",
+        entityId: added.statusId,
+        eventType: "workflow.status.created",
+        actorType: "user",
+        actorId: auth.authUser._id,
+        occurredAt: new Date().toISOString(),
+        cycleId: null,
+        metadata: {
+          workflowId: args.workflowId,
+          name: args.status.name,
+          taskState: args.status.taskState,
+        },
+      }),
+    ).pipe(Effect.orDie);
+
+    const model = yield* Effect.promise(() => readWorkflowModel(ctx, args.churchId)).pipe(
+      Effect.orDie,
+    );
+    return workflowResponse("addWorkflowStatus", serializeWorkflowModel(model));
+  }),
+);
+
+const workflowsRenameStatus = FunctionImpl.make(api, "workflows", "renameStatus", (args) =>
+  Effect.gen(function* () {
+    const ctx = yield* MutationCtx.MutationCtx<DataModel>();
+    const auth = yield* getAuthenticatedChurchMember(args.churchId).pipe(
+      Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
+    );
+
+    if (auth.status === "notAuthenticated") {
+      return workflowErrorResponse(
+        "renameWorkflowStatus",
+        "not_authenticated",
+        "Authentication is required.",
+      );
+    }
+    if (auth.status === "notChurchMember") {
+      return workflowErrorResponse(
+        "renameWorkflowStatus",
+        "not_church_member",
+        "Church membership is required.",
+      );
+    }
+    if (auth.membership.role !== "owner" && auth.membership.role !== "admin") {
+      return workflowErrorResponse(
+        "renameWorkflowStatus",
+        "not_authorized",
+        "Only Church owners and admins can manage Workflows.",
+      );
+    }
+
+    const renamed = yield* Effect.promise(() => renameWorkflowStatus(ctx, args)).pipe(Effect.orDie);
+    if (!renamed.ok && renamed.code === "notFound") {
+      return workflowErrorResponse(
+        "renameWorkflowStatus",
+        "workflow_status_not_found",
+        "Workflow Status was not found in the active Church.",
+      );
+    }
+    if (!renamed.ok && renamed.code === "invalidWorkflow") {
+      return workflowErrorResponse(
+        "renameWorkflowStatus",
+        "invalid_workflow",
+        renamed.message ?? "Workflow Status changes must keep the Workflow valid.",
+      );
+    }
+    if (!renamed.ok) return yield* Effect.dieMessage("Unexpected Workflow Status rename result.");
+
+    yield* Effect.promise(() =>
+      writeActivity(ctx, {
+        churchId: args.churchId,
+        entityType: "workflow",
+        entityId: renamed.status._id,
+        eventType: "workflow.status.renamed",
+        actorType: "user",
+        actorId: auth.authUser._id,
+        occurredAt: new Date().toISOString(),
+        cycleId: null,
+        metadata: {
+          workflowId: renamed.status.workflowId,
+          previousName: renamed.status.name,
+          name: args.name,
+        },
+      }),
+    ).pipe(Effect.orDie);
+
+    const model = yield* Effect.promise(() => readWorkflowModel(ctx, args.churchId)).pipe(
+      Effect.orDie,
+    );
+    return workflowResponse("renameWorkflowStatus", serializeWorkflowModel(model));
+  }),
+);
+
+const workflowsReorderStatuses = FunctionImpl.make(api, "workflows", "reorderStatuses", (args) =>
+  Effect.gen(function* () {
+    const ctx = yield* MutationCtx.MutationCtx<DataModel>();
+    const auth = yield* getAuthenticatedChurchMember(args.churchId).pipe(
+      Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
+    );
+
+    if (auth.status === "notAuthenticated") {
+      return workflowErrorResponse(
+        "reorderWorkflowStatuses",
+        "not_authenticated",
+        "Authentication is required.",
+      );
+    }
+    if (auth.status === "notChurchMember") {
+      return workflowErrorResponse(
+        "reorderWorkflowStatuses",
+        "not_church_member",
+        "Church membership is required.",
+      );
+    }
+    if (auth.membership.role !== "owner" && auth.membership.role !== "admin") {
+      return workflowErrorResponse(
+        "reorderWorkflowStatuses",
+        "not_authorized",
+        "Only Church owners and admins can manage Workflows.",
+      );
+    }
+
+    const reordered = yield* Effect.promise(() => reorderWorkflowStatuses(ctx, args)).pipe(
+      Effect.orDie,
+    );
+    if (!reordered.ok && reordered.code === "workflowNotFound") {
+      return workflowErrorResponse(
+        "reorderWorkflowStatuses",
+        "workflow_not_found",
+        "Workflow was not found in the active Church.",
+      );
+    }
+    if (!reordered.ok && reordered.code === "invalidReorder") {
+      return workflowErrorResponse(
+        "reorderWorkflowStatuses",
+        "invalid_workflow_status_reorder",
+        "Workflow Status reorder must include active statuses from the requested Workflow only.",
+      );
+    }
+    if (!reordered.ok) {
+      return yield* Effect.dieMessage("Unexpected Workflow Status reorder result.");
+    }
+
+    const occurredAt = new Date().toISOString();
+    for (const [sortOrder, statusId] of args.statusIds.entries()) {
+      const status = reordered.statusesById.get(statusId);
+      if (status && status.sortOrder !== sortOrder) {
+        yield* Effect.promise(() =>
+          writeActivity(ctx, {
+            churchId: args.churchId,
+            entityType: "workflow",
+            entityId: statusId,
+            eventType: "workflow.status.reordered",
+            actorType: "user",
+            actorId: auth.authUser._id,
+            occurredAt,
+            cycleId: null,
+            metadata: {
+              workflowId: args.workflowId,
+              previousSortOrder: status.sortOrder,
+              sortOrder,
+            },
+          }),
+        ).pipe(Effect.orDie);
+      }
+    }
+
+    const model = yield* Effect.promise(() => readWorkflowModel(ctx, args.churchId)).pipe(
+      Effect.orDie,
+    );
+    return workflowResponse("reorderWorkflowStatuses", serializeWorkflowModel(model));
+  }),
+);
+
 const workflowsArchiveStatus = FunctionImpl.make(api, "workflows", "archiveStatus", (args) =>
   Effect.gen(function* () {
     const ctx = yield* MutationCtx.MutationCtx<DataModel>();
@@ -2882,7 +3135,7 @@ const workflowsArchiveStatus = FunctionImpl.make(api, "workflows", "archiveStatu
         entityId: archived.status._id,
         eventType: "workflow.status.archived",
         actorType: "user",
-        actorId: null,
+        actorId: auth.authUser._id,
         occurredAt: args.archivedAt,
         cycleId: null,
         metadata: {
@@ -3077,6 +3330,9 @@ export const workflows = GroupImpl.make(api, "workflows").pipe(
   Layer.provide(workflowsReorderForChurch),
   Layer.provide(workflowsArchiveForChurch),
   Layer.provide(workflowsSetDefaultForChurch),
+  Layer.provide(workflowsAddStatus),
+  Layer.provide(workflowsRenameStatus),
+  Layer.provide(workflowsReorderStatuses),
   Layer.provide(workflowsArchiveStatus),
   Layer.provide(workflowsRemapTaskTeam),
 );

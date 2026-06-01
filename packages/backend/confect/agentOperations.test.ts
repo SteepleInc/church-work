@@ -2656,6 +2656,116 @@ describe("agent operation boundary", () => {
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 
+  it.effect("owners can add, rename, and reorder Workflow Statuses", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-workflow-status-edit-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Workflow Status Edit Church",
+        slug: `workflow-status-edit-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
+
+      const created = yield* authenticated.mutation(refs.public.workflows.createForChurch, {
+        churchId: church.id!,
+        key: "status-edit-workflow",
+        name: "Status Edit Workflow",
+        isDefault: false,
+        sortOrder: 1,
+        statuses: [
+          { key: "todo", name: "To Do", taskState: "todo", sortOrder: 0 },
+          { key: "doing", name: "Doing", taskState: "in_progress", sortOrder: 1 },
+          { key: "done", name: "Done", taskState: "done", sortOrder: 2 },
+        ],
+      });
+      const workflow = created.data.workflows.find(
+        (candidate) => candidate.key === "status-edit-workflow",
+      )!;
+      const doingStatus = created.data.workflowStatuses.find(
+        (status) => status.workflowId === workflow.id && status.key === "doing",
+      )!;
+      const todoStatus = created.data.workflowStatuses.find(
+        (status) => status.workflowId === workflow.id && status.key === "todo",
+      )!;
+      const doneStatus = created.data.workflowStatuses.find(
+        (status) => status.workflowId === workflow.id && status.key === "done",
+      )!;
+
+      const added = yield* authenticated.mutation(refs.public.workflows.addStatus, {
+        churchId: church.id!,
+        workflowId: workflow.id,
+        status: { key: "review", name: "Needs Review", taskState: "in_progress", sortOrder: 3 },
+      });
+      const reviewStatus = added.data.workflowStatuses.find(
+        (status) => status.workflowId === workflow.id && status.key === "review",
+      )!;
+      const renamed = yield* authenticated.mutation(refs.public.workflows.renameStatus, {
+        churchId: church.id!,
+        statusId: reviewStatus.id,
+        name: "Review",
+      });
+      const reordered = yield* authenticated.mutation(refs.public.workflows.reorderStatuses, {
+        churchId: church.id!,
+        workflowId: workflow.id,
+        statusIds: [reviewStatus.id, doingStatus.id].concat(
+          created.data.workflowStatuses
+            .filter(
+              (status) =>
+                status.workflowId === workflow.id &&
+                status.id !== reviewStatus.id &&
+                status.id !== doingStatus.id,
+            )
+            .map((status) => status.id),
+        ),
+      });
+      const statusActivities = yield* authenticated.query(refs.public.activities.listForEntity, {
+        churchId: church.id!,
+        entityType: "workflow",
+        entityId: reviewStatus.id,
+      });
+
+      expect(added.data.workflowStatuses).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            key: "review",
+            name: "Needs Review",
+            taskState: "in_progress",
+          }),
+        ]),
+      );
+      expect(renamed.data.workflowStatuses).toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: reviewStatus.id, name: "Review" })]),
+      );
+      expect(
+        reordered.data.workflowStatuses
+          .filter((status) => status.workflowId === workflow.id && status.archivedAt === null)
+          .map((status) => [status.id, status.sortOrder]),
+      ).toEqual([
+        [reviewStatus.id, 0],
+        [doingStatus.id, 1],
+        [todoStatus.id, 2],
+        [doneStatus.id, 3],
+      ]);
+      expect(statusActivities.data.activities.map((activity) => activity.eventType)).toEqual(
+        expect.arrayContaining([
+          "workflow.status.created",
+          "workflow.status.renamed",
+          "workflow.status.reordered",
+        ]),
+      );
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
   it.effect("Workflow Status archive is blocked while Tasks use the status", () =>
     Effect.gen(function* () {
       const c = yield* TestConfect.TestConfect;
@@ -2719,6 +2829,82 @@ describe("agent operation boundary", () => {
           code: "workflow_status_in_use",
           message: "Workflow Statuses with active Tasks cannot be archived before Tasks are moved.",
         },
+      });
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("Workflow Status archive ignores canceled Task history", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-status-canceled-history-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Status Canceled History Church",
+        slug: `status-canceled-history-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
+      const created = yield* authenticated.mutation(refs.public.workflows.createForChurch, {
+        churchId: church.id!,
+        key: "canceled-history-workflow",
+        name: "Canceled History Workflow",
+        isDefault: false,
+        sortOrder: 1,
+        statuses: [
+          { key: "todo", name: "To Do", taskState: "todo", sortOrder: 0 },
+          { key: "doing", name: "Doing", taskState: "in_progress", sortOrder: 1 },
+          { key: "ready", name: "Ready", taskState: "in_progress", sortOrder: 2 },
+          { key: "done", name: "Done", taskState: "done", sortOrder: 3 },
+        ],
+      });
+      const workflow = created.data.workflows.find(
+        (candidate) => candidate.key === "canceled-history-workflow",
+      )!;
+      const readyStatus = created.data.workflowStatuses.find(
+        (status) => status.workflowId === workflow.id && status.key === "ready",
+      )!;
+
+      yield* c.run(
+        Effect.gen(function* () {
+          const ctx = yield* MutationCtx.MutationCtx<DataModel>();
+          yield* Effect.promise(() =>
+            ctx.db.insert("tasks", {
+              churchId: church.id!,
+              title: "Canceled task using Ready",
+              teamId: null,
+              cycleId: "cycle-status-canceled-history",
+              dueDate: "2026-06-03",
+              parentTaskId: null,
+              workflowId: workflow.id,
+              workflowStatusId: readyStatus.id,
+              taskState: "canceled",
+              sourceTemplateId: null,
+              sourceTemplateTaskId: null,
+              sourceTemplateCycleId: null,
+              sourceTemplateSyncEnabled: false,
+            }),
+          );
+        }),
+      );
+
+      const archived = yield* authenticated.mutation(refs.public.workflows.archiveStatus, {
+        churchId: church.id!,
+        statusId: readyStatus.id,
+        archivedAt: "2026-06-01T10:00:00.000Z",
+      });
+
+      expect(
+        archived.data.workflowStatuses.find((status) => status.id === readyStatus.id),
+      ).toMatchObject({
+        archivedAt: "2026-06-01T10:00:00.000Z",
       });
     }).pipe(Effect.provide(TestConfect.layer())),
   );

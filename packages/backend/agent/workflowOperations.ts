@@ -44,6 +44,24 @@ export const WorkflowSetDefaultArgs = Schema.Struct({
   workflowId: Schema.String,
 });
 
+export const WorkflowAddStatusArgs = Schema.Struct({
+  churchId: Schema.String,
+  workflowId: Schema.String,
+  status: WorkflowStatusInput,
+});
+
+export const WorkflowRenameStatusArgs = Schema.Struct({
+  churchId: Schema.String,
+  statusId: Schema.String,
+  name: Schema.String,
+});
+
+export const WorkflowReorderStatusesArgs = Schema.Struct({
+  churchId: Schema.String,
+  workflowId: Schema.String,
+  statusIds: Schema.Array(Schema.String),
+});
+
 export const WorkflowArchiveStatusArgs = Schema.Struct({
   churchId: Schema.String,
   statusId: Schema.String,
@@ -96,6 +114,9 @@ export const WorkflowSuccessResponse = Schema.Struct({
     Schema.Literal("reorderWorkflows"),
     Schema.Literal("archiveWorkflow"),
     Schema.Literal("setDefaultWorkflow"),
+    Schema.Literal("addWorkflowStatus"),
+    Schema.Literal("renameWorkflowStatus"),
+    Schema.Literal("reorderWorkflowStatuses"),
     Schema.Literal("archiveWorkflowStatus"),
     Schema.Literal("remapTaskTeamWorkflow"),
   ),
@@ -114,6 +135,9 @@ export const WorkflowErrorResponse = Schema.Struct({
     Schema.Literal("reorderWorkflows"),
     Schema.Literal("archiveWorkflow"),
     Schema.Literal("setDefaultWorkflow"),
+    Schema.Literal("addWorkflowStatus"),
+    Schema.Literal("renameWorkflowStatus"),
+    Schema.Literal("reorderWorkflowStatuses"),
     Schema.Literal("archiveWorkflowStatus"),
     Schema.Literal("remapTaskTeamWorkflow"),
   ),
@@ -124,6 +148,7 @@ export const WorkflowErrorResponse = Schema.Struct({
       Schema.Literal("not_authorized"),
       Schema.Literal("invalid_workflow"),
       Schema.Literal("invalid_workflow_reorder"),
+      Schema.Literal("invalid_workflow_status_reorder"),
       Schema.Literal("workflow_not_found"),
       Schema.Literal("workflow_in_use"),
       Schema.Literal("workflow_status_not_found"),

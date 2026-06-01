@@ -146,7 +146,9 @@ export async function reorderWorkflows(
     .withIndex("by_churchId", (q) => q.eq("churchId", args.churchId))
     .collect();
   const activeWorkflows = workflows.filter((workflow) => workflow.archivedAt === null);
-  const workflowsById = new Map(activeWorkflows.map((workflow) => [String(workflow._id), workflow]));
+  const workflowsById = new Map(
+    activeWorkflows.map((workflow) => [String(workflow._id), workflow]),
+  );
   const uniqueWorkflowIds = new Set(args.workflowIds);
 
   if (
@@ -186,6 +188,115 @@ export async function setDefaultWorkflow(
   }
 
   return { ok: true as const, workflow, previousDefault };
+}
+
+export async function addWorkflowStatus(
+  ctx: MutationCtx,
+  args: {
+    readonly churchId: string;
+    readonly workflowId: string;
+    readonly status: WorkflowStatusInput;
+  },
+) {
+  const workflow = await ctx.db.get(args.workflowId as Id<"workflows">);
+  if (!workflow || workflow.churchId !== args.churchId || workflow.archivedAt !== null) {
+    return { ok: false as const, code: "workflowNotFound" };
+  }
+
+  const existingStatuses = await ctx.db
+    .query("workflowStatuses")
+    .withIndex("by_workflowId", (q) => q.eq("workflowId", workflow._id))
+    .collect();
+  const validationError = validateWorkflowStatuses(
+    [...existingStatuses.filter((status) => status.archivedAt === null), args.status].map(
+      (status) => ({
+        key: status.key,
+        name: status.name,
+        taskState: status.taskState,
+        sortOrder: status.sortOrder,
+      }),
+    ),
+  );
+
+  if (validationError)
+    return { ok: false as const, code: "invalidWorkflow", message: validationError };
+
+  const statusId = await ctx.db.insert("workflowStatuses", {
+    churchId: args.churchId,
+    workflowId: workflow._id,
+    ...args.status,
+    archivedAt: null,
+  });
+
+  return { ok: true as const, statusId };
+}
+
+export async function renameWorkflowStatus(
+  ctx: MutationCtx,
+  args: { readonly churchId: string; readonly statusId: string; readonly name: string },
+) {
+  const status = await ctx.db.get(args.statusId as Id<"workflowStatuses">);
+  if (!status || status.churchId !== args.churchId || status.archivedAt !== null) {
+    return { ok: false as const, code: "notFound" };
+  }
+
+  const statuses = await ctx.db
+    .query("workflowStatuses")
+    .withIndex("by_workflowId", (q) => q.eq("workflowId", status.workflowId))
+    .collect();
+  const validationError = validateWorkflowStatuses(
+    statuses
+      .filter((candidate) => candidate.archivedAt === null)
+      .map((candidate) => ({
+        key: candidate.key,
+        name: candidate._id === status._id ? args.name : candidate.name,
+        taskState: candidate.taskState,
+        sortOrder: candidate.sortOrder,
+      })),
+  );
+
+  if (validationError)
+    return { ok: false as const, code: "invalidWorkflow", message: validationError };
+
+  await ctx.db.patch(status._id, { name: args.name });
+
+  return { ok: true as const, status };
+}
+
+export async function reorderWorkflowStatuses(
+  ctx: MutationCtx,
+  args: {
+    readonly churchId: string;
+    readonly workflowId: string;
+    readonly statusIds: ReadonlyArray<string>;
+  },
+) {
+  const workflow = await ctx.db.get(args.workflowId as Id<"workflows">);
+  if (!workflow || workflow.churchId !== args.churchId || workflow.archivedAt !== null) {
+    return { ok: false as const, code: "workflowNotFound" };
+  }
+
+  const statuses = await ctx.db
+    .query("workflowStatuses")
+    .withIndex("by_workflowId", (q) => q.eq("workflowId", workflow._id))
+    .collect();
+  const activeStatuses = statuses.filter((status) => status.archivedAt === null);
+  const statusesById = new Map(activeStatuses.map((status) => [String(status._id), status]));
+  const uniqueStatusIds = new Set(args.statusIds);
+
+  if (
+    uniqueStatusIds.size !== args.statusIds.length ||
+    uniqueStatusIds.size !== activeStatuses.length ||
+    args.statusIds.some((statusId) => !statusesById.has(statusId))
+  ) {
+    return { ok: false as const, code: "invalidReorder" };
+  }
+
+  for (const [sortOrder, statusId] of args.statusIds.entries()) {
+    await ctx.db.patch(statusId as Id<"workflowStatuses">, { sortOrder });
+  }
+
+  return { ok: true as const, statusesById };
 }
 
 export async function archiveWorkflow(
@@ -235,10 +346,11 @@ export async function archiveWorkflowStatus(
   const status = await ctx.db.get(args.statusId as Id<"workflowStatuses">);
   if (!status || status.churchId !== args.churchId) return { ok: false as const, code: "notFound" };
 
-  const activeTask = await ctx.db
+  const taskUsingStatus = await ctx.db
     .query("tasks")
     .withIndex("by_workflowStatusId", (q) => q.eq("workflowStatusId", status._id))
-    .first();
+    .collect();
+  const activeTask = taskUsingStatus.find((task) => task.taskState !== "canceled");
 
   if (activeTask) return { ok: false as const, code: "inUse", status };
 
