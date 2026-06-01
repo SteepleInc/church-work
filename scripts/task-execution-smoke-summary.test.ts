@@ -29,6 +29,7 @@ describe("Task execution smoke summary", () => {
       ready: true,
       fullVerificationCommand: "bun run test:task-execution-smoke:full",
       blockingSteps: [],
+      blockingStepDetails: [],
     });
   });
 
@@ -55,6 +56,13 @@ describe("Task execution smoke summary", () => {
       ready: false,
       fullVerificationCommand: "bun run test:task-execution-smoke:full",
       blockingSteps: ["browser execution smoke was skipped: Missing .env.e2e."],
+      blockingStepDetails: [
+        {
+          name: "browser execution smoke",
+          command: "bun run test:e2e tests/e2e/app-shell.spec.ts",
+          reason: "skipped: Missing .env.e2e.",
+        },
+      ],
     });
   });
 
@@ -116,6 +124,13 @@ describe("Task execution smoke summary", () => {
       ready: false,
       fullVerificationCommand: "bun run test:task-execution-smoke:full",
       blockingSteps: ["CLI public smoke failed with exit code 1"],
+      blockingStepDetails: [
+        {
+          name: "CLI public smoke",
+          command: "bun --filter @church-task/cli test:cli",
+          reason: "failed with exit code 1",
+        },
+      ],
     });
   });
 
@@ -193,6 +208,10 @@ describe("Task execution smoke summary", () => {
     expect(report).toContain("Ready to close #71: no");
     expect(report).toContain("Full verification command: bun run test:task-execution-smoke:full");
     expect(report).toContain("- browser execution smoke was skipped: Missing .env.e2e.");
+    expect(report).toContain("Blocking step commands:");
+    expect(report).toContain(
+      "- browser execution smoke: `bun run test:e2e tests/e2e/app-shell.spec.ts` (skipped: Missing .env.e2e.)",
+    );
     expect(report).toContain("| browser execution smoke | skipped | Missing .env.e2e. | 0 |");
     expect(report).toContain("## Acceptance Coverage");
     expect(report).toContain("- Browser workflows prove persisted web behavior.");

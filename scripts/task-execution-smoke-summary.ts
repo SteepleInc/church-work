@@ -25,6 +25,12 @@ export type TaskExecutionSmokeStepResult = {
   readonly acceptanceCriteria?: readonly TaskExecutionSmokeAcceptanceCriterionKey[];
 };
 
+export type TaskExecutionSmokeBlockingStep = {
+  readonly name: string;
+  readonly command: string;
+  readonly reason: string;
+};
+
 export type TaskExecutionSmokeSummary = {
   readonly generatedAt: string;
   readonly e2eReady: boolean;
@@ -34,6 +40,7 @@ export type TaskExecutionSmokeSummary = {
     readonly ready: boolean;
     readonly fullVerificationCommand: string;
     readonly blockingSteps: readonly string[];
+    readonly blockingStepDetails: readonly TaskExecutionSmokeBlockingStep[];
   };
   readonly acceptanceCriteriaCoverage: readonly TaskExecutionSmokeAcceptanceCriterionCoverage[];
   readonly results: readonly TaskExecutionSmokeStepResult[];
@@ -109,6 +116,29 @@ export function buildTaskExecutionSmokeSummary(input: {
 
     return [];
   });
+  const blockingStepDetails = input.results.flatMap((result): TaskExecutionSmokeBlockingStep[] => {
+    if (result.status === "failed") {
+      return [
+        {
+          name: result.name,
+          command: result.command,
+          reason: `failed with exit code ${result.exitCode}`,
+        },
+      ];
+    }
+
+    if (result.status === "skipped") {
+      return [
+        {
+          name: result.name,
+          command: result.command,
+          reason: result.skipReason ? `skipped: ${result.skipReason}` : "skipped",
+        },
+      ];
+    }
+
+    return [];
+  });
 
   const acceptanceCriteriaCoverage = taskExecutionSmokeAcceptanceCriteria.map((criterion) => {
     const coveringResults = input.results.filter((result) =>
@@ -136,6 +166,7 @@ export function buildTaskExecutionSmokeSummary(input: {
       ready: status === "passed",
       fullVerificationCommand: taskExecutionSmokeFullVerificationCommand,
       blockingSteps,
+      blockingStepDetails,
     },
     acceptanceCriteriaCoverage,
   };
@@ -167,6 +198,14 @@ export function formatTaskExecutionSmokeMarkdown(summary: TaskExecutionSmokeSumm
 
     for (const blockingStep of summary.closureGate.blockingSteps) {
       lines.push(`- ${blockingStep}`);
+    }
+  }
+
+  if (summary.closureGate.blockingStepDetails.length > 0) {
+    lines.push("", "Blocking step commands:");
+
+    for (const blockingStep of summary.closureGate.blockingStepDetails) {
+      lines.push(`- ${blockingStep.name}: \`${blockingStep.command}\` (${blockingStep.reason})`);
     }
   }
 
