@@ -2,16 +2,15 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { config } from "dotenv";
 import { existsSync } from "node:fs";
 
+import {
+  buildTaskExecutionSmokeSummary,
+  formatTaskExecutionSmokeMarkdown,
+  type TaskExecutionSmokeStepResult,
+} from "./task-execution-smoke-summary";
+
 type Step = {
   readonly name: string;
   readonly command: readonly string[];
-};
-
-type StepResult = {
-  readonly name: string;
-  readonly command: string;
-  readonly exitCode: number;
-  readonly status: "passed" | "failed" | "skipped";
 };
 
 const browserSmokePattern =
@@ -31,6 +30,10 @@ const e2eSkipReason = hasE2eEnvFile
   : `Missing ${e2eEnvFile}. Copy .env.e2e.example to ${e2eEnvFile} and point it at an isolated Convex deployment before running E2E tests.`;
 
 const steps: readonly Step[] = [
+  {
+    name: "smoke runner contract",
+    command: ["bun", "test", "scripts/task-execution-smoke-summary.test.ts"],
+  },
   {
     name: "backend public-boundary smoke",
     command: [
@@ -72,7 +75,7 @@ const steps: readonly Step[] = [
   },
 ];
 
-const results: StepResult[] = [];
+const results: TaskExecutionSmokeStepResult[] = [];
 
 for (const step of steps) {
   console.log(`\n>>> ${step.name}`);
@@ -103,22 +106,20 @@ for (const step of steps) {
   }
 }
 
-const summary = {
+const summary = buildTaskExecutionSmokeSummary({
   generatedAt: new Date().toISOString(),
   e2eReady,
   e2eSkipReason: e2eReady ? null : e2eSkipReason,
-  status: results.some((result) => result.status === "failed")
-    ? "failed"
-    : results.some((result) => result.status === "skipped")
-      ? "passed_with_skips"
-      : "passed",
   results,
-};
+});
 
 await mkdir("test-results", { recursive: true });
 await writeFile("test-results/task-execution-smoke.json", `${JSON.stringify(summary, null, 2)}\n`);
+await writeFile("test-results/task-execution-smoke.md", formatTaskExecutionSmokeMarkdown(summary));
 
-console.log("\nTask execution smoke summary written to test-results/task-execution-smoke.json");
+console.log(
+  "\nTask execution smoke summary written to test-results/task-execution-smoke.json and test-results/task-execution-smoke.md",
+);
 
 if (summary.status === "failed") {
   process.exitCode = 1;
