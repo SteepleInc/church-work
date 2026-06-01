@@ -13,6 +13,7 @@ type BetterAuthOrganization = {
   readonly _id: string;
   readonly name: string;
   readonly slug?: string | null;
+  readonly churchTimeZone?: string | null;
 };
 
 type BetterAuthMember = {
@@ -147,7 +148,12 @@ export const listOrganizations = query({
         });
 
         return organization
-          ? { id: organization._id, name: organization.name, slug: organization.slug ?? null }
+          ? {
+              id: organization._id,
+              name: organization.name,
+              slug: organization.slug ?? null,
+              churchTimeZone: organization.churchTimeZone ?? null,
+            }
           : null;
       }),
     ).then((organizations) => organizations.filter((organization) => organization !== null));
@@ -194,6 +200,7 @@ export const getActiveOrganization = query({
       id: organization._id,
       name: organization.name,
       slug: organization.slug ?? null,
+      churchTimeZone: organization.churchTimeZone ?? null,
       role: membership.role,
       invitations: invitations.map((invitation) => ({
         id: invitation._id,

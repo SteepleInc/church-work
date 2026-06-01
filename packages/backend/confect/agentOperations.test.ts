@@ -45,7 +45,12 @@ const authenticatedConfect = function* (
 
 const createChurch = (
   c: typeof TestConfect.TestConfect.Service,
-  args: { readonly token: string; readonly name: string; readonly slug: string },
+  args: {
+    readonly token: string;
+    readonly name: string;
+    readonly slug: string;
+    readonly churchTimeZone?: string;
+  },
 ) =>
   c.fetch("/api/auth/organization/create", {
     method: "POST",
@@ -53,7 +58,11 @@ const createChurch = (
       authorization: `Bearer ${args.token}`,
       "content-type": "application/json",
     },
-    body: JSON.stringify({ name: args.name, slug: args.slug }),
+    body: JSON.stringify({
+      name: args.name,
+      slug: args.slug,
+      churchTimeZone: args.churchTimeZone ?? "America/New_York",
+    }),
   });
 
 describe("agent operation boundary", () => {
@@ -215,11 +224,82 @@ describe("agent operation boundary", () => {
               id: secondChurch.id,
               name: "Second Church",
               slug: secondChurch.slug,
+              churchTimeZone: "America/New_York",
             },
             membership: { role: "owner" },
           },
         });
       }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("Church creation persists a validated Church Time Zone", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-church-time-zone-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Time Zone Church",
+        slug: `time-zone-${crypto.randomUUID()}`,
+        churchTimeZone: "America/Los_Angeles",
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as {
+        id?: string;
+        slug?: string;
+        churchTimeZone?: string;
+      };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
+
+      expect(churchResponse.status).toBe(200);
+      expect(church.churchTimeZone).toBe("America/Los_Angeles");
+
+      const result = yield* authenticated.query(refs.public.agent.activeChurch, {
+        churchId: church.id!,
+      });
+
+      expect(result).toEqual({
+        ok: true,
+        operation: "activeChurch",
+        data: {
+          status: "activeChurchReady",
+          activeChurch: {
+            id: church.id,
+            name: "Time Zone Church",
+            slug: church.slug,
+            churchTimeZone: "America/Los_Angeles",
+          },
+          membership: { role: "owner" },
+        },
+      });
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("Church creation rejects an invalid Church Time Zone", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-invalid-church-time-zone-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Invalid Time Zone Church",
+        slug: `invalid-time-zone-${crypto.randomUUID()}`,
+        churchTimeZone: "Not/A_Zone",
+      });
+      const body = (yield* Effect.promise(() => churchResponse.json())) as { message?: string };
+
+      expect(churchResponse.status).toBe(400);
+      expect(body.message).toBe("Church Time Zone must be a valid IANA time zone.");
+    }).pipe(Effect.provide(TestConfect.layer())),
   );
 
   it.effect("activeChurch blocks a requested Church where the User lacks Church Membership", () =>

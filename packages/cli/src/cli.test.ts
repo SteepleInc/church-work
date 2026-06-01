@@ -125,7 +125,12 @@ describe("church-task active-church", () => {
       operation: "activeChurch",
       data: {
         status: "activeChurchReady",
-        activeChurch: { id: "church_123", name: "Grace Church", slug: "grace-church" },
+        activeChurch: {
+          id: "church_123",
+          name: "Grace Church",
+          slug: "grace-church",
+          churchTimeZone: "America/New_York",
+        },
         membership: { role: "owner" },
       },
     } as const;

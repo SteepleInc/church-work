@@ -216,7 +216,14 @@ const ChurchNameSchema = Schema.Struct({
   name: Schema.String.pipe(
     Schema.minLength(2, { message: () => "Church name must be at least 2 characters." }),
   ),
+  churchTimeZone: Schema.String.pipe(
+    Schema.minLength(1, { message: () => "Church Time Zone is required." }),
+  ),
 });
+
+function detectedChurchTimeZone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York";
+}
 
 const ChurchInvitationSchema = Schema.Struct({
   email: Schema.String.pipe(
@@ -507,6 +514,7 @@ function ChurchSwitcher({
   const createChurchForm = useAppForm({
     defaultValues: {
       name: "",
+      churchTimeZone: detectedChurchTimeZone(),
     },
     validationLogic: revalidateLogic({
       mode: "submit",
@@ -519,6 +527,7 @@ function ChurchSwitcher({
       setError(null);
 
       const trimmedName = value.name.trim();
+      const churchTimeZone = value.churchTimeZone.trim();
       const slug = churchSlug(trimmedName);
 
       if (!slug) {
@@ -529,6 +538,7 @@ function ChurchSwitcher({
       const result = await authClient.organization.create({
         name: trimmedName,
         slug,
+        churchTimeZone,
       });
 
       if (result.error) {
@@ -611,6 +621,11 @@ function ChurchSwitcher({
               />
             )}
           </createChurchForm.AppField>
+          <createChurchForm.AppField name="churchTimeZone">
+            {(field) => (
+              <field.InputField label="Church Time Zone" placeholder="America/New_York" required />
+            )}
+          </createChurchForm.AppField>
           {error ? (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
@@ -641,6 +656,7 @@ function ChurchOnboardingGate() {
   const firstChurchForm = useAppForm({
     defaultValues: {
       name: "",
+      churchTimeZone: detectedChurchTimeZone(),
     },
     validationLogic: revalidateLogic({
       mode: "submit",
@@ -653,6 +669,7 @@ function ChurchOnboardingGate() {
       setError(null);
 
       const trimmedName = value.name.trim();
+      const churchTimeZone = value.churchTimeZone.trim();
       const slug = churchSlug(trimmedName);
 
       if (!slug) {
@@ -663,6 +680,7 @@ function ChurchOnboardingGate() {
       const result = await authClient.organization.create({
         name: trimmedName,
         slug,
+        churchTimeZone,
       });
 
       if (result.error) {
@@ -766,6 +784,15 @@ function ChurchOnboardingGate() {
                 <field.InputField
                   label="Church Name"
                   placeholder="Grace Community Church"
+                  required
+                />
+              )}
+            </firstChurchForm.AppField>
+            <firstChurchForm.AppField name="churchTimeZone">
+              {(field) => (
+                <field.InputField
+                  label="Church Time Zone"
+                  placeholder="America/New_York"
                   required
                 />
               )}

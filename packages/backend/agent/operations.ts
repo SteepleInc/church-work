@@ -24,6 +24,7 @@ export const ActiveChurch = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
   slug: Schema.Union(Schema.String, Schema.Null),
+  churchTimeZone: Schema.Union(Schema.String, Schema.Null),
 });
 
 export const ChurchMembership = Schema.Struct({

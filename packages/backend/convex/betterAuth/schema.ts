@@ -125,6 +125,7 @@ export const tables = {
     slug: v.optional(v.union(v.null(), v.string())),
     logo: v.optional(v.union(v.null(), v.string())),
     metadata: v.optional(v.union(v.null(), v.string())),
+    churchTimeZone: v.optional(v.string()),
     createdAt: v.number(),
   })
     .index("slug", ["slug"])

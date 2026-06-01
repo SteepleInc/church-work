@@ -25,6 +25,7 @@ type BetterAuthOrganization = {
   readonly _id: string;
   readonly name: string;
   readonly slug?: string | null;
+  readonly churchTimeZone?: string | null;
 };
 
 type BetterAuthModel = "member" | "organization" | "session";
@@ -123,6 +124,7 @@ const getActiveChurch = (churchId: string | null) =>
         id: church._id,
         name: church.name,
         slug: church.slug ?? null,
+        churchTimeZone: church.churchTimeZone ?? null,
       },
       membership: { role: membership.role },
     });

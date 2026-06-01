@@ -5,5 +5,21 @@ import { createAuthClient } from "better-auth/react";
 
 export const authClient = createAuthClient({
   baseURL: env.VITE_CONVEX_SITE_URL,
-  plugins: [organizationClient({ teams: { enabled: false } }), convexClient(), crossDomainClient()],
+  plugins: [
+    organizationClient({
+      teams: { enabled: false },
+      schema: {
+        organization: {
+          additionalFields: {
+            churchTimeZone: {
+              type: "string",
+              required: true,
+            },
+          },
+        },
+      },
+    }),
+    convexClient(),
+    crossDomainClient(),
+  ],
 });
