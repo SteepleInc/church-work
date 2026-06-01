@@ -46,6 +46,15 @@ type TeamSummary = {
   readonly name: string;
 };
 
+type MyWorkEmptyStateTeam = {
+  readonly id: string;
+  readonly name: string;
+};
+
+type MyWorkEmptyStateAction =
+  | { readonly kind: "our_work"; readonly label: "Open Our Work" }
+  | { readonly kind: "team_board"; readonly teamId: string; readonly label: string };
+
 type TaskActivitySummary = {
   readonly id: string;
   readonly eventType: string;
@@ -121,6 +130,15 @@ export function getTaskExecutionReadArgs(args: {
   };
 }
 
+export function getMyWorkEmptyStateActions(
+  teams: readonly MyWorkEmptyStateTeam[],
+): readonly MyWorkEmptyStateAction[] {
+  return [
+    { kind: "our_work", label: "Open Our Work" },
+    ...teams.map((team) => ({ kind: "team_board" as const, teamId: team.id, label: team.name })),
+  ];
+}
+
 export function formatTaskActivity(activity: TaskActivitySummary) {
   const eventLabel = activity.eventType.replace(/^task\./, "").replaceAll("_", " ");
   const actorLabel =
@@ -138,6 +156,9 @@ export function TaskExecutionSurface({
   currentUserId,
   surface,
   team,
+  myWorkEmptyStateTeams,
+  onOpenOurWork,
+  onOpenTeamBoard,
 }: {
   readonly churchId: string;
   readonly currentUserId: string;
@@ -147,6 +168,9 @@ export function TaskExecutionSurface({
     readonly name: string;
     readonly defaultWorkflowId: string | null;
   } | null;
+  readonly myWorkEmptyStateTeams?: readonly MyWorkEmptyStateTeam[];
+  readonly onOpenOurWork?: () => void;
+  readonly onOpenTeamBoard?: (teamId: string) => void;
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const [title, setTitle] = useState("");
@@ -197,6 +221,7 @@ export function TaskExecutionSurface({
   const tasks = tasksResult?.ok ? tasksResult.data.tasks : [];
   const users = usersResult?.ok ? usersResult.users : [];
   const teams = teamsResult?.ok ? teamsResult.teams : [];
+  const myWorkEmptyStateActions = getMyWorkEmptyStateActions(myWorkEmptyStateTeams ?? []);
   const creationStatus =
     workflowStatuses.find((status) => status.taskState === "todo") ?? workflowStatuses[0];
   const dueDate = currentCycle?.endDate ?? today;
@@ -290,6 +315,25 @@ export function TaskExecutionSurface({
               Use Our Work or Team boards to find shared Church work without leaving My Work.
             </CardDescription>
           </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {myWorkEmptyStateActions.map((action) => (
+              <Button
+                key={action.kind === "our_work" ? "our_work" : action.teamId}
+                type="button"
+                variant={action.kind === "our_work" ? "default" : "outline"}
+                onClick={() => {
+                  if (action.kind === "our_work") {
+                    onOpenOurWork?.();
+                    return;
+                  }
+
+                  onOpenTeamBoard?.(action.teamId);
+                }}
+              >
+                {action.label}
+              </Button>
+            ))}
+          </CardContent>
         </Card>
       ) : null}
 

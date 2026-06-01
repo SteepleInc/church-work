@@ -298,6 +298,9 @@ function PrivateDashboardContent() {
                     : activePanel
               }
               team={selectedTeam}
+              myWorkEmptyStateTeams={memberTeams}
+              onOpenOurWork={() => setActivePanel("our_work")}
+              onOpenTeamBoard={(teamId) => setActivePanel({ kind: "team", teamId })}
             />
           ) : (
             <>

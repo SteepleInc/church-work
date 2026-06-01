@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   formatTaskActivity,
+  getMyWorkEmptyStateActions,
   getTaskCreationDefaults,
   getExecutionWorkflowId,
   getTaskExecutionReadArgs,
@@ -115,6 +116,19 @@ describe("Task execution surface", () => {
       actorUserId: "user-1",
       teamId: "team-1",
     });
+  });
+
+  test("builds actionable My Work empty-state navigation targets", () => {
+    expect(
+      getMyWorkEmptyStateActions([
+        { id: "team-1", name: "Hospitality" },
+        { id: "team-2", name: "Production" },
+      ]),
+    ).toEqual([
+      { kind: "our_work", label: "Open Our Work" },
+      { kind: "team_board", teamId: "team-1", label: "Hospitality" },
+      { kind: "team_board", teamId: "team-2", label: "Production" },
+    ]);
   });
 
   test("builds trimmed Task title update fields only for changed titles", () => {
