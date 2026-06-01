@@ -398,6 +398,67 @@ describe("agent operation boundary", () => {
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 
+  it.effect("Church creation seeds editable starter Teams that use the default Workflow fallback", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-starter-teams-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Starter Teams Church",
+        slug: `starter-teams-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
+
+      const teams = yield* authenticated.query(refs.public.teams.listForChurch, {
+        churchId: church.id!,
+      });
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
+        churchId: church.id!,
+      });
+
+      expect(teams.ok).toBe(true);
+      expect(teams.data.teams.map((team) => team.name)).toEqual([
+        "Worship",
+        "Production",
+        "Kids",
+        "Experience",
+        "Facilities",
+        "Social Media",
+      ]);
+      expect(teams.data.teams.map((team) => team.sortOrder)).toEqual([0, 1, 2, 3, 4, 5]);
+      expect(teams.data.teams.every((team) => team.archivedAt === null)).toBe(true);
+      expect(teams.data.teams.every((team) => team.defaultWorkflowId === null)).toBe(true);
+      expect(defaults.data.workflows).toMatchObject([
+        { key: "church-default", name: "Default Workflow", isDefault: true },
+      ]);
+
+      yield* authenticated.mutation(refs.public.workDefaults.seedForChurch, {
+        churchId: church.id!,
+      });
+      const teamsAfterReseed = yield* authenticated.query(refs.public.teams.listForChurch, {
+        churchId: church.id!,
+      });
+
+      expect(teamsAfterReseed.data.teams.map((team) => team.name)).toEqual([
+        "Worship",
+        "Production",
+        "Kids",
+        "Experience",
+        "Facilities",
+        "Social Media",
+      ]);
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
   it.effect("default work model seeding is idempotent", () =>
     Effect.gen(function* () {
       const c = yield* TestConfect.TestConfect;
@@ -1517,21 +1578,14 @@ describe("agent operation boundary", () => {
         churchId: church.id!,
       });
 
-      expect(initialRead).toEqual({
-        ok: true,
-        operation: "listTeams",
-        data: {
-          teams: [
-            {
-              id: team.id,
-              name: "Worship Team",
-              churchId: church.id,
-              archivedAt: null,
-              sortOrder: 0,
-              defaultWorkflowId: null,
-            },
-          ],
-        },
+      expect(initialRead.ok).toBe(true);
+      expect(initialRead.data.teams).toContainEqual({
+        id: team.id,
+        name: "Worship Team",
+        churchId: church.id,
+        archivedAt: null,
+        sortOrder: 0,
+        defaultWorkflowId: null,
       });
 
       const updated = yield* authenticated.mutation(refs.public.teams.updateProductFields, {
@@ -1548,21 +1602,14 @@ describe("agent operation boundary", () => {
         ],
       });
 
-      expect(updated).toEqual({
-        ok: true,
-        operation: "updateTeamProductFields",
-        data: {
-          teams: [
-            {
-              id: team.id,
-              name: "Worship Team",
-              churchId: church.id,
-              archivedAt: "2026-06-01T00:00:00.000Z",
-              sortOrder: 7,
-              defaultWorkflowId: "workflow-default",
-            },
-          ],
-        },
+      expect(updated.ok).toBe(true);
+      expect(updated.data.teams).toContainEqual({
+        id: team.id,
+        name: "Worship Team",
+        churchId: church.id,
+        archivedAt: "2026-06-01T00:00:00.000Z",
+        sortOrder: 7,
+        defaultWorkflowId: "workflow-default",
       });
     }).pipe(Effect.provide(TestConfect.layer())),
   );

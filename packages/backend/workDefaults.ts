@@ -1,8 +1,13 @@
 import type { GenericDatabaseReader, GenericMutationCtx } from "convex/server";
 
+import { components } from "./convex/_generated/api";
 import type { DataModel } from "./convex/_generated/dataModel";
 
 type MutationCtx = GenericMutationCtx<DataModel>;
+
+type BetterAuthTeam = {
+  readonly name: string;
+};
 
 const DEFAULT_WORKFLOW_KEY = "church-default";
 
@@ -10,6 +15,15 @@ const DEFAULT_WORKFLOW_STATUSES = [
   { key: "to-do", name: "To Do", taskState: "todo", sortOrder: 0 },
   { key: "in-progress", name: "In Progress", taskState: "in_progress", sortOrder: 1 },
   { key: "done", name: "Done", taskState: "done", sortOrder: 2 },
+] as const;
+
+const STARTER_TEAMS = [
+  "Worship",
+  "Production",
+  "Kids",
+  "Experience",
+  "Facilities",
+  "Social Media",
 ] as const;
 
 const STARTER_KEY_DATES = [
@@ -94,6 +108,33 @@ export async function seedDefaultWorkModel(ctx: MutationCtx, churchId: string) {
         ...keyDate,
         archivedAt: null,
       });
+    }
+  }
+
+  const existingTeams = (await ctx.runQuery(components.betterAuth.adapter.findMany, {
+    model: "team",
+    where: [{ field: "organizationId", value: churchId }],
+    paginationOpts: { cursor: null, numItems: 100 },
+  })) as { readonly page: ReadonlyArray<BetterAuthTeam> };
+  const existingTeamNames = new Set(existingTeams.page.map((team) => team.name));
+
+  for (const [sortOrder, name] of STARTER_TEAMS.entries()) {
+    if (!existingTeamNames.has(name)) {
+      await ctx.runMutation(components.betterAuth.adapter.create, {
+        input: {
+          model: "team",
+          data: {
+            name,
+            organizationId: churchId,
+            createdAt: Date.now(),
+            updatedAt: null,
+            archivedAt: null,
+            sortOrder,
+            defaultWorkflowId: null,
+          },
+        },
+      });
+      existingTeamNames.add(name);
     }
   }
 
