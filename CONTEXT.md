@@ -127,15 +127,19 @@ A built-in Saved View created or maintained by Church Task, such as My Work, a d
 _Avoid_: Hard-coded view, special view
 
 **Board Column**:
-A presentation lane on a Board derived from the Board's grouping. A Team may use its own Board Columns to move work through a team-specific workflow, but those columns still map back to the Task's canonical Task State.
-_Avoid_: Board-owned status, Jira workflow status
+A presentation lane on a Board derived from the Board's grouping or status mapping. A Board Column does not own Task state; it presents Tasks based on their underlying Workflow Status or other grouping field.
+_Avoid_: Task status, Workflow Status
 
 **Workflow**:
-The ordered set of columns a Task moves through. A Task assigned to a Team uses that Team's Workflow; a Task without a Team uses the Church default Workflow. The first Workflow column maps to To Do, the last maps to Done, and any middle columns map to In Progress.
+The ordered set of Workflow Statuses a Task moves through. A Task assigned to a Team uses that Team's Workflow; a Task without a Team uses the Church default Workflow.
 _Avoid_: Board workflow
 
+**Workflow Status**:
+A specific position in a Workflow, such as To Do, Waiting on Assets, Needs Review, or Done. Each Workflow Status maps to one Task State.
+_Avoid_: Workflow Column, Board Column
+
 **Task State**:
-The canonical workflow status of a Task: To Do, In Progress, or Done. A Task has one Task State regardless of which Boards display it, so leaders can understand whether work is moving or complete across Teams.
+The canonical category of a Task's Workflow Status: To Do, In Progress, Done, or Canceled. Initial Task States are fixed, though future product versions may allow Churches to define their own Task States.
 _Avoid_: Percent complete, story status
 
 ## Example Dialogue

@@ -22,15 +22,17 @@ Church Onboarding and Membership lets a new User create their first Church, acce
 
 ## 4. Core Work Data Model
 
-Core Work Data Model establishes the durable Convex-backed domain model for Tasks, Subtasks, Cycles, Templates, Template Tasks, Scheduling Rules, Key Dates, Teams, Workflows, Source Templates, and Cycle Adjustments before the product builds deeper workflows on top of them. It proves the full Template-to-Cycle-to-Task projection path in the data layer, makes explicit that every Task belongs to a Cycle, and ensures Cycle Adjustments can change a week's work without changing the Source Template. It includes Convex schema, invariants, batch-shaped read/write API boundaries, projection behavior, and MCP/CLI-safe operation foundations, but does not require full end-user UI for every concept yet.
+Status: Speced in [GitHub issue #30](https://github.com/SteepleInc/church-task/issues/30).
+
+Core Work Data Model establishes the durable Convex-backed domain model for Tasks, Subtasks, Cycles, Templates, Template Tasks, Scheduling Rules, Key Dates, Teams, Workflows, Workflow Statuses, Source Templates, Cycle Adjustments, Activities, and Church Time Zone before the product builds deeper workflows on top of them. It proves the full Template-to-Cycle-to-Task projection path in the data layer, makes explicit that every Task belongs to a Cycle, and ensures Cycle Adjustments can change a week's work without changing the Source Template. It includes Convex schema, invariants, batch-shaped read/write API boundaries, projection behavior, and MCP/CLI-safe operation foundations, but does not require full end-user UI for every concept yet.
 
 ## 5. Team and Workflow Setup
 
-Team and Workflow Setup gives every new Church a useful starting set of default Teams and Workflows so leaders can begin organizing work without blank-slate configuration. Owners and admins can rename, add, archive, and reorder Teams, manage Team Memberships, and define the Workflow columns each Team's Tasks move through while still mapping to canonical Task States: To Do, In Progress, and Done. It supports both web UI and MCP/CLI operations, uses Team Membership to determine visibility and relevance, and does not include team-level Roles, custom permission models, creating Tasks, or assigning Tasks to Users.
+Team and Workflow Setup gives every new Church a useful starting set of default Teams and Workflows so leaders can begin organizing work without blank-slate configuration. Owners and admins can rename, add, archive, and reorder Teams, manage Team Memberships, and define the Workflow Statuses each Team's Tasks move through while still mapping to canonical Task States: To Do, In Progress, Done, and Canceled. It supports both web UI and MCP/CLI operations, uses Team Membership to determine visibility and relevance, and does not include team-level Roles, custom permission models, creating Tasks, or assigning Tasks to Users.
 
 ## 6. Task Execution and Assignment
 
-Task Execution and Assignment lets Users create, update, assign, move, and complete Tasks in the current weekly Cycle by default through both the web UI and MCP/CLI. The first web UI is a kanban-style Workflow view, using Team or Church default Workflow columns while preserving each Task's canonical Task State. It includes changing the Cycle when needed, optional Team/User assignment, batch-shaped operations, Subtasks, Due Dates, and Workflow movement, but does not include template authoring, saved views, or advanced weekly planning tools.
+Task Execution and Assignment lets Users create, update, assign, move, and complete Tasks in the current weekly Cycle by default through both the web UI and MCP/CLI. The first web UI is a kanban-style Workflow view, using Team or Church default Workflow Statuses while preserving each Task's canonical Task State. It includes changing the Cycle when needed, optional Team/User assignment, batch-shaped operations, Subtasks, Due Dates, and Workflow movement, but does not include template authoring, saved views, or advanced weekly planning tools.
 
 ## 7. Weekly Cycle Planning
 
@@ -38,7 +40,7 @@ Weekly Cycle Planning gives Churches a week-by-week planning surface for past, c
 
 ## 8. Template Library and Scheduling
 
-Template Library and Scheduling lets Churches create reusable Templates organized around a Focus Window, such as a week, month, quarter, sermon series, event season, or single date. Template Tasks use Scheduling Rules relative to the Focus Window, an optional Anchor Date, or a fixed date so work can appear in the right weekly Cycle before, during, or after the focused period. It supports web UI and MCP/CLI operations, projects Template work into Cycle Tasks with a Source Template, and does not include live event execution or saved views.
+Template Library and Scheduling lets Churches create reusable Templates organized around a Focus Window, such as a week, month, quarter, sermon series, event season, or single date. Template Tasks use Scheduling Rules relative to the Focus Window, an optional Anchor Date, a Key Date Occurrence, or a fixed date so work can appear in the right weekly Cycle before, during, or after the focused period. It supports web UI and MCP/CLI operations, includes Key Date and Key Date Occurrence management for scheduling, projects Template work into Cycle Tasks with a Source Template, and does not include live event execution or saved views.
 
 ## 9. Saved Views and Boards
 
