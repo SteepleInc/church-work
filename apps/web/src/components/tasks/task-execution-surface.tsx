@@ -25,6 +25,7 @@ type TaskSummary = {
   readonly assignedUserId: string | null;
   readonly cycleId: string;
   readonly dueDate: string;
+  readonly parentTaskId: string | null;
   readonly workflowStatusId: string;
   readonly taskState: TaskState;
 };
@@ -211,6 +212,15 @@ export function formatTaskActivity(activity: TaskActivitySummary) {
         : activity.actorType;
 
   return `${eventLabel} by ${actorLabel}`;
+}
+
+export function getTaskParentContext(task: TaskSummary, tasks: readonly TaskSummary[]) {
+  if (!task.parentTaskId) return null;
+
+  const parentTask = tasks.find((candidate) => candidate.id === task.parentTaskId);
+  if (!parentTask) return null;
+
+  return { id: parentTask.id, title: parentTask.title };
 }
 
 export function TaskExecutionSurface({
@@ -401,7 +411,7 @@ export function TaskExecutionSurface({
       {workflowStatuses.length > 0 ? (
         <TaskKanbanBoard
           workflowStatuses={workflowStatuses.map(toBoardWorkflowStatus)}
-          tasks={tasks.map(toBoardTask)}
+          tasks={tasks.map((task) => toBoardTask(task, tasks))}
           onMoveTask={(move) => {
             void updateTask({
               churchId,
@@ -705,13 +715,14 @@ function toBoardWorkflowStatus(status: WorkflowStatus) {
   };
 }
 
-function toBoardTask(task: TaskSummary) {
+function toBoardTask(task: TaskSummary, tasks: readonly TaskSummary[]) {
   return {
     id: task.id,
     title: task.title,
     teamId: task.teamId,
     cycleId: task.cycleId,
     dueDate: task.dueDate,
+    parentTask: getTaskParentContext(task, tasks),
     workflowStatusId: task.workflowStatusId,
     taskState: task.taskState,
   };

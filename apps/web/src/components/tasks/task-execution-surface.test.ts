@@ -9,6 +9,7 @@ import {
   getTaskDueDateUpdateFields,
   getExecutionWorkflowId,
   getTaskExecutionReadArgs,
+  getTaskParentContext,
   getTaskTeamUpdateFields,
   getTaskTitleUpdateFields,
   selectCurrentExecutionCycle,
@@ -230,5 +231,37 @@ describe("Task execution surface", () => {
         occurredAt: "2026-06-01T12:01:00.000Z",
       }),
     ).toBe("completed by System");
+  });
+
+  test("resolves visible Subtask parent context for board cards", () => {
+    const parentTask = {
+      id: "parent-task",
+      title: "Prepare service",
+      teamId: null,
+      assignedUserId: null,
+      cycleId: "cycle-1",
+      dueDate: "2026-06-03",
+      parentTaskId: null,
+      workflowStatusId: "todo",
+      taskState: "todo" as const,
+    };
+    const childTask = {
+      id: "child-task",
+      title: "Print handouts",
+      teamId: null,
+      assignedUserId: "user-1",
+      cycleId: "cycle-1",
+      dueDate: "2026-06-03",
+      parentTaskId: parentTask.id,
+      workflowStatusId: "todo",
+      taskState: "todo" as const,
+    };
+
+    expect(getTaskParentContext(childTask, [parentTask, childTask])).toEqual({
+      id: parentTask.id,
+      title: parentTask.title,
+    });
+    expect(getTaskParentContext(childTask, [childTask])).toBeNull();
+    expect(getTaskParentContext(parentTask, [parentTask, childTask])).toBeNull();
   });
 });
