@@ -188,7 +188,6 @@ function PrivateDashboardContent() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: "/dashboard" });
   const privateData = useConfectQuery(refs.public.privateData.get);
-  const currentUser = useConfectQuery(refs.public.auth.getCurrentUser);
   const products = useQuery(api.polar.listAllProducts);
   const subscription = useQuery(api.polar.getCurrentSubscription);
   const activeChurch = useQuery(api.dashboard.getActiveOrganization);
@@ -199,7 +198,7 @@ function PrivateDashboardContent() {
   const setExecutionFilters = (filters: TaskExecutionFilters) => {
     navigate({ search: getDashboardSearchForExecutionFilters(search, filters) });
   };
-  const currentUserId = QueryResult.isSuccess(currentUser) ? (currentUser.value?.id ?? null) : null;
+  const currentUserId = activeChurch?.currentUserId ?? null;
   const teams = useQuery(
     api.teams.listForChurch,
     activeChurch ? { churchId: activeChurch.id } : "skip",

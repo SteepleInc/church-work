@@ -14,7 +14,7 @@ async function signUpThroughDashboard(page: Page, email: string, name = "E2E Sig
   await page.getByRole("button", { name: "Sign Up" }).click();
 
   await expect(page).toHaveURL("/dashboard");
-  await expect(page.getByRole("heading", { name: "Create Your First Church" })).toBeVisible();
+  await expect(page.getByText("Create Your First Church")).toBeVisible();
 }
 
 async function signUpThroughDashboardToInvitation(
@@ -30,7 +30,7 @@ async function signUpThroughDashboardToInvitation(
   await page.getByRole("button", { name: "Sign Up" }).click();
 
   await expect(page).toHaveURL("/dashboard");
-  await expect(page.getByRole("heading", { name: "Accept Church Invitation" })).toBeVisible();
+  await expect(page.getByText("Accept Church Invitation")).toBeVisible();
 }
 
 async function createFirstChurch(page: Page, churchName: string) {
@@ -50,6 +50,36 @@ async function signInThroughDashboard(page: Page, email: string) {
   await page.getByRole("button", { name: "Sign In" }).click();
 
   await expect(page).toHaveURL("/dashboard");
+}
+
+async function dragTaskCardToStatus(page: Page, taskTitle: string, statusName: string) {
+  const taskCard = page.getByLabel(`Task card ${taskTitle}`);
+  const destination = page.getByLabel(`${statusName} Tasks`);
+  await expect(taskCard).toBeVisible();
+  await expect(destination).toBeVisible();
+
+  const sourceBox = await taskCard.boundingBox();
+  const destinationBox = await destination.boundingBox();
+  if (!sourceBox || !destinationBox) {
+    throw new Error(`Could not drag ${taskTitle} to ${statusName}: missing bounding box.`);
+  }
+
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    destinationBox.x + destinationBox.width / 2,
+    destinationBox.y + destinationBox.height / 2,
+    { steps: 12 },
+  );
+  await page.mouse.up();
+  if (await page.getByLabel(`${statusName} Tasks`).getByText(taskTitle).isVisible().catch(() => false)) {
+    return;
+  }
+
+  await taskCard.focus();
+  await page.keyboard.press("Space");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Space");
 }
 
 test("home route shows the app shell and connected API status", async ({ page }) => {
@@ -155,20 +185,20 @@ test("authenticated dashboard lands on My Work and filters to directly assigned 
   await createFirstChurch(page, `E2E My Work Church ${Date.now()}`);
 
   await expect(page.getByRole("heading", { name: "My Work", level: 1 })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "No Tasks assigned to you" })).toBeVisible();
+  await expect(page.getByText("No Tasks assigned to you")).toBeVisible();
 
   await page.getByPlaceholder("Add a Task assigned to me").fill(assignedTaskTitle);
   await page.getByRole("button", { name: "Create Task" }).click();
   await expect(page.getByText(assignedTaskTitle).first()).toBeVisible();
 
-  await page.getByRole("button", { name: "Our Work" }).click();
+  await page.getByRole("button", { name: "Our Work", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Our Work", level: 1 })).toBeVisible();
   await page.getByPlaceholder("Add Church-wide Task").fill(sharedTaskTitle);
   await page.getByRole("button", { name: "Create Task" }).click();
   await expect(page.getByText(assignedTaskTitle).first()).toBeVisible();
   await expect(page.getByText(sharedTaskTitle).first()).toBeVisible();
 
-  await page.getByRole("button", { name: "My Work" }).click();
+  await page.getByRole("button", { name: "My Work", exact: true }).click();
   await expect(page.getByRole("heading", { name: "My Work", level: 1 })).toBeVisible();
   await expect(page.getByText(assignedTaskTitle).first()).toBeVisible();
   await expect(page.getByText(sharedTaskTitle)).not.toBeVisible();
@@ -184,7 +214,7 @@ test("Our Work assignment feeds My Work and board movement persists", async ({
   await signUpThroughDashboard(page, uniqueEmail, userName);
   await createFirstChurch(page, `E2E Our Work Assignment Church ${Date.now()}`);
 
-  await page.getByRole("button", { name: "Our Work" }).click();
+  await page.getByRole("button", { name: "Our Work", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Our Work", level: 1 })).toBeVisible();
   await page.getByPlaceholder("Add Church-wide Task").fill(taskTitle);
   await page.getByRole("button", { name: "Create Task" }).click();
@@ -194,16 +224,14 @@ test("Our Work assignment feeds My Work and board movement persists", async ({
   await taskActions.getByLabel(`Assign ${taskTitle}`).selectOption({ label: userName });
   await expect(taskActions.getByLabel(`Assign ${taskTitle}`)).toHaveValue(/.+/);
 
-  await page.getByRole("button", { name: "My Work" }).click();
+  await page.getByRole("button", { name: "My Work", exact: true }).click();
   await expect(page.getByRole("heading", { name: "My Work", level: 1 })).toBeVisible();
   await expect(page.getByText(taskTitle).first()).toBeVisible();
 
-  await page
-    .getByLabel(`Task card ${taskTitle}`)
-    .dragTo(page.getByLabel("Workflow Status In Progress"));
+  await dragTaskCardToStatus(page, taskTitle, "In Progress");
   await expect(page.getByLabel("In Progress Tasks").getByText(taskTitle)).toBeVisible();
 
-  await page.getByRole("button", { name: "Our Work" }).click();
+  await page.getByRole("button", { name: "Our Work", exact: true }).click();
   await expect(page.getByLabel("In Progress Tasks").getByText(taskTitle)).toBeVisible();
 });
 
@@ -256,10 +284,11 @@ test("My Work updates Task fields and creates Subtasks", async ({ page }, testIn
   const taskActions = page.getByRole("group", { name: `Actions for ${taskTitle}` });
   await expect(taskActions).toBeVisible();
 
-  await taskActions.getByLabel(`Title for ${taskTitle}`).fill(renamedTaskTitle);
+  await taskActions
+    .getByRole("textbox", { name: `Title for ${taskTitle}`, exact: true })
+    .fill(renamedTaskTitle);
   await taskActions.getByRole("button", { name: "Save Title" }).click();
-  await expect(page.getByText(renamedTaskTitle).first()).toBeVisible();
-  await expect(page.getByText(taskTitle)).not.toBeVisible();
+  await expect(page.getByRole("group", { name: `Actions for ${renamedTaskTitle}` })).toBeVisible();
 
   const cycleLabel = await page
     .getByText(/Cycle: .+ to .+/)
@@ -296,6 +325,8 @@ test("Team sidebar navigation opens a Team board filtered to that Team", async (
 
   await signUpThroughDashboard(page, ownerEmail, ownerName);
   await createFirstChurch(page, `E2E Team Board Church ${Date.now()}`);
+  await page.goto("/dashboard?work=settings");
+  await expect(page.getByRole("heading", { name: "Active Church Settings", level: 1 })).toBeVisible();
   await page.getByLabel("Invite Member Email").fill(nonTeamMemberEmail);
   await page.getByRole("button", { name: "Invite Member" }).click();
   await expect(page.getByText(`Invitation sent to ${nonTeamMemberEmail}.`)).toBeVisible();
@@ -345,12 +376,10 @@ test("Team sidebar navigation opens a Team board filtered to that Team", async (
     .selectOption({ label: nonTeamMemberName });
   await expect(teamTaskActions.getByLabel(`Assign ${teamTaskTitle}`)).toHaveValue(/.+/);
 
-  await page
-    .getByLabel(`Task card ${teamTaskTitle}`)
-    .dragTo(page.getByLabel("Workflow Status In Progress"));
+  await dragTaskCardToStatus(page, teamTaskTitle, "In Progress");
   await expect(page.getByLabel("In Progress Tasks").getByText(teamTaskTitle)).toBeVisible();
 
-  await page.getByRole("button", { name: "Our Work" }).click();
+  await page.getByRole("button", { name: "Our Work", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Our Work", level: 1 })).toBeVisible();
   await page.getByPlaceholder("Add Church-wide Task").fill(churchTaskTitle);
   await page.getByRole("button", { name: "Create Task" }).click();

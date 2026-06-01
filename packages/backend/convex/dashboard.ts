@@ -202,6 +202,7 @@ export const getActiveOrganization = query({
       slug: organization.slug ?? null,
       churchTimeZone: organization.churchTimeZone ?? null,
       role: membership.role,
+      currentUserId: membership.userId,
       invitations: invitations.map((invitation) => ({
         id: invitation._id,
         email: invitation.email,
