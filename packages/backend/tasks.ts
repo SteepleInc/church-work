@@ -9,6 +9,7 @@ type MutationCtx = GenericMutationCtx<DataModel>;
 type TaskCreateInput = {
   readonly title: string;
   readonly teamId: string | null;
+  readonly assignedUserId?: string | null;
   readonly workflowStatusId: string;
   readonly dueDate: string;
   readonly parentTaskId: string | null;
@@ -121,12 +122,14 @@ export async function createTasks(
       churchId: args.churchId,
       title: task.title,
       teamId: task.teamId,
+      assignedUserId: task.assignedUserId ?? null,
       cycleId,
       dueDate: task.dueDate,
       parentTaskId: task.parentTaskId,
       workflowId,
       workflowStatusId,
       taskState,
+      finishedAt: null,
       sourceTemplateId: null,
       sourceTemplateTaskId: null,
       sourceTemplateCycleId: null,
@@ -208,12 +211,30 @@ async function transitionTasks(
         return { ok: false as const, code: "doneWorkflowStatusNotFound" as TransitionCode };
       }
 
-      updates.push(() =>
-        ctx.db.patch(task._id, {
+      updates.push(async () => {
+        await ctx.db.patch(task._id, {
           workflowStatusId: doneStatus._id,
           taskState: "done",
-        }),
-      );
+          finishedAt: args.occurredAt,
+        });
+        await writeActivity(ctx, {
+          churchId: args.churchId,
+          entityType: "task",
+          entityId: task._id,
+          eventType: "task.completed",
+          actorType: "user",
+          actorId: args.actorId,
+          occurredAt: args.occurredAt,
+          cycleId: task.cycleId,
+          metadata: {
+            previousTaskState: task.taskState as RestorableTaskState,
+            previousWorkflowStatusId: validated.status._id,
+            previousWorkflowStatusName: validated.status.name,
+            workflowStatusId: doneStatus._id,
+            workflowStatusName: doneStatus.name,
+          },
+        });
+      });
     }
 
     if (args.transition === "cancel") {
@@ -230,6 +251,7 @@ async function transitionTasks(
         await ctx.db.patch(task._id, {
           workflowStatusId: doneStatus._id,
           taskState: "canceled",
+          finishedAt: args.occurredAt,
         });
         await writeActivity(ctx, {
           churchId: args.churchId,
@@ -291,6 +313,7 @@ async function transitionTasks(
         await ctx.db.patch(task._id, {
           workflowStatusId: restoredStatus._id,
           taskState: metadata.previousTaskState!,
+          finishedAt: null,
         });
         await writeActivity(ctx, {
           churchId: args.churchId,
@@ -327,7 +350,7 @@ export const completeTasks = (
   transitionTasks(ctx, {
     ...args,
     transition: "complete",
-    actorId: null,
+    actorId: args.actorId ?? null,
     occurredAt: new Date().toISOString(),
   });
 

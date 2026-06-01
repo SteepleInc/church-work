@@ -30,6 +30,17 @@ const EmptyMetadata = Schema.Struct({});
 
 export const ActivityMetadataByEventType = {
   "task.created": EmptyMetadata,
+  "task.completed": Schema.Struct({
+    previousTaskState: Schema.Union(
+      Schema.Literal("todo"),
+      Schema.Literal("in_progress"),
+      Schema.Literal("done"),
+    ),
+    previousWorkflowStatusId: Schema.String,
+    previousWorkflowStatusName: Schema.Union(Schema.String, Schema.Null),
+    workflowStatusId: Schema.String,
+    workflowStatusName: Schema.Union(Schema.String, Schema.Null),
+  }),
   "task.canceled": Schema.Struct({
     previousTaskState: Schema.Union(
       Schema.Literal("todo"),
@@ -192,6 +203,7 @@ export const ActivityMetadataByEventType = {
 
 export const ActivityEventType = Schema.Literal(
   "task.created",
+  "task.completed",
   "task.canceled",
   "task.reopened",
   "task.rolled_over",
@@ -229,6 +241,7 @@ export const ActivityEventType = Schema.Literal(
 
 export const ActivityMetadata = Schema.Union(
   EmptyMetadata,
+  ActivityMetadataByEventType["task.completed"],
   ActivityMetadataByEventType["task.canceled"],
   ActivityMetadataByEventType["task.reopened"],
   ActivityMetadataByEventType["task.rolled_over"],

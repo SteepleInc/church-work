@@ -1669,6 +1669,11 @@ describe("agent operation boundary", () => {
       const completedTask = completed.data.tasks.find((task) => task.id === completeMe.id)!;
       const canceledTask = canceled.data.tasks.find((task) => task.id === cancelMe.id)!;
       const reopenedTask = reopened.data.tasks.find((task) => task.id === cancelMe.id)!;
+      const completedActivities = yield* authenticated.query(refs.public.activities.listForEntity, {
+        churchId: church.id!,
+        entityType: "task",
+        entityId: completeMe.id,
+      });
       const transitionActivities = yield* authenticated.query(
         refs.public.activities.listForEntity,
         {
@@ -1687,12 +1692,14 @@ describe("agent operation boundary", () => {
               churchId: church.id!,
               title: "Inconsistent Task",
               teamId: null,
+              assignedUserId: null,
               cycleId: cancelMe.cycleId,
               dueDate: "2026-06-03",
               parentTaskId: null,
               workflowId: transitionWorkflow.id,
               workflowStatusId: todoStatus.id,
               taskState: "done",
+              finishedAt: null,
               sourceTemplateId: null,
               sourceTemplateTaskId: null,
               sourceTemplateCycleId: null,
@@ -1711,18 +1718,34 @@ describe("agent operation boundary", () => {
         taskState: "done",
         workflowStatusId: doneStatus.id,
       });
+      expect(completedTask.finishedAt).toEqual(expect.any(String));
       expect(canceledTask).toMatchObject({
         taskState: "canceled",
         workflowStatusId: doneStatus.id,
       });
+      expect(canceledTask.finishedAt).toEqual(expect.any(String));
       expect(reopenedTask).toMatchObject({
         taskState: "in_progress",
         workflowStatusId: doingStatus.id,
+        finishedAt: null,
       });
+      expect(completedActivities.data.activities.map((activity) => activity.eventType)).toEqual([
+        "task.created",
+        "task.completed",
+      ]);
+      expect(completedActivities.data.activities.map((activity) => activity.actorId)).toEqual([
+        signUpBody.user!.id!,
+        signUpBody.user!.id!,
+      ]);
       expect(transitionActivities.data.activities.map((activity) => activity.eventType)).toEqual([
         "task.created",
         "task.canceled",
         "task.reopened",
+      ]);
+      expect(transitionActivities.data.activities.map((activity) => activity.actorId)).toEqual([
+        signUpBody.user!.id!,
+        signUpBody.user!.id!,
+        signUpBody.user!.id!,
       ]);
       expect(transitionActivities.data.activities[1]!.metadata).toMatchObject({
         previousTaskState: "in_progress",
@@ -2540,12 +2563,14 @@ describe("agent operation boundary", () => {
               churchId: church.id!,
               title: "Workflow reference task",
               teamId: null,
+              assignedUserId: null,
               cycleId: "cycle-workflow-in-use",
               dueDate: "2026-06-03",
               parentTaskId: null,
               workflowId: taskWorkflow.id,
               workflowStatusId: taskStatus.id,
               taskState: "todo",
+              finishedAt: null,
               sourceTemplateId: null,
               sourceTemplateTaskId: null,
               sourceTemplateCycleId: null,
@@ -2882,12 +2907,14 @@ describe("agent operation boundary", () => {
               churchId: church.id!,
               title: "Task using To Do",
               teamId: null,
+              assignedUserId: null,
               cycleId: "cycle-status-in-use",
               dueDate: "2026-06-03",
               parentTaskId: null,
               workflowId: workflow.id,
               workflowStatusId: todoStatus.id,
               taskState: "todo",
+              finishedAt: null,
               sourceTemplateId: null,
               sourceTemplateTaskId: null,
               sourceTemplateCycleId: null,
@@ -2961,12 +2988,14 @@ describe("agent operation boundary", () => {
               churchId: church.id!,
               title: "Canceled task using Ready",
               teamId: null,
+              assignedUserId: null,
               cycleId: "cycle-status-canceled-history",
               dueDate: "2026-06-03",
               parentTaskId: null,
               workflowId: workflow.id,
               workflowStatusId: readyStatus.id,
               taskState: "canceled",
+              finishedAt: "2026-06-03T12:00:00.000Z",
               sourceTemplateId: null,
               sourceTemplateTaskId: null,
               sourceTemplateCycleId: null,
@@ -3073,12 +3102,14 @@ describe("agent operation boundary", () => {
               churchId: church.id!,
               title: "Remapped Task",
               teamId: null,
+              assignedUserId: null,
               cycleId: "cycle-remap",
               dueDate: "2026-06-03",
               parentTaskId: null,
               workflowId: sourceWorkflow.id,
               workflowStatusId: sourceDoing.id,
               taskState: "in_progress",
+              finishedAt: null,
               sourceTemplateId: null,
               sourceTemplateTaskId: null,
               sourceTemplateCycleId: null,
@@ -3112,12 +3143,14 @@ describe("agent operation boundary", () => {
               churchId: church.id!,
               title: "Fallback Remapped Task",
               teamId: null,
+              assignedUserId: null,
               cycleId: "cycle-remap",
               dueDate: "2026-06-03",
               parentTaskId: null,
               workflowId: sourceWorkflow.id,
               workflowStatusId: sourceReview.id,
               taskState: "in_progress",
+              finishedAt: null,
               sourceTemplateId: null,
               sourceTemplateTaskId: null,
               sourceTemplateCycleId: null,
@@ -3204,12 +3237,14 @@ describe("agent operation boundary", () => {
               churchId: church.id!,
               title: "Default Fallback Remapped Task",
               teamId: null,
+              assignedUserId: null,
               cycleId: "cycle-remap-default-fallback",
               dueDate: "2026-06-03",
               parentTaskId: null,
               workflowId: sourceWorkflow.id,
               workflowStatusId: sourceDoing.id,
               taskState: "in_progress",
+              finishedAt: null,
               sourceTemplateId: null,
               sourceTemplateTaskId: null,
               sourceTemplateCycleId: null,
