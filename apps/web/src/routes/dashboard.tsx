@@ -804,7 +804,11 @@ function WorkflowSettingsCard({
               {pendingAction === "create" ? "Creating..." : "Create Workflow"}
             </Button>
           </form>
-        ) : null}
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Only Church owners and admins can change Workflows.
+          </p>
+        )}
         {canManage ? (
           <div className="grid gap-2">
             <Label htmlFor="church-default-workflow">Church Default Workflow</Label>
@@ -1179,7 +1183,11 @@ function WorkflowStatusSettingsCard({
               {pendingAction === "add" ? "Adding..." : "Add Workflow Status"}
             </Button>
           </form>
-        ) : null}
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Only Church owners and admins can change Workflow Statuses.
+          </p>
+        )}
         <Table>
           <TableHeader>
             <TableRow>
