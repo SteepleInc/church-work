@@ -2,11 +2,12 @@
 # scripts/worktree-setup.sh
 # Called by gtr post-create hook to set up a new worktree.
 #
-# gtr handles copying env files via gtr.copy.include.
+# gtr handles copying core env files via gtr.copy.include.
 # This script handles:
 #   - Calculating and storing worktree index
 #   - Deriving a stable worktree slug from branch name
 #   - Copying AI/reference directories
+#   - Copying the E2E testing env file
 #   - Updating env files with worktree-specific ports
 #   - Running bun install
 #
@@ -53,6 +54,11 @@ if [ -d "$ROOT_WORKTREE_PATH/.reference" ] && [ ! -e ".reference" ]; then
     else
         echo "  Warning: .reference copy had errors (broken symlinks?), continuing anyway" >&2
     fi
+fi
+
+if [ -f "$ROOT_WORKTREE_PATH/.env.e2e" ] && [ ! -e ".env.e2e" ]; then
+    cp "$ROOT_WORKTREE_PATH/.env.e2e" .env.e2e
+    echo "  Copied .env.e2e"
 fi
 
 append_root_env_overrides() {
