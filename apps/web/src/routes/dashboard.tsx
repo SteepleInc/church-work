@@ -11,6 +11,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,7 +43,6 @@ import {
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -45,9 +52,10 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
-  SidebarSeparator,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -242,7 +250,7 @@ function PrivateDashboardContent() {
           />
           {activeChurch ? (
             <SidebarGroup>
-              <SidebarGroupLabel>Work</SidebarGroupLabel>
+              <SidebarGroupLabel>My Work</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   <SidebarMenuItem>
@@ -254,6 +262,15 @@ function PrivateDashboardContent() {
                       <span>My Work</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          ) : null}
+          {activeChurch ? (
+            <SidebarGroup>
+              <SidebarGroupLabel>Our Work</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
                   <SidebarMenuItem>
                     <SidebarMenuButton
                       type="button"
@@ -269,7 +286,7 @@ function PrivateDashboardContent() {
           ) : null}
           {activeChurch ? (
             <SidebarGroup>
-              <SidebarGroupLabel>Teams</SidebarGroupLabel>
+              <SidebarGroupLabel>Your Teams</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   {teamMemberships === undefined || teams === undefined ? (
@@ -299,24 +316,6 @@ function PrivateDashboardContent() {
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   )}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          ) : null}
-          {activeChurch ? (
-            <SidebarGroup>
-              <SidebarGroupLabel>Church Setup</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      type="button"
-                      isActive={activePanel === "settings"}
-                      onClick={() => setActivePanel("settings")}
-                    >
-                      <span>Active Church Settings</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
@@ -2082,138 +2081,127 @@ function ChurchSwitcher({
   const churches = useQuery(api.dashboard.listOrganizations);
   const [error, setError] = useState<string | null>(null);
   const [pendingChurchId, setPendingChurchId] = useState<string | null>(null);
-  const createChurchForm = useAppForm({
-    defaultValues: {
-      name: "",
-      churchTimeZone: detectedChurchTimeZone(),
-    },
-    validationLogic: revalidateLogic({
-      mode: "submit",
-      modeAfterSubmission: "blur",
-    }),
-    validators: {
-      onSubmit: Schema.standardSchemaV1(ChurchNameSchema),
-    },
-    onSubmit: async ({ value, formApi }) => {
-      setError(null);
-
-      const trimmedName = value.name.trim();
-      const churchTimeZone = value.churchTimeZone.trim();
-      const slug = churchSlug(trimmedName);
-
-      if (!slug) {
-        setError("Church name must be at least 2 characters.");
-        return;
-      }
-
-      const result = await authClient.organization.create({
-        name: trimmedName,
-        slug,
-        churchTimeZone,
-      });
-
-      if (result.error) {
-        setError(result.error.message ?? "Could not create Church.");
-        return;
-      }
-
-      formApi.reset();
-    },
-  });
+  const [search, setSearch] = useState("");
 
   const churchList = churches ?? [];
+  const filteredChurches = churchList.filter((church) =>
+    church.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()),
+  );
+  const activeChurchInitial = (activeChurchName?.trim().charAt(0) || "C").toLocaleUpperCase();
 
   return (
-    <>
-      <SidebarGroup>
-        <SidebarGroupLabel>Active Church</SidebarGroupLabel>
-        <SidebarGroupContent>
-          <Item variant="muted">
-            <ItemContent>
-              <ItemTitle>{activeChurchName ?? "Loading..."}</ItemTitle>
-            </ItemContent>
-          </Item>
-        </SidebarGroupContent>
-      </SidebarGroup>
-      <SidebarGroup>
-        <SidebarGroupLabel>Switch Church</SidebarGroupLabel>
-        <SidebarGroupContent>
-          {churches === undefined ? (
-            <p className="text-sm text-muted-foreground">Loading Churches...</p>
-          ) : null}
-          <SidebarMenu>
-            {churchList.map((church) => {
-              const isActive = church.id === activeChurchId;
-              const isPending = pendingChurchId === church.id;
+    <SidebarMenu>
+      <SidebarMenuItem>
+        {churches === undefined && !activeChurchName ? (
+          <SidebarMenuButton className="pointer-events-none cursor-default" size="lg">
+            <Skeleton className="size-8 shrink-0 rounded-lg bg-muted-foreground/20" />
+            <div className="grid flex-1 gap-1.5 text-left text-sm leading-tight">
+              <Skeleton className="h-3 w-24 bg-muted-foreground/20" />
+              <Skeleton className="h-2.5 w-16 bg-muted-foreground/20" />
+            </div>
+            <span className="ml-auto text-muted-foreground/40">v</span>
+          </SidebarMenuButton>
+        ) : (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <SidebarMenuButton
+                  className="cursor-pointer data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                  size="lg"
+                />
+              }
+            >
+              <>
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary font-semibold text-sidebar-primary-foreground text-sm">
+                  {activeChurchInitial}
+                </span>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-semibold">{activeChurchName ?? "No Church"}</span>
+                  <span className="truncate text-muted-foreground text-xs">Church</span>
+                </div>
+                <span className="ml-auto text-muted-foreground">v</span>
+              </>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="center"
+              className="flex min-w-56 flex-col rounded-lg p-0"
+              side="bottom"
+              sideOffset={4}
+            >
+              {churchList.length > 5 ? (
+                <div className="border-b p-2">
+                  <Input
+                    aria-label="Search churches"
+                    className="h-8"
+                    onChange={(event) => setSearch(event.currentTarget.value)}
+                    onKeyDown={(event) => event.stopPropagation()}
+                    placeholder="Search"
+                    value={search}
+                  />
+                </div>
+              ) : null}
+              <div className="flex overflow-hidden">
+                <ScrollArea className="w-full max-h-72">
+                  <div className="p-1">
+                    <DropdownMenuLabel className="text-muted-foreground text-xs">
+                      Your Churches
+                    </DropdownMenuLabel>
+                    {churches === undefined ? (
+                      <DropdownMenuItem disabled>Loading Churches...</DropdownMenuItem>
+                    ) : filteredChurches.length > 0 ? (
+                      filteredChurches.map((church) => {
+                        const isActive = church.id === activeChurchId;
+                        const isPending = pendingChurchId === church.id;
+                        const churchInitial =
+                          church.name.trim().charAt(0).toLocaleUpperCase() || "C";
 
-              return (
-                <SidebarMenuItem key={church.id}>
-                  <SidebarMenuButton
-                    type="button"
-                    isActive={isActive}
-                    disabled={isActive || isPending}
-                    onClick={async () => {
-                      setError(null);
-                      setPendingChurchId(church.id);
-                      const result = await authClient.organization.setActive({
-                        organizationId: church.id,
-                      });
-                      setPendingChurchId(null);
+                        return (
+                          <DropdownMenuItem
+                            className="gap-2"
+                            disabled={isActive || isPending}
+                            key={church.id}
+                            onClick={async () => {
+                              setError(null);
+                              setPendingChurchId(church.id);
+                              const result = await authClient.organization.setActive({
+                                organizationId: church.id,
+                              });
+                              setPendingChurchId(null);
 
-                      if (result.error) {
-                        setError(result.error.message ?? "Could not switch Church.");
-                      }
-                    }}
-                  >
-                    <span>{isPending ? "Switching..." : church.name}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              );
-            })}
-          </SidebarMenu>
-        </SidebarGroupContent>
-      </SidebarGroup>
-      <SidebarSeparator />
-      <SidebarFooter>
-        <form
-          className="grid gap-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            createChurchForm.handleSubmit();
-          }}
-        >
-          <createChurchForm.AppField name="name">
-            {(field) => (
-              <field.InputField
-                label="Create Another Church"
-                placeholder="Second Church"
-                required
-              />
-            )}
-          </createChurchForm.AppField>
-          <createChurchForm.AppField name="churchTimeZone">
-            {(field) => (
-              <field.InputField label="Church Time Zone" placeholder="America/New_York" required />
-            )}
-          </createChurchForm.AppField>
-          {error ? (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : null}
-          <createChurchForm.Subscribe
-            selector={(state) => ({ canSubmit: state.canSubmit, isSubmitting: state.isSubmitting })}
-          >
-            {({ canSubmit, isSubmitting }) => (
-              <Button type="submit" disabled={!canSubmit || isSubmitting}>
-                {isSubmitting ? "Creating Church..." : "Create Church"}
-              </Button>
-            )}
-          </createChurchForm.Subscribe>
-        </form>
-      </SidebarFooter>
-    </>
+                              if (result.error) {
+                                setError(result.error.message ?? "Could not switch Church.");
+                              }
+                            }}
+                          >
+                            <span className="flex size-6 shrink-0 items-center justify-center rounded-md border bg-background font-medium text-xs">
+                              {churchInitial}
+                            </span>
+                            <span className="line-clamp-2">
+                              {isPending ? "Switching..." : church.name}
+                            </span>
+                            {isActive ? (
+                              <span className="ml-auto text-muted-foreground text-xs">Active</span>
+                            ) : null}
+                          </DropdownMenuItem>
+                        );
+                      })
+                    ) : (
+                      <DropdownMenuItem disabled>No Churches found</DropdownMenuItem>
+                    )}
+                    {error ? (
+                      <>
+                        <DropdownMenuSeparator />
+                        <div className="px-2 py-1.5 text-destructive text-xs">{error}</div>
+                      </>
+                    ) : null}
+                  </div>
+                </ScrollArea>
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </SidebarMenuItem>
+    </SidebarMenu>
   );
 }
 
