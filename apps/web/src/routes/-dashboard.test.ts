@@ -1,105 +1,81 @@
 import { describe, expect, test } from "bun:test";
 
 import {
-  getDashboardPanelFromSearch,
   getDashboardSearchForExecutionFilters,
   getDashboardSearchForPanel,
   getMemberTeams,
   getUnavailableTeamBoardActions,
-} from "./dashboard";
+  validateDashboardSearch,
+} from "./-dashboard";
 
 describe("dashboard execution route search", () => {
-  test("lands on My Work when no execution panel is encoded", () => {
-    expect(getDashboardPanelFromSearch({})).toBe("my_work");
-  });
-
-  test("encodes Team board navigation as route search state", () => {
-    expect(getDashboardSearchForPanel({ kind: "team", teamId: "team-1" })).toEqual({
-      work: "team",
-      teamId: "team-1",
-    });
-
-    expect(getDashboardPanelFromSearch({ work: "team", teamId: "team-1" })).toEqual({
-      kind: "team",
-      teamId: "team-1",
-    });
-  });
-
-  test("preserves temporary execution filters while switching execution routes", () => {
+  test("keeps page identity out of dashboard search state", () => {
     expect(
-      getDashboardSearchForPanel(
-        { kind: "team", teamId: "team-1" },
-        { work: "our_work", taskState: "in_progress", workflowStatusId: "status-1" },
-      ),
+      validateDashboardSearch({
+        work: "team",
+        teamId: "team-1",
+        taskState: "todo",
+        workflowStatusId: "status-1",
+      }),
     ).toEqual({
-      work: "team",
-      teamId: "team-1",
+      taskState: "todo",
+      workflowStatusId: "status-1",
+    });
+  });
+
+  test("drops invalid temporary execution filters", () => {
+    expect(
+      validateDashboardSearch({
+        taskState: "blocked",
+        workflowStatusId: "",
+      }),
+    ).toEqual({
+      taskState: undefined,
+      workflowStatusId: undefined,
+    });
+  });
+
+  test("preserves temporary execution filters while switching execution pages", () => {
+    expect(
+      getDashboardSearchForPanel({ taskState: "in_progress", workflowStatusId: "status-1" }),
+    ).toEqual({
       taskState: "in_progress",
       workflowStatusId: "status-1",
     });
 
-    expect(
-      getDashboardSearchForPanel("our_work", {
-        work: "team",
-        teamId: "team-1",
-        taskState: "done",
-        workflowStatusId: "team-status",
-      }),
-    ).toEqual({
-      work: "our_work",
+    expect(getDashboardSearchForPanel({ taskState: "done" })).toEqual({
       taskState: "done",
-      workflowStatusId: "team-status",
     });
-  });
-
-  test("falls back to My Work for incomplete Team board search state", () => {
-    expect(getDashboardPanelFromSearch({ work: "team" })).toBe("my_work");
   });
 
   test("encodes temporary execution filters as route search state", () => {
     expect(
       getDashboardSearchForExecutionFilters(
-        { work: "our_work" },
+        {},
         { taskState: "in_progress", workflowStatusId: "status-1" },
       ),
     ).toEqual({
-      work: "our_work",
       taskState: "in_progress",
       workflowStatusId: "status-1",
     });
 
     expect(
       getDashboardSearchForExecutionFilters(
-        { work: "our_work", taskState: "done", workflowStatusId: "status-1" },
+        { taskState: "done", workflowStatusId: "status-1" },
         {},
       ),
-    ).toEqual({ work: "our_work", taskState: undefined, workflowStatusId: undefined });
+    ).toEqual({ taskState: undefined, workflowStatusId: undefined });
   });
 
-  test("keeps Team board identity while changing temporary execution filters", () => {
+  test("does not encode Team board identity while changing temporary execution filters", () => {
     expect(
       getDashboardSearchForExecutionFilters(
-        { work: "team", teamId: "team-1", taskState: "todo" },
+        { taskState: "todo" },
         { taskState: "done", workflowStatusId: "status-1" },
       ),
     ).toEqual({
-      work: "team",
-      teamId: "team-1",
       taskState: "done",
       workflowStatusId: "status-1",
-    });
-  });
-
-  test("drops stale Team board identity while filtering non-Team execution routes", () => {
-    expect(
-      getDashboardSearchForExecutionFilters(
-        { work: "our_work", teamId: "stale-team" },
-        { taskState: "in_progress" },
-      ),
-    ).toEqual({
-      work: "our_work",
-      taskState: "in_progress",
-      workflowStatusId: undefined,
     });
   });
 

@@ -6,7 +6,8 @@ import { Separator } from "./ui/separator";
 export default function Header() {
   const links = [
     { to: "/", label: "Home" },
-    { to: "/dashboard", label: "Dashboard" },
+    { to: "/my-work", label: "My Work" },
+    { to: "/our-work", label: "Our Work" },
   ] as const;
 
   return (

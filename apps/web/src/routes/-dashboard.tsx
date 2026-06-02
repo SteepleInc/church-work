@@ -59,7 +59,7 @@ import {
 import { QueryResult, useQuery as useConfectQuery } from "@confect/react";
 import { CheckoutLink, CustomerPortalLink } from "@convex-dev/polar/react";
 import { revalidateLogic } from "@tanstack/react-form";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { Authenticated, AuthLoading, Unauthenticated, useMutation, useQuery } from "convex/react";
 import { Schema } from "effect";
 import { useState } from "react";
@@ -73,43 +73,35 @@ import {
 import UserMenu from "@/components/user-menu";
 import { authClient } from "@/lib/auth-client";
 
-export const Route = createFileRoute("/dashboard")({
-  validateSearch: (search): DashboardSearch => {
-    const work = search.work;
-    const teamId = search.teamId;
-    const taskState = search.taskState;
-    const workflowStatusId = search.workflowStatusId;
-
-    return {
-      work:
-        work === "our_work" || work === "team" || work === "settings" || work === "my_work"
-          ? work
-          : undefined,
-      teamId: typeof teamId === "string" && teamId.length > 0 ? teamId : undefined,
-      taskState:
-        taskState === "todo" ||
-        taskState === "in_progress" ||
-        taskState === "done" ||
-        taskState === "canceled"
-          ? taskState
-          : undefined,
-      workflowStatusId:
-        typeof workflowStatusId === "string" && workflowStatusId.length > 0
-          ? workflowStatusId
-          : undefined,
-    };
-  },
-  component: RouteComponent,
-});
-
-type ActiveDashboardPanel = "my_work" | "our_work" | "settings" | { kind: "team"; teamId: string };
+export type ActiveDashboardPanel =
+  | "my_work"
+  | "our_work"
+  | "settings"
+  | { kind: "team"; teamId: string };
 
 type DashboardSearch = {
-  readonly work?: "my_work" | "our_work" | "team" | "settings";
-  readonly teamId?: string;
   readonly taskState?: "todo" | "in_progress" | "done" | "canceled";
   readonly workflowStatusId?: string;
 };
+
+export function validateDashboardSearch(search: Record<string, unknown>): DashboardSearch {
+  const taskState = search.taskState;
+  const workflowStatusId = search.workflowStatusId;
+
+  return {
+    taskState:
+      taskState === "todo" ||
+      taskState === "in_progress" ||
+      taskState === "done" ||
+      taskState === "canceled"
+        ? taskState
+        : undefined,
+    workflowStatusId:
+      typeof workflowStatusId === "string" && workflowStatusId.length > 0
+        ? workflowStatusId
+        : undefined,
+  };
+}
 
 type DashboardTeamSummary = {
   readonly id: string;
@@ -127,18 +119,6 @@ export function getUnavailableTeamBoardActions() {
   ];
 }
 
-export function getDashboardPanelFromSearch(search: DashboardSearch): ActiveDashboardPanel {
-  if (search.work === "team" && search.teamId) {
-    return { kind: "team", teamId: search.teamId };
-  }
-
-  if (search.work === "our_work" || search.work === "settings") {
-    return search.work;
-  }
-
-  return "my_work";
-}
-
 function getDashboardFilterSearch(search: DashboardSearch): DashboardSearch {
   return {
     ...(search.taskState ? { taskState: search.taskState } : {}),
@@ -146,27 +126,16 @@ function getDashboardFilterSearch(search: DashboardSearch): DashboardSearch {
   };
 }
 
-export function getDashboardSearchForPanel(
-  panel: ActiveDashboardPanel,
-  currentSearch: DashboardSearch = {},
-): DashboardSearch {
-  const filters = getDashboardFilterSearch(currentSearch);
-
-  if (typeof panel === "object") {
-    return { ...filters, work: "team", teamId: panel.teamId };
-  }
-
-  return panel === "my_work" ? filters : { ...filters, work: panel };
+export function getDashboardSearchForPanel(currentSearch: DashboardSearch = {}): DashboardSearch {
+  return getDashboardFilterSearch(currentSearch);
 }
 
 export function getDashboardSearchForExecutionFilters(
   search: DashboardSearch,
   filters: TaskExecutionFilters,
 ): DashboardSearch {
-  const panelSearch = getDashboardSearchForPanel(getDashboardPanelFromSearch(search), search);
-
   return {
-    ...panelSearch,
+    ...getDashboardFilterSearch(search),
     taskState: filters.taskState,
     workflowStatusId: filters.workflowStatusId,
   };
@@ -186,19 +155,56 @@ export function getMemberTeams<Team extends DashboardTeamSummary>(
   return teams.filter((team) => currentUserTeamIds.has(team.id));
 }
 
-function PrivateDashboardContent() {
-  const search = Route.useSearch();
-  const navigate = useNavigate({ from: "/dashboard" });
+function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboardPanel }) {
+  const search = useSearch({ strict: false }) as DashboardSearch;
+  const navigate = useNavigate();
   const privateData = useConfectQuery(refs.public.privateData.get);
   const products = useQuery(api.polar.listAllProducts);
   const subscription = useQuery(api.polar.getCurrentSubscription);
   const activeChurch = useQuery(api.dashboard.getActiveOrganization);
-  const activePanel = getDashboardPanelFromSearch(search);
   const setActivePanel = (panel: ActiveDashboardPanel) => {
-    navigate({ search: getDashboardSearchForPanel(panel, search) });
+    const routeSearch = getDashboardSearchForPanel(search);
+
+    if (typeof panel === "object") {
+      navigate({
+        to: "/team/$teamId",
+        params: { teamId: panel.teamId },
+        search: routeSearch,
+      });
+      return;
+    }
+
+    navigate({
+      to:
+        panel === "my_work"
+          ? "/my-work"
+          : panel === "our_work"
+            ? "/our-work"
+            : "/settings",
+      search: routeSearch,
+    });
   };
   const setExecutionFilters = (filters: TaskExecutionFilters) => {
-    navigate({ search: getDashboardSearchForExecutionFilters(search, filters) });
+    const routeSearch = getDashboardSearchForExecutionFilters(search, filters);
+
+    if (typeof activePanel === "object") {
+      navigate({
+        to: "/team/$teamId",
+        params: { teamId: activePanel.teamId },
+        search: routeSearch,
+      });
+      return;
+    }
+
+    navigate({
+      to:
+        activePanel === "my_work"
+          ? "/my-work"
+          : activePanel === "our_work"
+            ? "/our-work"
+            : "/settings",
+      search: routeSearch,
+    });
   };
   const currentUserId = activeChurch?.currentUserId ?? null;
   const teams = useQuery(
@@ -2217,7 +2223,7 @@ function ChurchSwitcher({
   );
 }
 
-function ChurchOnboardingGate() {
+function ChurchOnboardingGate({ activePanel }: { activePanel: ActiveDashboardPanel }) {
   const activeChurch = useQuery(api.dashboard.getActiveOrganization);
   const hasActiveChurch = Boolean(activeChurch);
   const [error, setError] = useState<string | null>(null);
@@ -2265,7 +2271,7 @@ function ChurchOnboardingGate() {
   }
 
   if (hasActiveChurch) {
-    return <PrivateDashboardContent />;
+    return <PrivateDashboardContent activePanel={activePanel} />;
   }
 
   if (pendingInvitations === undefined) {
@@ -2392,13 +2398,13 @@ function ChurchOnboardingGate() {
   );
 }
 
-function RouteComponent() {
+export function DashboardPage({ activePanel }: { activePanel: ActiveDashboardPanel }) {
   const [showSignIn, setShowSignIn] = useState(false);
 
   return (
     <>
       <Authenticated>
-        <ChurchOnboardingGate />
+        <ChurchOnboardingGate activePanel={activePanel} />
       </Authenticated>
       <Unauthenticated>
         {showSignIn ? (
