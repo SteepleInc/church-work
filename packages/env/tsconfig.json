@@ -1,3 +1,4 @@
 {
-  "extends": "@church-task/config/tsconfig.base.json"
+  "extends": "@church-task/config/tsconfig.base.json",
+  "include": ["src"]
 }

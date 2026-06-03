@@ -5,7 +5,9 @@
     "": {
       "name": "church-task",
       "dependencies": {
+        "@church-task/domain": "workspace:*",
         "@church-task/env": "workspace:*",
+        "@church-task/shared": "workspace:*",
         "dotenv": "catalog:",
         "zod": "catalog:",
       },
@@ -132,16 +134,41 @@
       "name": "@church-task/config",
       "version": "0.0.0",
     },
+    "packages/domain": {
+      "name": "@church-task/domain",
+      "version": "0.0.0",
+      "dependencies": {
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@church-task/config": "workspace:*",
+        "@types/node": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
     "packages/env": {
       "name": "@church-task/env",
       "version": "0.0.0",
       "dependencies": {
-        "@t3-oss/env-core": "^0.13.1",
+        "@t3-oss/env-core": "catalog:",
         "dotenv": "catalog:",
         "zod": "catalog:",
       },
       "devDependencies": {
         "@church-task/config": "workspace:*",
+        "@types/node": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
+    "packages/shared": {
+      "name": "@church-task/shared",
+      "version": "0.0.0",
+      "dependencies": {
+        "@church-task/env": "workspace:*",
+      },
+      "devDependencies": {
+        "@church-task/config": "workspace:*",
+        "@types/node": "catalog:",
         "typescript": "catalog:",
       },
     },
@@ -155,6 +182,8 @@
     "@convex-dev/polar": "^0.9.1",
     "@effect/platform": "^0.96.1",
     "@effect/platform-node": "^0.106.0",
+    "@t3-oss/env-core": "^0.13.1",
+    "@types/node": "^24.3.0",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "better-auth": "~1.6.9",
@@ -256,7 +285,11 @@
 
     "@church-task/config": ["@church-task/config@workspace:packages/config"],
 
+    "@church-task/domain": ["@church-task/domain@workspace:packages/domain"],
+
     "@church-task/env": ["@church-task/env@workspace:packages/env"],
+
+    "@church-task/shared": ["@church-task/shared@workspace:packages/shared"],
 
     "@confect/core": ["@confect/core@8.0.0", "", { "peerDependencies": { "convex": "^1.30.0", "effect": "^3.21.2" } }, "sha512-OcafD3Y+cQGto1BAq+USPPsmiCzELW1Bi6u76RbCSCTio2QqaIZVPb3jcZG3XjiR45tvhJ7MKQOdW1v9sKBD7Q=="],
 

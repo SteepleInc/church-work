@@ -1,19 +1,23 @@
 {
-  "name": "@church-task/env",
+  "name": "@church-task/domain",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./server": "./src/server.ts",
-    "./web": "./src/web.ts"
+    ".": "./index.ts",
+    "./ChurchInvitation": "./ChurchInvitation.ts",
+    "./Cycle": "./Cycle.ts",
+    "./Org": "./Org.ts",
+    "./Task": "./Task.ts",
+    "./Team": "./Team.ts",
+    "./Template": "./Template.ts",
+    "./User": "./User.ts",
+    "./Workflow": "./Workflow.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@t3-oss/env-core": "catalog:",
-    "dotenv": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

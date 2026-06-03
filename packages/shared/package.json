@@ -1,20 +1,21 @@
 {
-  "name": "@church-task/env",
+  "name": "@church-task/shared",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./server": "./src/server.ts",
-    "./web": "./src/web.ts"
+    ".": "./index.ts",
+    "./env": "./env.ts",
+    "./getIds": "./getIds.ts",
+    "./noOps": "./noOps.ts",
+    "./string": "./string.ts",
+    "./types": "./types.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@t3-oss/env-core": "catalog:",
-    "dotenv": "catalog:",
-    "zod": "catalog:"
+    "@church-task/env": "workspace:*"
   },
   "devDependencies": {
     "@church-task/config": "workspace:*",

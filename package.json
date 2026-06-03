@@ -11,6 +11,7 @@
       "@confect/core": "^8.0.0",
       "@confect/react": "^8.0.0",
       "@confect/server": "^8.0.0",
+      "@t3-oss/env-core": "^0.13.1",
       "@effect/platform": "^0.96.1",
       "@effect/platform-node": "^0.106.0",
       "dotenv": "^17.2.2",
@@ -25,7 +26,8 @@
       "@convex-dev/better-auth": "^0.12.2",
       "@convex-dev/polar": "^0.9.1",
       "@types/react": "^19.2.15",
-      "@types/react-dom": "^19.2.3"
+      "@types/react-dom": "^19.2.3",
+      "@types/node": "^24.3.0"
     }
   },
   "type": "module",
@@ -44,7 +46,9 @@
     "check": "oxlint && oxfmt --write"
   },
   "dependencies": {
+    "@church-task/domain": "workspace:*",
     "@church-task/env": "workspace:*",
+    "@church-task/shared": "workspace:*",
     "dotenv": "catalog:",
     "zod": "catalog:"
   },
