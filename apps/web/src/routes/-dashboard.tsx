@@ -86,6 +86,7 @@ import {
   useWorkflowsCollection,
 } from "@/data/workflows/workflowsData.app";
 import { authClient } from "@/lib/auth-client";
+import { InviteMemberButton, InviteMemberQuickAction } from "@/features/settings/invite-member";
 
 export type ActiveDashboardPanel =
   | "my_work"
@@ -1790,15 +1791,6 @@ function canMutateChurchSettings(role: string | string[]) {
   return memberHasRole(role, "owner") || memberHasRole(role, "admin");
 }
 
-const ChurchInvitationSchema = Schema.Struct({
-  email: Schema.String.pipe(
-    Schema.pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, {
-      message: () => "Enter a valid email address.",
-    }),
-  ),
-  role: Schema.Literal("member", "admin"),
-});
-
 type PendingInvitation = {
   id: string;
   email: string;
@@ -1938,101 +1930,19 @@ function ChurchInvitationPanel({
   activeChurchId: string;
   pendingInvitations: PendingInvitation[];
 }) {
-  const [inviteError, setInviteError] = useState<string | null>(null);
-  const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
-  const inviteForm = useAppForm({
-    defaultValues: {
-      email: "",
-      role: "member" as InvitationRole,
-    },
-    validationLogic: revalidateLogic({
-      mode: "submit",
-      modeAfterSubmission: "blur",
-    }),
-    validators: {
-      onSubmit: Schema.standardSchemaV1(ChurchInvitationSchema),
-    },
-    onSubmit: async ({ value, formApi }) => {
-      setInviteError(null);
-      setInviteSuccess(null);
-
-      const trimmedEmail = value.email.trim().toLowerCase();
-      const result = await authClient.organization.inviteMember({
-        organizationId: activeChurchId,
-        email: trimmedEmail,
-        role: value.role,
-      });
-
-      if (result.error) {
-        setInviteError(result.error.message ?? "Could not invite Church member.");
-        return;
-      }
-
-      formApi.reset();
-      setInviteSuccess(`Invitation sent to ${trimmedEmail}.`);
-    },
-  });
-
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Church Invitations</CardTitle>
-        <CardDescription>
-          Invite people to this Church and track pending invitations.
-        </CardDescription>
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="grid gap-1.5">
+          <CardTitle>Church Invitations</CardTitle>
+          <CardDescription>
+            Invite people to this Church and track pending invitations.
+          </CardDescription>
+        </div>
+        <InviteMemberButton size="sm" variant="secondary" />
       </CardHeader>
-      <CardContent className="grid gap-6">
-        <form
-          className="grid max-w-xl gap-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            inviteForm.handleSubmit();
-          }}
-        >
-          <inviteForm.AppField name="email">
-            {(field) => (
-              <field.InputField
-                label="Invite Member Email"
-                placeholder="member@example.com"
-                required
-                type="email"
-              />
-            )}
-          </inviteForm.AppField>
-          <inviteForm.AppField name="role">
-            {(field) => (
-              <field.SelectField
-                label="Role"
-                options={[
-                  { label: "Member", value: "member" },
-                  { label: "Admin", value: "admin" },
-                ]}
-                placeholder="Select a role"
-                required
-              />
-            )}
-          </inviteForm.AppField>
-          {inviteError ? (
-            <Alert variant="destructive">
-              <AlertDescription>{inviteError}</AlertDescription>
-            </Alert>
-          ) : null}
-          {inviteSuccess ? (
-            <Alert>
-              <AlertDescription>{inviteSuccess}</AlertDescription>
-            </Alert>
-          ) : null}
-          <inviteForm.Subscribe
-            selector={(state) => ({ canSubmit: state.canSubmit, isSubmitting: state.isSubmitting })}
-          >
-            {({ canSubmit, isSubmitting }) => (
-              <Button type="submit" disabled={!canSubmit || isSubmitting}>
-                {isSubmitting ? "Inviting..." : "Invite Member"}
-              </Button>
-            )}
-          </inviteForm.Subscribe>
-        </form>
+      <CardContent className="grid gap-3">
+        <InviteMemberQuickAction activeChurchId={activeChurchId} />
         <div className="grid gap-3">
           <h2 className="text-base font-semibold">Pending Invitations</h2>
           {pendingInvitations.length > 0 ? (
