@@ -141,6 +141,13 @@ describe("app shell route behavior", () => {
 
   test("keeps the org switcher dropdown close to the copied PreachX structure", () => {
     expect(orgSwitcherSource).toContain(
+      'import { CheckCircleIcon } from "@/components/icons/checkCircleIcon";',
+    );
+    expect(orgSwitcherSource).toContain(
+      'import { ChevronDownIcon } from "@/components/icons/chevronDownIcon";',
+    );
+    expect(orgSwitcherSource).toContain('import { PlusIcon } from "@/components/icons/plusIcon";');
+    expect(orgSwitcherSource).toContain(
       'className="flex w-(--anchor-width) min-w-56 flex-col rounded-lg p-0"',
     );
     expect(orgSwitcherSource).toContain('placeholder="Search"');
@@ -148,6 +155,7 @@ describe("app shell route behavior", () => {
     expect(orgSwitcherSource).toContain('<span className="line-clamp-2">{org.name}</span>');
     expect(orgSwitcherSource).not.toContain("Onboarding incomplete");
     expect(orgSwitcherSource).not.toContain("DropdownMenuGroup");
+    expect(orgSwitcherSource).not.toContain('from "lucide-react"');
   });
 
   test("keeps sidebar links scoped to the copied PreachX global details search param", () => {

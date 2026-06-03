@@ -1,6 +1,8 @@
-import { CheckCircle, ChevronsUpDown, Plus } from "lucide-react";
 import { useState } from "react";
 
+import { CheckCircleIcon } from "@/components/icons/checkCircleIcon";
+import { ChevronDownIcon } from "@/components/icons/chevronDownIcon";
+import { PlusIcon } from "@/components/icons/plusIcon";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,7 +56,7 @@ export function OrgSwitcher() {
               <Skeleton className="h-3 w-24 bg-muted-foreground/20" />
               <Skeleton className="h-2.5 w-16 bg-muted-foreground/20" />
             </div>
-            <ChevronsUpDown className="ml-auto size-4 text-muted-foreground/40" />
+            <ChevronDownIcon className="ml-auto size-4 text-muted-foreground/40" />
           </SidebarMenuButton>
         </SidebarMenuItem>
       </SidebarMenu>
@@ -78,7 +80,7 @@ export function OrgSwitcher() {
               <span className="truncate font-semibold">{currentOrgOpt?.name ?? "No Name"}</span>
               <span className="truncate text-muted-foreground text-xs capitalize">Church</span>
             </div>
-            <ChevronsUpDown className="ml-auto size-4" />
+            <ChevronDownIcon className="ml-auto size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="center"
@@ -109,7 +111,7 @@ export function OrgSwitcher() {
 
                 <DropdownMenuItem onClick={createOrg}>
                   <div className="flex size-6 items-center justify-center rounded-md border bg-background">
-                    <Plus className="size-4" />
+                    <PlusIcon className="size-4" />
                   </div>
                   <div className="font-medium text-muted-foreground">Create Church</div>
                 </DropdownMenuItem>
@@ -136,7 +138,7 @@ function OrgDropdownItem({ org }: { readonly org: OrgCollectionItem }) {
     <DropdownMenuItem className="gap-2" disabled={isChangingOrg} onClick={handleOrgClick}>
       <ChurchAvatar name={org.name} size="sm" />
       <span className="line-clamp-2">{org.name}</span>
-      {org.id === orgId ? <CheckCircle className="ml-auto size-4" /> : null}
+      {org.id === orgId ? <CheckCircleIcon className="ml-auto size-4" /> : null}
     </DropdownMenuItem>
   );
 }
