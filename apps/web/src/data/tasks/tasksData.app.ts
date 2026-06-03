@@ -1,6 +1,6 @@
 import { api } from "@church-task/backend/convex/_generated/api";
 import type { TaskStatus } from "@church-task/domain";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 
 import { successfulResponseCollection } from "@/data/convex-query-adapter";
 
@@ -36,4 +36,24 @@ export function useTasksCollection(params: {
     collection: state.collection,
     tasksCollection: state.collection,
   };
+}
+
+export function useCreateTaskMutation() {
+  return useMutation(api.tasks.mcpCreateTask);
+}
+
+export function useUpdateTaskMutation() {
+  return useMutation(api.tasks.mcpUpdateTask);
+}
+
+export function useCompleteTaskMutation() {
+  return useMutation(api.tasks.mcpCompleteTask);
+}
+
+export function useCancelTaskMutation() {
+  return useMutation(api.tasks.mcpCancelTask);
+}
+
+export function useReopenTaskMutation() {
+  return useMutation(api.tasks.mcpReopenTask);
 }

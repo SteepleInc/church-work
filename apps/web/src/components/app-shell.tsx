@@ -1,6 +1,5 @@
-import { api } from "@church-task/backend/convex/_generated/api";
 import { Link, Outlet, useLocation } from "@tanstack/react-router";
-import { Authenticated, AuthLoading, Unauthenticated, useQuery } from "convex/react";
+import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
 
 import { ModeToggle } from "@/components/mode-toggle";
 import SignInForm from "@/components/sign-in-form";
@@ -27,6 +26,8 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import UserMenu from "@/components/user-menu";
+import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
+import { useTeamMembershipsCollection, useTeamsCollection } from "@/data/teams/teamsData.app";
 import { getMemberTeams } from "@/routes/-dashboard";
 
 export const COMPLETED_APP_LANDING_PATH = "/my-work";
@@ -103,20 +104,11 @@ function AuthenticatedAppShell() {
 }
 
 function AppNavigation() {
-  const activeChurch = useQuery(api.dashboard.getActiveOrganization);
-  const teams = useQuery(
-    api.teams.listForChurch,
-    activeChurch ? { churchId: activeChurch.id } : "skip",
-  );
-  const teamMemberships = useQuery(
-    api.teams.listMembershipsForChurch,
-    activeChurch ? { churchId: activeChurch.id } : "skip",
-  );
-  const activeTeams = teams?.ok && teams.operation === "listTeams" ? teams.data.teams : [];
-  const memberships =
-    teamMemberships?.ok && teamMemberships.operation === "listTeamMemberships"
-      ? teamMemberships.data.teamMemberships
-      : [];
+  const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
+  const teams = useTeamsCollection({ churchId: activeChurch?.id ?? null });
+  const teamMemberships = useTeamMembershipsCollection({ churchId: activeChurch?.id ?? null });
+  const activeTeams = teams.teamsCollection;
+  const memberships = teamMemberships.teamMembershipsCollection;
   const memberTeams = getMemberTeams(activeTeams, memberships, activeChurch?.currentUserId ?? null);
 
   return (
@@ -144,7 +136,7 @@ function AppNavigation() {
           <SidebarGroupLabel>Team Work</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {teamMemberships === undefined || teams === undefined ? (
+              {teamMemberships.loading || teams.loading ? (
                 <SidebarMenuItem>
                   <SidebarMenuButton type="button" disabled>
                     <span>Loading Teams...</span>

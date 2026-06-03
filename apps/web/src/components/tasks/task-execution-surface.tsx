@@ -1,9 +1,21 @@
-import { api } from "@church-task/backend/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { useMutation, useQuery } from "convex/react";
+import { useActivitiesForEntityCollection } from "@/data/activities/activitiesData.app";
+import { useCyclesCollection } from "@/data/cycles/cyclesData.app";
+import {
+  useCancelTaskMutation,
+  useCompleteTaskMutation,
+  useCreateTaskMutation,
+  useReopenTaskMutation,
+  useTasksCollection,
+  useUpdateTaskMutation,
+  type TaskCollectionFilters,
+} from "@/data/tasks/tasksData.app";
+import { useTeamsCollection } from "@/data/teams/teamsData.app";
+import { useChurchUsersCollection } from "@/data/users/usersData.app";
+import { useWorkflowStatusesCollection, useWorkflowsCollection } from "@/data/workflows/workflowsData.app";
 import { useState } from "react";
 
 import { TaskKanbanBoard } from "./task-kanban-board";
@@ -304,28 +316,25 @@ export function TaskExecutionSurface({
   const [title, setTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const cyclesResult = useQuery(api.tasks.mcpListCycles, { churchId, actorUserId: currentUserId });
-  const workDefaults = useQuery(api.workDefaults.readForChurch, { churchId });
-  const usersResult = useQuery(api.tasks.mcpListUsers, { churchId, actorUserId: currentUserId });
-  const teamsResult = useQuery(api.tasks.mcpListTeams, { churchId, actorUserId: currentUserId });
+  const cyclesCollection = useCyclesCollection({ churchId, currentUserId });
+  const workflows = useWorkflowsCollection({ churchId });
+  const workflowStatusesCollection = useWorkflowStatusesCollection({ churchId });
+  const usersCollection = useChurchUsersCollection({ churchId });
+  const teamsCollection = useTeamsCollection({ churchId });
 
-  const cycles = cyclesResult?.ok ? cyclesResult.cycles : [];
+  const cycles = cyclesCollection.cyclesCollection;
   const currentCycle = selectCurrentExecutionCycle(cycles, today);
-  const churchDefaultWorkflow = workDefaults?.ok
-    ? workDefaults.data.workflows.find((workflow) => workflow.isDefault)
-    : null;
+  const churchDefaultWorkflow = workflows.workflowsCollection.find((workflow) => workflow.isDefault);
   const workflowId = getExecutionWorkflowId({
     surface,
     churchDefaultWorkflowId: churchDefaultWorkflow?.id,
     teamDefaultWorkflowId: team?.defaultWorkflowId,
   });
 
-  const workflowStatusesResult = useQuery(
-    api.tasks.mcpListWorkflowStatuses,
-    workflowId ? { churchId, actorUserId: currentUserId, workflowId } : "skip",
-  );
-  const workflowStatuses = workflowStatusesResult?.ok
-    ? workflowStatusesResult.workflowStatuses
+  const workflowStatuses = workflowId
+    ? workflowStatusesCollection.workflowStatusesCollection.filter(
+        (status) => status.workflowId === workflowId,
+      )
     : [];
   const effectiveFilters = getEffectiveTaskExecutionFilters(filters, workflowStatuses);
   const taskReadArgs = getTaskExecutionReadArgs({
@@ -336,31 +345,41 @@ export function TaskExecutionSurface({
     cycleId: currentCycle?.id ?? null,
     filters: effectiveFilters,
   });
-  const tasksResult = useQuery(
-    api.tasks.mcpListTasks,
-    cyclesResult === undefined || taskReadArgs === null ? "skip" : taskReadArgs,
-  );
+  const taskFilters: TaskCollectionFilters | undefined = taskReadArgs
+    ? {
+        ...("surface" in taskReadArgs ? { surface: taskReadArgs.surface } : {}),
+        ...("teamId" in taskReadArgs ? { teamId: taskReadArgs.teamId } : {}),
+        cycleId: taskReadArgs.cycleId,
+        taskState: taskReadArgs.taskState,
+        workflowStatusId: taskReadArgs.workflowStatusId,
+      }
+    : undefined;
+  const tasksCollection = useTasksCollection({
+    churchId: !cyclesCollection.loading && taskReadArgs !== null ? churchId : null,
+    currentUserId,
+    filters: taskFilters,
+  });
 
-  const createTask = useMutation(api.tasks.mcpCreateTask);
-  const updateTask = useMutation(api.tasks.mcpUpdateTask);
-  const completeTask = useMutation(api.tasks.mcpCompleteTask);
-  const cancelTask = useMutation(api.tasks.mcpCancelTask);
-  const reopenTask = useMutation(api.tasks.mcpReopenTask);
+  const createTask = useCreateTaskMutation();
+  const updateTask = useUpdateTaskMutation();
+  const completeTask = useCompleteTaskMutation();
+  const cancelTask = useCancelTaskMutation();
+  const reopenTask = useReopenTaskMutation();
 
-  const tasks = tasksResult?.ok ? tasksResult.data.tasks : [];
-  const users = usersResult?.ok ? usersResult.users : [];
-  const teams = teamsResult?.ok ? teamsResult.teams : [];
+  const tasks = tasksCollection.tasksCollection;
+  const users = usersCollection.usersCollection;
+  const teams = teamsCollection.teamsCollection;
   const myWorkEmptyStateActions = getMyWorkEmptyStateActions(myWorkEmptyStateTeams ?? []);
   const creationStatus =
     workflowStatuses.find((status) => status.taskState === "todo") ?? workflowStatuses[0];
   const dueDate = currentCycle?.endDate ?? today;
   const isLoading =
-    cyclesResult === undefined ||
-    workDefaults === undefined ||
-    (workflowId !== undefined && workflowId !== null && workflowStatusesResult === undefined) ||
-    (taskReadArgs !== null && tasksResult === undefined) ||
-    usersResult === undefined ||
-    teamsResult === undefined;
+    cyclesCollection.loading ||
+    workflows.loading ||
+    (workflowId !== undefined && workflowId !== null && workflowStatusesCollection.loading) ||
+    (taskReadArgs !== null && tasksCollection.loading) ||
+    usersCollection.loading ||
+    teamsCollection.loading;
   const surfaceTitle =
     surface === "my_work"
       ? "My Work"
@@ -873,20 +892,18 @@ function TaskActivityList({
   readonly churchId: string;
   readonly taskId: string;
 }) {
-  const activitiesResult = useQuery(api.activities.listForEntity, {
+  const activitiesResult = useActivitiesForEntityCollection({
     churchId,
     entityType: "task",
     entityId: taskId,
   });
-  const activities = activitiesResult?.ok
-    ? activitiesResult.data.activities.slice(-3).reverse()
-    : [];
+  const activities = activitiesResult.activitiesCollection.slice(-3).reverse();
 
   return (
     <div aria-label="Recent Task Activity" className="grid gap-1 text-xs text-muted-foreground">
       <p className="font-medium text-foreground">Recent Activity</p>
-      {activitiesResult === undefined ? <p>Loading Activity...</p> : null}
-      {activitiesResult !== undefined && activities.length === 0 ? <p>No Activity yet.</p> : null}
+      {activitiesResult.loading ? <p>Loading Activity...</p> : null}
+      {!activitiesResult.loading && activities.length === 0 ? <p>No Activity yet.</p> : null}
       {activities.map((activity) => (
         <p key={activity.id}>{formatTaskActivity(activity)}</p>
       ))}

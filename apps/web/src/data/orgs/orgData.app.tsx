@@ -1,6 +1,6 @@
 import { nullOp } from "@church-task/shared/noOps";
 import { api } from "@church-task/backend/convex/_generated/api";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import type { ReactNode } from "react";
 
 import { recordFromCollection, recordFromQueryResult } from "@/data/convex-query-adapter";
@@ -39,6 +39,10 @@ export function useCurrentOrgOpt() {
     loading: state.loading,
     currentOrgOpt: state.record,
   };
+}
+
+export function useUpdateChurchTimeZoneMutation() {
+  return useMutation(api.churchSettings.updateTimeZone);
 }
 
 export function CurrentOrgWrapper(props: { readonly children: (org: CurrentOrg) => ReactNode }) {

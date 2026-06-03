@@ -1,6 +1,6 @@
 import { api } from "@church-task/backend/convex/_generated/api";
 import type { Team, TeamMembership } from "@church-task/domain";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 
 import { successfulResponseCollection } from "@/data/convex-query-adapter";
 
@@ -40,4 +40,32 @@ export function useTeamMembershipsCollection(params: { readonly churchId: string
     collection: state.collection,
     teamMembershipsCollection: state.collection,
   };
+}
+
+export function useCreateTeamMutation() {
+  return useMutation(api.teams.createForChurch);
+}
+
+export function useRenameTeamMutation() {
+  return useMutation(api.teams.renameForChurch);
+}
+
+export function useArchiveTeamMutation() {
+  return useMutation(api.teams.archiveForChurch);
+}
+
+export function useReorderTeamsMutation() {
+  return useMutation(api.teams.reorderForChurch);
+}
+
+export function useUpdateTeamProductFieldsMutation() {
+  return useMutation(api.teams.updateProductFields);
+}
+
+export function useAddTeamMemberMutation() {
+  return useMutation(api.teams.addMemberForChurch);
+}
+
+export function useRemoveTeamMemberMutation() {
+  return useMutation(api.teams.removeMemberForChurch);
 }

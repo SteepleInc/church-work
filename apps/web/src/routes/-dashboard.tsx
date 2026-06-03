@@ -44,7 +44,7 @@ import { QueryResult, useQuery as useConfectQuery } from "@confect/react";
 import { CheckoutLink, CustomerPortalLink } from "@convex-dev/polar/react";
 import { revalidateLogic } from "@tanstack/react-form";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Authenticated, AuthLoading, Unauthenticated, useMutation, useQuery } from "convex/react";
+import { Authenticated, AuthLoading, Unauthenticated, useQuery } from "convex/react";
 import { Schema } from "effect";
 import { useState } from "react";
 
@@ -54,6 +54,37 @@ import {
   TaskExecutionSurface,
   type TaskExecutionFilters,
 } from "@/components/tasks/task-execution-surface";
+import { useUserInvitationsCollection } from "@/data/invitations/invitationsData.app";
+import {
+  useCurrentOrgOpt,
+  useUpdateChurchTimeZoneMutation,
+  type CurrentOrg,
+} from "@/data/orgs/orgData.app";
+import {
+  useAddTeamMemberMutation,
+  useArchiveTeamMutation,
+  useCreateTeamMutation,
+  useRemoveTeamMemberMutation,
+  useRenameTeamMutation,
+  useReorderTeamsMutation,
+  useTeamMembershipsCollection,
+  useTeamsCollection,
+  useUpdateTeamProductFieldsMutation,
+} from "@/data/teams/teamsData.app";
+import { useChurchUsersCollection, type UserCollectionItem } from "@/data/users/usersData.app";
+import {
+  useAddWorkflowStatusMutation,
+  useArchiveWorkflowMutation,
+  useArchiveWorkflowStatusMutation,
+  useCreateWorkflowMutation,
+  useRenameWorkflowMutation,
+  useRenameWorkflowStatusMutation,
+  useReorderWorkflowStatusesMutation,
+  useReorderWorkflowsMutation,
+  useSetDefaultWorkflowMutation,
+  useWorkflowStatusesCollection,
+  useWorkflowsCollection,
+} from "@/data/workflows/workflowsData.app";
 import { authClient } from "@/lib/auth-client";
 
 export type ActiveDashboardPanel =
@@ -144,7 +175,7 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
   const privateData = useConfectQuery(refs.public.privateData.get);
   const products = useQuery(api.polar.listAllProducts);
   const subscription = useQuery(api.polar.getCurrentSubscription);
-  const activeChurch = useQuery(api.dashboard.getActiveOrganization);
+  const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
   const setActivePanel = (panel: ActiveDashboardPanel) => {
     const routeSearch = getDashboardSearchForPanel(search);
 
@@ -185,21 +216,12 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
     });
   };
   const currentUserId = activeChurch?.currentUserId ?? null;
-  const teams = useQuery(
-    api.teams.listForChurch,
-    activeChurch ? { churchId: activeChurch.id } : "skip",
-  );
-  const teamMemberships = useQuery(
-    api.teams.listMembershipsForChurch,
-    activeChurch ? { churchId: activeChurch.id } : "skip",
-  );
+  const teams = useTeamsCollection({ churchId: activeChurch?.id ?? null });
+  const teamMemberships = useTeamMembershipsCollection({ churchId: activeChurch?.id ?? null });
   const pendingInvitations =
     activeChurch?.invitations.filter((invitation) => invitation.status === "pending") ?? [];
-  const activeTeams = teams?.ok && teams.operation === "listTeams" ? teams.data.teams : [];
-  const memberships =
-    teamMemberships?.ok && teamMemberships.operation === "listTeamMemberships"
-      ? teamMemberships.data.teamMemberships
-      : [];
+  const activeTeams = teams.teamsCollection;
+  const memberships = teamMemberships.teamMembershipsCollection;
   const memberTeams = getMemberTeams(activeTeams, memberships, currentUserId);
   const selectedTeam =
     typeof activePanel === "object"
@@ -326,25 +348,17 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
   );
 }
 
-type ActiveChurch = NonNullable<
-  ReturnType<typeof useQuery<typeof api.dashboard.getActiveOrganization>>
->;
+type ActiveChurch = CurrentOrg;
 
 function ActiveChurchSettings({ activeChurch }: { activeChurch: ActiveChurch }) {
-  const teams = useQuery(api.teams.listForChurch, { churchId: activeChurch.id });
-  const teamMemberships = useQuery(api.teams.listMembershipsForChurch, {
-    churchId: activeChurch.id,
-  });
-  const members = useQuery(api.dashboard.listMembers, { organizationId: activeChurch.id });
-  const workDefaults = useQuery(api.workDefaults.readForChurch, { churchId: activeChurch.id });
+  const teams = useTeamsCollection({ churchId: activeChurch.id });
+  const teamMemberships = useTeamMembershipsCollection({ churchId: activeChurch.id });
+  const members = useChurchUsersCollection({ churchId: activeChurch.id });
+  const workflows = useWorkflowsCollection({ churchId: activeChurch.id });
+  const workflowStatuses = useWorkflowStatusesCollection({ churchId: activeChurch.id });
 
-  const activeTeams = teams?.ok && teams.operation === "listTeams" ? teams.data.teams : [];
-  const memberships =
-    teamMemberships?.ok && teamMemberships.operation === "listTeamMemberships"
-      ? teamMemberships.data.teamMemberships
-      : [];
-  const workflows = workDefaults?.ok ? workDefaults.data.workflows : [];
-  const workflowStatuses = workDefaults?.ok ? workDefaults.data.workflowStatuses : [];
+  const activeTeams = teams.teamsCollection;
+  const memberships = teamMemberships.teamMembershipsCollection;
   const churchTimeZone = activeChurch.churchTimeZone ?? "Not set";
 
   return (
@@ -352,26 +366,26 @@ function ActiveChurchSettings({ activeChurch }: { activeChurch: ActiveChurch }) 
       <TeamSettingsCard
         activeChurch={activeChurch}
         teams={activeTeams}
-        isLoading={teams === undefined}
+        isLoading={teams.loading}
       />
       <TeamMembershipSettingsCard
         activeChurch={activeChurch}
         teams={activeTeams}
-        members={members ?? []}
+        members={members.usersCollection}
         memberships={memberships}
-        isLoading={teamMemberships === undefined || members === undefined}
+        isLoading={teamMemberships.loading || members.loading}
       />
       <WorkflowSettingsCard
         activeChurch={activeChurch}
         teams={activeTeams}
-        workflows={workflows}
-        isLoading={workDefaults === undefined}
+        workflows={workflows.workflowsCollection}
+        isLoading={workflows.loading}
       />
       <WorkflowStatusSettingsCard
         activeChurch={activeChurch}
-        workflows={workflows}
-        workflowStatuses={workflowStatuses}
-        isLoading={workDefaults === undefined}
+        workflows={workflows.workflowsCollection}
+        workflowStatuses={workflowStatuses.workflowStatusesCollection}
+        isLoading={workflows.loading || workflowStatuses.loading}
       />
       <ChurchInvitationPanel
         activeChurchId={activeChurch.id}
@@ -410,14 +424,7 @@ type WorkflowSetupStatus = {
   archivedAt: string | null;
 };
 
-type TeamSetupMember = {
-  id: string;
-  user: {
-    id: string;
-    name: string | null;
-    email: string | null;
-  };
-};
+type TeamSetupMember = UserCollectionItem;
 
 type TeamSetupMembership = {
   id: string;
@@ -434,10 +441,10 @@ function TeamSettingsCard({
   teams: readonly TeamSetupTeam[];
   isLoading: boolean;
 }) {
-  const createTeam = useMutation(api.teams.createForChurch);
-  const renameTeam = useMutation(api.teams.renameForChurch);
-  const archiveTeam = useMutation(api.teams.archiveForChurch);
-  const reorderTeams = useMutation(api.teams.reorderForChurch);
+  const createTeam = useCreateTeamMutation();
+  const renameTeam = useRenameTeamMutation();
+  const archiveTeam = useArchiveTeamMutation();
+  const reorderTeams = useReorderTeamsMutation();
   const canManage = canMutateChurchSettings(activeChurch.role);
   const [newTeamName, setNewTeamName] = useState("");
   const [renameDrafts, setRenameDrafts] = useState<Record<string, string>>({});
@@ -654,8 +661,8 @@ function TeamMembershipSettingsCard({
   memberships: readonly TeamSetupMembership[];
   isLoading: boolean;
 }) {
-  const addTeamMember = useMutation(api.teams.addMemberForChurch);
-  const removeTeamMember = useMutation(api.teams.removeMemberForChurch);
+  const addTeamMember = useAddTeamMemberMutation();
+  const removeTeamMember = useRemoveTeamMemberMutation();
   const canManage = canMutateChurchSettings(activeChurch.role);
   const [selectedTeamId, setSelectedTeamId] = useState("");
   const [selectedUserId, setSelectedUserId] = useState("");
@@ -663,7 +670,7 @@ function TeamMembershipSettingsCard({
   const [success, setSuccess] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const teamsById = new Map(teams.map((team) => [team.id, team]));
-  const membersByUserId = new Map(members.map((member) => [member.user.id, member]));
+  const membersByUserId = new Map(members.map((member) => [member.id, member]));
   const visibleMemberships = memberships.filter(
     (membership) => teamsById.has(membership.teamId) && membersByUserId.has(membership.userId),
   );
@@ -755,7 +762,7 @@ function TeamMembershipSettingsCard({
               >
                 <NativeSelectOption value="">Select a Church Member</NativeSelectOption>
                 {members.map((member) => (
-                  <NativeSelectOption key={member.id} value={member.user.id}>
+                  <NativeSelectOption key={member.memberId} value={member.id}>
                     {memberLabel(member)}
                   </NativeSelectOption>
                 ))}
@@ -826,12 +833,12 @@ function WorkflowSettingsCard({
   workflows: readonly WorkflowSetupWorkflow[];
   isLoading: boolean;
 }) {
-  const createWorkflow = useMutation(api.workflows.createForChurch);
-  const renameWorkflow = useMutation(api.workflows.renameForChurch);
-  const reorderWorkflows = useMutation(api.workflows.reorderForChurch);
-  const archiveWorkflow = useMutation(api.workflows.archiveForChurch);
-  const setDefaultWorkflow = useMutation(api.workflows.setDefaultForChurch);
-  const updateTeamProductFields = useMutation(api.teams.updateProductFields);
+  const createWorkflow = useCreateWorkflowMutation();
+  const renameWorkflow = useRenameWorkflowMutation();
+  const reorderWorkflows = useReorderWorkflowsMutation();
+  const archiveWorkflow = useArchiveWorkflowMutation();
+  const setDefaultWorkflow = useSetDefaultWorkflowMutation();
+  const updateTeamProductFields = useUpdateTeamProductFieldsMutation();
   const canManage = canMutateChurchSettings(activeChurch.role);
   const activeWorkflows = workflows.filter((workflow) => workflow.archivedAt === null);
   const defaultWorkflow = activeWorkflows.find((workflow) => workflow.isDefault);
@@ -1162,10 +1169,10 @@ function WorkflowStatusSettingsCard({
   workflowStatuses: readonly WorkflowSetupStatus[];
   isLoading: boolean;
 }) {
-  const addStatus = useMutation(api.workflows.addStatus);
-  const renameStatus = useMutation(api.workflows.renameStatus);
-  const reorderStatuses = useMutation(api.workflows.reorderStatuses);
-  const archiveStatus = useMutation(api.workflows.archiveStatus);
+  const addStatus = useAddWorkflowStatusMutation();
+  const renameStatus = useRenameWorkflowStatusMutation();
+  const reorderStatuses = useReorderWorkflowStatusesMutation();
+  const archiveStatus = useArchiveWorkflowStatusMutation();
   const canManage = canMutateChurchSettings(activeChurch.role);
   const activeWorkflows = workflows.filter((workflow) => workflow.archivedAt === null);
   const [selectedWorkflowId, setSelectedWorkflowId] = useState("");
@@ -1458,7 +1465,7 @@ function WorkflowStatusSettingsCard({
 }
 
 function memberLabel(member: TeamSetupMember | undefined) {
-  return member?.user.email ?? member?.user.name ?? "Church Member";
+  return member?.email ?? member?.name ?? "Church Member";
 }
 
 function workflowKey(name: string) {
@@ -1493,7 +1500,7 @@ function ChurchTimeZoneSettings({
   activeChurch: ActiveChurch;
   churchTimeZone: string;
 }) {
-  const updateTimeZone = useMutation(api.churchSettings.updateTimeZone);
+  const updateTimeZone = useUpdateChurchTimeZoneMutation();
   const canUpdate = canMutateChurchSettings(activeChurch.role);
   const [selectedTimeZone, setSelectedTimeZone] = useState(
     activeChurch.churchTimeZone ?? detectedChurchTimeZone(),
@@ -1572,12 +1579,12 @@ function ChurchTimeZoneSettings({
 }
 
 function ActiveChurchInvitationPrompt() {
-  const invitations = useQuery(api.dashboard.listUserInvitations);
+  const invitations = useUserInvitationsCollection();
   const [error, setError] = useState<string | null>(null);
   const [acceptingInvitationId, setAcceptingInvitationId] = useState<string | null>(null);
-  const pendingInvitations = invitations ?? [];
+  const pendingInvitations = invitations.invitationsCollection;
 
-  if (invitations === undefined || (!error && pendingInvitations.length === 0)) {
+  if (invitations.loading || (!error && pendingInvitations.length === 0)) {
     return null;
   }
 
@@ -1700,7 +1707,7 @@ function memberHasRole(role: string | string[], expectedRole: string) {
 }
 
 function ChurchMembersPanel({ activeChurchId }: { activeChurchId: string }) {
-  const members = useQuery(api.dashboard.listMembers, { organizationId: activeChurchId });
+  const members = useChurchUsersCollection({ churchId: activeChurchId });
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
@@ -1713,7 +1720,7 @@ function ChurchMembersPanel({ activeChurchId }: { activeChurchId: string }) {
         <CardDescription>Your membership context for the Active Church.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3">
-        {members === undefined ? (
+        {members.loading ? (
           <p className="text-sm text-muted-foreground">Loading Church Members...</p>
         ) : null}
         {error ? (
@@ -1726,20 +1733,20 @@ function ChurchMembersPanel({ activeChurchId }: { activeChurchId: string }) {
             <AlertDescription>{success}</AlertDescription>
           </Alert>
         ) : null}
-        {members !== undefined && !error && members.length === 0 ? (
+        {!members.loading && !error && members.usersCollection.length === 0 ? (
           <p className="text-sm text-muted-foreground">No Church Members found.</p>
         ) : null}
-        {(members ?? []).map((member) => {
+        {members.usersCollection.map((member) => {
           const isOwner = memberHasRole(member.role, "owner");
           const roleLabel = invitationRoleLabel(member.role);
-          const isUpdating = updatingMemberId === member.id;
-          const isRemoving = removingMemberId === member.id;
+          const isUpdating = updatingMemberId === member.memberId;
+          const isRemoving = removingMemberId === member.memberId;
 
           return (
-            <Item key={member.id} variant="outline">
+            <Item key={member.memberId} variant="outline">
               <ItemContent>
-                <ItemTitle>{member.user.name ?? "Unnamed member"}</ItemTitle>
-                <ItemDescription>{member.user.email ?? "No email"}</ItemDescription>
+                <ItemTitle>{member.name ?? "Unnamed member"}</ItemTitle>
+                <ItemDescription>{member.email ?? "No email"}</ItemDescription>
               </ItemContent>
               {isOwner ? (
                 <Badge variant="secondary" className="capitalize">
@@ -1747,8 +1754,8 @@ function ChurchMembersPanel({ activeChurchId }: { activeChurchId: string }) {
                 </Badge>
               ) : (
                 <ItemActions className="flex-wrap">
-                  <Label className="sr-only" htmlFor={`member-role-${member.id}`}>
-                    Role for {member.user.email ?? member.user.name ?? "Church member"}
+                  <Label className="sr-only" htmlFor={`member-role-${member.memberId}`}>
+                    Role for {member.email ?? member.name ?? "Church member"}
                   </Label>
                   <Select
                     value={memberHasRole(member.role, "admin") ? "admin" : "member"}
@@ -1757,10 +1764,10 @@ function ChurchMembersPanel({ activeChurchId }: { activeChurchId: string }) {
                       const nextRole = value as InvitationRole;
                       setError(null);
                       setSuccess(null);
-                      setUpdatingMemberId(member.id);
+                      setUpdatingMemberId(member.memberId);
                       const result = await authClient.organization.updateMemberRole({
                         organizationId: activeChurchId,
-                        memberId: member.id,
+                        memberId: member.memberId,
                         role: nextRole,
                       });
                       setUpdatingMemberId(null);
@@ -1770,10 +1777,10 @@ function ChurchMembersPanel({ activeChurchId }: { activeChurchId: string }) {
                         return;
                       }
 
-                      setSuccess(`Updated ${member.user.email ?? "Church Member"} to ${nextRole}.`);
+                      setSuccess(`Updated ${member.email ?? "Church Member"} to ${nextRole}.`);
                     }}
                   >
-                    <SelectTrigger id={`member-role-${member.id}`} className="w-32">
+                    <SelectTrigger id={`member-role-${member.memberId}`} className="w-32">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -1784,15 +1791,15 @@ function ChurchMembersPanel({ activeChurchId }: { activeChurchId: string }) {
                   <Button
                     type="button"
                     variant="outline"
-                    aria-label={`Remove ${member.user.email ?? member.user.name ?? "Church Member"}`}
+                    aria-label={`Remove ${member.email ?? member.name ?? "Church Member"}`}
                     disabled={isUpdating || isRemoving}
                     onClick={async () => {
                       setError(null);
                       setSuccess(null);
-                      setRemovingMemberId(member.id);
+                      setRemovingMemberId(member.memberId);
                       const result = await authClient.organization.removeMember({
                         organizationId: activeChurchId,
-                        memberIdOrEmail: member.id,
+                        memberIdOrEmail: member.memberId,
                       });
                       setRemovingMemberId(null);
 
@@ -1801,7 +1808,7 @@ function ChurchMembersPanel({ activeChurchId }: { activeChurchId: string }) {
                         return;
                       }
 
-                      setSuccess(`Removed ${member.user.email ?? "Church Member"}.`);
+                      setSuccess(`Removed ${member.email ?? "Church Member"}.`);
                     }}
                   >
                     {isRemoving ? "Removing..." : "Remove"}
@@ -1952,11 +1959,11 @@ function churchSlug(name: string) {
 }
 
 function ChurchOnboardingGate({ activePanel }: { activePanel: ActiveDashboardPanel }) {
-  const activeChurch = useQuery(api.dashboard.getActiveOrganization);
+  const { currentOrgOpt: activeChurch, loading: activeChurchLoading } = useCurrentOrgOpt();
   const hasActiveChurch = Boolean(activeChurch);
   const [error, setError] = useState<string | null>(null);
   const [invitationError, setInvitationError] = useState<string | null>(null);
-  const pendingInvitations = useQuery(api.dashboard.listUserInvitations);
+  const pendingInvitations = useUserInvitationsCollection();
   const [acceptingInvitationId, setAcceptingInvitationId] = useState<string | null>(null);
   const firstChurchForm = useAppForm({
     defaultValues: {
@@ -1994,7 +2001,7 @@ function ChurchOnboardingGate({ activePanel }: { activePanel: ActiveDashboardPan
     },
   });
 
-  if (activeChurch === undefined) {
+  if (activeChurchLoading) {
     return <div>Loading Church...</div>;
   }
 
@@ -2002,11 +2009,11 @@ function ChurchOnboardingGate({ activePanel }: { activePanel: ActiveDashboardPan
     return <PrivateDashboardContent activePanel={activePanel} />;
   }
 
-  if (pendingInvitations === undefined) {
+  if (pendingInvitations.loading) {
     return <div>Loading Church Invitations...</div>;
   }
 
-  if (pendingInvitations.length > 0) {
+  if (pendingInvitations.invitationsCollection.length > 0) {
     return (
       <main className="mx-auto flex w-full max-w-2xl flex-col justify-center p-6">
         <Card>
@@ -2022,7 +2029,7 @@ function ChurchOnboardingGate({ activePanel }: { activePanel: ActiveDashboardPan
                 <AlertDescription>{invitationError}</AlertDescription>
               </Alert>
             ) : null}
-            {pendingInvitations.map((invitation) => {
+            {pendingInvitations.invitationsCollection.map((invitation) => {
               const isAccepting = acceptingInvitationId === invitation.id;
 
               return (
