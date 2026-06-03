@@ -17,6 +17,9 @@ import { getUserMenuAvatarFallback } from "@/components/user-menu";
 const appNavigationSource = await Bun.file(
   new URL("./navigation/app-navigation.tsx", import.meta.url),
 ).text();
+const devMenuContentSource = await Bun.file(
+  new URL("./navigation/dev-menu-content.tsx", import.meta.url),
+).text();
 const mobileSidebarContentSource = await Bun.file(
   new URL("./navigation/mobile-sidebar-content.tsx", import.meta.url),
 ).text();
@@ -76,6 +79,23 @@ describe("app shell route behavior", () => {
     expect(dashboardRouteSource).not.toContain(
       '<main className="flex flex-1 flex-col gap-6 overflow-auto p-4 sm:p-6">',
     );
+  });
+
+  test("keeps the PreachX bottom sidebar dev menu before feedback and home", () => {
+    expect(appNavigationSource).toContain(
+      'import { DevMenu } from "@/components/navigation/dev-menu";',
+    );
+    expect(appNavigationSource.indexOf("<DevMenu />")).toBeLessThan(
+      appNavigationSource.indexOf("Feedback"),
+    );
+    expect(appNavigationSource.indexOf("Feedback")).toBeLessThan(
+      appNavigationSource.indexOf("{homeNavItem.title}"),
+    );
+    expect(devMenuContentSource).toContain(
+      'className="mb-2 flex flex-col gap-2 overflow-hidden text-muted-foreground/40 text-sm"',
+    );
+    expect(devMenuContentSource).toContain("<CopyableValue value={orgId} />");
+    expect(devMenuContentSource).toContain("<CopyableValue value={userId} />");
   });
 });
 

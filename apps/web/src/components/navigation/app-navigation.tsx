@@ -10,6 +10,7 @@ import {
   settingsNavItems,
   workspaceNavItems,
 } from "@/components/navigation/nav-shared";
+import { DevMenu } from "@/components/navigation/dev-menu";
 import { MobileSidebarContent } from "@/components/navigation/mobile-sidebar-content";
 import { SideBarItem } from "@/components/navigation/sidebar-item";
 import { OrgSwitcher } from "@/components/org-switcher";
@@ -161,6 +162,8 @@ function AppNavigationBody() {
 
       <SidebarGroup className="mt-auto">
         <SidebarMenu>
+          <DevMenu />
+
           <SidebarMenuItem>
             <SidebarMenuButton
               render={
