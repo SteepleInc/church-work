@@ -7,7 +7,10 @@ import {
   TemplateTableFieldsSchema,
   TemplateTaskTableFieldsSchema,
 } from "@church-task/domain/Template";
-import { WorkflowStatusTableFieldsSchema, WorkflowTableFieldsSchema } from "@church-task/domain/Workflow";
+import {
+  WorkflowStatusTableFieldsSchema,
+  WorkflowTableFieldsSchema,
+} from "@church-task/domain/Workflow";
 import { Schema } from "effect";
 
 import {
@@ -17,25 +20,16 @@ import {
   ActivityMetadata,
 } from "../activityRegistry";
 
-export const Workflows = Table.make(
-  "workflows",
-  WorkflowTableFieldsSchema,
-)
+export const Workflows = Table.make("workflows", WorkflowTableFieldsSchema)
   .index("by_churchId_and_key", ["churchId", "key"])
   .index("by_churchId", ["churchId"]);
 
-export const WorkflowStatuses = Table.make(
-  "workflowStatuses",
-  WorkflowStatusTableFieldsSchema,
-)
+export const WorkflowStatuses = Table.make("workflowStatuses", WorkflowStatusTableFieldsSchema)
   .index("by_workflowId_and_key", ["workflowId", "key"])
   .index("by_churchId", ["churchId"])
   .index("by_workflowId", ["workflowId"]);
 
-export const Tasks = Table.make(
-  "tasks",
-  TaskTableFieldsSchema,
-)
+export const Tasks = Table.make("tasks", TaskTableFieldsSchema)
   .index("by_churchId", ["churchId"])
   .index("by_churchId_and_cycleId", ["churchId", "cycleId"])
   .index("by_churchId_and_sourceTemplateTaskId_and_sourceTemplateCycleId", [
@@ -47,10 +41,7 @@ export const Tasks = Table.make(
   .index("by_parentTaskId", ["parentTaskId"])
   .index("by_workflowStatusId", ["workflowStatusId"]);
 
-export const Cycles = Table.make(
-  "cycles",
-  CycleTableFieldsSchema,
-)
+export const Cycles = Table.make("cycles", CycleTableFieldsSchema)
   .index("by_churchId_and_startDate", ["churchId", "startDate"])
   .index("by_churchId", ["churchId"]);
 
@@ -104,33 +95,21 @@ export const KeyDateOccurrences = Table.make(
   .index("by_keyDateId", ["keyDateId"])
   .index("by_keyDateId_and_localDate", ["keyDateId", "localDate"]);
 
-export const Templates = Table.make(
-  "templates",
-  TemplateTableFieldsSchema,
-)
+export const Templates = Table.make("templates", TemplateTableFieldsSchema)
   .index("by_churchId_and_key", ["churchId", "key"])
   .index("by_churchId", ["churchId"]);
 
-export const FocusWindows = Table.make(
-  "focusWindows",
-  FocusWindowTableFieldsSchema,
-)
+export const FocusWindows = Table.make("focusWindows", FocusWindowTableFieldsSchema)
   .index("by_churchId", ["churchId"])
   .index("by_templateId", ["templateId"])
   .index("by_templateId_and_key", ["templateId", "key"]);
 
-export const TemplateTasks = Table.make(
-  "templateTasks",
-  TemplateTaskTableFieldsSchema,
-)
+export const TemplateTasks = Table.make("templateTasks", TemplateTaskTableFieldsSchema)
   .index("by_churchId", ["churchId"])
   .index("by_templateId", ["templateId"])
   .index("by_templateId_and_key", ["templateId", "key"]);
 
-export const CycleAdjustments = Table.make(
-  "cycleAdjustments",
-  CycleAdjustmentTableFieldsSchema,
-)
+export const CycleAdjustments = Table.make("cycleAdjustments", CycleAdjustmentTableFieldsSchema)
   .index("by_churchId", ["churchId"])
   .index("by_churchId_and_cycleId", ["churchId", "cycleId"])
   .index("by_churchId_and_cycleId_and_templateTaskId", ["churchId", "cycleId", "templateTaskId"]);
