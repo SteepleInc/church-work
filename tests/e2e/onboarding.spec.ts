@@ -42,7 +42,7 @@ async function signInWithOtp(page: Page, email: string) {
   await page.getByLabel("Verification Code").fill(await waitForOtp(page, email));
 }
 
-test("creates a Church profile from editable onboarding fields", async ({ page }, testInfo) => {
+test("creates a Church profile and reviews initial Teams", async ({ page }, testInfo) => {
   const email = `onboarding-${Date.now()}-${testInfo.workerIndex}@example.com`;
   const churchName = `E2E Onboarding Church ${Date.now()}`;
 
@@ -57,9 +57,21 @@ test("creates a Church profile from editable onboarding fields", async ({ page }
   await page.getByLabel("Country Code").fill("US");
   await page.getByLabel("Church Time Zone").fill("America/Chicago");
   await page.getByLabel("Website").fill("https://example.org");
+  await page.getByRole("button", { name: "Continue to Teams" }).click();
+
+  await expect(page.getByText("Step 2 of 2")).toBeVisible();
+  await expect(page.getByText("Review your initial Teams", { exact: true })).toBeVisible();
+  await expect(page.getByText("Workflow setup")).not.toBeVisible();
+  await page.getByLabel("Team 1 Name").fill("Creative");
+  await page.getByRole("button", { name: "Remove Care" }).click();
+  await page.getByLabel("New Team Name").fill("Students");
+  await page.getByRole("button", { name: "Add Team" }).click();
+  await expect(page.getByLabel("Team 1 Name")).toHaveValue("Creative");
+  await expect(page.getByLabel("Team 3 Name")).toHaveValue("Students");
+  await expect(page.getByText("3 Teams will be created.")).toBeVisible();
   await page.getByRole("button", { name: "Enter Church Task" }).click();
 
-  await expect(page).toHaveURL(/\/my-work$/);
+  await expect(page).toHaveURL(/\/my-work$/, { timeout: 20_000 });
   await expect(page.getByRole("heading", { name: "My Work", level: 1 })).toBeVisible();
 });
 
