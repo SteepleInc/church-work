@@ -1,0 +1,5 @@
+{
+  "devServer": {
+    "installCommand": "bun install"
+  }
+}
