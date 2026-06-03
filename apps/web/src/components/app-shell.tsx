@@ -21,8 +21,16 @@ import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { GlobalSearch } from "@/features/global-search/global-search";
 import { QuickActions } from "@/features/quick-actions/quick-actions";
 import { DetailsPane } from "@/components/details-pane/details-pane";
+import { BigActions } from "@/features/big-actions/big-actions";
 
 export { COMPLETED_APP_LANDING_PATH };
+
+export const appShellOverlayOrder = [
+  "DetailsPane",
+  "QuickActions",
+  "BigActions",
+  "GlobalSearch",
+] as const;
 
 export function getPrimaryAppShellNavItems() {
   return [
@@ -109,6 +117,7 @@ function AuthenticatedAppShell() {
       </SidebarInset>
       <DetailsPane />
       <QuickActions />
+      <BigActions />
       <GlobalSearch />
     </SidebarProvider>
   );

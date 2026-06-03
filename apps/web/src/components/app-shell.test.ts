@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   COMPLETED_APP_LANDING_PATH,
+  appShellOverlayOrder,
   getBreadcrumbLabel,
   getPrimaryAppShellNavItems,
 } from "./app-shell";
@@ -33,6 +34,15 @@ describe("app shell route behavior", () => {
     expect(getBreadcrumbLabel("/team/team-1")).toBe("Team Work");
     expect(getBreadcrumbLabel("/dev/session")).toBe("Dev Session");
     expect(getBreadcrumbLabel("/admin/orgs")).toBe("App Admin Churches");
+  });
+
+  test("keeps global app overlays at the PreachX shell level and order", () => {
+    expect(appShellOverlayOrder).toEqual([
+      "DetailsPane",
+      "QuickActions",
+      "BigActions",
+      "GlobalSearch",
+    ]);
   });
 });
 
