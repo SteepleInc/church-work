@@ -46,8 +46,18 @@ async function createTestInvitation(
   page: Page,
   invitation: { readonly email: string; readonly role: "member" | "admin" },
 ) {
+  const sessionToken = await page.evaluate(async () => {
+    const { authClient } = await import("/src/lib/auth-client.ts");
+    const session = await authClient.getSession();
+
+    return session.data?.session.token ?? null;
+  });
+
+  expect(sessionToken).toEqual(expect.any(String));
+
   const response = await page.request.post(`${getConvexSiteUrl()}/api/test/invitations`, {
     data: invitation,
+    headers: { Authorization: `Bearer ${sessionToken}` },
   });
 
   test.skip(response.status() === 404, "Test invitation helper is not deployed.");
@@ -298,7 +308,7 @@ test("settings pending invitations list renders seeded pending invitations", asy
   await page.reload();
 
   await expect(page.getByText(inviteEmail)).toBeVisible();
-  await expect(page.getByText("member")).toBeVisible();
+  await expect(page.getByText("member", { exact: true })).toBeVisible();
 });
 
 test("Google Places lookup autofills editable Church profile fields", async ({
