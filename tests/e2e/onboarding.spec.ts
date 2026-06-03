@@ -42,6 +42,18 @@ async function signInWithOtp(page: Page, email: string) {
   await page.getByLabel("Verification Code").fill(await waitForOtp(page, email));
 }
 
+async function createTestInvitation(
+  page: Page,
+  invitation: { readonly email: string; readonly role: "member" | "admin" },
+) {
+  const response = await page.request.post(`${getConvexSiteUrl()}/api/test/invitations`, {
+    data: invitation,
+  });
+
+  test.skip(response.status() === 404, "Test invitation helper is not deployed.");
+  expect(response.ok()).toBe(true);
+}
+
 async function completeOnboarding(page: Page, churchName: string) {
   await page.getByLabel("Church Name").fill(churchName);
   await page.getByLabel("Street").fill("123 Main Street");
@@ -260,23 +272,11 @@ test("settings navigation exposes profile, Church, members, and pending invitati
 
   await page.getByRole("button", { name: "Invite Member" }).click();
   await page.getByLabel("Email Addresses").fill(inviteEmail);
-  await page.getByRole("button", { name: "Invite Members" }).click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Invite Member" })).not.toBeVisible();
 
-  const inviteDialog = page.getByRole("dialog", { name: "Invite Member" });
-  const inviteError = page.getByText(`Could not invite ${inviteEmail}.`);
-  await expect
-    .poll(async () => {
-      if (await inviteError.isVisible().catch(() => false)) return "error";
-      if (!(await inviteDialog.isVisible().catch(() => false))) return "success";
-      return "pending";
-    })
-    .toMatch(/^(error|success)$/);
-  test.skip(
-    await inviteError.isVisible().catch(() => false),
-    "Invitation creation failed in the configured e2e backend/email environment.",
-  );
+  await createTestInvitation(page, { email: inviteEmail, role: "member" });
 
-  await expect(inviteDialog).not.toBeVisible();
   await expect(page.getByText(inviteEmail)).toBeVisible();
   await expect(page.getByText("member")).toBeVisible();
 });

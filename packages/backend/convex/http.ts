@@ -34,6 +34,15 @@ type BetterAuthVerification = {
   readonly expiresAt: number;
 };
 
+type BetterAuthSession = {
+  readonly user?: { readonly id: string } | null;
+  readonly session?: { readonly activeOrganizationId?: string | null } | null;
+};
+
+type BetterAuthMember = {
+  readonly role?: string | null;
+};
+
 const jsonHeaders = {
   "Content-Type": "application/json",
 };
@@ -59,6 +68,9 @@ const extractOtp = (value: string) => {
   const separatorIndex = value.lastIndexOf(":");
   return separatorIndex === -1 ? value : value.slice(0, separatorIndex);
 };
+
+const memberCanCreateTestInvitation = (role: string | null | undefined) =>
+  role === "owner" || role === "admin";
 
 type McpTaskOperationResult = {
   readonly ok: boolean;
@@ -181,6 +193,87 @@ http.route({
       { ok: true, email, otp: extractOtp(verification.value), expiresAt: verification.expiresAt },
       { headers: jsonHeaders },
     );
+  }),
+});
+
+http.route({
+  path: "/api/test/invitations",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    if (!isOtpCaptureEnabled()) {
+      return Response.json(
+        { ok: false, error: "Not found" },
+        { headers: jsonHeaders, status: 404 },
+      );
+    }
+
+    const session = (await createAuth(ctx).api.getSession({
+      headers: request.headers,
+    })) as BetterAuthSession | null;
+
+    if (!session?.user?.id) {
+      return unauthenticatedResponse();
+    }
+
+    const organizationId = session.session?.activeOrganizationId;
+    if (!organizationId) {
+      return Response.json(
+        { ok: false, error: "No active Church found for test invitation." },
+        { headers: jsonHeaders, status: 400 },
+      );
+    }
+
+    const body = (await request.json()) as {
+      readonly email?: string;
+      readonly role?: string;
+    };
+    const email = body.email?.trim().toLowerCase();
+    const role = body.role ?? "member";
+
+    if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+      return Response.json(
+        { ok: false, error: "A valid email is required." },
+        { headers: jsonHeaders, status: 400 },
+      );
+    }
+
+    if (role !== "member" && role !== "admin") {
+      return Response.json(
+        { ok: false, error: "Role must be member or admin." },
+        { headers: jsonHeaders, status: 400 },
+      );
+    }
+
+    const member = (await ctx.runQuery(components.betterAuth.adapter.findOne, {
+      model: "member",
+      where: [
+        { field: "organizationId", value: organizationId },
+        { field: "userId", value: session.user.id },
+      ],
+    })) as BetterAuthMember | null;
+
+    if (!memberCanCreateTestInvitation(member?.role)) {
+      return Response.json(
+        { ok: false, error: "Only Church owners and admins can create test invitations." },
+        { headers: jsonHeaders, status: 403 },
+      );
+    }
+
+    const invitation = await ctx.runMutation(components.betterAuth.adapter.create, {
+      input: {
+        model: "invitation",
+        data: {
+          email,
+          expiresAt: Date.now() + 1000 * 60 * 60 * 24 * 7,
+          inviterId: session.user.id,
+          organizationId,
+          role,
+          status: "pending",
+        },
+      },
+    });
+
+    return Response.json({ ok: true, invitation }, { headers: jsonHeaders });
   }),
 });
 
