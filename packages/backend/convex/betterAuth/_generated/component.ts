@@ -154,11 +154,21 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             | {
                 data: {
                   churchTimeZone?: string;
+                  city?: null | string;
+                  completedOnboarding?: boolean;
+                  countryCode?: null | string;
                   createdAt: number;
+                  latitude?: null | number;
                   logo?: null | string;
+                  longitude?: null | number;
                   metadata?: null | string;
                   name: string;
+                  size?: null | string;
                   slug?: null | string;
+                  state?: null | string;
+                  street?: null | string;
+                  url?: null | string;
+                  zip?: null | string;
                 };
                 model: "organization";
               }
@@ -598,6 +608,16 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "logo"
                     | "metadata"
                     | "churchTimeZone"
+                    | "completedOnboarding"
+                    | "url"
+                    | "street"
+                    | "city"
+                    | "state"
+                    | "zip"
+                    | "countryCode"
+                    | "latitude"
+                    | "longitude"
+                    | "size"
                     | "createdAt"
                     | "_id";
                   mode?: "sensitive" | "insensitive";
@@ -1180,6 +1200,16 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "logo"
                     | "metadata"
                     | "churchTimeZone"
+                    | "completedOnboarding"
+                    | "url"
+                    | "street"
+                    | "city"
+                    | "state"
+                    | "zip"
+                    | "countryCode"
+                    | "latitude"
+                    | "longitude"
+                    | "size"
                     | "createdAt"
                     | "_id";
                   mode?: "sensitive" | "insensitive";
@@ -1953,11 +1983,21 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                 model: "organization";
                 update: {
                   churchTimeZone?: string;
+                  city?: null | string;
+                  completedOnboarding?: boolean;
+                  countryCode?: null | string;
                   createdAt?: number;
+                  latitude?: null | number;
                   logo?: null | string;
+                  longitude?: null | number;
                   metadata?: null | string;
                   name?: string;
+                  size?: null | string;
                   slug?: null | string;
+                  state?: null | string;
+                  street?: null | string;
+                  url?: null | string;
+                  zip?: null | string;
                 };
                 where?: Array<{
                   connector?: "AND" | "OR";
@@ -1967,6 +2007,16 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "logo"
                     | "metadata"
                     | "churchTimeZone"
+                    | "completedOnboarding"
+                    | "url"
+                    | "street"
+                    | "city"
+                    | "state"
+                    | "zip"
+                    | "countryCode"
+                    | "latitude"
+                    | "longitude"
+                    | "size"
                     | "createdAt"
                     | "_id";
                   mode?: "sensitive" | "insensitive";
@@ -2687,11 +2737,21 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                 model: "organization";
                 update: {
                   churchTimeZone?: string;
+                  city?: null | string;
+                  completedOnboarding?: boolean;
+                  countryCode?: null | string;
                   createdAt?: number;
+                  latitude?: null | number;
                   logo?: null | string;
+                  longitude?: null | number;
                   metadata?: null | string;
                   name?: string;
+                  size?: null | string;
                   slug?: null | string;
+                  state?: null | string;
+                  street?: null | string;
+                  url?: null | string;
+                  zip?: null | string;
                 };
                 where?: Array<{
                   connector?: "AND" | "OR";
@@ -2701,6 +2761,16 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "logo"
                     | "metadata"
                     | "churchTimeZone"
+                    | "completedOnboarding"
+                    | "url"
+                    | "street"
+                    | "city"
+                    | "state"
+                    | "zip"
+                    | "countryCode"
+                    | "latitude"
+                    | "longitude"
+                    | "size"
                     | "createdAt"
                     | "_id";
                   mode?: "sensitive" | "insensitive";

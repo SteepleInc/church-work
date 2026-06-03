@@ -125,6 +125,59 @@ describe("Better Auth authenticated state spike", () => {
       }).pipe(Effect.provide(TestConfect.layer())),
   );
 
+  it.effect("complete-onboarding marks a member Church complete", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `complete-onboarding-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        token?: string;
+      };
+
+      expect(signUpResponse.status).toBe(200);
+      expect(signUpBody.token).toEqual(expect.any(String));
+
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Complete Onboarding Church",
+        slug: `complete-onboarding-${crypto.randomUUID()}`,
+      });
+      const churchBody = (yield* Effect.promise(() => churchResponse.json())) as {
+        id?: string;
+      };
+
+      expect(churchResponse.status).toBe(200);
+      expect(churchBody.id).toEqual(expect.any(String));
+
+      const completeResponse = yield* c.fetch("/api/auth/complete-onboarding", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${signUpBody.token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ orgId: churchBody.id }),
+      });
+      const completeBody = (yield* Effect.promise(() => completeResponse.json())) as unknown;
+
+      expect(completeResponse.status).toBe(200);
+      expect(completeBody).toEqual({ status: true });
+
+      const organizationResponse = yield* c.fetch(
+        `/api/auth/organization/get-full-organization?organizationId=${churchBody.id}`,
+        {
+          method: "GET",
+          headers: { authorization: `Bearer ${signUpBody.token}` },
+        },
+      );
+      const organizationBody = (yield* Effect.promise(() => organizationResponse.json())) as {
+        completedOnboarding?: boolean;
+      };
+
+      expect(organizationResponse.status).toBe(200);
+      expect(organizationBody.completedOnboarding).toBe(true);
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
   it.effect(
     "agent current-user request rejects invalid bearer tokens with a sanitized structured error",
     () =>
