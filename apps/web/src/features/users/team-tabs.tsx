@@ -1,3 +1,4 @@
+import type { LinkProps } from "@tanstack/react-router";
 import { Link, useLocation } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
@@ -8,39 +9,22 @@ import { cn } from "@/lib/utils";
 
 type TabConfig = {
   readonly label: string;
-  readonly params?: { readonly teamTab: "members" | "invites" };
-  readonly to: "/settings/team/$teamTab" | string;
+  readonly to: LinkProps["to"];
   readonly value: "members" | "invites";
 };
 
-const getTabs = (basePath: string): readonly TabConfig[] =>
-  basePath === "/settings/team"
-    ? [
-        {
-          label: "Members",
-          to: `${basePath}/members`,
-          value: "members",
-        },
-        {
-          label: "Invites",
-          to: `${basePath}/invites`,
-          value: "invites",
-        },
-      ]
-    : [
-        {
-          label: "Members",
-          params: { teamTab: "members" },
-          to: "/settings/team/$teamTab",
-          value: "members",
-        },
-        {
-          label: "Invites",
-          params: { teamTab: "invites" },
-          to: "/settings/team/$teamTab",
-          value: "invites",
-        },
-      ];
+const getTabs = (basePath: string): readonly TabConfig[] => [
+  {
+    label: "Members",
+    to: `${basePath}/members` as LinkProps["to"],
+    value: "members",
+  },
+  {
+    label: "Invites",
+    to: `${basePath}/invites` as LinkProps["to"],
+    value: "invites",
+  },
+];
 
 export function TeamTabs({
   basePath = "/settings/team",
@@ -73,7 +57,7 @@ export function TeamTabs({
         {tabs.map((tab) => (
           <PageTabsTrigger
             key={tab.value}
-            render={<Link params={tab.params} preload="intent" replace to={tab.to} />}
+            render={<Link preload="intent" replace to={tab.to} />}
             value={tab.value}
           >
             {tab.label}

@@ -62,6 +62,7 @@ describe("settings route sections", () => {
     expect(teamTabsSource).toContain("<PageTabsList");
     expect(teamTabsSource).toContain("<PageTabsTrigger");
     expect(teamTabsSource).toContain("render={<Link");
+    expect(teamTabsSource).not.toContain("params={tab.params}");
     expect(teamTabsSource).toContain("pendingInvitationsCount");
   });
 
