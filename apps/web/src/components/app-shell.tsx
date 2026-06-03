@@ -40,6 +40,7 @@ import { GlobalSearchToggle } from "@/features/global-search/global-search-toggl
 import { QuickActions } from "@/features/quick-actions/quick-actions";
 import { QuickActionsToggle } from "@/features/quick-actions/quick-actions-toggle";
 import { getMemberTeams } from "@/routes/-dashboard";
+import { DetailsPane } from "@/components/details-pane/details-pane";
 
 export { COMPLETED_APP_LANDING_PATH };
 
@@ -133,6 +134,7 @@ function AuthenticatedAppShell() {
           </div>
         </header>
         <Outlet />
+        <DetailsPane />
         <GlobalSearch />
         <QuickActions />
       </SidebarInset>
@@ -213,7 +215,12 @@ function AppNavigationItem({ item }: { item: AppShellNavItem }) {
       <SidebarMenuButton
         isActive={isActive}
         render={
-          <Link params={item.params} preload="intent" to={item.to}>
+          <Link
+            params={item.params}
+            preload="intent"
+            search={(previousSearch) => previousSearch}
+            to={item.to}
+          >
             <span>{item.label}</span>
           </Link>
         }

@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useOpenTaskDetailsPaneUrl } from "@/components/details-pane/details-pane-helpers";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { useActivitiesForEntityCollection } from "@/data/activities/activitiesData.app";
@@ -19,6 +20,7 @@ import {
   useWorkflowStatusesCollection,
   useWorkflowsCollection,
 } from "@/data/workflows/workflowsData.app";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { TaskKanbanBoard } from "./task-kanban-board";
@@ -694,6 +696,7 @@ function TaskActionRow({
   readonly cancelTask: (taskId: string) => void | Promise<unknown>;
   readonly reopenTask: (taskId: string) => void | Promise<unknown>;
 }) {
+  const openTaskDetailsPaneUrl = useOpenTaskDetailsPaneUrl();
   const [draftTitle, setDraftTitle] = useState(task.title);
   const [draftDueDate, setDraftDueDate] = useState(task.dueDate);
   const [subtaskTitle, setSubtaskTitle] = useState("");
@@ -720,6 +723,15 @@ function TaskActionRow({
           onChange={(event) => setDraftTitle(event.target.value)}
         />
         <p className="text-xs text-muted-foreground">State: {task.taskState}</p>
+        <Button
+          render={<Link {...openTaskDetailsPaneUrl({ id: task.id })} />}
+          type="button"
+          size="sm"
+          variant="outline"
+          className="w-fit"
+        >
+          Open details
+        </Button>
         <TaskActivityList churchId={churchId} taskId={task.id} />
         <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
           <Input

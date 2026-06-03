@@ -48,6 +48,18 @@ describe("dashboard execution route search", () => {
     });
   });
 
+  test("preserves details pane state while switching execution pages", () => {
+    expect(
+      getDashboardSearchForPanel({
+        taskState: "todo",
+        "details-pane": [{ _tag: "task", id: "task-1", tab: "details" }],
+      }),
+    ).toEqual({
+      taskState: "todo",
+      "details-pane": [{ _tag: "task", id: "task-1", tab: "details" }],
+    });
+  });
+
   test("encodes temporary execution filters as route search state", () => {
     expect(
       getDashboardSearchForExecutionFilters(

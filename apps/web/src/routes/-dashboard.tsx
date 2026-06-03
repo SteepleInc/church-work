@@ -87,6 +87,8 @@ import {
 } from "@/data/workflows/workflowsData.app";
 import { authClient } from "@/lib/auth-client";
 import { InviteMemberButton, InviteMemberQuickAction } from "@/features/settings/invite-member";
+import { parseDetailsPaneState } from "@/components/details-pane/details-pane-helpers";
+import type { DetailsPaneParams } from "@/components/details-pane/details-pane-types";
 
 export type ActiveDashboardPanel =
   | "my_work"
@@ -97,11 +99,13 @@ export type ActiveDashboardPanel =
 type DashboardSearch = {
   readonly taskState?: "todo" | "in_progress" | "done" | "canceled";
   readonly workflowStatusId?: string;
+  readonly "details-pane"?: DetailsPaneParams;
 };
 
 export function validateDashboardSearch(search: Record<string, unknown>): DashboardSearch {
   const taskState = search.taskState;
   const workflowStatusId = search.workflowStatusId;
+  const detailsPaneState = parseDetailsPaneState(search);
 
   return {
     taskState:
@@ -115,6 +119,7 @@ export function validateDashboardSearch(search: Record<string, unknown>): Dashbo
       typeof workflowStatusId === "string" && workflowStatusId.length > 0
         ? workflowStatusId
         : undefined,
+    "details-pane": detailsPaneState.length > 0 ? detailsPaneState : undefined,
   };
 }
 
@@ -138,6 +143,9 @@ function getDashboardFilterSearch(search: DashboardSearch): DashboardSearch {
   return {
     ...(search.taskState ? { taskState: search.taskState } : {}),
     ...(search.workflowStatusId ? { workflowStatusId: search.workflowStatusId } : {}),
+    ...(search["details-pane"] && search["details-pane"].length > 0
+      ? { "details-pane": search["details-pane"] }
+      : {}),
   };
 }
 
