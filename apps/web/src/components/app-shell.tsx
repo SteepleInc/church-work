@@ -3,6 +3,7 @@ import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
 import { useEffect } from "react";
 
 import { ModeToggle } from "@/components/mode-toggle";
+import { OrgSwitcher } from "@/components/org-switcher";
 import SignInForm from "@/components/sign-in-form";
 import {
   Breadcrumb,
@@ -27,11 +28,12 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import UserMenu from "@/components/user-menu";
+import { COMPLETED_APP_LANDING_PATH } from "@/data/org-routing";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { useTeamMembershipsCollection, useTeamsCollection } from "@/data/teams/teamsData.app";
 import { getMemberTeams } from "@/routes/-dashboard";
 
-export const COMPLETED_APP_LANDING_PATH = "/my-work";
+export { COMPLETED_APP_LANDING_PATH };
 
 type AppShellNavItem = {
   readonly label: string;
@@ -132,12 +134,7 @@ function AppNavigation() {
   return (
     <Sidebar className="px-0 pb-0" collapsible="icon" variant="inset">
       <SidebarHeader className="mx-2 pb-0">
-        <div className="rounded-lg px-2 py-2">
-          <p className="text-sm font-semibold">Church Task</p>
-          <p className="truncate text-xs text-muted-foreground">
-            {activeChurch?.name ?? "Church workspace"}
-          </p>
-        </div>
+        <OrgSwitcher />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>

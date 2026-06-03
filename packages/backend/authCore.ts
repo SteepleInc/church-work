@@ -132,6 +132,45 @@ const completeOnboarding = () =>
     id: "complete-onboarding",
   }) satisfies BetterAuthPlugin;
 
+const clearOrgForOnboarding = () =>
+  ({
+    endpoints: {
+      clearOrgForOnboarding: createAuthEndpoint(
+        "/clear-org-for-onboarding",
+        {
+          method: "POST",
+          use: [sessionMiddleware],
+        },
+        async (ctx) => {
+          const session = ctx.context.session;
+
+          const updatedSession = await ctx.context.internalAdapter.updateSession(
+            session.session.token,
+            {
+              activeOrganizationId: null,
+              activeTeamId: null,
+              skipOrgFallback: true,
+            },
+          );
+
+          if (!updatedSession) {
+            throw ctx.error("INTERNAL_SERVER_ERROR", {
+              message: "Failed to update session.",
+            });
+          }
+
+          await setSessionCookie(ctx, {
+            session: updatedSession,
+            user: session.user,
+          });
+
+          return ctx.json({ status: true });
+        },
+      ),
+    },
+    id: "clear-org-for-onboarding",
+  }) satisfies BetterAuthPlugin;
+
 export function createAuth(ctx: GenericCtx<DataModel>) {
   return betterAuth({
     baseURL: process.env.CONVEX_SITE_URL,
@@ -140,6 +179,16 @@ export function createAuth(ctx: GenericCtx<DataModel>) {
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: false,
+    },
+    session: {
+      additionalFields: {
+        skipOrgFallback: {
+          defaultValue: false,
+          input: true,
+          required: false,
+          type: "boolean",
+        },
+      },
     },
     plugins: [
       emailOTP({
@@ -180,6 +229,7 @@ export function createAuth(ctx: GenericCtx<DataModel>) {
         },
       }),
       completeOnboarding(),
+      clearOrgForOnboarding(),
       apiKey({
         apiKeyHeaders: "authorization",
         customAPIKeyGetter: (ctx) => {

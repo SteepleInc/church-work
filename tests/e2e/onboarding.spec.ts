@@ -42,6 +42,20 @@ async function signInWithOtp(page: Page, email: string) {
   await page.getByLabel("Verification Code").fill(await waitForOtp(page, email));
 }
 
+async function completeOnboarding(page: Page, churchName: string) {
+  await page.getByLabel("Church Name").fill(churchName);
+  await page.getByLabel("Street").fill("123 Main Street");
+  await page.getByLabel("City").fill("Nashville");
+  await page.getByLabel("State / Region").fill("TN");
+  await page.getByLabel("Postal Code").fill("37203");
+  await page.getByLabel("Country Code").fill("US");
+  await page.getByLabel("Church Time Zone").fill("America/Chicago");
+  await page.getByLabel("Website").fill("https://example.org");
+  await page.getByRole("button", { name: "Continue to Teams" }).click();
+  await page.getByRole("button", { name: "Enter Church Task" }).click();
+  await expect(page).toHaveURL(/\/my-work$/, { timeout: 20_000 });
+}
+
 test("creates a Church profile and reviews initial Teams", async ({ page }, testInfo) => {
   const email = `onboarding-${Date.now()}-${testInfo.workerIndex}@example.com`;
   const churchName = `E2E Onboarding Church ${Date.now()}`;
@@ -73,6 +87,37 @@ test("creates a Church profile and reviews initial Teams", async ({ page }, test
 
   await expect(page).toHaveURL(/\/my-work$/, { timeout: 20_000 });
   await expect(page.getByRole("heading", { name: "My Work", level: 1 })).toBeVisible();
+});
+
+test("Create Church clears active Church for onboarding and completed Church switching returns to My Work", async ({
+  page,
+}, testInfo) => {
+  const clearOrgEndpoint = `${getConvexSiteUrl()}/api/auth/clear-org-for-onboarding`;
+  const endpointProbe = await page.request.post(clearOrgEndpoint, { failOnStatusCode: false });
+  test.skip(
+    endpointProbe.status() === 404,
+    "clear-org-for-onboarding is not deployed in this e2e backend environment.",
+  );
+
+  const email = `create-church-${Date.now()}-${testInfo.workerIndex}@example.com`;
+  const firstChurchName = `E2E Primary Church ${Date.now()}`;
+  const secondChurchName = `E2E Second Church ${Date.now()}`;
+
+  await signInWithOtp(page, email);
+  await completeOnboarding(page, firstChurchName);
+
+  await page.getByRole("button", { name: new RegExp(firstChurchName) }).click();
+  await page.getByRole("menuitem", { name: "Create Church" }).click();
+
+  await expect(page).toHaveURL(/\/onboarding$/);
+  await expect(page.getByText("Creating new Church...")).toBeVisible();
+
+  await completeOnboarding(page, secondChurchName);
+  await page.getByRole("button", { name: new RegExp(secondChurchName) }).click();
+  await page.getByRole("menuitem", { name: new RegExp(firstChurchName) }).click();
+
+  await expect(page).toHaveURL(/\/my-work$/);
+  await expect(page.getByRole("button", { name: new RegExp(firstChurchName) })).toBeVisible();
 });
 
 test("Google Places lookup autofills editable Church profile fields", async ({

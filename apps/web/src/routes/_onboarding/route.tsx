@@ -1,4 +1,5 @@
 import { ModeToggle } from "@/components/mode-toggle";
+import { OnboardingOrgSwitcher } from "@/components/onboarding-org-switcher";
 import { Button } from "@/components/ui/button";
 import UserMenu from "@/components/user-menu";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
@@ -36,6 +37,8 @@ function OnboardingLayout() {
                   time, teams, and ministry context.
                 </p>
               </div>
+
+              <OnboardingOrgSwitcher className="mt-8" />
 
               <div className="mt-auto hidden w-full rounded-2xl border border-background/15 bg-background/10 p-4 text-sm text-background/80 md:block dark:border-foreground/15 dark:bg-foreground/10 dark:text-foreground/80">
                 <p className="font-medium text-background dark:text-foreground">Next up</p>

@@ -16,11 +16,32 @@ const completeOnboardingClient = () =>
     id: "complete-onboarding",
   }) satisfies BetterAuthClientPlugin;
 
+const clearOrgForOnboardingClient = () =>
+  ({
+    atomListeners: [
+      {
+        matcher: (path: string) => path === "/clear-org-for-onboarding",
+        signal: "$sessionSignal",
+      },
+    ],
+    getActions: ($fetch) => ({
+      clearOrgForOnboarding: async () =>
+        await $fetch<{ status: boolean }>("/clear-org-for-onboarding", {
+          method: "POST",
+        }),
+    }),
+    id: "clear-org-for-onboarding",
+    pathMethods: {
+      "/clear-org-for-onboarding": "POST",
+    },
+  }) satisfies BetterAuthClientPlugin;
+
 export const authClient = createAuthClient({
   baseURL: env.VITE_CONVEX_SITE_URL,
   plugins: [
     emailOTPClient(),
     completeOnboardingClient(),
+    clearOrgForOnboardingClient(),
     organizationClient({
       teams: { enabled: true },
       schema: {
