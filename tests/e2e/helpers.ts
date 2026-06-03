@@ -42,7 +42,12 @@ export async function signInWithOtp(page: Page, email: string) {
 }
 
 export async function completeOnboarding(page: Page, churchName: string) {
+  await expect(page.getByText("Next up")).not.toBeVisible();
+  await expect(page.getByText("Step 1 of 2")).not.toBeVisible();
+  await expect(page.getByLabel("Street")).not.toBeVisible();
+  await expect(page.getByLabel("Find Your Church")).toBeVisible();
   await page.getByLabel("Church Name").fill(churchName);
+  await page.getByRole("button", { name: "Edit Details" }).click();
   await page.getByLabel("Street").fill("123 Main Street");
   await page.getByLabel("City").fill("Nashville");
   await page.getByLabel("State / Region").fill("TN");

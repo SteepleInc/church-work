@@ -65,7 +65,12 @@ async function createTestInvitation(
 }
 
 async function completeOnboarding(page: Page, churchName: string) {
+  await expect(page.getByText("Next up")).not.toBeVisible();
+  await expect(page.getByText("Step 1 of 2")).not.toBeVisible();
+  await expect(page.getByLabel("Find Your Church")).toBeVisible();
+  await expect(page.getByLabel("Street")).not.toBeVisible();
   await page.getByLabel("Church Name").fill(churchName);
+  await page.getByRole("button", { name: "Edit Details" }).click();
   await page.getByLabel("Street").fill("123 Main Street");
   await page.getByLabel("City").fill("Nashville");
   await page.getByLabel("State / Region").fill("TN");
@@ -140,7 +145,12 @@ test("creates a Church profile and reviews initial Teams", async ({ page }, test
   await signInWithOtp(page, email);
 
   await expect(page).toHaveURL(/\/onboarding$/);
+  await expect(page.getByText("Next up")).not.toBeVisible();
+  await expect(page.getByText("Step 1 of 2")).not.toBeVisible();
+  await expect(page.getByLabel("Find Your Church")).toBeVisible();
+  await expect(page.getByLabel("Street")).not.toBeVisible();
   await page.getByLabel("Church Name").fill(churchName);
+  await page.getByRole("button", { name: "Edit Details" }).click();
   await page.getByLabel("Street").fill("123 Main Street");
   await page.getByLabel("City").fill("Nashville");
   await page.getByLabel("State / Region").fill("TN");
@@ -150,8 +160,9 @@ test("creates a Church profile and reviews initial Teams", async ({ page }, test
   await page.getByLabel("Website").fill("https://example.org");
   await page.getByRole("button", { name: "Continue to Teams" }).click();
 
-  await expect(page.getByText("Step 2 of 2")).toBeVisible();
+  await expect(page.getByText("Step 2 of 2")).not.toBeVisible();
   await expect(page.getByText("Review your initial Teams", { exact: true })).toBeVisible();
+  await expect(page.getByText("Initial Church Task Team").first()).toBeVisible();
   await expect(page.getByText("Workflow setup")).not.toBeVisible();
   await page.getByLabel("Team 1 Name").fill("Creative");
   await page.getByRole("button", { name: "Remove Care" }).click();
@@ -187,7 +198,9 @@ test("Create Church clears active Church for onboarding and completed Church swi
   await page.getByRole("menuitem", { name: "Create Church" }).click();
 
   await expect(page).toHaveURL(/\/onboarding$/);
-  await expect(page.getByText("Creating new Church...")).toBeVisible();
+  await expect(
+    page.getByRole("complementary").getByText("Creating new Church...").nth(1),
+  ).toBeVisible();
 
   await completeOnboarding(page, secondChurchName);
   await page.getByRole("button", { name: new RegExp(secondChurchName) }).click();
@@ -218,7 +231,7 @@ test("switching to an incomplete Church routes back to onboarding", async ({ pag
   await incompleteChurchItem.click();
 
   await expect(page).toHaveURL(/\/onboarding$/);
-  await expect(page.getByText(incompleteChurchName)).toBeVisible();
+  await expect(page.getByRole("button", { name: new RegExp(incompleteChurchName) })).toBeVisible();
 });
 
 test("Church owners can use dev and app-admin navigation", async ({ page }, testInfo) => {
