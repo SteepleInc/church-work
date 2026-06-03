@@ -8,7 +8,7 @@ export const Route = createFileRoute("/_auth/sign-in")({
 function SignInRoute() {
   return (
     <main className="flex min-h-svh items-center justify-center bg-muted/30 p-4">
-      <SignInForm onSwitchToSignUp={() => undefined} />
+      <SignInForm />
     </main>
   );
 }

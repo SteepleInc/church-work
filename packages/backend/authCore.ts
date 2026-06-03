@@ -3,7 +3,7 @@ import { apiKey } from "@better-auth/api-key";
 import { convex, crossDomain } from "@convex-dev/better-auth/plugins";
 import { APIError } from "better-auth/api";
 import { betterAuth } from "better-auth/minimal";
-import { bearer, mcp, organization } from "better-auth/plugins";
+import { bearer, emailOTP, mcp, organization } from "better-auth/plugins";
 
 import { components, internal } from "./convex/_generated/api";
 import type { DataModel } from "./convex/_generated/dataModel";
@@ -12,6 +12,7 @@ import { sendChurchInvitationEmail } from "./churchInvitationEmail";
 import { isValidChurchTimeZone } from "./churchTimeZone";
 
 const siteUrl = process.env.SITE_URL!;
+const otpEmailFrom = process.env.AUTH_EMAIL_FROM ?? "Church Task <auth@churchtask.local>";
 const trustedOrigins = [
   siteUrl,
   process.env.E2E_SITE_URL,
@@ -79,6 +80,43 @@ export function createAuth(ctx: GenericCtx<DataModel>) {
       requireEmailVerification: false,
     },
     plugins: [
+      emailOTP({
+        expiresIn: 15 * 60,
+        async sendVerificationOTP({ email, otp }) {
+          if (process.env.NODE_ENV === "development") {
+            console.log("sendVerificationOTP", { email, otp });
+          }
+
+          if (process.env.NODE_ENV === "production") {
+            const apiKey = process.env.RESEND_API_KEY;
+            if (!apiKey) {
+              throw new APIError("INTERNAL_SERVER_ERROR", {
+                message: "Email delivery is not configured.",
+              });
+            }
+
+            const response = await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${apiKey}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                from: otpEmailFrom,
+                to: email,
+                subject: "Sign in to Church Task",
+                text: `Your Church Task sign-in code is ${otp}. It expires in 15 minutes.`,
+              }),
+            });
+
+            if (!response.ok) {
+              throw new APIError("INTERNAL_SERVER_ERROR", {
+                message: "Could not send sign-in code.",
+              });
+            }
+          }
+        },
+      }),
       apiKey({
         apiKeyHeaders: "authorization",
         customAPIKeyGetter: (ctx) => {

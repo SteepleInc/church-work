@@ -2,7 +2,7 @@ import { httpRouter } from "convex/server";
 
 import { mcpCurrentUserToolResponse } from "../agent/operations";
 import { authComponent, createAuth } from "../authCore";
-import { api } from "./_generated/api";
+import { api, components } from "./_generated/api";
 import { httpAction, type ActionCtx } from "./_generated/server";
 import { polar } from "./polar";
 
@@ -26,6 +26,23 @@ const metadataHeaders = {
   "Access-Control-Allow-Methods": "GET, OPTIONS",
   "Access-Control-Allow-Origin": "*",
   "Content-Type": "application/json",
+};
+
+type BetterAuthVerification = {
+  readonly identifier: string;
+  readonly value: string;
+  readonly expiresAt: number;
+};
+
+const jsonHeaders = {
+  "Content-Type": "application/json",
+};
+
+const isOtpCaptureEnabled = () => process.env.NODE_ENV !== "production";
+
+const extractOtp = (value: string) => {
+  const separatorIndex = value.lastIndexOf(":");
+  return separatorIndex === -1 ? value : value.slice(0, separatorIndex);
 };
 
 type McpTaskOperationResult = {
@@ -110,6 +127,47 @@ const mcpTaskResponse = (
 };
 
 authComponent.registerRoutes(http, createAuth, { cors: true });
+
+http.route({
+  path: "/api/test/otp",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    if (!isOtpCaptureEnabled()) {
+      return Response.json(
+        { ok: false, error: "Not found" },
+        { headers: jsonHeaders, status: 404 },
+      );
+    }
+
+    const url = new URL(request.url);
+    const email = url.searchParams.get("email")?.trim().toLowerCase();
+    if (!email) {
+      return Response.json(
+        { ok: false, error: "Missing email search parameter." },
+        { headers: jsonHeaders, status: 400 },
+      );
+    }
+
+    const verification = (await ctx.runQuery(components.betterAuth.adapter.findOne, {
+      model: "verification",
+      where: [
+        {
+          field: "identifier",
+          value: `sign-in-otp-${email}`,
+        },
+      ],
+    })) as BetterAuthVerification | null;
+
+    if (!verification || verification.expiresAt < Date.now()) {
+      return Response.json({ ok: false, otp: null }, { headers: jsonHeaders, status: 404 });
+    }
+
+    return Response.json(
+      { ok: true, email, otp: extractOtp(verification.value), expiresAt: verification.expiresAt },
+      { headers: jsonHeaders },
+    );
+  }),
+});
 
 http.route({
   path: "/.well-known/oauth-authorization-server",

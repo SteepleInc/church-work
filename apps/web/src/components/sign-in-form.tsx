@@ -1,9 +1,14 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Form } from "@/components/form/form";
 import { useAppForm } from "@/components/form/ts-form";
+import { OtpForm } from "@/components/otp-form";
+import { SignInState, signInStateAtom } from "@/features/auth/sign-in-state";
 import { revalidateLogic } from "@tanstack/react-form";
 import { useNavigate } from "@tanstack/react-router";
-import { Schema } from "effect";
+import { Match, Schema } from "effect";
+import { useAtom } from "jotai";
+import { ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 
 import { authClient } from "@/lib/auth-client";
@@ -14,12 +19,10 @@ const SignInSchema = Schema.Struct({
       message: () => "Invalid email address",
     }),
   ),
-  password: Schema.String.pipe(
-    Schema.minLength(8, { message: () => "Password must be at least 8 characters" }),
-  ),
 });
 
-export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () => void }) {
+export default function SignInForm() {
+  const [signInState, setSignInState] = useAtom(signInStateAtom);
   const navigate = useNavigate({
     from: "/",
   });
@@ -27,83 +30,98 @@ export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () 
   const form = useAppForm({
     defaultValues: {
       email: "",
-      password: "",
     },
     validationLogic: revalidateLogic({
       mode: "submit",
       modeAfterSubmission: "blur",
     }),
-    onSubmit: async ({ value }) => {
-      await authClient.signIn.email(
-        {
-          email: value.email,
-          password: value.password,
-        },
-        {
-          onSuccess: () => {
-            navigate({
-              to: "/my-work",
-            });
-            toast.success("Sign in successful");
-          },
-          onError: (error) => {
-            toast.error(error.error.message || error.error.statusText);
-          },
-        },
-      );
-    },
     validators: {
-      onSubmit: Schema.standardSchemaV1(SignInSchema),
+      onDynamic: Schema.standardSchemaV1(SignInSchema),
+      onSubmitAsync: async ({ value }) => {
+        const result = await authClient.emailOtp.sendVerificationOtp({
+          email: value.email,
+          type: "sign-in",
+        });
+
+        if (result.error) {
+          return {
+            form: result.error.message || "Failed to send verification code",
+          };
+        }
+
+        setSignInState(SignInState.otp({ email: value.email }));
+      },
     },
   });
 
   return (
-    <div className="mx-auto w-full mt-10 max-w-md p-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-center text-3xl">Welcome Back</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              form.handleSubmit();
-            }}
-            className="space-y-4"
-          >
-            <form.AppField name="email">
-              {(field) => <field.InputField label="Email" required type="email" />}
-            </form.AppField>
+    <Card className="w-96 max-w-[calc(100vw-2.5rem)]">
+      <CardHeader>
+        <CardTitle className="text-4xl font-medium">
+          {Match.value(signInState).pipe(
+            Match.tag("email", () => "Sign in to Church Task"),
+            Match.tag("otp", () => "Check your email"),
+            Match.exhaustive,
+          )}
+        </CardTitle>
+        <CardDescription>
+          {Match.value(signInState).pipe(
+            Match.tag("email", () => "Enter your email to receive a sign-in code."),
+            Match.tag("otp", ({ email }) => `Use the 6-digit code sent to ${email}.`),
+            Match.exhaustive,
+          )}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {Match.value(signInState).pipe(
+          Match.tag("email", () => (
+            <Form form={form}>
+              <form.AppField name="email">
+                {(field) => (
+                  <field.InputField
+                    autoCapitalize="none"
+                    autoComplete="email"
+                    label="Email address"
+                    placeholder="you@example.com"
+                    required
+                    type="email"
+                  />
+                )}
+              </form.AppField>
 
-            <form.AppField name="password">
-              {(field) => <field.InputField label="Password" required type="password" />}
-            </form.AppField>
-
-            <form.Subscribe
-              selector={(state) => ({
-                canSubmit: state.canSubmit,
-                isSubmitting: state.isSubmitting,
-              })}
-            >
-              {({ canSubmit, isSubmitting }) => (
-                <Button type="submit" className="w-full" disabled={!canSubmit || isSubmitting}>
-                  {isSubmitting ? "Submitting..." : "Sign In"}
-                </Button>
-              )}
-            </form.Subscribe>
-          </form>
-        </CardContent>
-        <CardFooter className="justify-center">
-          <Button
-            variant="link"
-            onClick={onSwitchToSignUp}
-            className="text-indigo-600 hover:text-indigo-800"
-          >
-            Need an account? Sign Up
-          </Button>
-        </CardFooter>
-      </Card>
-    </div>
+              <form.Subscribe
+                selector={(state) => ({
+                  canSubmit: state.canSubmit,
+                  isSubmitting: state.isSubmitting,
+                })}
+              >
+                {({ canSubmit, isSubmitting }) => (
+                  <Button
+                    className="w-full gap-2"
+                    disabled={!canSubmit}
+                    loading={isSubmitting}
+                    type="submit"
+                  >
+                    Continue
+                    <ArrowRight />
+                  </Button>
+                )}
+              </form.Subscribe>
+            </Form>
+          )),
+          Match.tag("otp", ({ email }) => (
+            <OtpForm
+              autoSubmit
+              email={email}
+              onSuccess={async () => {
+                await navigate({ to: "/my-work" });
+                toast.success("Sign in successful");
+              }}
+            />
+          )),
+          Match.exhaustive,
+        )}
+      </CardContent>
+    </Card>
   );
 }

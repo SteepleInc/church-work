@@ -2135,11 +2135,7 @@ export function DashboardPage({ activePanel }: { activePanel: ActiveDashboardPan
         <ChurchOnboardingGate activePanel={activePanel} />
       </Authenticated>
       <Unauthenticated>
-        {showSignIn ? (
-          <SignInForm onSwitchToSignUp={() => setShowSignIn(false)} />
-        ) : (
-          <SignUpForm onSwitchToSignIn={() => setShowSignIn(true)} />
-        )}
+        {showSignIn ? <SignInForm /> : <SignUpForm onSwitchToSignIn={() => setShowSignIn(true)} />}
       </Unauthenticated>
       <AuthLoading>
         <div>Loading...</div>

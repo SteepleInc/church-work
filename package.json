@@ -50,6 +50,7 @@
     "@church-task/env": "workspace:*",
     "@church-task/shared": "workspace:*",
     "dotenv": "catalog:",
+    "jotai": "^2.16.0",
     "zod": "catalog:"
   },
   "devDependencies": {

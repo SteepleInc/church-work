@@ -4,7 +4,6 @@ import { Authenticated, AuthLoading, Unauthenticated, useQuery } from "convex/re
 
 import { ModeToggle } from "@/components/mode-toggle";
 import SignInForm from "@/components/sign-in-form";
-import SignUpForm from "@/components/sign-up-form";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -29,7 +28,6 @@ import {
 } from "@/components/ui/sidebar";
 import UserMenu from "@/components/user-menu";
 import { getMemberTeams } from "@/routes/-dashboard";
-import { useState } from "react";
 
 export const COMPLETED_APP_LANDING_PATH = "/my-work";
 
@@ -216,15 +214,9 @@ function AppBreadcrumbs() {
 }
 
 function UnauthenticatedAppEntry() {
-  const [showSignIn, setShowSignIn] = useState(true);
-
   return (
     <main className="flex min-h-svh items-center justify-center bg-muted/30 p-4">
-      {showSignIn ? (
-        <SignInForm onSwitchToSignUp={() => setShowSignIn(false)} />
-      ) : (
-        <SignUpForm onSwitchToSignIn={() => setShowSignIn(true)} />
-      )}
+      <SignInForm />
     </main>
   );
 }
