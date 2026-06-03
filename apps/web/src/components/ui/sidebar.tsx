@@ -9,6 +9,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
   Sheet,
@@ -24,9 +25,9 @@ import { SidebarLeftIcon } from "@hugeicons/core-free-icons";
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
-const SIDEBAR_WIDTH = "16rem";
+export const SIDEBAR_WIDTH = "18rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
-const SIDEBAR_WIDTH_ICON = "3rem";
+export const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
 
 type SidebarContextProps = {
@@ -181,7 +182,7 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+          className="w-full bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
           style={
             {
               "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
@@ -193,7 +194,7 @@ function Sidebar({
             <SheetTitle>Sidebar</SheetTitle>
             <SheetDescription>Displays the mobile sidebar.</SheetDescription>
           </SheetHeader>
-          <div className="flex h-full w-full flex-col">{children}</div>
+          <div className="flex h-full w-full flex-col overflow-hidden">{children}</div>
         </SheetContent>
       </Sheet>
     );
@@ -236,7 +237,7 @@ function Sidebar({
         <div
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
-          className="flex size-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:shadow-sm group-data-[variant=floating]:ring-1 group-data-[variant=floating]:ring-sidebar-border"
+          className="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow-sm"
         >
           {children}
         </div>
@@ -349,17 +350,39 @@ function SidebarSeparator({ className, ...props }: React.ComponentProps<typeof S
   );
 }
 
-function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
-  return (
+function SidebarContent({
+  className,
+  scrollAreaClassName,
+  scrollAreaViewportClassName,
+  scrollAreaMaskClassName,
+  ...props
+}: React.ComponentProps<"div"> & {
+  scrollAreaClassName?: string;
+  scrollAreaViewportClassName?: string;
+  scrollAreaMaskClassName?: string;
+}) {
+  const { isMobile } = useSidebar();
+
+  const content = (
     <div
       data-slot="sidebar-content"
       data-sidebar="content"
       className={cn(
-        "no-scrollbar flex min-h-0 flex-1 flex-col gap-0 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
+        "flex min-h-0 flex-1 flex-col gap-2 group-data-[collapsible=icon]:overflow-hidden",
         className,
       )}
       {...props}
     />
+  );
+
+  return (
+    <ScrollArea
+      className={cn(isMobile && "flex min-h-0", scrollAreaClassName)}
+      maskClassName={scrollAreaMaskClassName}
+      viewportClassName={cn("[&>div]:!inline [&>div]:min-h-full", scrollAreaViewportClassName)}
+    >
+      {content}
+    </ScrollArea>
   );
 }
 
@@ -438,7 +461,7 @@ function SidebarMenu({ className, ...props }: React.ComponentProps<"ul">) {
     <ul
       data-slot="sidebar-menu"
       data-sidebar="menu"
-      className={cn("flex w-full min-w-0 flex-col gap-0", className)}
+      className={cn("flex w-full min-w-0 flex-col gap-1", className)}
       {...props}
     />
   );
