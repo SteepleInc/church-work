@@ -4,7 +4,7 @@ import { useQuery } from "convex/react";
 
 import { collectionFromQueryResult } from "@/data/convex-query-adapter";
 
-export type OrgCollectionItem = Pick<Org, "id" | "name" | "slug"> & {
+export type OrgCollectionItem = Pick<Org, "id" | "name" | "slug" | "completedOnboarding"> & {
   readonly churchTimeZone: Org["churchTimeZone"] | null;
 };
 

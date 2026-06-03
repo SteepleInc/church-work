@@ -11,6 +11,16 @@ export type CurrentOrg = {
   readonly name: string;
   readonly slug: string | null;
   readonly churchTimeZone: string | null;
+  readonly completedOnboarding: boolean;
+  readonly url: string | null;
+  readonly street: string | null;
+  readonly city: string | null;
+  readonly state: string | null;
+  readonly zip: string | null;
+  readonly countryCode: string | null;
+  readonly latitude: number | null;
+  readonly longitude: number | null;
+  readonly size: string | null;
   readonly role: string;
   readonly currentUserId: string;
   readonly invitations: readonly {

@@ -14,6 +14,16 @@ type BetterAuthOrganization = {
   readonly name: string;
   readonly slug?: string | null;
   readonly churchTimeZone?: string | null;
+  readonly completedOnboarding?: boolean | null;
+  readonly url?: string | null;
+  readonly street?: string | null;
+  readonly city?: string | null;
+  readonly state?: string | null;
+  readonly zip?: string | null;
+  readonly countryCode?: string | null;
+  readonly latitude?: number | null;
+  readonly longitude?: number | null;
+  readonly size?: string | null;
 };
 
 type BetterAuthMember = {
@@ -153,6 +163,7 @@ export const listOrganizations = query({
               name: organization.name,
               slug: organization.slug ?? null,
               churchTimeZone: organization.churchTimeZone ?? null,
+              completedOnboarding: organization.completedOnboarding ?? true,
             }
           : null;
       }),
@@ -201,6 +212,16 @@ export const getActiveOrganization = query({
       name: organization.name,
       slug: organization.slug ?? null,
       churchTimeZone: organization.churchTimeZone ?? null,
+      completedOnboarding: organization.completedOnboarding ?? true,
+      url: organization.url ?? null,
+      street: organization.street ?? null,
+      city: organization.city ?? null,
+      state: organization.state ?? null,
+      zip: organization.zip ?? null,
+      countryCode: organization.countryCode ?? null,
+      latitude: organization.latitude ?? null,
+      longitude: organization.longitude ?? null,
+      size: organization.size ?? null,
       role: membership.role,
       currentUserId: membership.userId,
       invitations: invitations.map((invitation) => ({

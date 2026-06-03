@@ -127,6 +127,16 @@ export const tables = {
     logo: v.optional(v.union(v.null(), v.string())),
     metadata: v.optional(v.union(v.null(), v.string())),
     churchTimeZone: v.optional(v.string()),
+    completedOnboarding: v.optional(v.boolean()),
+    url: v.optional(v.union(v.null(), v.string())),
+    street: v.optional(v.union(v.null(), v.string())),
+    city: v.optional(v.union(v.null(), v.string())),
+    state: v.optional(v.union(v.null(), v.string())),
+    zip: v.optional(v.union(v.null(), v.string())),
+    countryCode: v.optional(v.union(v.null(), v.string())),
+    latitude: v.optional(v.union(v.null(), v.number())),
+    longitude: v.optional(v.union(v.null(), v.number())),
+    size: v.optional(v.union(v.null(), v.string())),
     createdAt: v.number(),
   })
     .index("slug", ["slug"])

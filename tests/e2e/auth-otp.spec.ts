@@ -49,5 +49,6 @@ test("signs in with email OTP using the test capture channel", async ({ page }) 
   const otp = await waitForOtp(page, email);
   await page.getByLabel("Verification Code").fill(otp);
 
-  await expect(page).toHaveURL(/\/my-work$/);
+  await expect(page).toHaveURL(/\/onboarding$/);
+  await expect(page.getByText("Tell us about your Church")).toBeVisible();
 });

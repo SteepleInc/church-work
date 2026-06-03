@@ -1,5 +1,6 @@
-import { Link, Outlet, useLocation } from "@tanstack/react-router";
+import { Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
+import { useEffect } from "react";
 
 import { ModeToggle } from "@/components/mode-toggle";
 import SignInForm from "@/components/sign-in-form";
@@ -82,6 +83,23 @@ export function AppShell() {
 }
 
 function AuthenticatedAppShell() {
+  const navigate = useNavigate();
+  const { currentOrgOpt: activeChurch, loading } = useCurrentOrgOpt();
+
+  useEffect(() => {
+    if (!loading && (!activeChurch || !activeChurch.completedOnboarding)) {
+      void navigate({ to: "/onboarding" });
+    }
+  }, [activeChurch, loading, navigate]);
+
+  if (loading || !activeChurch || !activeChurch.completedOnboarding) {
+    return (
+      <div className="flex h-svh items-center justify-center text-sm text-muted-foreground">
+        Loading Church...
+      </div>
+    );
+  }
+
   return (
     <SidebarProvider className="min-h-svh bg-muted/30" defaultOpen id="app-sidebar-provider">
       <AppNavigation />

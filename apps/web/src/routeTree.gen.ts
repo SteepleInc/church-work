@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as OrgRouteRouteImport } from './routes/_org/route'
+import { Route as OnboardingRouteRouteImport } from './routes/_onboarding/route'
 import { Route as MarketingRouteRouteImport } from './routes/_marketing/route'
 import { Route as MarketingIndexRouteImport } from './routes/_marketing/index'
 import { Route as OrgSettingsRouteImport } from './routes/_org/settings'
@@ -21,6 +22,10 @@ import { Route as OrgTeamTeamIdRouteImport } from './routes/_org/team.$teamId'
 
 const OrgRouteRoute = OrgRouteRouteImport.update({
   id: '/_org',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OnboardingRouteRoute = OnboardingRouteRouteImport.update({
+  id: '/_onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MarketingRouteRoute = MarketingRouteRouteImport.update({
@@ -48,9 +53,9 @@ const OrgMyWorkRoute = OrgMyWorkRouteImport.update({
   getParentRoute: () => OrgRouteRoute,
 } as any)
 const OnboardingOnboardingRoute = OnboardingOnboardingRouteImport.update({
-  id: '/_onboarding/onboarding',
+  id: '/onboarding',
   path: '/onboarding',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => OnboardingRouteRoute,
 } as any)
 const AuthSignInRoute = AuthSignInRouteImport.update({
   id: '/_auth/sign-in',
@@ -84,6 +89,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_marketing': typeof MarketingRouteRouteWithChildren
+  '/_onboarding': typeof OnboardingRouteRouteWithChildren
   '/_org': typeof OrgRouteRouteWithChildren
   '/_auth/sign-in': typeof AuthSignInRoute
   '/_onboarding/onboarding': typeof OnboardingOnboardingRoute
@@ -115,6 +121,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_marketing'
+    | '/_onboarding'
     | '/_org'
     | '/_auth/sign-in'
     | '/_onboarding/onboarding'
@@ -127,9 +134,9 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   MarketingRouteRoute: typeof MarketingRouteRouteWithChildren
+  OnboardingRouteRoute: typeof OnboardingRouteRouteWithChildren
   OrgRouteRoute: typeof OrgRouteRouteWithChildren
   AuthSignInRoute: typeof AuthSignInRoute
-  OnboardingOnboardingRoute: typeof OnboardingOnboardingRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -139,6 +146,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof OrgRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_onboarding': {
+      id: '/_onboarding'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof OnboardingRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_marketing': {
@@ -181,7 +195,7 @@ declare module '@tanstack/react-router' {
       path: '/onboarding'
       fullPath: '/onboarding'
       preLoaderRoute: typeof OnboardingOnboardingRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof OnboardingRouteRoute
     }
     '/_auth/sign-in': {
       id: '/_auth/sign-in'
@@ -212,6 +226,18 @@ const MarketingRouteRouteWithChildren = MarketingRouteRoute._addFileChildren(
   MarketingRouteRouteChildren,
 )
 
+interface OnboardingRouteRouteChildren {
+  OnboardingOnboardingRoute: typeof OnboardingOnboardingRoute
+}
+
+const OnboardingRouteRouteChildren: OnboardingRouteRouteChildren = {
+  OnboardingOnboardingRoute: OnboardingOnboardingRoute,
+}
+
+const OnboardingRouteRouteWithChildren = OnboardingRouteRoute._addFileChildren(
+  OnboardingRouteRouteChildren,
+)
+
 interface OrgRouteRouteChildren {
   OrgMyWorkRoute: typeof OrgMyWorkRoute
   OrgOurWorkRoute: typeof OrgOurWorkRoute
@@ -232,9 +258,9 @@ const OrgRouteRouteWithChildren = OrgRouteRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   MarketingRouteRoute: MarketingRouteRouteWithChildren,
+  OnboardingRouteRoute: OnboardingRouteRouteWithChildren,
   OrgRouteRoute: OrgRouteRouteWithChildren,
   AuthSignInRoute: AuthSignInRoute,
-  OnboardingOnboardingRoute: OnboardingOnboardingRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

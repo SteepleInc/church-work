@@ -144,6 +144,46 @@ export function createAuth(ctx: GenericCtx<DataModel>) {
                 type: "string",
                 required: true,
               },
+              completedOnboarding: {
+                type: "boolean",
+                required: false,
+              },
+              url: {
+                type: "string",
+                required: false,
+              },
+              street: {
+                type: "string",
+                required: false,
+              },
+              city: {
+                type: "string",
+                required: false,
+              },
+              state: {
+                type: "string",
+                required: false,
+              },
+              zip: {
+                type: "string",
+                required: false,
+              },
+              countryCode: {
+                type: "string",
+                required: false,
+              },
+              latitude: {
+                type: "number",
+                required: false,
+              },
+              longitude: {
+                type: "number",
+                required: false,
+              },
+              size: {
+                type: "string",
+                required: false,
+              },
             },
           },
           team: {
