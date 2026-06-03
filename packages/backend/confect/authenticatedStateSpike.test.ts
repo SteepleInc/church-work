@@ -227,11 +227,16 @@ describe("Better Auth authenticated state spike", () => {
         headers: { authorization: `Bearer ${signUpBody.token}` },
       });
       const sessionAfterClear = (yield* Effect.promise(() => sessionAfterClearResponse.json())) as {
-        session?: { activeOrganizationId?: string | null; skipOrgFallback?: boolean | null };
+        session?: {
+          activeOrganizationId?: string | null;
+          activeTeamId?: string | null;
+          skipOrgFallback?: boolean | null;
+        };
       };
 
       expect(sessionAfterClearResponse.status).toBe(200);
       expect(sessionAfterClear.session?.activeOrganizationId).toBeNull();
+      expect(sessionAfterClear.session?.activeTeamId).toBeNull();
       expect(sessionAfterClear.session?.skipOrgFallback).toBe(true);
     }).pipe(Effect.provide(TestConfect.layer())),
   );
