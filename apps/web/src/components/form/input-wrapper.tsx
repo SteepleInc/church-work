@@ -58,7 +58,13 @@ type InputLabelProps = {
   name?: string | number | symbol;
 };
 
-function InputLabel({ label, processedError, labelClassName, required, name }: InputLabelProps) {
+export function InputLabel({
+  label,
+  processedError,
+  labelClassName,
+  required,
+  name,
+}: InputLabelProps) {
   return pipe(
     label,
     Option.fromNullable,
