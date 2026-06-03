@@ -34,9 +34,11 @@ test("completed users land in the PreachX-style app shell", async ({ page }, tes
   await expect(
     page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Our Work" }),
   ).toBeVisible();
-  await expect(
-    page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Settings" }),
-  ).toBeVisible();
+  const sidebar = page.locator('[data-sidebar="sidebar"]');
+  await expect(sidebar.getByText("Settings", { exact: true })).toBeVisible();
+  await expect(sidebar.getByRole("link", { exact: true, name: "Profile" })).toBeVisible();
+  await expect(sidebar.getByRole("link", { exact: true, name: "Church" })).toBeVisible();
+  await expect(sidebar.getByRole("link", { exact: true, name: "Team" })).toBeVisible();
 });
 
 test("shell navigation keeps work and settings routes inside the sidebar layout", async ({
@@ -52,11 +54,20 @@ test("shell navigation keeps work and settings routes inside the sidebar layout"
   await expect(page.getByRole("heading", { name: "Our Work", level: 1 })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "breadcrumb" })).toContainText("Our Work");
 
-  await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Settings" }).click();
+  await page
+    .locator('[data-sidebar="sidebar"]')
+    .getByRole("link", { exact: true, name: "Profile" })
+    .click();
   await expect(page).toHaveURL(/\/settings\/profile$/);
-  await expect(page.getByRole("heading", { name: "Settings", level: 1 })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Members/ })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Invitations/ })).toBeVisible();
+  await expect(page.getByText("Profile Settings", { exact: true })).toBeVisible();
+
+  await page
+    .locator('[data-sidebar="sidebar"]')
+    .getByRole("link", { exact: true, name: "Team" })
+    .click();
+  await expect(page).toHaveURL(/\/settings\/team\/members$/);
+  await expect(page.getByRole("tab", { name: /Members/ })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /Invites/ })).toBeVisible();
 
   await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "My Work" }).click();
   await expect(page).toHaveURL(/\/my-work$/);

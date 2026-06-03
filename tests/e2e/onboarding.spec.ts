@@ -266,21 +266,22 @@ test("settings navigation exposes profile, Church, members, and invitation actio
   await signInWithOtp(page, email);
   await completeOnboarding(page, churchName);
 
-  await page.getByRole("link", { name: "Settings" }).click();
+  const sidebar = page.locator('[data-sidebar="sidebar"]');
+
+  await expect(sidebar.getByText("Settings", { exact: true })).toBeVisible();
+  await expect(sidebar.getByRole("link", { exact: true, name: "Profile" })).toBeVisible();
+  await expect(sidebar.getByRole("link", { exact: true, name: "Church" })).toBeVisible();
+  await expect(sidebar.getByRole("link", { exact: true, name: "Team" })).toBeVisible();
+
+  await sidebar.getByRole("link", { exact: true, name: "Profile" }).click();
   await expect(page).toHaveURL(/\/settings\/profile$/);
-  await expect(page.getByRole("heading", { name: "Settings", level: 1 })).toBeVisible();
-  const settingsNav = page.getByRole("navigation", { name: "Settings sections" });
-  await expect(settingsNav.getByRole("link", { name: /Profile/ })).toBeVisible();
-  await expect(settingsNav.getByRole("link", { name: /^Church\b/ })).toBeVisible();
-  await expect(settingsNav.getByRole("link", { name: /Members/ })).toBeVisible();
-  await expect(settingsNav.getByRole("link", { name: /Invitations/ })).toBeVisible();
   await expect(page.getByText("Manage your Church Task account details.")).toBeVisible();
   await expect(page.getByText(email).first()).toBeVisible();
   await page.getByLabel("Name").fill(profileName);
   await page.getByRole("button", { name: "Update Profile" }).click();
   await expect(page.getByText("Profile updated.")).toBeVisible();
 
-  await settingsNav.getByRole("link", { name: /^Church\b/ }).click();
+  await sidebar.getByRole("link", { exact: true, name: "Church" }).click();
   await expect(page).toHaveURL(/\/settings\/org$/);
   await expect(page.getByText("Church Profile", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Church Name")).toHaveValue(churchName);
@@ -288,13 +289,15 @@ test("settings navigation exposes profile, Church, members, and invitation actio
   await page.getByRole("button", { name: "Update Church Profile" }).click();
   await expect(page.getByText("Church profile updated.")).toBeVisible();
 
-  await settingsNav.getByRole("link", { name: /Members/ }).click();
+  await sidebar.getByRole("link", { exact: true, name: "Team" }).click();
   await expect(page).toHaveURL(/\/settings\/team\/members$/);
+  await expect(page.getByRole("tab", { name: /Members/ })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /Invites/ })).toBeVisible();
   await expect(page.getByText("Church Members", { exact: true })).toBeVisible();
   await expect(page.getByText(email).first()).toBeVisible();
   await expect(page.getByText("Teams", { exact: true })).toBeVisible();
 
-  await settingsNav.getByRole("link", { name: /Invitations/ }).click();
+  await page.getByRole("tab", { name: /Invites/ }).click();
   await expect(page).toHaveURL(/\/settings\/team\/invites$/);
   await expect(page.getByText("Church Invitations", { exact: true })).toBeVisible();
   await expect(page.getByText("No pending invitations.")).toBeVisible();

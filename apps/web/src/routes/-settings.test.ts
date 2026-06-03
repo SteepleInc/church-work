@@ -55,11 +55,13 @@ describe("settings route sections", () => {
     const teamTabsSource = readFileSync("apps/web/src/features/users/team-tabs.tsx", "utf8");
 
     expect(teamRouteSource).toContain("<MainContainer>");
-    expect(teamRouteSource).toContain("<TeamTabs />");
+    expect(teamRouteSource).toContain('<TeamTabs basePath="/settings/team" />');
     expect(teamRouteSource).toContain("<Outlet />");
     expect(teamTabRouteSource).not.toContain("SettingsFrame");
-    expect(teamTabsSource).toContain('role="tablist"');
-    expect(teamTabsSource).toContain('role="tab"');
+    expect(teamTabsSource).toContain("<PageTabs");
+    expect(teamTabsSource).toContain("<PageTabsList");
+    expect(teamTabsSource).toContain("<PageTabsTrigger");
+    expect(teamTabsSource).toContain("render={<Link");
     expect(teamTabsSource).toContain("pendingInvitationsCount");
   });
 

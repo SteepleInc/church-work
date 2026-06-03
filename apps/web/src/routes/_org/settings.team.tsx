@@ -19,7 +19,7 @@ export const Route = createFileRoute("/_org/settings/team")({
 function RouteComponent() {
   return (
     <MainContainer>
-      <TeamTabs />
+      <TeamTabs basePath="/settings/team" />
       <Outlet />
     </MainContainer>
   );
