@@ -1,4 +1,5 @@
 import refs from "@church-task/backend/confect/_generated/refs";
+import { MainContainer, PageContainer } from "@/components/pageComponents";
 import { useAppForm } from "@/components/form/ts-form";
 import { Button } from "@/components/ui/button";
 import {
@@ -234,93 +235,95 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
   const unavailableTeamBoardActions = getUnavailableTeamBoardActions();
 
   return (
-    <main className="flex flex-1 flex-col gap-6 overflow-auto p-4 sm:p-6">
-      <div className="flex flex-col gap-4 rounded-xl border bg-background p-4 shadow-xs sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-sm font-medium text-muted-foreground">Church Task</p>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {activePanel === "settings"
-              ? "Active Church Settings"
-              : activePanel === "my_work"
-                ? "My Work"
-                : activePanel === "our_work"
-                  ? "Our Work"
-                  : (selectedTeam?.name ?? "Team")}
-          </h1>
-          {activeChurch ? (
-            <p className="text-sm text-muted-foreground">Active Church: {activeChurch.name}</p>
-          ) : null}
+    <MainContainer>
+      <PageContainer wrapperClassName="gap-6">
+        <div className="flex flex-col gap-4 rounded-xl border bg-background p-4 shadow-xs sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-muted-foreground">Church Task</p>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              {activePanel === "settings"
+                ? "Active Church Settings"
+                : activePanel === "my_work"
+                  ? "My Work"
+                  : activePanel === "our_work"
+                    ? "Our Work"
+                    : (selectedTeam?.name ?? "Team")}
+            </h1>
+            {activeChurch ? (
+              <p className="text-sm text-muted-foreground">Active Church: {activeChurch.name}</p>
+            ) : null}
+          </div>
         </div>
-      </div>
-      {activePanel === "settings" && activeChurch ? (
-        <ActiveChurchSettings activeChurch={activeChurch} />
-      ) : typeof activePanel === "object" && !selectedTeam ? (
-        <section className="grid gap-4 rounded-xl border bg-background p-4 shadow-xs">
-          <h2 className="text-base font-semibold">Team board</h2>
-          <p className="text-sm text-muted-foreground">
-            {teams === undefined ? "Loading Team board..." : "Team board is unavailable."}
-          </p>
-          {teams !== undefined ? (
-            <div className="flex flex-wrap gap-2">
-              {unavailableTeamBoardActions.map((action) => (
-                <Button
-                  key={action.panel}
-                  type="button"
-                  variant={action.panel === "my_work" ? "default" : "outline"}
-                  onClick={() => setActivePanel(action.panel)}
-                >
-                  {action.label}
-                </Button>
-              ))}
-            </div>
-          ) : null}
-        </section>
-      ) : activeChurch && currentUserId ? (
-        <TaskExecutionSurface
-          churchId={activeChurch.id}
-          currentUserId={currentUserId}
-          surface={
-            typeof activePanel === "object"
-              ? "team_board"
-              : activePanel === "settings"
-                ? "my_work"
-                : activePanel
-          }
-          team={selectedTeam}
-          myWorkEmptyStateTeams={memberTeams}
-          filters={{
-            taskState: search.taskState,
-            workflowStatusId: search.workflowStatusId,
-          }}
-          onFiltersChange={setExecutionFilters}
-          onOpenOurWork={() => setActivePanel("our_work")}
-          onOpenTeamBoard={(teamId) => setActivePanel({ kind: "team", teamId })}
-        />
-      ) : (
-        <>
+        {activePanel === "settings" && activeChurch ? (
+          <ActiveChurchSettings activeChurch={activeChurch} />
+        ) : typeof activePanel === "object" && !selectedTeam ? (
           <section className="grid gap-4 rounded-xl border bg-background p-4 shadow-xs">
-            <div>
-              <h2 className="text-base font-semibold">Church Home</h2>
-              <p className="text-sm text-muted-foreground">
-                privateData:{" "}
-                {QueryResult.isSuccess(privateData) ? privateData.value.message : "Loading..."}
-              </p>
-            </div>
+            <h2 className="text-base font-semibold">Team board</h2>
+            <p className="text-sm text-muted-foreground">
+              {teams === undefined ? "Loading Team board..." : "Team board is unavailable."}
+            </p>
+            {teams !== undefined ? (
+              <div className="flex flex-wrap gap-2">
+                {unavailableTeamBoardActions.map((action) => (
+                  <Button
+                    key={action.panel}
+                    type="button"
+                    variant={action.panel === "my_work" ? "default" : "outline"}
+                    onClick={() => setActivePanel(action.panel)}
+                  >
+                    {action.label}
+                  </Button>
+                ))}
+              </div>
+            ) : null}
           </section>
-          <ActiveChurchInvitationPrompt />
-          {activeChurch ? (
-            <>
-              <ChurchMembersPanel activeChurchId={activeChurch.id} />
-              <ChurchInvitationPanel
-                activeChurchId={activeChurch.id}
-                activeChurchRole={activeChurch.role}
-                pendingInvitations={pendingInvitations}
-              />
-            </>
-          ) : null}
-        </>
-      )}
-    </main>
+        ) : activeChurch && currentUserId ? (
+          <TaskExecutionSurface
+            churchId={activeChurch.id}
+            currentUserId={currentUserId}
+            surface={
+              typeof activePanel === "object"
+                ? "team_board"
+                : activePanel === "settings"
+                  ? "my_work"
+                  : activePanel
+            }
+            team={selectedTeam}
+            myWorkEmptyStateTeams={memberTeams}
+            filters={{
+              taskState: search.taskState,
+              workflowStatusId: search.workflowStatusId,
+            }}
+            onFiltersChange={setExecutionFilters}
+            onOpenOurWork={() => setActivePanel("our_work")}
+            onOpenTeamBoard={(teamId) => setActivePanel({ kind: "team", teamId })}
+          />
+        ) : (
+          <>
+            <section className="grid gap-4 rounded-xl border bg-background p-4 shadow-xs">
+              <div>
+                <h2 className="text-base font-semibold">Church Home</h2>
+                <p className="text-sm text-muted-foreground">
+                  privateData:{" "}
+                  {QueryResult.isSuccess(privateData) ? privateData.value.message : "Loading..."}
+                </p>
+              </div>
+            </section>
+            <ActiveChurchInvitationPrompt />
+            {activeChurch ? (
+              <>
+                <ChurchMembersPanel activeChurchId={activeChurch.id} />
+                <ChurchInvitationPanel
+                  activeChurchId={activeChurch.id}
+                  activeChurchRole={activeChurch.role}
+                  pendingInvitations={pendingInvitations}
+                />
+              </>
+            ) : null}
+          </>
+        )}
+      </PageContainer>
+    </MainContainer>
   );
 }
 

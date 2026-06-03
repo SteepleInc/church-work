@@ -20,6 +20,9 @@ const appNavigationSource = await Bun.file(
 const mobileSidebarContentSource = await Bun.file(
   new URL("./navigation/mobile-sidebar-content.tsx", import.meta.url),
 ).text();
+const dashboardRouteSource = await Bun.file(
+  new URL("../routes/-dashboard.tsx", import.meta.url),
+).text();
 
 describe("app shell route behavior", () => {
   test("lands completed app users on My Work", () => {
@@ -62,6 +65,17 @@ describe("app shell route behavior", () => {
     expect(mobileSidebarContentSource).toContain("<OrgSwitcher />");
     expect(mobileSidebarContentSource).toContain("<QuickActionsToggle />");
     expect(mobileSidebarContentSource).toContain("<GlobalSearchToggle />");
+  });
+
+  test("keeps work pages scrolling inside the copied PreachX page frame", () => {
+    expect(dashboardRouteSource).toContain(
+      'import { MainContainer, PageContainer } from "@/components/pageComponents";',
+    );
+    expect(dashboardRouteSource).toContain("<MainContainer>");
+    expect(dashboardRouteSource).toContain('<PageContainer wrapperClassName="gap-6">');
+    expect(dashboardRouteSource).not.toContain(
+      '<main className="flex flex-1 flex-col gap-6 overflow-auto p-4 sm:p-6">',
+    );
   });
 });
 
