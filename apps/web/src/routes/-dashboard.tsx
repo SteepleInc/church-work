@@ -11,14 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,22 +33,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarInset,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
   Table,
   TableBody,
   TableCell,
@@ -78,7 +54,6 @@ import {
   TaskExecutionSurface,
   type TaskExecutionFilters,
 } from "@/components/tasks/task-execution-surface";
-import UserMenu from "@/components/user-menu";
 import { authClient } from "@/lib/auth-client";
 
 export type ActiveDashboardPanel =
@@ -183,12 +158,7 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
     }
 
     navigate({
-      to:
-        panel === "my_work"
-          ? "/my-work"
-          : panel === "our_work"
-            ? "/our-work"
-            : "/settings",
+      to: panel === "my_work" ? "/my-work" : panel === "our_work" ? "/our-work" : "/settings",
       search: routeSearch,
     });
   };
@@ -241,214 +211,118 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
   const hasActiveSubscription = Boolean(subscription);
 
   return (
-    <SidebarProvider className="min-h-[calc(100vh-4rem)] bg-muted/30">
-      <Sidebar className="top-16 h-[calc(100svh-4rem)]" collapsible="offcanvas">
-        <SidebarHeader>
-          <div className="px-2 py-1">
-            <p className="text-sm font-semibold">Church Task</p>
-            <p className="text-xs text-muted-foreground">Church workspace</p>
-          </div>
-        </SidebarHeader>
-        <SidebarContent>
-          <ChurchSwitcher
-            activeChurchId={activeChurch?.id ?? null}
-            activeChurchName={activeChurch?.name}
-          />
+    <main className="flex flex-1 flex-col gap-6 overflow-auto p-4 sm:p-6">
+      <div className="flex flex-col gap-4 rounded-xl border bg-background p-4 shadow-xs sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-sm font-medium text-muted-foreground">Church Task</p>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {activePanel === "settings"
+              ? "Active Church Settings"
+              : activePanel === "my_work"
+                ? "My Work"
+                : activePanel === "our_work"
+                  ? "Our Work"
+                  : (selectedTeam?.name ?? "Team")}
+          </h1>
           {activeChurch ? (
-            <SidebarGroup>
-              <SidebarGroupLabel>My Work</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      type="button"
-                      isActive={activePanel === "my_work"}
-                      onClick={() => setActivePanel("my_work")}
-                    >
-                      <span>My Work</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
+            <p className="text-sm text-muted-foreground">Active Church: {activeChurch.name}</p>
           ) : null}
-          {activeChurch ? (
-            <SidebarGroup>
-              <SidebarGroupLabel>Our Work</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      type="button"
-                      isActive={activePanel === "our_work"}
-                      onClick={() => setActivePanel("our_work")}
-                    >
-                      <span>Our Work</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          ) : null}
-          {activeChurch ? (
-            <SidebarGroup>
-              <SidebarGroupLabel>Your Teams</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {teamMemberships === undefined || teams === undefined ? (
-                    <SidebarMenuItem>
-                      <SidebarMenuButton type="button" disabled>
-                        <span>Loading Teams...</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ) : memberTeams.length > 0 ? (
-                    memberTeams.map((team) => (
-                      <SidebarMenuItem key={team.id}>
-                        <SidebarMenuButton
-                          type="button"
-                          isActive={
-                            typeof activePanel === "object" && activePanel.teamId === team.id
-                          }
-                          onClick={() => setActivePanel({ kind: "team", teamId: team.id })}
-                        >
-                          <span>{team.name}</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))
-                  ) : (
-                    <SidebarMenuItem>
-                      <SidebarMenuButton type="button" disabled>
-                        <span>No Team memberships</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  )}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          ) : null}
-        </SidebarContent>
-      </Sidebar>
-      <SidebarInset className="bg-muted/30">
-        <main className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
-          <div className="flex flex-col gap-4 rounded-xl border bg-background p-4 shadow-xs sm:flex-row sm:items-start sm:justify-between">
-            <div className="flex items-start gap-3">
-              <SidebarTrigger className="mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Church Task</p>
-                <h1 className="text-2xl font-semibold tracking-tight">
-                  {activePanel === "settings"
-                    ? "Active Church Settings"
-                    : activePanel === "my_work"
-                      ? "My Work"
-                      : activePanel === "our_work"
-                        ? "Our Work"
-                        : (selectedTeam?.name ?? "Team")}
-                </h1>
-                {activeChurch ? (
-                  <p className="text-sm text-muted-foreground">
-                    Active Church: {activeChurch.name}
-                  </p>
-                ) : null}
-              </div>
+        </div>
+      </div>
+      {activePanel === "settings" && activeChurch ? (
+        <ActiveChurchSettings activeChurch={activeChurch} />
+      ) : typeof activePanel === "object" && !selectedTeam ? (
+        <section className="grid gap-4 rounded-xl border bg-background p-4 shadow-xs">
+          <h2 className="text-base font-semibold">Team board</h2>
+          <p className="text-sm text-muted-foreground">
+            {teams === undefined ? "Loading Team board..." : "Team board is unavailable."}
+          </p>
+          {teams !== undefined ? (
+            <div className="flex flex-wrap gap-2">
+              {unavailableTeamBoardActions.map((action) => (
+                <Button
+                  key={action.panel}
+                  type="button"
+                  variant={action.panel === "my_work" ? "default" : "outline"}
+                  onClick={() => setActivePanel(action.panel)}
+                >
+                  {action.label}
+                </Button>
+              ))}
             </div>
-            <UserMenu />
-          </div>
-          {activePanel === "settings" && activeChurch ? (
-            <ActiveChurchSettings activeChurch={activeChurch} />
-          ) : typeof activePanel === "object" && !selectedTeam ? (
-            <section className="grid gap-4 rounded-xl border bg-background p-4 shadow-xs">
-              <h2 className="text-base font-semibold">Team board</h2>
+          ) : null}
+        </section>
+      ) : activeChurch && currentUserId ? (
+        <TaskExecutionSurface
+          churchId={activeChurch.id}
+          currentUserId={currentUserId}
+          surface={
+            typeof activePanel === "object"
+              ? "team_board"
+              : activePanel === "settings"
+                ? "my_work"
+                : activePanel
+          }
+          team={selectedTeam}
+          myWorkEmptyStateTeams={memberTeams}
+          filters={{
+            taskState: search.taskState,
+            workflowStatusId: search.workflowStatusId,
+          }}
+          onFiltersChange={setExecutionFilters}
+          onOpenOurWork={() => setActivePanel("our_work")}
+          onOpenTeamBoard={(teamId) => setActivePanel({ kind: "team", teamId })}
+        />
+      ) : (
+        <>
+          <section className="grid gap-4 rounded-xl border bg-background p-4 shadow-xs">
+            <div>
+              <h2 className="text-base font-semibold">Church Home</h2>
               <p className="text-sm text-muted-foreground">
-                {teams === undefined ? "Loading Team board..." : "Team board is unavailable."}
+                privateData:{" "}
+                {QueryResult.isSuccess(privateData) ? privateData.value.message : "Loading..."}
               </p>
-              {teams !== undefined ? (
-                <div className="flex flex-wrap gap-2">
-                  {unavailableTeamBoardActions.map((action) => (
-                    <Button
-                      key={action.panel}
-                      type="button"
-                      variant={action.panel === "my_work" ? "default" : "outline"}
-                      onClick={() => setActivePanel(action.panel)}
-                    >
-                      {action.label}
-                    </Button>
-                  ))}
-                </div>
-              ) : null}
-            </section>
-          ) : activeChurch && currentUserId ? (
-            <TaskExecutionSurface
-              churchId={activeChurch.id}
-              currentUserId={currentUserId}
-              surface={
-                typeof activePanel === "object"
-                  ? "team_board"
-                  : activePanel === "settings"
-                    ? "my_work"
-                    : activePanel
-              }
-              team={selectedTeam}
-              myWorkEmptyStateTeams={memberTeams}
-              filters={{
-                taskState: search.taskState,
-                workflowStatusId: search.workflowStatusId,
-              }}
-              onFiltersChange={setExecutionFilters}
-              onOpenOurWork={() => setActivePanel("our_work")}
-              onOpenTeamBoard={(teamId) => setActivePanel({ kind: "team", teamId })}
-            />
-          ) : (
+              <p className="text-sm text-muted-foreground">
+                Plan: {hasActiveSubscription ? "Active" : "Free"}
+              </p>
+            </div>
+            {subscription === undefined ? (
+              <p className="text-sm text-muted-foreground">Loading subscription options...</p>
+            ) : hasActiveSubscription ? (
+              <CustomerPortalLink
+                polarApi={api.polar}
+                className={buttonVariants({ variant: "outline" })}
+              >
+                Manage Subscription
+              </CustomerPortalLink>
+            ) : products === undefined ? (
+              <p className="text-sm text-muted-foreground">Loading subscription options...</p>
+            ) : product ? (
+              <CheckoutLink
+                polarApi={api.polar}
+                productIds={[product.id]}
+                embed={false}
+                className={buttonVariants({ variant: "default" })}
+              >
+                Upgrade
+              </CheckoutLink>
+            ) : (
+              <p className="text-sm text-muted-foreground">No recurring plans available.</p>
+            )}
+          </section>
+          <ActiveChurchInvitationPrompt />
+          {activeChurch ? (
             <>
-              <section className="grid gap-4 rounded-xl border bg-background p-4 shadow-xs">
-                <div>
-                  <h2 className="text-base font-semibold">Church Home</h2>
-                  <p className="text-sm text-muted-foreground">
-                    privateData:{" "}
-                    {QueryResult.isSuccess(privateData) ? privateData.value.message : "Loading..."}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Plan: {hasActiveSubscription ? "Active" : "Free"}
-                  </p>
-                </div>
-                {subscription === undefined ? (
-                  <p className="text-sm text-muted-foreground">Loading subscription options...</p>
-                ) : hasActiveSubscription ? (
-                  <CustomerPortalLink
-                    polarApi={api.polar}
-                    className={buttonVariants({ variant: "outline" })}
-                  >
-                    Manage Subscription
-                  </CustomerPortalLink>
-                ) : products === undefined ? (
-                  <p className="text-sm text-muted-foreground">Loading subscription options...</p>
-                ) : product ? (
-                  <CheckoutLink
-                    polarApi={api.polar}
-                    productIds={[product.id]}
-                    embed={false}
-                    className={buttonVariants({ variant: "default" })}
-                  >
-                    Upgrade
-                  </CheckoutLink>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No recurring plans available.</p>
-                )}
-              </section>
-              <ActiveChurchInvitationPrompt />
-              {activeChurch ? (
-                <>
-                  <ChurchMembersPanel activeChurchId={activeChurch.id} />
-                  <ChurchInvitationPanel
-                    activeChurchId={activeChurch.id}
-                    pendingInvitations={pendingInvitations}
-                  />
-                </>
-              ) : null}
+              <ChurchMembersPanel activeChurchId={activeChurch.id} />
+              <ChurchInvitationPanel
+                activeChurchId={activeChurch.id}
+                pendingInvitations={pendingInvitations}
+              />
             </>
-          )}
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+          ) : null}
+        </>
+      )}
+    </main>
   );
 }
 
@@ -2075,140 +1949,6 @@ function churchSlug(name: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 64);
-}
-
-function ChurchSwitcher({
-  activeChurchId,
-  activeChurchName,
-}: {
-  activeChurchId: string | null;
-  activeChurchName?: string;
-}) {
-  const churches = useQuery(api.dashboard.listOrganizations);
-  const [error, setError] = useState<string | null>(null);
-  const [pendingChurchId, setPendingChurchId] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-
-  const churchList = churches ?? [];
-  const filteredChurches = churchList.filter((church) =>
-    church.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()),
-  );
-  const activeChurchInitial = (activeChurchName?.trim().charAt(0) || "C").toLocaleUpperCase();
-
-  return (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        {churches === undefined && !activeChurchName ? (
-          <SidebarMenuButton className="pointer-events-none cursor-default" size="lg">
-            <Skeleton className="size-8 shrink-0 rounded-lg bg-muted-foreground/20" />
-            <div className="grid flex-1 gap-1.5 text-left text-sm leading-tight">
-              <Skeleton className="h-3 w-24 bg-muted-foreground/20" />
-              <Skeleton className="h-2.5 w-16 bg-muted-foreground/20" />
-            </div>
-            <span className="ml-auto text-muted-foreground/40">v</span>
-          </SidebarMenuButton>
-        ) : (
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <SidebarMenuButton
-                  className="cursor-pointer data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-                  size="lg"
-                />
-              }
-            >
-              <>
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary font-semibold text-sidebar-primary-foreground text-sm">
-                  {activeChurchInitial}
-                </span>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">{activeChurchName ?? "No Church"}</span>
-                  <span className="truncate text-muted-foreground text-xs">Church</span>
-                </div>
-                <span className="ml-auto text-muted-foreground">v</span>
-              </>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="center"
-              className="flex min-w-56 flex-col rounded-lg p-0"
-              side="bottom"
-              sideOffset={4}
-            >
-              {churchList.length > 5 ? (
-                <div className="border-b p-2">
-                  <Input
-                    aria-label="Search churches"
-                    className="h-8"
-                    onChange={(event) => setSearch(event.currentTarget.value)}
-                    onKeyDown={(event) => event.stopPropagation()}
-                    placeholder="Search"
-                    value={search}
-                  />
-                </div>
-              ) : null}
-              <div className="flex overflow-hidden">
-                <ScrollArea className="w-full max-h-72">
-                  <div className="p-1">
-                    <DropdownMenuLabel className="text-muted-foreground text-xs">
-                      Your Churches
-                    </DropdownMenuLabel>
-                    {churches === undefined ? (
-                      <DropdownMenuItem disabled>Loading Churches...</DropdownMenuItem>
-                    ) : filteredChurches.length > 0 ? (
-                      filteredChurches.map((church) => {
-                        const isActive = church.id === activeChurchId;
-                        const isPending = pendingChurchId === church.id;
-                        const churchInitial =
-                          church.name.trim().charAt(0).toLocaleUpperCase() || "C";
-
-                        return (
-                          <DropdownMenuItem
-                            className="gap-2"
-                            disabled={isActive || isPending}
-                            key={church.id}
-                            onClick={async () => {
-                              setError(null);
-                              setPendingChurchId(church.id);
-                              const result = await authClient.organization.setActive({
-                                organizationId: church.id,
-                              });
-                              setPendingChurchId(null);
-
-                              if (result.error) {
-                                setError(result.error.message ?? "Could not switch Church.");
-                              }
-                            }}
-                          >
-                            <span className="flex size-6 shrink-0 items-center justify-center rounded-md border bg-background font-medium text-xs">
-                              {churchInitial}
-                            </span>
-                            <span className="line-clamp-2">
-                              {isPending ? "Switching..." : church.name}
-                            </span>
-                            {isActive ? (
-                              <span className="ml-auto text-muted-foreground text-xs">Active</span>
-                            ) : null}
-                          </DropdownMenuItem>
-                        );
-                      })
-                    ) : (
-                      <DropdownMenuItem disabled>No Churches found</DropdownMenuItem>
-                    )}
-                    {error ? (
-                      <>
-                        <DropdownMenuSeparator />
-                        <div className="px-2 py-1.5 text-destructive text-xs">{error}</div>
-                      </>
-                    ) : null}
-                  </div>
-                </ScrollArea>
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </SidebarMenuItem>
-    </SidebarMenu>
-  );
 }
 
 function ChurchOnboardingGate({ activePanel }: { activePanel: ActiveDashboardPanel }) {

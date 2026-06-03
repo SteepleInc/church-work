@@ -9,128 +9,232 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as OurWorkRouteImport } from './routes/our-work'
-import { Route as MyWorkRouteImport } from './routes/my-work'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as TeamTeamIdRouteImport } from './routes/team.$teamId'
+import { Route as OrgRouteRouteImport } from './routes/_org/route'
+import { Route as MarketingRouteRouteImport } from './routes/_marketing/route'
+import { Route as MarketingIndexRouteImport } from './routes/_marketing/index'
+import { Route as OrgSettingsRouteImport } from './routes/_org/settings'
+import { Route as OrgOurWorkRouteImport } from './routes/_org/our-work'
+import { Route as OrgMyWorkRouteImport } from './routes/_org/my-work'
+import { Route as OnboardingOnboardingRouteImport } from './routes/_onboarding/onboarding'
+import { Route as AuthSignInRouteImport } from './routes/_auth/sign-in'
+import { Route as OrgTeamTeamIdRouteImport } from './routes/_org/team.$teamId'
 
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
+const OrgRouteRoute = OrgRouteRouteImport.update({
+  id: '/_org',
   getParentRoute: () => rootRouteImport,
 } as any)
-const OurWorkRoute = OurWorkRouteImport.update({
-  id: '/our-work',
-  path: '/our-work',
+const MarketingRouteRoute = MarketingRouteRouteImport.update({
+  id: '/_marketing',
   getParentRoute: () => rootRouteImport,
 } as any)
-const MyWorkRoute = MyWorkRouteImport.update({
-  id: '/my-work',
-  path: '/my-work',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const IndexRoute = IndexRouteImport.update({
+const MarketingIndexRoute = MarketingIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => MarketingRouteRoute,
+} as any)
+const OrgSettingsRoute = OrgSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => OrgRouteRoute,
+} as any)
+const OrgOurWorkRoute = OrgOurWorkRouteImport.update({
+  id: '/our-work',
+  path: '/our-work',
+  getParentRoute: () => OrgRouteRoute,
+} as any)
+const OrgMyWorkRoute = OrgMyWorkRouteImport.update({
+  id: '/my-work',
+  path: '/my-work',
+  getParentRoute: () => OrgRouteRoute,
+} as any)
+const OnboardingOnboardingRoute = OnboardingOnboardingRouteImport.update({
+  id: '/_onboarding/onboarding',
+  path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TeamTeamIdRoute = TeamTeamIdRouteImport.update({
+const AuthSignInRoute = AuthSignInRouteImport.update({
+  id: '/_auth/sign-in',
+  path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrgTeamTeamIdRoute = OrgTeamTeamIdRouteImport.update({
   id: '/team/$teamId',
   path: '/team/$teamId',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => OrgRouteRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/my-work': typeof MyWorkRoute
-  '/our-work': typeof OurWorkRoute
-  '/settings': typeof SettingsRoute
-  '/team/$teamId': typeof TeamTeamIdRoute
+  '/': typeof MarketingIndexRoute
+  '/sign-in': typeof AuthSignInRoute
+  '/onboarding': typeof OnboardingOnboardingRoute
+  '/my-work': typeof OrgMyWorkRoute
+  '/our-work': typeof OrgOurWorkRoute
+  '/settings': typeof OrgSettingsRoute
+  '/team/$teamId': typeof OrgTeamTeamIdRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/my-work': typeof MyWorkRoute
-  '/our-work': typeof OurWorkRoute
-  '/settings': typeof SettingsRoute
-  '/team/$teamId': typeof TeamTeamIdRoute
+  '/': typeof MarketingIndexRoute
+  '/sign-in': typeof AuthSignInRoute
+  '/onboarding': typeof OnboardingOnboardingRoute
+  '/my-work': typeof OrgMyWorkRoute
+  '/our-work': typeof OrgOurWorkRoute
+  '/settings': typeof OrgSettingsRoute
+  '/team/$teamId': typeof OrgTeamTeamIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/my-work': typeof MyWorkRoute
-  '/our-work': typeof OurWorkRoute
-  '/settings': typeof SettingsRoute
-  '/team/$teamId': typeof TeamTeamIdRoute
+  '/_marketing': typeof MarketingRouteRouteWithChildren
+  '/_org': typeof OrgRouteRouteWithChildren
+  '/_auth/sign-in': typeof AuthSignInRoute
+  '/_onboarding/onboarding': typeof OnboardingOnboardingRoute
+  '/_org/my-work': typeof OrgMyWorkRoute
+  '/_org/our-work': typeof OrgOurWorkRoute
+  '/_org/settings': typeof OrgSettingsRoute
+  '/_marketing/': typeof MarketingIndexRoute
+  '/_org/team/$teamId': typeof OrgTeamTeamIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/my-work' | '/our-work' | '/settings' | '/team/$teamId'
-  fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/my-work' | '/our-work' | '/settings' | '/team/$teamId'
-  id:
-    | '__root__'
+  fullPaths:
     | '/'
+    | '/sign-in'
+    | '/onboarding'
     | '/my-work'
     | '/our-work'
     | '/settings'
     | '/team/$teamId'
+  fileRoutesByTo: FileRoutesByTo
+  to:
+    | '/'
+    | '/sign-in'
+    | '/onboarding'
+    | '/my-work'
+    | '/our-work'
+    | '/settings'
+    | '/team/$teamId'
+  id:
+    | '__root__'
+    | '/_marketing'
+    | '/_org'
+    | '/_auth/sign-in'
+    | '/_onboarding/onboarding'
+    | '/_org/my-work'
+    | '/_org/our-work'
+    | '/_org/settings'
+    | '/_marketing/'
+    | '/_org/team/$teamId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  MyWorkRoute: typeof MyWorkRoute
-  OurWorkRoute: typeof OurWorkRoute
-  SettingsRoute: typeof SettingsRoute
-  TeamTeamIdRoute: typeof TeamTeamIdRoute
+  MarketingRouteRoute: typeof MarketingRouteRouteWithChildren
+  OrgRouteRoute: typeof OrgRouteRouteWithChildren
+  AuthSignInRoute: typeof AuthSignInRoute
+  OnboardingOnboardingRoute: typeof OnboardingOnboardingRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
+    '/_org': {
+      id: '/_org'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof OrgRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/our-work': {
-      id: '/our-work'
-      path: '/our-work'
-      fullPath: '/our-work'
-      preLoaderRoute: typeof OurWorkRouteImport
+    '/_marketing': {
+      id: '/_marketing'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof MarketingRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/my-work': {
-      id: '/my-work'
-      path: '/my-work'
-      fullPath: '/my-work'
-      preLoaderRoute: typeof MyWorkRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
+    '/_marketing/': {
+      id: '/_marketing/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+      preLoaderRoute: typeof MarketingIndexRouteImport
+      parentRoute: typeof MarketingRouteRoute
+    }
+    '/_org/settings': {
+      id: '/_org/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof OrgSettingsRouteImport
+      parentRoute: typeof OrgRouteRoute
+    }
+    '/_org/our-work': {
+      id: '/_org/our-work'
+      path: '/our-work'
+      fullPath: '/our-work'
+      preLoaderRoute: typeof OrgOurWorkRouteImport
+      parentRoute: typeof OrgRouteRoute
+    }
+    '/_org/my-work': {
+      id: '/_org/my-work'
+      path: '/my-work'
+      fullPath: '/my-work'
+      preLoaderRoute: typeof OrgMyWorkRouteImport
+      parentRoute: typeof OrgRouteRoute
+    }
+    '/_onboarding/onboarding': {
+      id: '/_onboarding/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingOnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/team/$teamId': {
-      id: '/team/$teamId'
+    '/_auth/sign-in': {
+      id: '/_auth/sign-in'
+      path: '/sign-in'
+      fullPath: '/sign-in'
+      preLoaderRoute: typeof AuthSignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_org/team/$teamId': {
+      id: '/_org/team/$teamId'
       path: '/team/$teamId'
       fullPath: '/team/$teamId'
-      preLoaderRoute: typeof TeamTeamIdRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof OrgTeamTeamIdRouteImport
+      parentRoute: typeof OrgRouteRoute
     }
   }
 }
 
+interface MarketingRouteRouteChildren {
+  MarketingIndexRoute: typeof MarketingIndexRoute
+}
+
+const MarketingRouteRouteChildren: MarketingRouteRouteChildren = {
+  MarketingIndexRoute: MarketingIndexRoute,
+}
+
+const MarketingRouteRouteWithChildren = MarketingRouteRoute._addFileChildren(
+  MarketingRouteRouteChildren,
+)
+
+interface OrgRouteRouteChildren {
+  OrgMyWorkRoute: typeof OrgMyWorkRoute
+  OrgOurWorkRoute: typeof OrgOurWorkRoute
+  OrgSettingsRoute: typeof OrgSettingsRoute
+  OrgTeamTeamIdRoute: typeof OrgTeamTeamIdRoute
+}
+
+const OrgRouteRouteChildren: OrgRouteRouteChildren = {
+  OrgMyWorkRoute: OrgMyWorkRoute,
+  OrgOurWorkRoute: OrgOurWorkRoute,
+  OrgSettingsRoute: OrgSettingsRoute,
+  OrgTeamTeamIdRoute: OrgTeamTeamIdRoute,
+}
+
+const OrgRouteRouteWithChildren = OrgRouteRoute._addFileChildren(
+  OrgRouteRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  MyWorkRoute: MyWorkRoute,
-  OurWorkRoute: OurWorkRoute,
-  SettingsRoute: SettingsRoute,
-  TeamTeamIdRoute: TeamTeamIdRoute,
+  MarketingRouteRoute: MarketingRouteRouteWithChildren,
+  OrgRouteRoute: OrgRouteRouteWithChildren,
+  AuthSignInRoute: AuthSignInRoute,
+  OnboardingOnboardingRoute: OnboardingOnboardingRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

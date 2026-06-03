@@ -2,11 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { DashboardPage, validateDashboardSearch } from "@/routes/-dashboard";
 
-export const Route = createFileRoute("/my-work")({
+export const Route = createFileRoute("/_org/our-work")({
   validateSearch: validateDashboardSearch,
   component: RouteComponent,
 });
 
 function RouteComponent() {
-  return <DashboardPage activePanel="my_work" />;
+  return <DashboardPage activePanel="our_work" />;
 }
