@@ -16,6 +16,7 @@ import { Route as MarketingIndexRouteImport } from './routes/_marketing/index'
 import { Route as OrgSettingsRouteImport } from './routes/_org/settings'
 import { Route as OrgOurWorkRouteImport } from './routes/_org/our-work'
 import { Route as OrgMyWorkRouteImport } from './routes/_org/my-work'
+import { Route as OrgAdminRouteImport } from './routes/_org/admin'
 import { Route as OnboardingOnboardingRouteImport } from './routes/_onboarding/onboarding'
 import { Route as MarketingLibraryRouteImport } from './routes/_marketing/library'
 import { Route as AuthSignInRouteImport } from './routes/_auth/sign-in'
@@ -60,6 +61,11 @@ const OrgOurWorkRoute = OrgOurWorkRouteImport.update({
 const OrgMyWorkRoute = OrgMyWorkRouteImport.update({
   id: '/my-work',
   path: '/my-work',
+  getParentRoute: () => OrgRouteRoute,
+} as any)
+const OrgAdminRoute = OrgAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => OrgRouteRoute,
 } as any)
 const OnboardingOnboardingRoute = OnboardingOnboardingRouteImport.update({
@@ -108,14 +114,14 @@ const OrgDevDataRoute = OrgDevDataRouteImport.update({
   getParentRoute: () => OrgRouteRoute,
 } as any)
 const OrgAdminUsersRoute = OrgAdminUsersRouteImport.update({
-  id: '/admin/users',
-  path: '/admin/users',
-  getParentRoute: () => OrgRouteRoute,
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => OrgAdminRoute,
 } as any)
 const OrgAdminOrgsRoute = OrgAdminOrgsRouteImport.update({
-  id: '/admin/orgs',
-  path: '/admin/orgs',
-  getParentRoute: () => OrgRouteRoute,
+  id: '/orgs',
+  path: '/orgs',
+  getParentRoute: () => OrgAdminRoute,
 } as any)
 const AuthAcceptInvitationIdRoute = AuthAcceptInvitationIdRouteImport.update({
   id: '/_auth/accept-invitation/$id',
@@ -133,6 +139,7 @@ export interface FileRoutesByFullPath {
   '/sign-in': typeof AuthSignInRoute
   '/library': typeof MarketingLibraryRoute
   '/onboarding': typeof OnboardingOnboardingRoute
+  '/admin': typeof OrgAdminRouteWithChildren
   '/my-work': typeof OrgMyWorkRoute
   '/our-work': typeof OrgOurWorkRoute
   '/settings': typeof OrgSettingsRouteWithChildren
@@ -152,6 +159,7 @@ export interface FileRoutesByTo {
   '/sign-in': typeof AuthSignInRoute
   '/library': typeof MarketingLibraryRoute
   '/onboarding': typeof OnboardingOnboardingRoute
+  '/admin': typeof OrgAdminRouteWithChildren
   '/my-work': typeof OrgMyWorkRoute
   '/our-work': typeof OrgOurWorkRoute
   '/settings': typeof OrgSettingsRouteWithChildren
@@ -174,6 +182,7 @@ export interface FileRoutesById {
   '/_auth/sign-in': typeof AuthSignInRoute
   '/_marketing/library': typeof MarketingLibraryRoute
   '/_onboarding/onboarding': typeof OnboardingOnboardingRoute
+  '/_org/admin': typeof OrgAdminRouteWithChildren
   '/_org/my-work': typeof OrgMyWorkRoute
   '/_org/our-work': typeof OrgOurWorkRoute
   '/_org/settings': typeof OrgSettingsRouteWithChildren
@@ -196,6 +205,7 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/library'
     | '/onboarding'
+    | '/admin'
     | '/my-work'
     | '/our-work'
     | '/settings'
@@ -215,6 +225,7 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/library'
     | '/onboarding'
+    | '/admin'
     | '/my-work'
     | '/our-work'
     | '/settings'
@@ -236,6 +247,7 @@ export interface FileRouteTypes {
     | '/_auth/sign-in'
     | '/_marketing/library'
     | '/_onboarding/onboarding'
+    | '/_org/admin'
     | '/_org/my-work'
     | '/_org/our-work'
     | '/_org/settings'
@@ -311,6 +323,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OrgMyWorkRouteImport
       parentRoute: typeof OrgRouteRoute
     }
+    '/_org/admin': {
+      id: '/_org/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof OrgAdminRouteImport
+      parentRoute: typeof OrgRouteRoute
+    }
     '/_onboarding/onboarding': {
       id: '/_onboarding/onboarding'
       path: '/onboarding'
@@ -376,17 +395,17 @@ declare module '@tanstack/react-router' {
     }
     '/_org/admin/users': {
       id: '/_org/admin/users'
-      path: '/admin/users'
+      path: '/users'
       fullPath: '/admin/users'
       preLoaderRoute: typeof OrgAdminUsersRouteImport
-      parentRoute: typeof OrgRouteRoute
+      parentRoute: typeof OrgAdminRoute
     }
     '/_org/admin/orgs': {
       id: '/_org/admin/orgs'
-      path: '/admin/orgs'
+      path: '/orgs'
       fullPath: '/admin/orgs'
       preLoaderRoute: typeof OrgAdminOrgsRouteImport
-      parentRoute: typeof OrgRouteRoute
+      parentRoute: typeof OrgAdminRoute
     }
     '/_auth/accept-invitation/$id': {
       id: '/_auth/accept-invitation/$id'
@@ -431,6 +450,20 @@ const OnboardingRouteRouteWithChildren = OnboardingRouteRoute._addFileChildren(
   OnboardingRouteRouteChildren,
 )
 
+interface OrgAdminRouteChildren {
+  OrgAdminOrgsRoute: typeof OrgAdminOrgsRoute
+  OrgAdminUsersRoute: typeof OrgAdminUsersRoute
+}
+
+const OrgAdminRouteChildren: OrgAdminRouteChildren = {
+  OrgAdminOrgsRoute: OrgAdminOrgsRoute,
+  OrgAdminUsersRoute: OrgAdminUsersRoute,
+}
+
+const OrgAdminRouteWithChildren = OrgAdminRoute._addFileChildren(
+  OrgAdminRouteChildren,
+)
+
 interface OrgSettingsTeamRouteChildren {
   OrgSettingsTeamTeamTabRoute: typeof OrgSettingsTeamTeamTabRoute
 }
@@ -460,22 +493,20 @@ const OrgSettingsRouteWithChildren = OrgSettingsRoute._addFileChildren(
 )
 
 interface OrgRouteRouteChildren {
+  OrgAdminRoute: typeof OrgAdminRouteWithChildren
   OrgMyWorkRoute: typeof OrgMyWorkRoute
   OrgOurWorkRoute: typeof OrgOurWorkRoute
   OrgSettingsRoute: typeof OrgSettingsRouteWithChildren
-  OrgAdminOrgsRoute: typeof OrgAdminOrgsRoute
-  OrgAdminUsersRoute: typeof OrgAdminUsersRoute
   OrgDevDataRoute: typeof OrgDevDataRoute
   OrgDevSessionRoute: typeof OrgDevSessionRoute
   OrgTeamTeamIdRoute: typeof OrgTeamTeamIdRoute
 }
 
 const OrgRouteRouteChildren: OrgRouteRouteChildren = {
+  OrgAdminRoute: OrgAdminRouteWithChildren,
   OrgMyWorkRoute: OrgMyWorkRoute,
   OrgOurWorkRoute: OrgOurWorkRoute,
   OrgSettingsRoute: OrgSettingsRouteWithChildren,
-  OrgAdminOrgsRoute: OrgAdminOrgsRoute,
-  OrgAdminUsersRoute: OrgAdminUsersRoute,
   OrgDevDataRoute: OrgDevDataRoute,
   OrgDevSessionRoute: OrgDevSessionRoute,
   OrgTeamTeamIdRoute: OrgTeamTeamIdRoute,

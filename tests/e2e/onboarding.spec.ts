@@ -251,8 +251,13 @@ test("Church owners can use dev and app-admin navigation", async ({ page }, test
 
   await page.getByRole("link", { name: "Churches" }).click();
   await expect(page).toHaveURL(/\/admin\/orgs$/);
-  await expect(page.getByRole("heading", { name: "Churches", level: 1 })).toBeVisible();
+  await expect(page.getByPlaceholder("Search organizations")).toBeVisible();
   await expect(page.getByLabel(`Admin Church ${churchName}`)).toBeVisible();
+
+  await page.goto("/admin");
+  await expect(page).toHaveURL(/\/admin\/users$/);
+  await expect(page.getByPlaceholder("Filter Members")).toBeVisible();
+  await expect(page.getByText(email).first()).toBeVisible();
 });
 
 test("settings navigation exposes profile, Church, members, and invitation actions", async ({

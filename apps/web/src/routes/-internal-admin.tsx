@@ -204,7 +204,7 @@ function AppAdminUsersContent() {
   );
 }
 
-function InternalAccessGate({ children }: { readonly children: ReactNode }) {
+export function InternalAccessGate({ children }: { readonly children: ReactNode }) {
   const { currentOrgOpt: activeChurch, loading } = useCurrentOrgOpt();
 
   if (loading) {
