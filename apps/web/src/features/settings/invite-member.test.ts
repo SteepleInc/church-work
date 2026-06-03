@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import {
+  canInviteChurchMembers,
   getInvalidInviteMemberEmails,
   inviteMemberRoleOptions,
   parseInviteMemberEmails,
@@ -26,5 +27,13 @@ describe("invite member settings helpers", () => {
       { label: "Member", value: "member" },
       { label: "Admin", value: "admin" },
     ]);
+  });
+
+  it("gates copied invite-member actions to Church owners and admins", () => {
+    expect(canInviteChurchMembers("owner")).toBe(true);
+    expect(canInviteChurchMembers("admin")).toBe(true);
+    expect(canInviteChurchMembers(["member", "admin"])).toBe(true);
+    expect(canInviteChurchMembers("member")).toBe(false);
+    expect(canInviteChurchMembers(null)).toBe(false);
   });
 });

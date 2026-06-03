@@ -339,6 +339,7 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
               <ChurchMembersPanel activeChurchId={activeChurch.id} />
               <ChurchInvitationPanel
                 activeChurchId={activeChurch.id}
+                activeChurchRole={activeChurch.role}
                 pendingInvitations={pendingInvitations}
               />
             </>
@@ -386,6 +387,7 @@ function ActiveChurchSettings({ activeChurch }: { activeChurch: ActiveChurch }) 
       />
       <ChurchInvitationPanel
         activeChurchId={activeChurch.id}
+        activeChurchRole={activeChurch.role}
         pendingInvitations={activeChurch.invitations.filter(
           (invitation) => invitation.status === "pending",
         )}
@@ -492,6 +494,7 @@ export function TeamInvitationsSettingsPanel() {
       <ActiveChurchInvitationPrompt />
       <ChurchInvitationPanel
         activeChurchId={activeChurch.id}
+        activeChurchRole={activeChurch.role}
         pendingInvitations={pendingInvitations}
       />
     </section>
@@ -1927,11 +1930,15 @@ function ChurchMembersPanel({ activeChurchId }: { activeChurchId: string }) {
 
 function ChurchInvitationPanel({
   activeChurchId,
+  activeChurchRole,
   pendingInvitations,
 }: {
   activeChurchId: string;
+  activeChurchRole: string | string[];
   pendingInvitations: PendingInvitation[];
 }) {
+  const canInvite = canMutateChurchSettings(activeChurchRole);
+
   return (
     <Card>
       <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1941,10 +1948,20 @@ function ChurchInvitationPanel({
             Invite people to this Church and track pending invitations.
           </CardDescription>
         </div>
-        <InviteMemberButton size="sm" variant="secondary" />
+        <InviteMemberButton disabled={!canInvite} size="sm" variant="secondary" />
       </CardHeader>
       <CardContent className="grid gap-3">
-        <InviteMemberQuickAction activeChurchId={activeChurchId} />
+        {!canInvite ? (
+          <Alert>
+            <AlertDescription>
+              Only Church owners and admins can invite Church members.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+        <InviteMemberQuickAction
+          activeChurchId={activeChurchId}
+          activeChurchRole={activeChurchRole}
+        />
         <div className="grid gap-3">
           <h2 className="text-base font-semibold">Pending Invitations</h2>
           {pendingInvitations.length > 0 ? (

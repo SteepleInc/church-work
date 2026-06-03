@@ -19,6 +19,7 @@ import {
 import { authClient } from "@/lib/auth-client";
 
 type InvitationRole = "member" | "admin";
+type CurrentMemberRole = string | readonly string[] | null | undefined;
 
 export const inviteMemberIsOpenAtom = atom(false);
 
@@ -29,6 +30,12 @@ export const inviteMemberRoleOptions: readonly {
   { label: "Member", value: "member" },
   { label: "Admin", value: "admin" },
 ];
+
+export function canInviteChurchMembers(currentRole: CurrentMemberRole) {
+  return Array.isArray(currentRole)
+    ? currentRole.includes("owner") || currentRole.includes("admin")
+    : currentRole === "owner" || currentRole === "admin";
+}
 
 const InviteMemberSchema = Schema.Struct({
   emails: Schema.String.pipe(
@@ -65,8 +72,15 @@ export function InviteMemberButton(props: InviteMemberButtonProps) {
   );
 }
 
-export function InviteMemberQuickAction({ activeChurchId }: { readonly activeChurchId: string }) {
+export function InviteMemberQuickAction({
+  activeChurchId,
+  activeChurchRole,
+}: {
+  readonly activeChurchId: string;
+  readonly activeChurchRole: CurrentMemberRole;
+}) {
   const [inviteMemberIsOpen, setInviteMemberIsOpen] = useAtom(inviteMemberIsOpenAtom);
+  const canInvite = canInviteChurchMembers(activeChurchRole);
 
   return (
     <Dialog open={inviteMemberIsOpen} onOpenChange={setInviteMemberIsOpen}>
@@ -81,10 +95,18 @@ export function InviteMemberQuickAction({ activeChurchId }: { readonly activeChu
             or new lines.
           </DialogDescription>
         </DialogHeader>
-        <InviteMemberForm
-          activeChurchId={activeChurchId}
-          onInvited={() => setInviteMemberIsOpen(false)}
-        />
+        {canInvite ? (
+          <InviteMemberForm
+            activeChurchId={activeChurchId}
+            onInvited={() => setInviteMemberIsOpen(false)}
+          />
+        ) : (
+          <Alert>
+            <AlertDescription>
+              Only Church owners and admins can invite Church members.
+            </AlertDescription>
+          </Alert>
+        )}
       </DialogContent>
     </Dialog>
   );
