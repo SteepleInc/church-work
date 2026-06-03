@@ -295,6 +295,7 @@ test("settings pending invitations list renders seeded pending invitations", asy
   await expect(page.getByText("No pending invitations.")).toBeVisible();
 
   await createTestInvitation(page, { email: inviteEmail, role: "member" });
+  await page.reload();
 
   await expect(page.getByText(inviteEmail)).toBeVisible();
   await expect(page.getByText("member")).toBeVisible();
