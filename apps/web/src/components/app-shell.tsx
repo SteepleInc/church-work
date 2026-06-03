@@ -35,6 +35,8 @@ import UserMenu from "@/components/user-menu";
 import { COMPLETED_APP_LANDING_PATH } from "@/data/org-routing";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { useTeamMembershipsCollection, useTeamsCollection } from "@/data/teams/teamsData.app";
+import { QuickActions } from "@/features/quick-actions/quick-actions";
+import { QuickActionsToggle } from "@/features/quick-actions/quick-actions-toggle";
 import { getMemberTeams } from "@/routes/-dashboard";
 
 export { COMPLETED_APP_LANDING_PATH };
@@ -128,6 +130,7 @@ function AuthenticatedAppShell() {
           </div>
         </header>
         <Outlet />
+        <QuickActions />
       </SidebarInset>
     </SidebarProvider>
   );
@@ -145,6 +148,7 @@ function AppNavigation() {
     <Sidebar className="px-0 pb-0" collapsible="icon" variant="inset">
       <SidebarHeader className="mx-2 pb-0">
         <OrgSwitcher />
+        <QuickActionsToggle />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>

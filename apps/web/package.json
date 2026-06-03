@@ -30,6 +30,7 @@
     "@stripe/react-stripe-js": "^4.0.2",
     "@stripe/stripe-js": "^7.9.0",
     "@tailwindcss/vite": "^4.2.2",
+    "@tanstack/hotkeys": "^0.8.0",
     "@tanstack/react-form": "^1.28.0",
     "@tanstack/react-router": "^1.168.22",
     "better-auth": "catalog:",
