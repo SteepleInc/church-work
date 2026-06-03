@@ -1,5 +1,8 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 
+import { MainContainer } from "@/components/pageComponents";
+import { TeamTabs } from "@/features/users/team-tabs";
+
 export const Route = createFileRoute("/_org/settings/team")({
   beforeLoad: ({ location }) => {
     if (location.pathname === "/settings/team") {
@@ -14,5 +17,10 @@ export const Route = createFileRoute("/_org/settings/team")({
 });
 
 function RouteComponent() {
-  return <Outlet />;
+  return (
+    <MainContainer>
+      <TeamTabs />
+      <Outlet />
+    </MainContainer>
+  );
 }

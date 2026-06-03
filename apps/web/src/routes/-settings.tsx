@@ -1,4 +1,3 @@
-import { Link } from "@tanstack/react-router";
 import { revalidateLogic } from "@tanstack/react-form";
 import { Schema } from "effect";
 import type { ReactNode } from "react";
@@ -147,47 +146,10 @@ const ChurchProfileSettingsSchema = Schema.Struct({
   zip: Schema.String,
 });
 
-export function SettingsFrame({
-  activeSection,
-  children,
-}: {
-  readonly activeSection: SettingsSection;
-  readonly children: ReactNode;
-}) {
+export function SettingsFrame({ children }: { readonly children: ReactNode }) {
   return (
-    <ScrollArea className="min-h-0 flex-1" viewportClassName="p-6">
-      <main className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-        <header className="grid gap-2">
-          <p className="font-medium text-muted-foreground text-sm">Settings</p>
-          <h1 className="font-semibold text-3xl tracking-tight">Settings</h1>
-          <p className="max-w-2xl text-muted-foreground">
-            Manage your profile, Church setup, members, and invitations.
-          </p>
-        </header>
-
-        <nav aria-label="Settings sections" className="grid gap-3 md:grid-cols-4">
-          {settingsSections.map((section) => (
-            <Link
-              activeOptions={{ exact: true }}
-              className={
-                section.id === activeSection
-                  ? "rounded-lg border bg-card p-4 text-card-foreground shadow-sm ring-2 ring-primary"
-                  : "rounded-lg border bg-card/60 p-4 text-card-foreground transition-colors hover:bg-card"
-              }
-              key={section.id}
-              params={section.params}
-              to={section.to}
-            >
-              <span className="font-medium">{section.label}</span>
-              <span className="mt-1 block text-muted-foreground text-sm">
-                {section.description}
-              </span>
-            </Link>
-          ))}
-        </nav>
-
-        {children}
-      </main>
+    <ScrollArea viewportClassName="px-6 pb-6">
+      <main className="flex flex-col gap-4">{children}</main>
     </ScrollArea>
   );
 }
@@ -481,10 +443,18 @@ function SettingsChurchForm({
 
 export function SettingsTeamTabPanel({ teamTab }: { readonly teamTab: string }) {
   if (teamTab === "invites") {
-    return <TeamInvitationsSettingsPanel />;
+    return (
+      <div className="mt-4 flex flex-col overflow-hidden">
+        <TeamInvitationsSettingsPanel />
+      </div>
+    );
   }
 
-  return <TeamMembersSettingsPanel />;
+  return (
+    <div className="mt-4 flex flex-col overflow-hidden">
+      <TeamMembersSettingsPanel />
+    </div>
+  );
 }
 
 function SettingDetail({ label, value }: { readonly label: string; readonly value: string }) {

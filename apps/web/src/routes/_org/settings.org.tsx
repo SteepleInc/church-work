@@ -8,7 +8,7 @@ export const Route = createFileRoute("/_org/settings/org")({
 
 function RouteComponent() {
   return (
-    <SettingsFrame activeSection="church">
+    <SettingsFrame>
       <SettingsChurchPanel />
     </SettingsFrame>
   );

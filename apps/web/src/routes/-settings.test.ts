@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { readFileSync } from "node:fs";
 
 import {
   getChurchProfileSettingsDefaultValues,
@@ -30,6 +31,36 @@ describe("settings route sections", () => {
   it("does not expose excluded PreachX settings sections", () => {
     expect(getSettingsSectionIds()).not.toContain("billing");
     expect(getSettingsSectionIds()).not.toContain("prompts");
+  });
+
+  it("keeps settings navigation in the sidebar instead of a settings card-grid landing", () => {
+    const settingsSource = readFileSync("apps/web/src/routes/-settings.tsx", "utf8");
+    const appNavigationSource = readFileSync(
+      "apps/web/src/components/navigation/app-navigation.tsx",
+      "utf8",
+    );
+
+    expect(settingsSource).not.toContain('aria-label="Settings sections"');
+    expect(settingsSource).not.toContain("md:grid-cols-4");
+    expect(appNavigationSource).toContain("<SidebarGroupLabel>Settings</SidebarGroupLabel>");
+    expect(appNavigationSource).toContain("settingsNavItems.map");
+  });
+
+  it("uses the copied PreachX Team settings route shape with parent tabs", () => {
+    const teamRouteSource = readFileSync("apps/web/src/routes/_org/settings.team.tsx", "utf8");
+    const teamTabRouteSource = readFileSync(
+      "apps/web/src/routes/_org/settings.team.$teamTab.tsx",
+      "utf8",
+    );
+    const teamTabsSource = readFileSync("apps/web/src/features/users/team-tabs.tsx", "utf8");
+
+    expect(teamRouteSource).toContain("<MainContainer>");
+    expect(teamRouteSource).toContain("<TeamTabs />");
+    expect(teamRouteSource).toContain("<Outlet />");
+    expect(teamTabRouteSource).not.toContain("SettingsFrame");
+    expect(teamTabsSource).toContain('role="tablist"');
+    expect(teamTabsSource).toContain('role="tab"');
+    expect(teamTabsSource).toContain("pendingInvitationsCount");
   });
 
   it("normalizes profile names like the copied profile settings form", () => {
