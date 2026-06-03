@@ -172,6 +172,16 @@ describe("app shell route behavior", () => {
     expect(sidebarPrimitiveSource).toContain('className={cn("flex min-h-0", scrollAreaClassName)}');
     expect(sidebarPrimitiveSource).toContain('isTouch ? "" : "[&>div]:!inline [&>div]:min-h-full"');
   });
+
+  test("keeps the copied PreachX sidebar tooltip provider wrapper", () => {
+    expect(sidebarPrimitiveSource).toContain(
+      'import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";',
+    );
+    expect(sidebarPrimitiveSource).toContain("<TooltipProvider delay={0}>");
+    expect(sidebarPrimitiveSource.indexOf("<TooltipProvider delay={0}>")).toBeLessThan(
+      sidebarPrimitiveSource.indexOf('data-slot="sidebar-wrapper"'),
+    );
+  });
 });
 
 describe("quick action route behavior", () => {
