@@ -363,11 +363,7 @@ function ActiveChurchSettings({ activeChurch }: { activeChurch: ActiveChurch }) 
 
   return (
     <section className="grid gap-4 md:grid-cols-2">
-      <TeamSettingsCard
-        activeChurch={activeChurch}
-        teams={activeTeams}
-        isLoading={teams.loading}
-      />
+      <TeamSettingsCard activeChurch={activeChurch} teams={activeTeams} isLoading={teams.loading} />
       <TeamMembershipSettingsCard
         activeChurch={activeChurch}
         teams={activeTeams}
@@ -395,6 +391,118 @@ function ActiveChurchSettings({ activeChurch }: { activeChurch: ActiveChurch }) 
       />
       <ChurchTimeZoneSettings activeChurch={activeChurch} churchTimeZone={churchTimeZone} />
     </section>
+  );
+}
+
+export function ChurchSettingsPanel() {
+  const { currentOrgOpt: activeChurch, loading } = useCurrentOrgOpt();
+  const churchTimeZone = activeChurch?.churchTimeZone ?? "Not set";
+
+  if (loading) {
+    return <p className="text-sm text-muted-foreground">Loading Church settings...</p>;
+  }
+
+  if (!activeChurch) {
+    return <p className="text-sm text-muted-foreground">No active Church selected.</p>;
+  }
+
+  return (
+    <section className="grid gap-4 md:grid-cols-2">
+      <Card className="md:col-span-2">
+        <CardHeader>
+          <CardTitle>Church Profile</CardTitle>
+          <CardDescription>Core profile details for this Church.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 text-sm md:grid-cols-2">
+          <SettingsDetail label="Name" value={activeChurch.name} />
+          <SettingsDetail label="Website" value={activeChurch.url ?? "Not set"} />
+          <SettingsDetail label="Street" value={activeChurch.street ?? "Not set"} />
+          <SettingsDetail label="City" value={activeChurch.city ?? "Not set"} />
+          <SettingsDetail label="State / Region" value={activeChurch.state ?? "Not set"} />
+          <SettingsDetail label="Postal Code" value={activeChurch.zip ?? "Not set"} />
+          <SettingsDetail label="Country Code" value={activeChurch.countryCode ?? "Not set"} />
+          <SettingsDetail label="Size" value={activeChurch.size ?? "Not set"} />
+        </CardContent>
+      </Card>
+      <ChurchTimeZoneSettings activeChurch={activeChurch} churchTimeZone={churchTimeZone} />
+      <Card>
+        <CardHeader>
+          <CardTitle>Technical</CardTitle>
+          <CardDescription>Details you may need when contacting support.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SettingsDetail label="Org Id" value={activeChurch.id} />
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
+export function TeamMembersSettingsPanel() {
+  const { currentOrgOpt: activeChurch, loading } = useCurrentOrgOpt();
+  const teams = useTeamsCollection({ churchId: activeChurch?.id ?? null });
+  const teamMemberships = useTeamMembershipsCollection({ churchId: activeChurch?.id ?? null });
+  const members = useChurchUsersCollection({ churchId: activeChurch?.id ?? null });
+
+  if (loading) {
+    return <p className="text-sm text-muted-foreground">Loading member settings...</p>;
+  }
+
+  if (!activeChurch) {
+    return <p className="text-sm text-muted-foreground">No active Church selected.</p>;
+  }
+
+  return (
+    <section className="grid gap-4">
+      <ChurchMembersPanel activeChurchId={activeChurch.id} />
+      <div className="grid gap-4 xl:grid-cols-2">
+        <TeamSettingsCard
+          activeChurch={activeChurch}
+          teams={teams.teamsCollection}
+          isLoading={teams.loading}
+        />
+        <TeamMembershipSettingsCard
+          activeChurch={activeChurch}
+          teams={teams.teamsCollection}
+          members={members.usersCollection}
+          memberships={teamMemberships.teamMembershipsCollection}
+          isLoading={teamMemberships.loading || members.loading}
+        />
+      </div>
+    </section>
+  );
+}
+
+export function TeamInvitationsSettingsPanel() {
+  const { currentOrgOpt: activeChurch, loading } = useCurrentOrgOpt();
+  const pendingInvitations =
+    activeChurch?.invitations.filter((invitation) => invitation.status === "pending") ?? [];
+
+  if (loading) {
+    return <p className="text-sm text-muted-foreground">Loading invitation settings...</p>;
+  }
+
+  if (!activeChurch) {
+    return <p className="text-sm text-muted-foreground">No active Church selected.</p>;
+  }
+
+  return (
+    <section className="grid gap-4">
+      <ActiveChurchInvitationPrompt />
+      <ChurchInvitationPanel
+        activeChurchId={activeChurch.id}
+        pendingInvitations={pendingInvitations}
+      />
+    </section>
+  );
+}
+
+function SettingsDetail({ label, value }: { readonly label: string; readonly value: string }) {
+  return (
+    <div className="grid gap-1">
+      <div className="font-medium text-muted-foreground text-xs uppercase tracking-wide">{label}</div>
+      <div className="break-all">{value}</div>
+    </div>
   );
 }
 
