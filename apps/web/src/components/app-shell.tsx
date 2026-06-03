@@ -1,13 +1,10 @@
-import { Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
+import { Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
 import { useEffect } from "react";
 
 import { ModeToggle } from "@/components/mode-toggle";
-import { OrgSwitcher } from "@/components/org-switcher";
-import {
-  InternalNavigationSections,
-  getInternalRouteBreadcrumbLabel,
-} from "@/components/navigation/internal-navigation";
+import { AppNavigation } from "@/components/navigation/app-navigation";
+import { getInternalRouteBreadcrumbLabel } from "@/components/navigation/internal-navigation";
 import SignInForm from "@/components/sign-in-form";
 import {
   Breadcrumb,
@@ -17,41 +14,17 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarInset,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import UserMenu from "@/components/user-menu";
 import { COMPLETED_APP_LANDING_PATH } from "@/data/org-routing";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
-import { useTeamMembershipsCollection, useTeamsCollection } from "@/data/teams/teamsData.app";
 import { GlobalSearch } from "@/features/global-search/global-search";
-import { GlobalSearchToggle } from "@/features/global-search/global-search-toggle";
 import { QuickActions } from "@/features/quick-actions/quick-actions";
-import { QuickActionsToggle } from "@/features/quick-actions/quick-actions-toggle";
-import { getMemberTeams } from "@/routes/-dashboard";
 import { DetailsPane } from "@/components/details-pane/details-pane";
 
 export { COMPLETED_APP_LANDING_PATH };
 
-type AppShellNavItem = {
-  readonly label: string;
-  readonly to: "/my-work" | "/our-work" | "/settings" | "/team/$teamId";
-  readonly params?: { readonly teamId: string };
-  readonly matchPath: string;
-};
-
-export function getPrimaryAppShellNavItems(): AppShellNavItem[] {
+export function getPrimaryAppShellNavItems() {
   return [
     { label: "My Work", to: "/my-work", matchPath: "/my-work" },
     { label: "Our Work", to: "/our-work", matchPath: "/our-work" },
@@ -118,114 +91,26 @@ function AuthenticatedAppShell() {
   }
 
   return (
-    <SidebarProvider className="min-h-svh bg-muted/30" defaultOpen id="app-sidebar-provider">
+    <SidebarProvider defaultOpen id="app-sidebar-provider">
       <AppNavigation />
-      <SidebarInset className="overflow-hidden bg-muted/30 md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-0">
-        <header className="flex h-16 shrink-0 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur">
+      <SidebarInset className="overflow-hidden md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-0">
+        <header className="flex h-16 shrink-0 items-center gap-4 px-4">
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" />
             <Separator className="mr-2 h-4" orientation="vertical" />
             <AppBreadcrumbs />
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <GlobalSearchToggle className="hidden sm:inline-flex" />
             <ModeToggle />
             <UserMenu />
           </div>
         </header>
         <Outlet />
-        <DetailsPane />
-        <GlobalSearch />
-        <QuickActions />
       </SidebarInset>
+      <DetailsPane />
+      <QuickActions />
+      <GlobalSearch />
     </SidebarProvider>
-  );
-}
-
-function AppNavigation() {
-  const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
-  const teams = useTeamsCollection({ churchId: activeChurch?.id ?? null });
-  const teamMemberships = useTeamMembershipsCollection({ churchId: activeChurch?.id ?? null });
-  const activeTeams = teams.teamsCollection;
-  const memberships = teamMemberships.teamMembershipsCollection;
-  const memberTeams = getMemberTeams(activeTeams, memberships, activeChurch?.currentUserId ?? null);
-
-  return (
-    <Sidebar className="px-0 pb-0" collapsible="icon" variant="inset">
-      <SidebarHeader className="mx-2 pb-0">
-        <OrgSwitcher />
-        <GlobalSearchToggle className="w-full justify-start" />
-        <QuickActionsToggle />
-      </SidebarHeader>
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {getPrimaryAppShellNavItems().map((item) => (
-                <AppNavigationItem key={item.to} item={item} />
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        <SidebarGroup>
-          <SidebarGroupLabel>Team Work</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {teamMemberships.loading || teams.loading ? (
-                <SidebarMenuItem>
-                  <SidebarMenuButton type="button" disabled>
-                    <span>Loading Teams...</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ) : memberTeams.length > 0 ? (
-                memberTeams.map((team) => (
-                  <AppNavigationItem
-                    key={team.id}
-                    item={{
-                      label: team.name,
-                      to: "/team/$teamId",
-                      params: { teamId: team.id },
-                      matchPath: `/team/${team.id}`,
-                    }}
-                  />
-                ))
-              ) : (
-                <SidebarMenuItem>
-                  <SidebarMenuButton type="button" disabled>
-                    <span>No Team memberships</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        <InternalNavigationSections role={activeChurch?.role ?? ""} />
-      </SidebarContent>
-    </Sidebar>
-  );
-}
-
-function AppNavigationItem({ item }: { item: AppShellNavItem }) {
-  const pathname = useLocation({ select: (location) => location.pathname });
-  const isActive = pathname === item.matchPath || pathname.startsWith(`${item.matchPath}/`);
-
-  return (
-    <SidebarMenuItem>
-      <SidebarMenuButton
-        isActive={isActive}
-        render={
-          <Link
-            params={item.params}
-            preload="intent"
-            search={(previousSearch) => previousSearch}
-            to={item.to}
-          >
-            <span>{item.label}</span>
-          </Link>
-        }
-      />
-    </SidebarMenuItem>
   );
 }
 
