@@ -261,17 +261,18 @@ Church Task files:
 - `apps/web/src/features/settings/invite-member.tsx`
 - `apps/web/src/features/big-actions/big-actions.tsx`
 
-Fidelity verdict: quick actions mostly pass; big actions need repair for source-level chrome fidelity.
+Fidelity verdict: quick actions and Invite Member pass for #94; big-action chrome remains delegated to #100.
 
 Repairs confirmed:
 
 - Quick Actions uses a single `Quick Action` command group adapted to Church Task actions.
 - Sidebar quick-action toggle matches PreachX collapsed behavior and `mod K` treatment.
+- Invite Member uses the copied/adapted `QuickActionsWrapper`, `QuickActionsHeader`, `QuickActionsTitle`, `QuickActionForm`, action-row footer, and PreachX shortcut rendering while preserving Church Task invitation roles and mutations.
 - BigActions is mounted at the PreachX shell level and quick actions open big-action state rather than navigating.
 
 Remaining mismatch:
 
-- Church Task big actions use a small `DialogContent className="sm:max-w-xl"` create-task modal. PreachX uses a `BigActionWrapper` with mobile `Drawer` and desktop `FullScreenModal`. Church Task needs a copied/adapted wrapper if #94 is to close fully.
+- Church Task big actions use a small `DialogContent className="sm:max-w-xl"` create-task modal. PreachX uses a `BigActionWrapper` with mobile `Drawer` and desktop `FullScreenModal`. This source-level chrome repair is tracked separately by #100 and is no longer a blocker for #94.
 
 Intentional difference:
 
