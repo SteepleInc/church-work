@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { readFileSync } from "node:fs";
 
 import {
   canInviteChurchMembers,
@@ -35,5 +36,22 @@ describe("invite member settings helpers", () => {
     expect(canInviteChurchMembers(["member", "admin"])).toBe(true);
     expect(canInviteChurchMembers("member")).toBe(false);
     expect(canInviteChurchMembers(null)).toBe(false);
+  });
+
+  it("uses the copied PreachX TagInputField shape for email entry", () => {
+    const inviteMemberSource = readFileSync(
+      "apps/web/src/features/settings/invite-member.tsx",
+      "utf8",
+    );
+    const tagInputFieldSource = readFileSync(
+      "apps/web/src/components/form/tag-input-field.tsx",
+      "utf8",
+    );
+    const tagInputSource = readFileSync("apps/web/src/components/ui/tag-input.tsx", "utf8");
+
+    expect(inviteMemberSource).toContain("<field.TagInputField");
+    expect(inviteMemberSource).not.toContain("<field.TextareaField");
+    expect(tagInputFieldSource).toContain("useFieldContext<readonly string[]>");
+    expect(tagInputSource).toContain("tagValidator.safeParse");
   });
 });

@@ -32,6 +32,8 @@ describe("copied form primitives", () => {
 
     expect(html).toContain("Try again");
     expect(html).toContain("Body");
+    expect(html).toContain("border-red-200");
+    expect(html).toContain("text-red-700");
   });
 
   test("button loading state overlays content", () => {

@@ -1,6 +1,8 @@
 import { Option, pipe } from "effect";
 import type { FunctionComponent, ReactNode } from "react";
 
+import { AlertCircleIcon } from "@/components/icons/alertCircleIcon";
+
 type ErrorMap = {
   onSubmit?: unknown;
   onBlur?: unknown;
@@ -38,8 +40,13 @@ export function FormErrorDisplay({ form }: FormErrorDisplayProps) {
           Option.match({
             onNone: () => null,
             onSome: (errorMessage) => (
-              <div className="mb-4 rounded-lg border border-destructive/20 bg-destructive/10 p-4">
-                <p className="text-sm text-destructive">{errorMessage}</p>
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4">
+                <div className="flex items-start">
+                  <AlertCircleIcon className="h-5 w-5 text-red-400" />
+                  <div className="ml-3 flex-1">
+                    <p className="text-red-700 text-sm">{errorMessage}</p>
+                  </div>
+                </div>
               </div>
             ),
           }),

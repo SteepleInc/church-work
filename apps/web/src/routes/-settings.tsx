@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { CardForm } from "@/components/form/card-form";
 import { useAppForm } from "@/components/form/ts-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -209,49 +210,50 @@ function SettingsProfileForm({
           <CardDescription>Manage your Church Task account details.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form
-            className="grid gap-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              form.handleSubmit();
-            }}
-          >
-            <form.AppField name="name">
-              {(field) => (
-                <field.InputField
-                  autoCapitalize="words"
-                  autoComplete="name"
-                  label="Name"
-                  placeholder="Jane Doe"
-                  required
-                />
-              )}
-            </form.AppField>
-            <SettingDetail label="Email" value={user.email} />
-            {profileError ? (
-              <Alert variant="destructive">
-                <AlertDescription>{profileError}</AlertDescription>
-              </Alert>
-            ) : null}
-            <form.Subscribe
-              selector={(state) => ({
-                isDefaultValue: state.isDefaultValue,
-                isSubmitting: state.isSubmitting,
-              })}
-            >
-              {({ isDefaultValue, isSubmitting }) => (
-                <Button
-                  className="mr-auto"
-                  disabled={isDefaultValue}
-                  loading={isSubmitting}
-                  type="submit"
-                >
-                  Update Profile
-                </Button>
-              )}
-            </form.Subscribe>
-          </form>
+          <CardForm
+            Actions={
+              <form.Subscribe
+                selector={(state) => ({
+                  isDefaultValue: state.isDefaultValue,
+                  isSubmitting: state.isSubmitting,
+                })}
+              >
+                {({ isDefaultValue, isSubmitting }) => (
+                  <Button
+                    className="mr-auto"
+                    disabled={isDefaultValue}
+                    loading={isSubmitting}
+                    type="submit"
+                  >
+                    Update Profile
+                  </Button>
+                )}
+              </form.Subscribe>
+            }
+            actionsClassName="justify-start"
+            form={form}
+            Primary={
+              <>
+                <form.AppField name="name">
+                  {(field) => (
+                    <field.InputField
+                      autoCapitalize="words"
+                      autoComplete="name"
+                      label="Name"
+                      placeholder="Jane Doe"
+                      required
+                    />
+                  )}
+                </form.AppField>
+                <SettingDetail label="Email" value={user.email} />
+                {profileError ? (
+                  <Alert variant="destructive">
+                    <AlertDescription>{profileError}</AlertDescription>
+                  </Alert>
+                ) : null}
+              </>
+            }
+          />
         </CardContent>
       </Card>
 
@@ -353,79 +355,86 @@ function SettingsChurchForm({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form
-            className="grid gap-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              form.handleSubmit();
-            }}
-          >
-            <fieldset className="grid gap-4 md:grid-cols-2" disabled={!canUpdate}>
-              <form.AppField name="name">
-                {(field) => <field.InputField label="Church Name" required />}
-              </form.AppField>
-              <form.AppField name="churchTimeZone">
-                {(field) => (
-                  <field.SelectField
-                    label="Church Time Zone"
-                    options={churchTimeZoneOptions(activeChurch.churchTimeZone)}
-                    required
-                  />
+          <CardForm
+            Actions={
+              <form.Subscribe
+                selector={(state) => ({
+                  isDefaultValue: state.isDefaultValue,
+                  isSubmitting: state.isSubmitting,
+                })}
+              >
+                {({ isDefaultValue, isSubmitting }) => (
+                  <Button
+                    className="mr-auto"
+                    disabled={!canUpdate || isDefaultValue}
+                    loading={isSubmitting}
+                    type="submit"
+                  >
+                    Update Church Profile
+                  </Button>
                 )}
-              </form.AppField>
-              <form.AppField name="url">
-                {(field) => <field.InputField label="Website" placeholder="https://example.org" />}
-              </form.AppField>
-              <form.AppField name="size">
-                {(field) => <field.SelectField label="Church Size" options={CHURCH_SIZE_OPTIONS} />}
-              </form.AppField>
-              <form.AppField name="street">
-                {(field) => <field.InputField label="Street" />}
-              </form.AppField>
-              <form.AppField name="city">
-                {(field) => <field.InputField label="City" />}
-              </form.AppField>
-              <form.AppField name="state">
-                {(field) => <field.InputField label="State / Region" />}
-              </form.AppField>
-              <form.AppField name="zip">
-                {(field) => <field.InputField label="Postal Code" />}
-              </form.AppField>
-              <form.AppField name="countryCode">
-                {(field) => <field.InputField label="Country Code" />}
-              </form.AppField>
-            </fieldset>
-            {!canUpdate ? (
-              <Alert>
-                <AlertDescription>
-                  Only Church owners and admins can update Church settings.
-                </AlertDescription>
-              </Alert>
-            ) : null}
-            {churchError ? (
-              <Alert variant="destructive">
-                <AlertDescription>{churchError}</AlertDescription>
-              </Alert>
-            ) : null}
-            <form.Subscribe
-              selector={(state) => ({
-                isDefaultValue: state.isDefaultValue,
-                isSubmitting: state.isSubmitting,
-              })}
-            >
-              {({ isDefaultValue, isSubmitting }) => (
-                <Button
-                  className="mr-auto"
-                  disabled={!canUpdate || isDefaultValue}
-                  loading={isSubmitting}
-                  type="submit"
-                >
-                  Update Church Profile
-                </Button>
-              )}
-            </form.Subscribe>
-          </form>
+              </form.Subscribe>
+            }
+            actionsClassName="justify-start"
+            form={form}
+            Primary={
+              <fieldset className="contents" disabled={!canUpdate}>
+                <form.AppField name="name">
+                  {(field) => <field.InputField label="Church Name" required />}
+                </form.AppField>
+                <form.AppField name="churchTimeZone">
+                  {(field) => (
+                    <field.SelectField
+                      label="Church Time Zone"
+                      options={churchTimeZoneOptions(activeChurch.churchTimeZone)}
+                      required
+                    />
+                  )}
+                </form.AppField>
+                <form.AppField name="url">
+                  {(field) => (
+                    <field.InputField label="Website" placeholder="https://example.org" />
+                  )}
+                </form.AppField>
+                <form.AppField name="size">
+                  {(field) => (
+                    <field.SelectField label="Church Size" options={CHURCH_SIZE_OPTIONS} />
+                  )}
+                </form.AppField>
+                {!canUpdate ? (
+                  <Alert>
+                    <AlertDescription>
+                      Only Church owners and admins can update Church settings.
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
+                {churchError ? (
+                  <Alert variant="destructive">
+                    <AlertDescription>{churchError}</AlertDescription>
+                  </Alert>
+                ) : null}
+              </fieldset>
+            }
+            Secondary={
+              <fieldset className="contents" disabled={!canUpdate}>
+                <form.AppField name="street">
+                  {(field) => <field.InputField label="Street" />}
+                </form.AppField>
+                <form.AppField name="city">
+                  {(field) => <field.InputField label="City" />}
+                </form.AppField>
+                <form.AppField name="state">
+                  {(field) => <field.InputField label="State / Region" />}
+                </form.AppField>
+                <form.AppField name="zip">
+                  {(field) => <field.InputField label="Postal Code" />}
+                </form.AppField>
+                <form.AppField name="countryCode">
+                  {(field) => <field.InputField label="Country Code" />}
+                </form.AppField>
+              </fieldset>
+            }
+          />
         </CardContent>
       </Card>
       <Card>

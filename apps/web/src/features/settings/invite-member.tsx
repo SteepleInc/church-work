@@ -5,6 +5,7 @@ import { Schema } from "effect";
 import { atom, useAtom } from "jotai";
 import type { ComponentPropsWithoutRef } from "react";
 import { useState } from "react";
+import { z } from "zod";
 
 import { useAppForm } from "@/components/form/ts-form";
 import { UserPlusIcon } from "@/components/icons/userPlusIcon";
@@ -42,8 +43,8 @@ export function canInviteChurchMembers(currentRole: CurrentMemberRole) {
 }
 
 const InviteMemberSchema = Schema.Struct({
-  emails: Schema.String.pipe(
-    Schema.minLength(3, { message: () => "Enter at least one email address." }),
+  emails: Schema.Array(Schema.String.pipe(Schema.minLength(3))).pipe(
+    Schema.minItems(1, { message: () => "Enter at least one email address." }),
   ),
   role: Schema.Literal("member", "admin"),
 });
@@ -134,7 +135,7 @@ function InviteMemberForm({
   const [inviteError, setInviteError] = useState<string | null>(null);
   const form = useAppForm({
     defaultValues: {
-      emails: "",
+      emails: [] as readonly string[],
       role: "member" as InvitationRole,
     },
     validationLogic: revalidateLogic({
@@ -147,7 +148,7 @@ function InviteMemberForm({
     onSubmit: async ({ value, formApi }) => {
       setInviteError(null);
 
-      const emails = parseInviteMemberEmails(value.emails);
+      const emails = parseInviteMemberEmails(value.emails.join(","));
       const invalidEmails = getInvalidInviteMemberEmails(emails);
 
       if (emails.length === 0) {
@@ -185,10 +186,12 @@ function InviteMemberForm({
         <>
           <form.AppField name="emails">
             {(field) => (
-              <field.TextareaField
-                label="Email Addresses"
-                placeholder="member@example.com, admin@example.com"
+              <field.TagInputField
+                className="max-w-full"
+                label="Email addresses"
+                placeholder="Enter or paste one or more email addresses, separated by spaces or commas"
                 required
+                tagValidator={z.string().email()}
               />
             )}
           </form.AppField>

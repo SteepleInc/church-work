@@ -13,6 +13,7 @@ import { OTPField } from "@/components/form/otp-field";
 import { SelectField } from "@/components/form/select-field";
 import { SingleComboboxField } from "@/components/form/single-combobox-field";
 import { SwitchField } from "@/components/form/switch-field";
+import { TagInputField } from "@/components/form/tag-input-field";
 import { TextareaField } from "@/components/form/textarea-field";
 import { fieldContext, formContext } from "@/components/form/ts-field";
 
@@ -28,6 +29,7 @@ export const { useAppForm, withForm } = createFormHook({
     SelectField,
     SingleComboboxField,
     SwitchField,
+    TagInputField,
     TextareaField,
     UserSelectField,
   },

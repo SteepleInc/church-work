@@ -55,7 +55,7 @@ describe("settings route sections", () => {
     const teamTabsSource = readFileSync("apps/web/src/features/users/team-tabs.tsx", "utf8");
 
     expect(teamRouteSource).toContain("<MainContainer>");
-    expect(teamRouteSource).toContain('<TeamTabs basePath="/settings/team" />');
+    expect(teamRouteSource).toContain('<TeamTabs basePath="/settings/team" className="px-0" />');
     expect(teamRouteSource).toContain("<Outlet />");
     expect(teamTabRouteSource).not.toContain("SettingsFrame");
     expect(teamTabsSource).toContain("<PageTabs");
@@ -64,6 +64,16 @@ describe("settings route sections", () => {
     expect(teamTabsSource).toContain("render={<Link");
     expect(teamTabsSource).not.toContain("params={tab.params}");
     expect(teamTabsSource).toContain("pendingInvitationsCount");
+  });
+
+  it("composes Profile and Church settings with copied PreachX CardForm", () => {
+    const settingsSource = readFileSync("apps/web/src/routes/-settings.tsx", "utf8");
+    const cardFormSource = readFileSync("apps/web/src/components/form/card-form.tsx", "utf8");
+
+    expect(settingsSource).toContain('import { CardForm } from "@/components/form/card-form"');
+    expect(settingsSource.match(/<CardForm/g)?.length).toBe(2);
+    expect(cardFormSource).toContain('className={cn("flex w-full flex-col items-stretch gap-0"');
+    expect(cardFormSource).toContain('orientation="vertical"');
   });
 
   it("normalizes profile names like the copied profile settings form", () => {

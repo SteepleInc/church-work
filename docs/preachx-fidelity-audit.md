@@ -33,7 +33,7 @@ Church Task files:
 
 Fidelity verdict: pass for the repaired #91 onboarding scope.
 
-Repairs confirmed:
+#102 repairs:
 
 - The authenticated onboarding shell uses the copied PreachX split-frame structure, left-panel org switcher placement, mobile-only top controls, and right-panel card host.
 - `QuickActions` is mounted as a shell-level sibling after the onboarding outlet.
@@ -197,7 +197,7 @@ Church Task files:
 - `apps/web/src/features/users/team-tabs.tsx`
 - `apps/web/src/features/settings/invite-member.tsx`
 
-Fidelity verdict: intentional difference with remaining source-level divergence.
+Fidelity verdict: pass for the #102 settings/form fidelity repair.
 
 Repairs confirmed:
 
@@ -205,10 +205,19 @@ Repairs confirmed:
 - Team settings route uses `MainContainer`, `TeamTabs`, and nested outlet behavior.
 - Billing, prompts, PreachX integrations, and preacher-specific settings are excluded.
 
-Remaining mismatches:
+Repairs confirmed:
 
-- Profile and Church settings still inline form panels in `routes/-settings.tsx` rather than composing copied PreachX feature forms such as `ProfileForm`, `EditOrgForm`, and `CardForm`.
-- Invite Member uses textarea parsing rather than PreachX `TagInputField` inside `QuickActionForm`.
+- Profile and Church settings now compose the copied/adapted `CardForm` primitive rather than raw inline form panels.
+- Invite Member now uses the copied/adapted `TagInputField` and `TagInput` shape inside `QuickActionForm` instead of textarea entry.
+- `FormErrorDisplay` now uses the copied PreachX alert icon/flex red treatment for submit-level form errors.
+
+Form primitive decisions for #102:
+
+- Active requirement: `CardForm`, because Profile and Church settings are active Church Task settings surfaces.
+- Active requirement: `TagInputField`, because Invite Member is active in Settings and Quick Actions and needs PreachX pasted-email tag entry.
+- Active requirement: `FormErrorDisplay`, because copied form composition renders it through the shared `Form` primitive.
+- Intentional exclusion: avatar/file upload fields, because Church Task has no active profile avatar or Church logo flow in this PRD slice.
+- Intentional exclusion: markdown fields, because no active Church Task settings or invite flow needs PreachX markdown input.
 
 ## Admin
 
