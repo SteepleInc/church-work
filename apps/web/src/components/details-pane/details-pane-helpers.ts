@@ -1,5 +1,6 @@
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Array, Option, Schema, pipe } from "effect";
+import { Array, Boolean, Match, Option, Schema, pipe } from "effect";
+import type { MouseEvent } from "react";
 import { useCallback, useMemo } from "react";
 
 import {
@@ -73,16 +74,53 @@ export function useChangeDetailsPaneId() {
   const [detailsPaneState, setDetailsPaneState] = useDetailsPaneState();
 
   return useCallback(
-    (id: string) => {
-      const updatedState = getChangedDetailsPaneId(detailsPaneState, id);
+    (id: string) =>
+      pipe(
+        detailsPaneState,
+        Array.last,
+        Option.map((entry) =>
+          pipe(
+            Match.type<DetailsPaneUnion>(),
+            Match.tag("org", (org) => ({ ...org, id })),
+            Match.tag("task", (task) => ({ ...task, id })),
+            Match.tag("team", (team) => ({ ...team, id })),
+            Match.exhaustive,
+          )(entry),
+        ),
+        Option.match({
+          onNone: () => ({
+            forceNav: () => undefined,
+            onClick: () => undefined,
+            search: (previousSearch: Record<string, unknown>) => previousSearch,
+            to: ".",
+          }),
+          onSome: (updatedEntry) => {
+            const updatedState = pipe(
+              detailsPaneState,
+              Array.modify(detailsPaneState.length - 1, () => updatedEntry),
+            ) as DetailsPaneParams;
 
-      return {
-        forceNav: () => setDetailsPaneState(updatedState),
-        search: (previousSearch: Record<string, unknown>) =>
-          getDetailsPaneSearch(previousSearch, updatedState),
-        to: ".",
-      };
-    },
+            return {
+              forceNav: () => setDetailsPaneState(updatedState),
+              onClick: (event: MouseEvent<HTMLAnchorElement>) => {
+                pipe(
+                  event.nativeEvent.ctrlKey || event.nativeEvent.metaKey,
+                  Boolean.match({
+                    onFalse: () => {
+                      event.preventDefault();
+                      setDetailsPaneState(updatedState);
+                    },
+                    onTrue: () => undefined,
+                  }),
+                );
+              },
+              search: (previousSearch: Record<string, unknown>) =>
+                getDetailsPaneSearch(previousSearch, updatedState),
+              to: ".",
+            };
+          },
+        }),
+      ),
     [detailsPaneState, setDetailsPaneState],
   );
 }

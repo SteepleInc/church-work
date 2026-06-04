@@ -1,90 +1,190 @@
-import { Link } from "@tanstack/react-router";
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
+import { Array, Boolean, Match, Option, Record, pipe } from "effect";
 import { XIcon } from "lucide-react";
+import { useAtomValue } from "jotai";
+import type { ReactNode } from "react";
 import { useMemo } from "react";
 
 import {
   useCloseDetailsPane,
   useDetailsPaneState,
-  useOpenDetailsPaneUrl,
 } from "@/components/details-pane/details-pane-helpers";
-import type {
-  DetailsPaneParams,
-  DetailsPaneUnion,
-} from "@/components/details-pane/details-pane-types";
+import { DetailsPaneHistory } from "@/components/details-pane/details-pane-history";
+import type { DetailsPaneParams } from "@/components/details-pane/details-pane-types";
+import { ToggleDetailsPaneButton } from "@/components/details-pane/toggle-details-pane-button";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
 import { OrgDetailsPane } from "@/features/details-pane/org-details-pane";
 import { TaskDetailsPane } from "@/features/details-pane/task-details-pane";
 import { TeamDetailsPane } from "@/features/details-pane/team-details-pane";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { detailsPaneStickyAtom } from "@/shared/global-state";
+import { useIsMdScreen } from "@/shared/hooks/use-media-query";
+
+const detailsPaneWidth = {
+  default: "w-[28rem]",
+} as const;
+
+const getDetailsPaneWidth = (entityType: string): string =>
+  pipe(
+    detailsPaneWidth,
+    Record.get(entityType as keyof typeof detailsPaneWidth),
+    Option.getOrElse(() => detailsPaneWidth.default),
+  );
 
 export function DetailsPane({ className }: { readonly className?: string }) {
   const [detailsPaneState] = useDetailsPaneState();
   const closeDetailsPane = useCloseDetailsPane();
-  const currentEntity = useMemo(() => detailsPaneState.at(-1) ?? null, [detailsPaneState]);
+  const hasDetailsPane = useMemo(
+    () => pipe(detailsPaneState, Array.isNonEmptyReadonlyArray),
+    [detailsPaneState],
+  );
 
-  if (!currentEntity) {
-    return null;
-  }
+  const width = pipe(
+    detailsPaneState,
+    Array.last,
+    Option.match({
+      onNone: () => detailsPaneWidth.default,
+      onSome: (entity) => getDetailsPaneWidth(entity._tag),
+    }),
+  );
 
   return (
-    <aside
-      aria-label="Details Pane"
-      className={cn(
-        "fixed right-2 bottom-2 z-50 grid h-[min(42rem,calc(100svh-5rem))] w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border bg-background shadow-2xl md:top-[4.5rem] md:w-[28rem]",
-        className,
-      )}
+    <DetailsPaneWrapper
+      className={className}
+      closeDetailsPane={closeDetailsPane}
+      detailsPaneParams={detailsPaneState}
+      open={hasDetailsPane}
+      width={width}
     >
-      <DetailsPaneHistory history={detailsPaneState} />
-      <DetailsPaneContent entity={currentEntity} />
-      <Button
-        type="button"
-        size="icon-sm"
-        variant="ghost"
-        className="absolute top-3 right-3 z-10"
-        onClick={closeDetailsPane}
-      >
-        <XIcon className="size-4" />
-        <span className="sr-only">Close details pane</span>
-      </Button>
-    </aside>
+      {pipe(
+        detailsPaneState,
+        Array.last,
+        Option.match({
+          onNone: () => null,
+          onSome: (entity) =>
+            pipe(
+              entity,
+              Match.value,
+              Match.tag("org", (orgData) => <OrgDetailsPane orgId={orgData.id} />),
+              Match.tag("task", (taskData) => <TaskDetailsPane taskId={taskData.id} />),
+              Match.tag("team", (teamData) => <TeamDetailsPane teamId={teamData.id} />),
+              Match.exhaustive,
+            ),
+        }),
+      )}
+    </DetailsPaneWrapper>
   );
 }
 
-function DetailsPaneContent({ entity }: { readonly entity: DetailsPaneUnion }) {
-  if (entity._tag === "task") {
-    return <TaskDetailsPane taskId={entity.id} />;
-  }
+type DetailsPaneWrapperProps = {
+  readonly children: ReactNode;
+  readonly open: boolean;
+  readonly closeDetailsPane: () => void;
+  readonly width: string;
+  readonly detailsPaneParams: DetailsPaneParams;
+  readonly className?: string;
+};
 
-  if (entity._tag === "team") {
-    return <TeamDetailsPane teamId={entity.id} />;
-  }
+function DetailsPaneWrapper({
+  children,
+  open,
+  closeDetailsPane,
+  width,
+  detailsPaneParams,
+  className,
+}: DetailsPaneWrapperProps) {
+  const isMdScreen = useIsMdScreen();
+  const detailsPaneSticky = useAtomValue(detailsPaneStickyAtom);
 
-  return <OrgDetailsPane orgId={entity.id} />;
-}
-
-function DetailsPaneHistory({ history }: { readonly history: DetailsPaneParams }) {
-  const openDetailsPaneUrl = useOpenDetailsPaneUrl({ replace: true });
-
-  if (history.length <= 1) {
-    return null;
-  }
-
-  return (
-    <nav aria-label="Details history" className="flex gap-2 border-b px-4 pt-4 text-sm">
-      {history.map((entry, index) => {
-        const label = `${entry._tag} ${index + 1}`;
-        const isCurrent = index === history.length - 1;
-
-        return (
-          <Link
-            key={`${entry._tag}-${entry.id}-${index}`}
-            {...openDetailsPaneUrl(history.slice(0, index + 1) as DetailsPaneParams)}
-            className={cn("capitalize", isCurrent ? "font-medium" : "text-muted-foreground")}
-          >
-            {label}
-          </Link>
-        );
-      })}
-    </nav>
+  return pipe(
+    isMdScreen,
+    Boolean.match({
+      onFalse: () => (
+        <Drawer
+          onClose={closeDetailsPane}
+          onOpenChange={(isOpen) =>
+            pipe(isOpen, Boolean.match({ onFalse: closeDetailsPane, onTrue: () => undefined }))
+          }
+          open={open}
+        >
+          <DrawerContent className={cn("h-[100dvh] max-h-none", className)}>
+            <DrawerTitle className="sr-only">Details Pane</DrawerTitle>
+            <DrawerDescription className="sr-only">Details Pane</DrawerDescription>
+            <DetailsPaneHistory history={detailsPaneParams} />
+            {children}
+          </DrawerContent>
+        </Drawer>
+      ),
+      onTrue: () =>
+        pipe(
+          detailsPaneSticky,
+          Boolean.match({
+            onFalse: () => (
+              <Dialog
+                onOpenChange={(isOpen) =>
+                  pipe(
+                    isOpen,
+                    Boolean.match({ onFalse: closeDetailsPane, onTrue: () => undefined }),
+                  )
+                }
+                open={open}
+              >
+                <DialogContent
+                  className={cn(
+                    "top-2 right-2 bottom-2 left-auto h-auto max-w-none translate-x-0 translate-y-0 overflow-hidden rounded-2xl border bg-background p-0 shadow-2xl data-closed:slide-out-to-right-24 data-open:slide-in-from-right-24",
+                    width,
+                    className,
+                  )}
+                  closeButtonClassName="hidden"
+                  hideCloseButton
+                >
+                  <DialogPrimitive.Title className="sr-only">Details Pane</DialogPrimitive.Title>
+                  <DialogPrimitive.Description className="sr-only">
+                    Details Pane
+                  </DialogPrimitive.Description>
+                  <DetailsPaneHistory history={detailsPaneParams} />
+                  {children}
+                  <div className="absolute top-3.5 right-4 z-50 flex flex-row items-center gap-1">
+                    <ToggleDetailsPaneButton />
+                    <DialogPrimitive.Close render={<Button size="icon-sm" variant="ghost" />}>
+                      <XIcon className="size-4" />
+                      <span className="sr-only">Close</span>
+                    </DialogPrimitive.Close>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            ),
+            onTrue: () =>
+              pipe(
+                detailsPaneParams,
+                Array.match({
+                  onEmpty: () => null,
+                  onNonEmpty: () => (
+                    <div
+                      aria-label="Details Pane"
+                      className={cn(
+                        "relative my-2 flex flex-col overflow-hidden rounded-l-2xl border bg-background shadow-sm",
+                        width,
+                        className,
+                      )}
+                    >
+                      <div className="absolute top-3.5 right-4 z-50 flex flex-row items-center gap-1">
+                        <ToggleDetailsPaneButton />
+                        <Button onClick={closeDetailsPane} size="icon-sm" variant="ghost">
+                          <XIcon className="size-4" />
+                          <span className="sr-only">Close</span>
+                        </Button>
+                      </div>
+                      <DetailsPaneHistory history={detailsPaneParams} />
+                      {children}
+                    </div>
+                  ),
+                }),
+              ),
+          }),
+        ),
+    }),
   );
 }
