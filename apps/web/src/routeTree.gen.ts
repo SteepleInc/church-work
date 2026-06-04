@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as OrgRouteRouteImport } from './routes/_org/route'
 import { Route as OnboardingRouteRouteImport } from './routes/_onboarding/route'
 import { Route as MarketingRouteRouteImport } from './routes/_marketing/route'
+import { Route as AuthRouteRouteImport } from './routes/_auth/route'
 import { Route as MarketingIndexRouteImport } from './routes/_marketing/index'
 import { Route as OrgSettingsRouteImport } from './routes/_org/settings'
 import { Route as OrgOurWorkRouteImport } from './routes/_org/our-work'
@@ -41,6 +42,10 @@ const OnboardingRouteRoute = OnboardingRouteRouteImport.update({
 } as any)
 const MarketingRouteRoute = MarketingRouteRouteImport.update({
   id: '/_marketing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRouteRoute = AuthRouteRouteImport.update({
+  id: '/_auth',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MarketingIndexRoute = MarketingIndexRouteImport.update({
@@ -79,9 +84,9 @@ const MarketingLibraryRoute = MarketingLibraryRouteImport.update({
   getParentRoute: () => MarketingRouteRoute,
 } as any)
 const AuthSignInRoute = AuthSignInRouteImport.update({
-  id: '/_auth/sign-in',
+  id: '/sign-in',
   path: '/sign-in',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthRouteRoute,
 } as any)
 const OrgTeamTeamIdRoute = OrgTeamTeamIdRouteImport.update({
   id: '/team/$teamId',
@@ -124,9 +129,9 @@ const OrgAdminOrgsRoute = OrgAdminOrgsRouteImport.update({
   getParentRoute: () => OrgAdminRoute,
 } as any)
 const AuthAcceptInvitationIdRoute = AuthAcceptInvitationIdRouteImport.update({
-  id: '/_auth/accept-invitation/$id',
+  id: '/accept-invitation/$id',
   path: '/accept-invitation/$id',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthRouteRoute,
 } as any)
 const OrgSettingsTeamTeamTabRoute = OrgSettingsTeamTeamTabRouteImport.update({
   id: '/$teamTab',
@@ -176,6 +181,7 @@ export interface FileRoutesByTo {
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/_auth': typeof AuthRouteRouteWithChildren
   '/_marketing': typeof MarketingRouteRouteWithChildren
   '/_onboarding': typeof OnboardingRouteRouteWithChildren
   '/_org': typeof OrgRouteRouteWithChildren
@@ -241,6 +247,7 @@ export interface FileRouteTypes {
     | '/settings/team/$teamTab'
   id:
     | '__root__'
+    | '/_auth'
     | '/_marketing'
     | '/_onboarding'
     | '/_org'
@@ -265,11 +272,10 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  AuthRouteRoute: typeof AuthRouteRouteWithChildren
   MarketingRouteRoute: typeof MarketingRouteRouteWithChildren
   OnboardingRouteRoute: typeof OnboardingRouteRouteWithChildren
   OrgRouteRoute: typeof OrgRouteRouteWithChildren
-  AuthSignInRoute: typeof AuthSignInRoute
-  AuthAcceptInvitationIdRoute: typeof AuthAcceptInvitationIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -293,6 +299,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof MarketingRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_auth': {
+      id: '/_auth'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_marketing/': {
@@ -349,7 +362,7 @@ declare module '@tanstack/react-router' {
       path: '/sign-in'
       fullPath: '/sign-in'
       preLoaderRoute: typeof AuthSignInRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AuthRouteRoute
     }
     '/_org/team/$teamId': {
       id: '/_org/team/$teamId'
@@ -412,7 +425,7 @@ declare module '@tanstack/react-router' {
       path: '/accept-invitation/$id'
       fullPath: '/accept-invitation/$id'
       preLoaderRoute: typeof AuthAcceptInvitationIdRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof AuthRouteRoute
     }
     '/_org/settings/team/$teamTab': {
       id: '/_org/settings/team/$teamTab'
@@ -423,6 +436,20 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface AuthRouteRouteChildren {
+  AuthSignInRoute: typeof AuthSignInRoute
+  AuthAcceptInvitationIdRoute: typeof AuthAcceptInvitationIdRoute
+}
+
+const AuthRouteRouteChildren: AuthRouteRouteChildren = {
+  AuthSignInRoute: AuthSignInRoute,
+  AuthAcceptInvitationIdRoute: AuthAcceptInvitationIdRoute,
+}
+
+const AuthRouteRouteWithChildren = AuthRouteRoute._addFileChildren(
+  AuthRouteRouteChildren,
+)
 
 interface MarketingRouteRouteChildren {
   MarketingLibraryRoute: typeof MarketingLibraryRoute
@@ -517,11 +544,10 @@ const OrgRouteRouteWithChildren = OrgRouteRoute._addFileChildren(
 )
 
 const rootRouteChildren: RootRouteChildren = {
+  AuthRouteRoute: AuthRouteRouteWithChildren,
   MarketingRouteRoute: MarketingRouteRouteWithChildren,
   OnboardingRouteRoute: OnboardingRouteRouteWithChildren,
   OrgRouteRoute: OrgRouteRouteWithChildren,
-  AuthSignInRoute: AuthSignInRoute,
-  AuthAcceptInvitationIdRoute: AuthAcceptInvitationIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

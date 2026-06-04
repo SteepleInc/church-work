@@ -1,4 +1,4 @@
-import SignInForm from "@/components/sign-in-form";
+import { SignIn } from "@/features/auth/sign-in";
 import { createFileRoute } from "@tanstack/react-router";
 import { Schema } from "effect";
 
@@ -13,11 +13,5 @@ export const Route = createFileRoute("/_auth/sign-in")({
 });
 
 function SignInRoute() {
-  const search = Route.useSearch();
-
-  return (
-    <main className="flex min-h-svh items-center justify-center bg-muted/30 p-4">
-      <SignInForm defaultEmail={search.email} invitationId={search["invitation-id"]} />
-    </main>
-  );
+  return <SignIn />;
 }

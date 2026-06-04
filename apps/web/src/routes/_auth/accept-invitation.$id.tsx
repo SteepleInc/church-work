@@ -128,8 +128,8 @@ function InvitationPage() {
   };
 
   return (
-    <main className="relative flex min-h-svh items-center justify-center bg-muted/30 p-4">
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]" />
+    <div className="flex min-h-[80vh] items-center justify-center">
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-white [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)] dark:bg-black" />
       <div className="relative z-10 w-full max-w-md">
         {invitation ? (
           <Card>
@@ -189,13 +189,13 @@ function InvitationPage() {
           <InvitationSkeleton />
         )}
       </div>
-    </main>
+    </div>
   );
 }
 
 function InvitationError() {
   return (
-    <Card>
+    <Card className="mx-auto w-full max-w-md">
       <CardHeader>
         <div className="flex items-center gap-2">
           <AlertCircle className="h-6 w-6 text-destructive" />
@@ -220,7 +220,7 @@ function InvitationError() {
 
 function InvitationSkeleton() {
   return (
-    <Card>
+    <Card className="mx-auto w-full max-w-[calc(100vw-2rem)]">
       <CardHeader>
         <div className="flex items-center gap-2">
           <Skeleton className="h-6 w-6 rounded-full" />
