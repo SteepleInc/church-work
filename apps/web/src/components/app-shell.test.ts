@@ -266,10 +266,12 @@ describe("quick action route behavior", () => {
   });
 
   test("keeps invite member quick action in the copied PreachX header/body/footer shape", () => {
-    expect(inviteMemberSource).toContain('className="gap-0 overflow-hidden p-0 sm:max-w-xl"');
-    expect(inviteMemberSource).toContain('<DialogHeader className="p-4">');
+    expect(inviteMemberSource).toContain("<QuickActionsWrapper");
+    expect(inviteMemberSource).toContain('<QuickActionsHeader className="p-4">');
+    expect(inviteMemberSource).toContain("<QuickActionsTitle>");
+    expect(inviteMemberSource).toContain("<QuickActionForm");
     expect(inviteMemberSource).toContain('className="sm:max-w-56"');
-    expect(inviteMemberSource).toContain("<DialogFooter>");
+    expect(inviteMemberSource).toContain("<Kbd>enter</Kbd>");
   });
 });
 

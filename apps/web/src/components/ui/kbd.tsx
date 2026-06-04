@@ -1,6 +1,28 @@
-import { cn } from "@/lib/utils";
+import type { ReactNode } from "react";
 
-function Kbd({ className, ...props }: React.ComponentProps<"kbd">) {
+import { EnterIcon } from "@/components/icons/enterIcon";
+import { PlusIcon } from "@/components/icons/plusIcon";
+import { cn } from "@/lib/utils";
+import { getShortcutKey } from "@/lib/utils";
+
+function Kbd({ className, children, ...props }: React.ComponentProps<"kbd">) {
+  const shortcutKey =
+    typeof children === "string"
+      ? children.split(" ").map((key): ReactNode => {
+          const shortcut = getShortcutKey(key);
+
+          if (shortcut.root === "enter") {
+            return <EnterIcon key="enter" />;
+          }
+
+          if (key === "+") {
+            return <PlusIcon className="-mx-0.5" key="plus" />;
+          }
+
+          return shortcut.symbol;
+        })
+      : children;
+
   return (
     <kbd
       data-slot="kbd"
@@ -9,7 +31,9 @@ function Kbd({ className, ...props }: React.ComponentProps<"kbd">) {
         className,
       )}
       {...props}
-    />
+    >
+      {shortcutKey}
+    </kbd>
   );
 }
 
