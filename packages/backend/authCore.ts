@@ -4,13 +4,14 @@ import { apiKey } from "@better-auth/api-key";
 import { convex, crossDomain } from "@convex-dev/better-auth/plugins";
 import { APIError, createAuthEndpoint, sessionMiddleware } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
-import { betterAuth } from "better-auth/minimal";
+import { betterAuth, type BetterAuthOptions } from "better-auth/minimal";
 import { bearer, emailOTP, mcp, organization } from "better-auth/plugins";
 import { z } from "zod";
 
 import { components, internal } from "./convex/_generated/api";
 import type { DataModel } from "./convex/_generated/dataModel";
 import authConfig from "./convex/auth.config";
+import authSchema from "./convex/betterAuth/schema";
 import { sendChurchInvitationEmail } from "./churchInvitationEmail";
 import { isValidChurchTimeZone } from "./churchTimeZone";
 
@@ -23,7 +24,11 @@ const trustedOrigins = [
   "http://localhost:2101",
 ].filter((origin): origin is string => Boolean(origin));
 
-export const authComponent = createClient<DataModel>(components.betterAuth);
+export const authComponent = createClient<DataModel, typeof authSchema>(components.betterAuth, {
+  local: {
+    schema: authSchema,
+  },
+});
 
 const roleToString = (role: unknown) => (Array.isArray(role) ? role.join(",") : String(role));
 
@@ -171,8 +176,8 @@ export const clearOrgForOnboarding = () =>
     id: "clear-org-for-onboarding",
   }) satisfies BetterAuthPlugin;
 
-export function createAuth(ctx: GenericCtx<DataModel>) {
-  return betterAuth({
+export function createAuthOptions(ctx: GenericCtx<DataModel>) {
+  return {
     baseURL: process.env.CONVEX_SITE_URL,
     trustedOrigins,
     database: authComponent.adapter(ctx),
@@ -523,5 +528,9 @@ export function createAuth(ctx: GenericCtx<DataModel>) {
         jwksRotateOnTokenGenerationError: true,
       }),
     ],
-  });
+  } satisfies BetterAuthOptions;
+}
+
+export function createAuth(ctx: GenericCtx<DataModel>) {
+  return betterAuth(createAuthOptions(ctx));
 }
