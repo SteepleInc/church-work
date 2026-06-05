@@ -20,6 +20,9 @@ fi
 git gtr config set gtr.editor.default cursor
 git gtr config set gtr.ai.default claude
 
+# Env files are copied by scripts/worktree-setup.sh (it copies all .env*
+# files). These entries are a harmless fallback; the post-create hook is the
+# source of truth and won't overwrite anything gtr already copied.
 git gtr config add gtr.copy.include ".env"
 git gtr config add gtr.copy.include "packages/backend/.env.local"
 

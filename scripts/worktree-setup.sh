@@ -2,12 +2,11 @@
 # scripts/worktree-setup.sh
 # Called by gtr post-create hook to set up a new worktree.
 #
-# gtr handles copying core env files via gtr.copy.include.
 # This script handles:
 #   - Calculating and storing worktree index
 #   - Deriving a stable worktree slug from branch name
 #   - Copying AI/reference directories
-#   - Copying the E2E testing env file
+#   - Copying all .env* files (.env, .env.e2e, backend .env.local, etc.)
 #   - Updating env files with worktree-specific ports
 #   - Running bun install
 #
@@ -56,10 +55,35 @@ if [ -d "$ROOT_WORKTREE_PATH/.reference" ] && [ ! -e ".reference" ]; then
     fi
 fi
 
-if [ -f "$ROOT_WORKTREE_PATH/.env.e2e" ] && [ ! -e ".env.e2e" ]; then
-    cp "$ROOT_WORKTREE_PATH/.env.e2e" .env.e2e
-    echo "  Copied .env.e2e"
-fi
+# Copy every .env* file from the root worktree into this one. This covers
+# .env, .env.e2e, packages/backend/.env.local, and any future env files,
+# regardless of whether gtr's copy.include is configured for them. Template
+# files (*.example) are skipped, and existing files are never overwritten.
+copy_env_files() {
+    local src_file dest_file rel_path
+    while IFS= read -r src_file; do
+        rel_path="${src_file#"$ROOT_WORKTREE_PATH"/}"
+        dest_file="$rel_path"
+
+        case "$rel_path" in
+            *.example) continue ;;
+        esac
+
+        if [ -e "$dest_file" ]; then
+            continue
+        fi
+
+        mkdir -p "$(dirname "$dest_file")"
+        cp "$src_file" "$dest_file"
+        echo "  Copied $rel_path"
+    done < <(
+        find "$ROOT_WORKTREE_PATH" \
+            -type d \( -name node_modules -o -name .git -o -name .reference \) -prune \
+            -o -type f -name '.env*' -print
+    )
+}
+
+copy_env_files
 
 append_root_env_overrides() {
     if [ ! -f ".env" ]; then
