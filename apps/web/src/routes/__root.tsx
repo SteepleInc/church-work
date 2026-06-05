@@ -2,6 +2,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { HeadContent, Outlet, createRootRouteWithContext } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
+import { HeightWrapper } from "@/components/height-wrapper";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -55,7 +56,9 @@ function RootComponent() {
         storageKey="vite-ui-theme"
       >
         <TooltipProvider>
-          <Outlet />
+          <HeightWrapper>
+            <Outlet />
+          </HeightWrapper>
           <Toaster richColors />
         </TooltipProvider>
       </ThemeProvider>
