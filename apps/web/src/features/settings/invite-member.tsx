@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import {
   QuickActionForm,
-  QuickActionsDescription,
   QuickActionsHeader,
   QuickActionsTitle,
   QuickActionsWrapper,
@@ -104,10 +103,6 @@ export function InviteMemberQuickAction({
             Invite Member
           </span>
         </QuickActionsTitle>
-        <QuickActionsDescription>
-          Invite one or more people to this Church. Separate email addresses with spaces, commas, or
-          new lines.
-        </QuickActionsDescription>
       </QuickActionsHeader>
       {canInvite ? (
         <InviteMemberForm
@@ -195,18 +190,16 @@ function InviteMemberForm({
               />
             )}
           </form.AppField>
-          <div className="sm:max-w-56">
-            <form.AppField name="role">
-              {(field) => (
-                <field.SelectField
-                  label="Role"
-                  options={inviteMemberRoleOptions}
-                  placeholder="Select a role"
-                  required
-                />
-              )}
-            </form.AppField>
-          </div>
+          <form.AppField name="role">
+            {(field) => (
+              <field.SelectField
+                label="Role"
+                options={inviteMemberRoleOptions}
+                placeholder="Select a role"
+                required
+              />
+            )}
+          </form.AppField>
           {inviteError ? (
             <Alert variant="destructive">
               <AlertDescription>{inviteError}</AlertDescription>
