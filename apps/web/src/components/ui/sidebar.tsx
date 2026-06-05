@@ -238,7 +238,7 @@ function Sidebar({
         <div
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
-          className="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow-sm group-data-[variant=inset]:rounded-lg group-data-[variant=inset]:border group-data-[variant=inset]:border-sidebar-border group-data-[variant=inset]:shadow-sm"
+          className="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow-sm"
         >
           {children}
         </div>
@@ -393,7 +393,11 @@ function SidebarContent({
       className={scrollAreaClassName}
       maskClassName={scrollAreaMaskClassName}
       viewportClassName={cn(
-        isTouch ? "" : "[&>div]:!inline [&>div]:min-h-full",
+        // Base UI's ScrollArea renders children directly inside the viewport
+        // (no inner wrapper div like Radix), so we make the viewport itself a
+        // full-height flex column. This lets the content's `flex-1` fill the
+        // available space and `mt-auto` pin the footer group to the bottom.
+        isTouch ? "" : "flex min-h-full flex-col [&>div]:min-h-full [&>div]:flex-1",
         scrollAreaViewportClassName,
       )}
     >
