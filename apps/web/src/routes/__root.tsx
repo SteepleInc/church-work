@@ -59,7 +59,7 @@ function RootComponent() {
           <Toaster richColors />
         </TooltipProvider>
       </ThemeProvider>
-      <TanStackRouterDevtools position="bottom-left" />
+      <TanStackRouterDevtools position="bottom-right" />
     </>
   );
 }
