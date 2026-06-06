@@ -40,6 +40,9 @@ const quickActionsSource = await Bun.file(
 const bigActionsSource = await Bun.file(
   new URL("../features/big-actions/big-actions.tsx", import.meta.url),
 ).text();
+const createTaskQuickActionSource = await Bun.file(
+  new URL("../features/quick-actions/create-task-quick-action.tsx", import.meta.url),
+).text();
 const inviteMemberSource = await Bun.file(
   new URL("../features/settings/invite-member.tsx", import.meta.url),
 ).text();
@@ -272,12 +275,21 @@ describe("quick action route behavior", () => {
     expect(quickActionsSource).toContain('<CommandGroup heading="Quick Action">');
     expect(quickActionsSource).not.toContain("Big Actions");
     expect(quickActionsSource).not.toContain("action.description");
-    expect(bigActionsSource).toContain("export function BigActions()");
-    expect(bigActionsSource).toContain("createTaskBigActionStateAtom");
-    expect(bigActionsSource).toContain("CreateTaskBigAction");
+    expect(bigActionsSource).toContain("export const BigActions: FC");
   });
 
-  test("uses copied PreachX BigAction chrome instead of a small generic dialog", async () => {
+  test("creates tasks through a quick action dialog instead of a big action", () => {
+    expect(createTaskQuickActionSource).toContain("export function CreateTaskQuickAction()");
+    expect(createTaskQuickActionSource).toContain("createTaskQuickActionStateAtom");
+    expect(createTaskQuickActionSource).toContain("<QuickActionsWrapper");
+    expect(createTaskQuickActionSource).toContain('<QuickActionsHeader className="p-4">');
+    expect(createTaskQuickActionSource).toContain("<QuickActionForm");
+    expect(quickActionsSource).toContain("<CreateTaskQuickAction />");
+    expect(bigActionsSource).not.toContain("createTaskBigActionStateAtom");
+    expect(bigActionsSource).not.toContain("BigActionWrapper");
+  });
+
+  test("keeps the copied PreachX BigAction chrome available for future big actions", async () => {
     const bigActionComponentsSource = await Bun.file(
       new URL("../features/big-actions/big-action-components.tsx", import.meta.url),
     ).text();
@@ -285,8 +297,6 @@ describe("quick action route behavior", () => {
       new URL("../components/ui/full-screen-modal.tsx", import.meta.url),
     ).text();
 
-    expect(bigActionsSource).toContain("<BigActionWrapper");
-    expect(bigActionsSource).not.toContain('DialogContent className="sm:max-w-xl"');
     expect(bigActionComponentsSource).toContain("export function BigActionWrapper");
     expect(bigActionComponentsSource).toContain(
       '<DrawerContent className="h-[100dvh] max-h-none">',
@@ -301,8 +311,12 @@ describe("quick action route behavior", () => {
     expect(inviteMemberSource).toContain('<QuickActionsHeader className="p-4">');
     expect(inviteMemberSource).toContain("<QuickActionsTitle>");
     expect(inviteMemberSource).toContain("<QuickActionForm");
-    expect(inviteMemberSource).toContain('className="sm:max-w-56"');
     expect(inviteMemberSource).toContain("<Kbd>enter</Kbd>");
+  });
+
+  test("drops the invite member header description and role width override to match PreachX", () => {
+    expect(inviteMemberSource).not.toContain("<QuickActionsDescription>");
+    expect(inviteMemberSource).not.toContain('className="sm:max-w-56"');
   });
 });
 

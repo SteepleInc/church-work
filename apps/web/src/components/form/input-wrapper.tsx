@@ -26,7 +26,7 @@ export function InputWrapper({
   className,
 }: InputWrapperProps) {
   return (
-    <div className={cn("grid w-full gap-1.5", className)}>
+    <div className={cn("grid w-full max-w-sm items-center gap-1.5", className)}>
       <InputLabel
         label={label}
         labelClassName={labelClassName}

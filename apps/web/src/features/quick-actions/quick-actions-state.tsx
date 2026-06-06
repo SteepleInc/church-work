@@ -11,7 +11,7 @@ import { useMemo } from "react";
 
 import { inviteMemberDialogSourceAtom } from "@/features/settings/invite-member";
 import type { QuickActionDefinition } from "@/features/quick-actions/quick-actions-types";
-import { createTaskBigActionStateAtom } from "@/features/big-actions/big-actions";
+import { createTaskQuickActionStateAtom } from "@/features/quick-actions/create-task-quick-action";
 
 export const disableQuickActionsAtom = atom(false);
 export const quickActionsIsOpenAtom = atom(false);
@@ -101,14 +101,14 @@ export function buildChurchTaskQuickActions({
 
 export function useQuickActionOpeners() {
   const setInviteMemberDialogSource = useSetAtom(inviteMemberDialogSourceAtom);
-  const setCreateTaskBigActionState = useSetAtom(createTaskBigActionStateAtom);
+  const setCreateTaskQuickActionState = useSetAtom(createTaskQuickActionStateAtom);
 
   return useMemo(
     () => ({
-      openCreateChurchTask: () => setCreateTaskBigActionState({ type: "church" }),
-      openCreateMyTask: () => setCreateTaskBigActionState({ type: "my" }),
+      openCreateChurchTask: () => setCreateTaskQuickActionState({ type: "church" }),
+      openCreateMyTask: () => setCreateTaskQuickActionState({ type: "my" }),
       openInviteMember: () => setInviteMemberDialogSource("quick-actions"),
     }),
-    [setCreateTaskBigActionState, setInviteMemberDialogSource],
+    [setCreateTaskQuickActionState, setInviteMemberDialogSource],
   );
 }
