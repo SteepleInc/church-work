@@ -12,6 +12,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
+import { CreateTaskQuickAction } from "@/features/quick-actions/create-task-quick-action";
 import { canInviteChurchMembers, InviteMemberQuickAction } from "@/features/settings/invite-member";
 import {
   buildChurchTaskQuickActions,
@@ -74,6 +75,7 @@ export function QuickActions() {
       >
         <CommandMenuContent actions={actions} />
       </CommandDialog>
+      <CreateTaskQuickAction />
       {activeChurch ? (
         <InviteMemberQuickAction
           activeChurchId={activeChurch.id}
