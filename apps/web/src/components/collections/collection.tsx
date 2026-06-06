@@ -1,11 +1,15 @@
 import type { ColumnDef, ColumnPinningState } from "@tanstack/react-table";
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
+import { CollectionCardView } from "@/components/collections/collectionCardView";
 import { CollectionTableView } from "@/components/collections/collectionTableView";
 import type { CollectionTags } from "@/components/collections/collectionComponents";
+import { CollectionViewToggleGroup } from "@/components/collections/collectionViewToggleGroup";
 import { useCreateTable } from "@/components/collections/useCreateTable";
 import type { ColumnConfig } from "@/components/data-table-filter/core/types";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { useAtomValue } from "jotai";
+import { collectionViewsAtom, getCollectionView } from "@/shared/global-state";
 
 export type CollectionColumnDef<TItem> = {
   readonly id: string;
@@ -61,6 +65,7 @@ function toTanStackColumnDef<TItem>(
 }
 
 export function Collection<TItem>({
+  _tag,
   Actions,
   canLoadMore = false,
   columnPinning,
@@ -75,6 +80,10 @@ export function Collection<TItem>({
   noResultsState,
   pageSize,
 }: CollectionProps<TItem>) {
+  const collectionViews = useAtomValue(collectionViewsAtom);
+  const persistedView = getCollectionView(collectionViews, _tag);
+  const forceCards = useForceCardsView();
+  const currentView = forceCards ? "cards" : persistedView;
   const normalizedColumnsDef = useMemo(
     () => columnsDef.map((columnDef) => toTanStackColumnDef(columnDef)),
     [columnsDef],
@@ -99,9 +108,7 @@ export function Collection<TItem>({
   if (data.length === 0) {
     return (
       <div className="flex flex-1 flex-col overflow-hidden">
-        {Actions ? (
-          <div className="-mt-1 mb-2 flex items-center gap-2 pt-1 md:mr-4 md:mb-4">{Actions}</div>
-        ) : null}
+        <CollectionTopBar _tag={_tag} Actions={Actions} />
         {hasActiveFilters
           ? (noResultsState ?? (
               <Empty className="min-h-48">
@@ -125,17 +132,57 @@ export function Collection<TItem>({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      {Actions ? (
-        <div className="-mt-1 mb-2 flex items-center gap-2 pt-1 md:mr-4 md:mb-4">{Actions}</div>
-      ) : null}
-      <CollectionTableView
-        canLoadMore={canLoadMore}
-        limit={limit ?? data.length}
-        loadingMore={loadingMore}
-        nextPage={nextPage ?? (() => {})}
-        pageSize={pageSize ?? data.length}
-        table={table}
-      />
+      <CollectionTopBar _tag={_tag} Actions={Actions} />
+      {currentView === "cards" ? (
+        <CollectionCardView
+          canLoadMore={canLoadMore}
+          limit={limit ?? data.length}
+          loadingMore={loadingMore}
+          nextPage={nextPage ?? (() => {})}
+          pageSize={pageSize ?? data.length}
+          table={table}
+        />
+      ) : (
+        <CollectionTableView
+          canLoadMore={canLoadMore}
+          limit={limit ?? data.length}
+          loadingMore={loadingMore}
+          nextPage={nextPage ?? (() => {})}
+          pageSize={pageSize ?? data.length}
+          table={table}
+        />
+      )}
     </div>
   );
+}
+
+function CollectionTopBar({
+  _tag,
+  Actions,
+}: {
+  readonly _tag: CollectionTags;
+  readonly Actions?: ReactNode;
+}) {
+  return (
+    <div className="-mt-1 mb-2 flex items-center justify-between gap-2 pt-1 md:mr-4 md:mb-4">
+      <div className="flex items-center gap-2">{Actions}</div>
+      <CollectionViewToggleGroup _tag={_tag} size="sm" variant="outline" />
+    </div>
+  );
+}
+
+function useForceCardsView() {
+  const [forceCards, setForceCards] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 767px)");
+    const update = () => setForceCards(mediaQuery.matches);
+
+    update();
+    mediaQuery.addEventListener("change", update);
+
+    return () => mediaQuery.removeEventListener("change", update);
+  }, []);
+
+  return forceCards;
 }

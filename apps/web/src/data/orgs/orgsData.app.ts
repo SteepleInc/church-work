@@ -8,7 +8,14 @@ import { useFilterQuery } from "@/shared/hooks/useFilterQuery";
 export type OrgCollectionItem = Pick<Org, "id" | "name" | "slug" | "completedOnboarding"> & {
   readonly churchTimeZone: Org["churchTimeZone"] | null;
   readonly createdAt?: number;
+  readonly city?: string | null;
+  readonly countryCode?: string | null;
   readonly logo?: string | null;
+  readonly membersCount?: number;
+  readonly size?: string | null;
+  readonly state?: string | null;
+  readonly teamsCount?: number;
+  readonly url?: string | null;
 };
 
 export function useUserOrgsCollection() {
