@@ -1,29 +1,25 @@
-import type { OrgCollectionItem } from "@/data/orgs/orgsData.app";
-import type { CollectionColumnDef } from "@/components/collections/collection";
+import type { ColumnDef } from "@tanstack/react-table";
 
-export const orgsColumnsDef: readonly CollectionColumnDef<OrgCollectionItem>[] = [
+import { BaseAvatar } from "@/components/avatars/baseAvatar";
+import { ColumnHeader } from "@/components/collections/collectionComponents";
+import type { OrgCollectionItem } from "@/data/orgs/orgsData.app";
+
+export const orgsColumnsDef: Array<ColumnDef<OrgCollectionItem>> = [
   {
-    cell: (org) => org.name,
-    className: "font-medium",
-    header: "Name",
+    accessorKey: "name",
+    cell: ({ row }) => (
+      <div className="flex min-w-0 items-center gap-3">
+        <BaseAvatar _tag="org" avatar={row.original.logo} name={row.original.name} size={32} />
+        <a className="truncate font-medium underline" href={`/admin/orgs?orgId=${row.original.id}`}>
+          {row.original.name}
+        </a>
+      </div>
+    ),
+    enableHiding: false,
+    header: ({ column }) => <ColumnHeader column={column}>Name</ColumnHeader>,
     id: "name",
-  },
-  {
-    cell: (org) => org.slug,
-    className: "text-muted-foreground",
-    header: "Slug",
-    id: "slug",
-  },
-  {
-    cell: (org) => org.churchTimeZone ?? "Not set",
-    className: "text-muted-foreground",
-    header: "Time Zone",
-    id: "churchTimeZone",
-  },
-  {
-    cell: (org) => (org.completedOnboarding ? "Complete" : "Incomplete"),
-    header: "Onboarding",
-    id: "completedOnboarding",
+    minSize: 220,
+    size: 320,
   },
 ];
 

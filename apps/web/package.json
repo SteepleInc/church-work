@@ -29,6 +29,7 @@
     "@tanstack/hotkeys": "^0.8.0",
     "@tanstack/react-form": "^1.28.0",
     "@tanstack/react-router": "^1.168.22",
+    "@tanstack/react-table": "^8.21.3",
     "better-auth": "catalog:",
     "boring-avatars": "2.0.4",
     "class-variance-authority": "^0.7.1",
