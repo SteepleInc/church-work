@@ -1,4 +1,5 @@
 import { paginationOptsValidator } from "convex/server";
+import type { FunctionReference } from "convex/server";
 import { v } from "convex/values";
 
 import { components } from "./_generated/api";
@@ -97,7 +98,7 @@ export type FilterItem = typeof filterItemValidator.type;
 
 type BetterAuthModel = "organization" | "user" | "member" | "team";
 type SortBy = { readonly field: string; readonly direction: "asc" | "desc" };
-type BetterAuthWhere = {
+export type BetterAuthWhere = {
   readonly connector?: "AND" | "OR";
   readonly field: string;
   readonly mode?: "sensitive" | "insensitive";
@@ -114,6 +115,35 @@ type BetterAuthWhere = {
     | "starts_with"
     | "ends_with";
   readonly value: string | number | boolean | Array<string> | Array<number> | null;
+};
+
+type OrganizationSearchField = "name" | "slug";
+
+type OrganizationSearchQuery = {
+  readonly searchField: OrganizationSearchField;
+  readonly searchValue: string;
+};
+
+type BetterAuthSearchComponent = typeof components.betterAuth & {
+  readonly search: {
+    readonly listOrganizationsBySearch: FunctionReference<
+      "query",
+      "internal",
+      {
+        paginationOpts: typeof paginationOptsValidator.type;
+        pageSize: number;
+        searchField: OrganizationSearchField;
+        searchValue: string;
+        select?: Array<string>;
+        where?: Array<BetterAuthWhere>;
+      },
+      {
+        readonly page: ReadonlyArray<unknown>;
+        readonly isDone: boolean;
+        readonly continueCursor: string;
+      }
+    >;
+  };
 };
 
 const sortableFieldsByModel = {
@@ -289,8 +319,10 @@ function getRangeWheres(filter: Extract<FilterItem, { type: "date" | "number" }>
 export function buildWhereForBetterAuthModel(
   model: BetterAuthModel,
   listArgs: ListArgs,
+  options?: { readonly includeTextFilters?: boolean },
 ): BetterAuthWhere[] {
   const where: BetterAuthWhere[] = [];
+  const includeTextFilters = options?.includeTextFilters ?? true;
 
   for (const filter of listArgs.filters ?? []) {
     if (!filterableFieldsByModel[model].has(filter.columnId)) {
@@ -299,6 +331,9 @@ export function buildWhereForBetterAuthModel(
 
     switch (filter.type) {
       case "text":
+        if (!includeTextFilters) {
+          break;
+        }
         where.push(...getTextSearchWheres(model, filter));
         break;
       case "option":
@@ -313,6 +348,38 @@ export function buildWhereForBetterAuthModel(
   }
 
   return where;
+}
+
+export function getOrganizationSearchQuery(
+  listArgs: ListArgs,
+): OrganizationSearchQuery | undefined {
+  const textFilter = listArgs.filters?.find(
+    (filter): filter is Extract<FilterItem, { type: "text" }> =>
+      filter.type === "text" &&
+      filter.operator === "contains" &&
+      (filter.columnId === "name" || filter.columnId === "slug") &&
+      typeof filter.values[0] === "string" &&
+      filter.values[0].trim().length > 0,
+  );
+
+  if (!textFilter) {
+    return undefined;
+  }
+
+  const searchValue = textFilter.values[0];
+
+  if (textFilter.columnId !== "name" && textFilter.columnId !== "slug") {
+    return undefined;
+  }
+
+  if (typeof searchValue !== "string") {
+    return undefined;
+  }
+
+  return {
+    searchField: textFilter.columnId,
+    searchValue: searchValue.trim(),
+  };
 }
 
 export function getSortByForBetterAuthModel(
@@ -351,7 +418,28 @@ export async function listBetterAuthModel<T>(
   },
 ) {
   const sortBy = getSortByForBetterAuthModel(args.model, args.listArgs);
-  const where = buildWhereForBetterAuthModel(args.model, args.listArgs);
+  const organizationSearchQuery =
+    args.model === "organization" ? getOrganizationSearchQuery(args.listArgs) : undefined;
+  const where = buildWhereForBetterAuthModel(args.model, args.listArgs, {
+    includeTextFilters: !organizationSearchQuery,
+  });
+
+  if (organizationSearchQuery) {
+    const betterAuthSearch = components.betterAuth as BetterAuthSearchComponent;
+
+    return (await ctx.runQuery(betterAuthSearch.search.listOrganizationsBySearch, {
+      paginationOpts: args.paginationOpts,
+      pageSize: getListPageSize(args),
+      searchField: organizationSearchQuery.searchField,
+      searchValue: organizationSearchQuery.searchValue,
+      select: args.select,
+      ...(where.length > 0 ? { where } : {}),
+    })) as {
+      readonly page: ReadonlyArray<T>;
+      readonly isDone: boolean;
+      readonly continueCursor: string;
+    };
+  }
 
   return (await ctx.runQuery(components.betterAuth.adapter.findMany, {
     model: args.model,

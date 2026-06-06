@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildWhereForBetterAuthModel,
+  getOrganizationSearchQuery,
   getListPageSize,
   getSortByForBetterAuthModel,
   hasTextSearchFilter,
@@ -59,6 +60,29 @@ describe("Convex listQueryHelpers", () => {
       { field: "name", mode: "insensitive", operator: "contains", value: "grace" },
       { connector: "OR", field: "slug", mode: "insensitive", operator: "contains", value: "grace" },
     ]);
+  });
+
+  it("extracts organization text search for the Convex search-index query path", () => {
+    expect(
+      getOrganizationSearchQuery({
+        filters: [{ columnId: "name", operator: "contains", type: "text", values: [" grace "] }],
+      }),
+    ).toEqual({ searchField: "name", searchValue: "grace" });
+  });
+
+  it("can omit text search from adapter where clauses when using a search index", () => {
+    expect(
+      buildWhereForBetterAuthModel(
+        "organization",
+        {
+          filters: [
+            { columnId: "name", operator: "contains", type: "text", values: ["grace"] },
+            { columnId: "state", operator: "is", type: "option", values: ["TX"] },
+          ],
+        },
+        { includeTextFilters: false },
+      ),
+    ).toEqual([{ field: "state", operator: "in", value: ["TX"] }]);
   });
 
   it("translates option filters and coerces onboarding values to booleans", () => {
