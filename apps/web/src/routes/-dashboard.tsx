@@ -211,40 +211,25 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
       ? (activeTeams.find((team) => team.id === activePanel.teamId) ?? null)
       : null;
   const unavailableTeamBoardActions = getUnavailableTeamBoardActions();
-  const { openCreateChurchTask, openCreateMyTask } = useQuickActionOpeners();
+  const { openCreateTask } = useQuickActionOpeners();
   const showCreateTask =
     activePanel !== "settings" && Boolean(activeChurch) && Boolean(currentUserId);
 
   return (
     <MainContainer>
       <PageContainer wrapperClassName="gap-6">
-        <div className="flex flex-col gap-4 rounded-xl border bg-background p-4 shadow-xs sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">Church Task</p>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {activePanel === "settings"
-                ? "Active Church Settings"
-                : activePanel === "my_work"
-                  ? "My Work"
-                  : activePanel === "our_work"
-                    ? "Our Work"
-                    : (selectedTeam?.name ?? "Team")}
-            </h1>
-            {activeChurch ? (
-              <p className="text-sm text-muted-foreground">Active Church: {activeChurch.name}</p>
-            ) : null}
-          </div>
-          {showCreateTask ? (
+        {showCreateTask ? (
+          <div className="flex justify-end">
             <Button
               type="button"
               onClick={() =>
-                activePanel === "my_work" ? openCreateMyTask() : openCreateChurchTask()
+                openCreateTask({ assignTo: activePanel === "my_work" ? currentUserId : null })
               }
             >
               Create Task
             </Button>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
         {activePanel === "settings" && activeChurch ? (
           <ActiveChurchSettings activeChurch={activeChurch} />
         ) : typeof activePanel === "object" && !selectedTeam ? (
