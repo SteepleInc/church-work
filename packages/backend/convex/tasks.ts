@@ -14,6 +14,7 @@ import {
 } from "../tasks";
 import { components } from "./_generated/api";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { withConvexTelemetry } from "./telemetry";
 
 export const createBatch = registeredFunctions.tasks.createBatch;
 export const updateBatch = registeredFunctions.tasks.updateBatch;
@@ -136,158 +137,166 @@ export const mcpUpdateTask = mutation({
       parentTaskId: v.optional(v.union(v.string(), v.null())),
     }),
   },
-  handler: async (ctx, args) => {
-    const actorMembership = await ctx.runQuery(components.betterAuth.adapter.findOne, {
-      model: "member",
-      where: [
-        { field: "organizationId", value: args.churchId },
-        { field: "userId", value: args.actorUserId },
-      ],
-    });
+  handler: async (ctx, args) =>
+    withConvexTelemetry(
+      "task.update",
+      {
+        "church.id": args.churchId,
+        "task.id": args.taskId,
+      },
+      async () => {
+        const actorMembership = await ctx.runQuery(components.betterAuth.adapter.findOne, {
+          model: "member",
+          where: [
+            { field: "organizationId", value: args.churchId },
+            { field: "userId", value: args.actorUserId },
+          ],
+        });
 
-    if (!actorMembership) {
-      return taskErrorResponse(
-        "updateTasks",
-        "not_church_member",
-        "Church membership is required.",
-      );
-    }
-
-    if (args.fields.assignedUserId != null) {
-      if (!(await validateAssignedUser(ctx, args))) {
-        return taskErrorResponse(
-          "updateTasks",
-          "assigned_user_not_church_member",
-          "Assigned User must be a Church Member of the Task's Church.",
-        );
-      }
-    }
-
-    const church = await getMcpChurch(ctx, args.churchId);
-
-    if (!church?.churchTimeZone) {
-      return taskErrorResponse(
-        "updateTasks",
-        "church_time_zone_missing",
-        "Church Time Zone is required before Tasks can be scheduled.",
-      );
-    }
-
-    const churchDefaultWorkflow = await ctx.db
-      .query("workflows")
-      .withIndex("by_churchId", (q) => q.eq("churchId", args.churchId))
-      .filter((q) => q.eq(q.field("isDefault"), true))
-      .first();
-    const teamWorkflowResolution = churchDefaultWorkflow
-      ? {
-          defaultWorkflowId: churchDefaultWorkflow._id,
-          teamWorkflowIds: {} as Record<string, string>,
+        if (!actorMembership) {
+          return taskErrorResponse(
+            "updateTasks",
+            "not_church_member",
+            "Church membership is required.",
+          );
         }
-      : undefined;
 
-    if (args.fields.teamId !== undefined && args.fields.teamId !== null) {
-      const team = (await ctx.runQuery(components.betterAuth.adapter.findOne, {
-        model: "team",
-        where: [
-          { field: "_id", value: args.fields.teamId },
-          { field: "organizationId", value: args.churchId },
-        ],
-      })) as {
-        readonly defaultWorkflowId?: string | null;
-        readonly archivedAt?: string | null;
-      } | null;
+        if (args.fields.assignedUserId != null) {
+          if (!(await validateAssignedUser(ctx, args))) {
+            return taskErrorResponse(
+              "updateTasks",
+              "assigned_user_not_church_member",
+              "Assigned User must be a Church Member of the Task's Church.",
+            );
+          }
+        }
 
-      if (!team || team.archivedAt != null) {
-        return taskErrorResponse(
-          "updateTasks",
-          "team_not_found",
-          "Team was not found in the active Church.",
-        );
-      }
+        const church = await getMcpChurch(ctx, args.churchId);
 
-      if (teamWorkflowResolution) {
-        teamWorkflowResolution.teamWorkflowIds[args.fields.teamId] =
-          team.defaultWorkflowId ?? teamWorkflowResolution.defaultWorkflowId;
-      }
-    }
+        if (!church?.churchTimeZone) {
+          return taskErrorResponse(
+            "updateTasks",
+            "church_time_zone_missing",
+            "Church Time Zone is required before Tasks can be scheduled.",
+          );
+        }
 
-    const updated = await updateTasks(ctx, {
-      churchId: args.churchId,
-      updates: [{ taskId: args.taskId, fields: args.fields }],
-      actorId: args.actorUserId,
-      occurredAt: new Date().toISOString(),
-      churchTimeZone: church.churchTimeZone,
-      teamWorkflowResolution,
-    });
+        const churchDefaultWorkflow = await ctx.db
+          .query("workflows")
+          .withIndex("by_churchId", (q) => q.eq("churchId", args.churchId))
+          .filter((q) => q.eq(q.field("isDefault"), true))
+          .first();
+        const teamWorkflowResolution = churchDefaultWorkflow
+          ? {
+              defaultWorkflowId: churchDefaultWorkflow._id,
+              teamWorkflowIds: {} as Record<string, string>,
+            }
+          : undefined;
 
-    if (!updated.ok && updated.code === "taskNotFound") {
-      return taskErrorResponse(
-        "updateTasks",
-        "task_not_found",
-        "Task was not found in the active Church.",
-      );
-    }
-    if (!updated.ok && updated.code === "cycleNotFound") {
-      return taskErrorResponse(
-        "updateTasks",
-        "cycle_not_found",
-        "Cycle was not found in the active Church.",
-      );
-    }
-    if (!updated.ok && updated.code === "workflowStatusNotFound") {
-      return taskErrorResponse(
-        "updateTasks",
-        "workflow_status_not_found",
-        "Workflow Status was not found in the active Church.",
-      );
-    }
-    if (!updated.ok && updated.code === "workflowStatusNotInEffectiveWorkflow") {
-      return taskErrorResponse(
-        "updateTasks",
-        "workflow_status_not_in_effective_workflow",
-        "Workflow Status must belong to the Task's effective Workflow.",
-      );
-    }
-    if (!updated.ok && updated.code === "parentTaskNotFound") {
-      return taskErrorResponse(
-        "updateTasks",
-        "parent_task_not_found",
-        "Parent Task was not found in the active Church.",
-      );
-    }
-    if (!updated.ok && updated.code === "invalidDueDate") {
-      return taskErrorResponse(
-        "updateTasks",
-        "invalid_due_date",
-        "Task Due Date must be a real Church-local date in YYYY-MM-DD format.",
-      );
-    }
-    if (!updated.ok && updated.code === "teamWorkflowNotConfigured") {
-      return taskErrorResponse(
-        "updateTasks",
-        "team_workflow_not_configured",
-        "The Church default Workflow is missing.",
-      );
-    }
-    if (!updated.ok && updated.code === "workflowStatusRemapFailed") {
-      return taskErrorResponse(
-        "updateTasks",
-        "workflow_status_remap_failed",
-        "Task Workflow Status could not be remapped for the destination Team.",
-      );
-    }
-    if (!updated.ok) {
-      return taskErrorResponse(
-        "updateTasks",
-        "invalid_task_transition",
-        "Task cannot perform that transition from its current state.",
-      );
-    }
+        if (args.fields.teamId !== undefined && args.fields.teamId !== null) {
+          const team = (await ctx.runQuery(components.betterAuth.adapter.findOne, {
+            model: "team",
+            where: [
+              { field: "_id", value: args.fields.teamId },
+              { field: "organizationId", value: args.churchId },
+            ],
+          })) as {
+            readonly defaultWorkflowId?: string | null;
+            readonly archivedAt?: string | null;
+          } | null;
 
-    const model = await readTaskModel(ctx, args.churchId, { taskId: args.taskId });
+          if (!team || team.archivedAt != null) {
+            return taskErrorResponse(
+              "updateTasks",
+              "team_not_found",
+              "Team was not found in the active Church.",
+            );
+          }
 
-    return taskResponse("updateTasks", serializeTaskModel(model));
-  },
+          if (teamWorkflowResolution) {
+            teamWorkflowResolution.teamWorkflowIds[args.fields.teamId] =
+              team.defaultWorkflowId ?? teamWorkflowResolution.defaultWorkflowId;
+          }
+        }
+
+        const updated = await updateTasks(ctx, {
+          churchId: args.churchId,
+          updates: [{ taskId: args.taskId, fields: args.fields }],
+          actorId: args.actorUserId,
+          occurredAt: new Date().toISOString(),
+          churchTimeZone: church.churchTimeZone,
+          teamWorkflowResolution,
+        });
+
+        if (!updated.ok && updated.code === "taskNotFound") {
+          return taskErrorResponse(
+            "updateTasks",
+            "task_not_found",
+            "Task was not found in the active Church.",
+          );
+        }
+        if (!updated.ok && updated.code === "cycleNotFound") {
+          return taskErrorResponse(
+            "updateTasks",
+            "cycle_not_found",
+            "Cycle was not found in the active Church.",
+          );
+        }
+        if (!updated.ok && updated.code === "workflowStatusNotFound") {
+          return taskErrorResponse(
+            "updateTasks",
+            "workflow_status_not_found",
+            "Workflow Status was not found in the active Church.",
+          );
+        }
+        if (!updated.ok && updated.code === "workflowStatusNotInEffectiveWorkflow") {
+          return taskErrorResponse(
+            "updateTasks",
+            "workflow_status_not_in_effective_workflow",
+            "Workflow Status must belong to the Task's effective Workflow.",
+          );
+        }
+        if (!updated.ok && updated.code === "parentTaskNotFound") {
+          return taskErrorResponse(
+            "updateTasks",
+            "parent_task_not_found",
+            "Parent Task was not found in the active Church.",
+          );
+        }
+        if (!updated.ok && updated.code === "invalidDueDate") {
+          return taskErrorResponse(
+            "updateTasks",
+            "invalid_due_date",
+            "Task Due Date must be a real Church-local date in YYYY-MM-DD format.",
+          );
+        }
+        if (!updated.ok && updated.code === "teamWorkflowNotConfigured") {
+          return taskErrorResponse(
+            "updateTasks",
+            "team_workflow_not_configured",
+            "The Church default Workflow is missing.",
+          );
+        }
+        if (!updated.ok && updated.code === "workflowStatusRemapFailed") {
+          return taskErrorResponse(
+            "updateTasks",
+            "workflow_status_remap_failed",
+            "Task Workflow Status could not be remapped for the destination Team.",
+          );
+        }
+        if (!updated.ok) {
+          return taskErrorResponse(
+            "updateTasks",
+            "invalid_task_transition",
+            "Task cannot perform that transition from its current state.",
+          );
+        }
+
+        const model = await readTaskModel(ctx, args.churchId, { taskId: args.taskId });
+
+        return taskResponse("updateTasks", serializeTaskModel(model));
+      },
+    ),
 });
 
 export const mcpCreateTask = mutation({
@@ -301,105 +310,114 @@ export const mcpCreateTask = mutation({
     dueDate: v.string(),
     parentTaskId: v.optional(v.union(v.string(), v.null())),
   },
-  handler: async (ctx, args) => {
-    const isChurchMember = await requireMcpChurchMember(ctx, args);
+  handler: async (ctx, args) =>
+    withConvexTelemetry(
+      "task.create",
+      {
+        "church.id": args.churchId,
+        "task.assigned": args.assignedUserId != null,
+        "task.team_assigned": args.teamId != null,
+      },
+      async () => {
+        const isChurchMember = await requireMcpChurchMember(ctx, args);
 
-    if (!isChurchMember) {
-      return taskErrorResponse(
-        "createTasks",
-        "not_church_member",
-        "Church membership is required.",
-      );
-    }
+        if (!isChurchMember) {
+          return taskErrorResponse(
+            "createTasks",
+            "not_church_member",
+            "Church membership is required.",
+          );
+        }
 
-    if (!(await validateAssignedUser(ctx, args))) {
-      return taskErrorResponse(
-        "createTasks",
-        "assigned_user_not_church_member",
-        "Assigned User must be a Church Member of the Task's Church.",
-      );
-    }
+        if (!(await validateAssignedUser(ctx, args))) {
+          return taskErrorResponse(
+            "createTasks",
+            "assigned_user_not_church_member",
+            "Assigned User must be a Church Member of the Task's Church.",
+          );
+        }
 
-    const church = await getMcpChurch(ctx, args.churchId);
+        const church = await getMcpChurch(ctx, args.churchId);
 
-    if (!church?.churchTimeZone) {
-      return taskErrorResponse(
-        "createTasks",
-        "church_time_zone_missing",
-        "Church Time Zone is required before Tasks can be scheduled.",
-      );
-    }
+        if (!church?.churchTimeZone) {
+          return taskErrorResponse(
+            "createTasks",
+            "church_time_zone_missing",
+            "Church Time Zone is required before Tasks can be scheduled.",
+          );
+        }
 
-    const created = await createTasks(ctx, {
-      churchId: args.churchId,
-      churchTimeZone: church.churchTimeZone,
-      tasks: [
-        {
-          title: args.title,
-          teamId: args.teamId ?? null,
-          assignedUserId: args.assignedUserId ?? null,
-          workflowStatusId: args.workflowStatusId,
-          dueDate: args.dueDate,
-          parentTaskId: args.parentTaskId ?? null,
-        },
-      ],
-    });
+        const created = await createTasks(ctx, {
+          churchId: args.churchId,
+          churchTimeZone: church.churchTimeZone,
+          tasks: [
+            {
+              title: args.title,
+              teamId: args.teamId ?? null,
+              assignedUserId: args.assignedUserId ?? null,
+              workflowStatusId: args.workflowStatusId,
+              dueDate: args.dueDate,
+              parentTaskId: args.parentTaskId ?? null,
+            },
+          ],
+        });
 
-    if (!created.ok && created.code === "workflowStatusNotFound") {
-      return taskErrorResponse(
-        "createTasks",
-        "workflow_status_not_found",
-        "Workflow Status was not found in the active Church.",
-      );
-    }
-    if (!created.ok && created.code === "parentTaskNotFound") {
-      return taskErrorResponse(
-        "createTasks",
-        "parent_task_not_found",
-        "Parent Task was not found in the active Church.",
-      );
-    }
-    if (!created.ok && created.code === "invalidDueDate") {
-      return taskErrorResponse(
-        "createTasks",
-        "invalid_due_date",
-        "Task Due Date must be a real Church-local date in YYYY-MM-DD format.",
-      );
-    }
-    if (!created.ok) {
-      return taskErrorResponse(
-        "createTasks",
-        "invalid_task_transition",
-        "Task cannot perform that transition from its current state.",
-      );
-    }
+        if (!created.ok && created.code === "workflowStatusNotFound") {
+          return taskErrorResponse(
+            "createTasks",
+            "workflow_status_not_found",
+            "Workflow Status was not found in the active Church.",
+          );
+        }
+        if (!created.ok && created.code === "parentTaskNotFound") {
+          return taskErrorResponse(
+            "createTasks",
+            "parent_task_not_found",
+            "Parent Task was not found in the active Church.",
+          );
+        }
+        if (!created.ok && created.code === "invalidDueDate") {
+          return taskErrorResponse(
+            "createTasks",
+            "invalid_due_date",
+            "Task Due Date must be a real Church-local date in YYYY-MM-DD format.",
+          );
+        }
+        if (!created.ok) {
+          return taskErrorResponse(
+            "createTasks",
+            "invalid_task_transition",
+            "Task cannot perform that transition from its current state.",
+          );
+        }
 
-    const occurredAt = new Date().toISOString();
-    for (const taskId of created.createdTaskIds) {
-      const task = await ctx.db.get(taskId);
-      if (!task) continue;
-      await writeActivity(ctx, {
-        churchId: args.churchId,
-        entityType: "task",
-        entityId: task._id,
-        eventType: "task.created",
-        actorType: "user",
-        actorId: args.actorUserId,
-        occurredAt,
-        cycleId: task.cycleId,
-        metadata: { parentTaskId: task.parentTaskId },
-      });
-    }
+        const occurredAt = new Date().toISOString();
+        for (const taskId of created.createdTaskIds) {
+          const task = await ctx.db.get(taskId);
+          if (!task) continue;
+          await writeActivity(ctx, {
+            churchId: args.churchId,
+            entityType: "task",
+            entityId: task._id,
+            eventType: "task.created",
+            actorType: "user",
+            actorId: args.actorUserId,
+            occurredAt,
+            cycleId: task.cycleId,
+            metadata: { parentTaskId: task.parentTaskId },
+          });
+        }
 
-    const createdTaskIds = new Set(created.createdTaskIds.map(String));
-    const model = await readTaskModel(ctx, args.churchId);
-    const data = serializeTaskModel(model);
+        const createdTaskIds = new Set(created.createdTaskIds.map(String));
+        const model = await readTaskModel(ctx, args.churchId);
+        const data = serializeTaskModel(model);
 
-    return taskResponse("createTasks", {
-      cycles: data.cycles,
-      tasks: data.tasks.filter((task) => createdTaskIds.has(task.id)),
-    });
-  },
+        return taskResponse("createTasks", {
+          cycles: data.cycles,
+          tasks: data.tasks.filter((task) => createdTaskIds.has(task.id)),
+        });
+      },
+    ),
 });
 
 export const mcpListTasks = query({
@@ -421,35 +439,55 @@ export const mcpListTasks = query({
     ),
     taskId: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
-    const isChurchMember = await requireMcpChurchMember(ctx, args);
+  handler: async (ctx, args) =>
+    withConvexTelemetry(
+      "task.list",
+      {
+        "church.id": args.churchId,
+        "task.surface": args.surface,
+        "task.has_filters": Boolean(
+          args.cycleId ??
+          args.teamId ??
+          args.assignedUserId ??
+          args.workflowStatusId ??
+          args.taskState ??
+          args.taskId,
+        ),
+      },
+      async () => {
+        const isChurchMember = await requireMcpChurchMember(ctx, args);
 
-    if (!isChurchMember) {
-      return taskErrorResponse("listTasks", "not_church_member", "Church membership is required.");
-    }
+        if (!isChurchMember) {
+          return taskErrorResponse(
+            "listTasks",
+            "not_church_member",
+            "Church membership is required.",
+          );
+        }
 
-    const filters: {
-      surface?: "my_work" | "our_work";
-      cycleId?: string;
-      currentUserId?: string;
-      taskId?: string;
-      teamId?: string | null;
-      assignedUserId?: string | null;
-      workflowStatusId?: string;
-      taskState?: "todo" | "in_progress" | "done" | "canceled";
-    } = { currentUserId: args.actorUserId };
-    if (args.surface !== undefined) filters.surface = args.surface;
-    if (args.cycleId !== undefined) filters.cycleId = args.cycleId;
-    if (args.taskId !== undefined) filters.taskId = args.taskId;
-    if (args.teamId !== undefined) filters.teamId = args.teamId;
-    if (args.assignedUserId !== undefined) filters.assignedUserId = args.assignedUserId;
-    if (args.workflowStatusId !== undefined) filters.workflowStatusId = args.workflowStatusId;
-    if (args.taskState !== undefined) filters.taskState = args.taskState;
+        const filters: {
+          surface?: "my_work" | "our_work";
+          cycleId?: string;
+          currentUserId?: string;
+          taskId?: string;
+          teamId?: string | null;
+          assignedUserId?: string | null;
+          workflowStatusId?: string;
+          taskState?: "todo" | "in_progress" | "done" | "canceled";
+        } = { currentUserId: args.actorUserId };
+        if (args.surface !== undefined) filters.surface = args.surface;
+        if (args.cycleId !== undefined) filters.cycleId = args.cycleId;
+        if (args.taskId !== undefined) filters.taskId = args.taskId;
+        if (args.teamId !== undefined) filters.teamId = args.teamId;
+        if (args.assignedUserId !== undefined) filters.assignedUserId = args.assignedUserId;
+        if (args.workflowStatusId !== undefined) filters.workflowStatusId = args.workflowStatusId;
+        if (args.taskState !== undefined) filters.taskState = args.taskState;
 
-    const model = await readTaskModel(ctx, args.churchId, filters);
+        const model = await readTaskModel(ctx, args.churchId, filters);
 
-    return taskResponse("listTasks", serializeTaskModel(model));
-  },
+        return taskResponse("listTasks", serializeTaskModel(model));
+      },
+    ),
 });
 
 export const mcpListUsers = query({
@@ -611,25 +649,37 @@ const makeMcpTaskTransition = (
       actorUserId: v.string(),
       taskId: v.string(),
     },
-    handler: async (ctx, args) => {
-      const isChurchMember = await requireMcpChurchMember(ctx, args);
+    handler: async (ctx, args) =>
+      withConvexTelemetry(
+        `task.${operation.replace("Tasks", "")}`,
+        {
+          "church.id": args.churchId,
+          "task.id": args.taskId,
+        },
+        async () => {
+          const isChurchMember = await requireMcpChurchMember(ctx, args);
 
-      if (!isChurchMember) {
-        return taskErrorResponse(operation, "not_church_member", "Church membership is required.");
-      }
+          if (!isChurchMember) {
+            return taskErrorResponse(
+              operation,
+              "not_church_member",
+              "Church membership is required.",
+            );
+          }
 
-      const result = await transition(ctx, {
-        churchId: args.churchId,
-        taskIds: [args.taskId],
-        actorId: args.actorUserId,
-      });
+          const result = await transition(ctx, {
+            churchId: args.churchId,
+            taskIds: [args.taskId],
+            actorId: args.actorUserId,
+          });
 
-      if (!result.ok) return taskTransitionErrorResponse(operation, result.code);
+          if (!result.ok) return taskTransitionErrorResponse(operation, result.code);
 
-      const model = await readTaskModel(ctx, args.churchId, { taskId: args.taskId });
+          const model = await readTaskModel(ctx, args.churchId, { taskId: args.taskId });
 
-      return taskResponse(operation, serializeTaskModel(model));
-    },
+          return taskResponse(operation, serializeTaskModel(model));
+        },
+      ),
   });
 
 export const mcpCompleteTask = makeMcpTaskTransition("completeTasks", completeTasks);

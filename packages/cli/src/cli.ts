@@ -13,6 +13,9 @@ import { ConvexHttpClient } from "convex/browser";
 import { Context, Data, Effect, Layer } from "effect";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { SpanStatusCode } from "@opentelemetry/api";
+
+import { cliCommandCounter, cliCommandDuration, cliLogger, cliTracer } from "./telemetry";
 
 export type CliEnv = Record<string, string | undefined>;
 
@@ -852,6 +855,9 @@ export const runCli = (
     readonly credentialStorageLayer?: Layer.Layer<CredentialStorage, never>;
   },
 ): Promise<CliResult> => {
+  const command = options.env.npm_lifecycle_event ?? args[0] ?? "unknown";
+  const startedAt = performance.now();
+
   const backendLayer = options.backendLayer ?? makeConvexBackendLayer(options.env);
   const credentialStorageLayer =
     options.credentialStorageLayer ?? makeFileCredentialStorageLayer(options.env);
@@ -864,7 +870,36 @@ export const runCli = (
     Effect.provide(layer),
   );
 
-  return Effect.runPromise(
-    program.pipe(Effect.catchAll((error) => Effect.succeed(formatError(error)))),
-  );
+  return cliTracer.startActiveSpan("cli.command", async (span) => {
+    span.setAttributes({ "cli.command": command });
+
+    try {
+      const result = await Effect.runPromise(
+        program.pipe(Effect.catchAll((error) => Effect.succeed(formatError(error)))),
+      );
+      const outcome = result.exitCode === 0 ? "success" : "failure";
+      cliCommandCounter.add(1, { command, outcome });
+      cliCommandDuration.record(performance.now() - startedAt, { command, outcome });
+      cliLogger.emit({
+        severityText: result.exitCode === 0 ? "INFO" : "ERROR",
+        body: "CLI command completed",
+        attributes: { command, outcome, exitCode: result.exitCode },
+      });
+      span.setAttributes({ "cli.outcome": outcome, "cli.exit_code": result.exitCode });
+      if (result.exitCode !== 0) span.setStatus({ code: SpanStatusCode.ERROR });
+
+      return result;
+    } catch (error) {
+      span.recordException(error as Error);
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      cliLogger.emit({
+        severityText: "ERROR",
+        body: "CLI command failed before result formatting",
+        attributes: { command },
+      });
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
 };
