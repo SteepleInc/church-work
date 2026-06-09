@@ -1,5 +1,8 @@
 {
   "devServer": {
     "installCommand": "bun install"
-  }
+  },
+  "setupScripts": [
+    "sh ./scripts/worktree-setup.sh --no-ports"
+  ]
 }
