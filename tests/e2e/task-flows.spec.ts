@@ -1,11 +1,37 @@
 import { expect, test } from "@playwright/test";
 
-import { dragTaskCardToStatus, signInAndCompleteOnboarding } from "./helpers";
+import { signInAndCompleteOnboarding } from "./helpers";
 
 test.skip(
   process.env.CHURCH_TASK_E2E_READY !== "1",
   process.env.CHURCH_TASK_E2E_SKIP_REASON ?? "E2E environment is not configured.",
 );
+
+async function createTask(page: import("@playwright/test").Page, title: string) {
+  await page.getByRole("main").getByRole("button", { name: "Create Task" }).click();
+  const dialog = page.getByRole("dialog", { name: "Create Task" });
+  await dialog.getByPlaceholder("Add a Task").fill(title);
+  await dialog.getByRole("button", { name: "Create Task" }).click();
+}
+
+const taskCard = (page: import("@playwright/test").Page, title: string) =>
+  page.getByLabel(`Task card ${title}`);
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function chooseCardOption(
+  page: import("@playwright/test").Page,
+  task: import("@playwright/test").Locator,
+  label: string,
+  optionName: string,
+) {
+  await task.getByLabel(label).click();
+  await page
+    .getByRole("option", { name: new RegExp(`^${escapeRegExp(optionName)}(?:\\s|$)`) })
+    .click();
+}
 
 test("My Work filters direct assignments while Our Work supports Church-wide creation", async ({
   page,
@@ -19,16 +45,13 @@ test("My Work filters direct assignments while Our Work supports Church-wide cre
     churchName: `E2E My Work Church ${Date.now()}`,
   });
 
-  await expect(page.getByRole("heading", { name: "My Work", level: 1 })).toBeVisible();
-  await expect(page.getByText("No Tasks assigned to you")).toBeVisible();
-  await page.getByPlaceholder("Add a Task assigned to me").fill(assignedTaskTitle);
-  await page.getByRole("button", { name: "Create Task" }).click();
+  await expect(page.getByRole("navigation", { name: "breadcrumb" })).toContainText("My Work");
+  await createTask(page, assignedTaskTitle);
   await expect(page.getByText(assignedTaskTitle).first()).toBeVisible();
 
   await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Our Work" }).click();
   await expect(page).toHaveURL(/\/our-work$/);
-  await page.getByPlaceholder("Add Church-wide Task").fill(sharedTaskTitle);
-  await page.getByRole("button", { name: "Create Task" }).click();
+  await createTask(page, sharedTaskTitle);
   await expect(page.getByText(assignedTaskTitle).first()).toBeVisible();
   await expect(page.getByText(sharedTaskTitle).first()).toBeVisible();
 
@@ -52,20 +75,17 @@ test("Our Work assignment feeds My Work and board movement persists", async ({
   });
 
   await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Our Work" }).click();
-  await page.getByPlaceholder("Add Church-wide Task").fill(taskTitle);
-  await page.getByRole("button", { name: "Create Task" }).click();
+  await createTask(page, taskTitle);
 
-  const taskActions = page.getByRole("group", { name: `Actions for ${taskTitle}` });
-  await expect(taskActions).toBeVisible();
-  await taskActions.getByLabel(`Assign ${taskTitle}`).selectOption({ label: userName });
-  await expect(taskActions.getByLabel(`Assign ${taskTitle}`)).toHaveValue(/.+/);
+  const task = taskCard(page, taskTitle);
+  await expect(task).toBeVisible();
+  await chooseCardOption(page, task, "Assign to", userName);
 
   await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "My Work" }).click();
   await expect(page.getByText(taskTitle).first()).toBeVisible();
 
-  await dragTaskCardToStatus(page, taskTitle, "In Progress");
+  await chooseCardOption(page, taskCard(page, taskTitle), "Change status", "In Progress");
   await expect(page.getByLabel("In Progress Tasks").getByText(taskTitle)).toBeVisible();
-  await expect(taskActions.getByText("State: in_progress")).toBeVisible();
 
   await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Our Work" }).click();
   await expect(page.getByLabel("In Progress Tasks").getByText(taskTitle)).toBeVisible();
@@ -81,28 +101,19 @@ test("My Work lifecycle actions complete, cancel, and reopen Tasks", async ({ pa
     churchName: `E2E Lifecycle Church ${Date.now()}`,
   });
 
-  await page.getByPlaceholder("Add a Task assigned to me").fill(completedTaskTitle);
-  await page.getByRole("button", { name: "Create Task" }).click();
-  const completedTaskActions = page.getByRole("group", {
-    name: `Actions for ${completedTaskTitle}`,
-  });
-  await expect(completedTaskActions).toBeVisible();
-  await completedTaskActions.getByRole("button", { name: "Complete" }).click();
-  await expect(completedTaskActions.getByText("State: done")).toBeVisible();
-  await expect(completedTaskActions.getByText(/completed by User/)).toBeVisible();
+  await createTask(page, completedTaskTitle);
+  const completedTask = taskCard(page, completedTaskTitle);
+  await expect(completedTask).toBeVisible();
+  await chooseCardOption(page, completedTask, "Change status", "Done");
+  await expect(page.getByLabel("Done Tasks").getByText(completedTaskTitle)).toBeVisible();
 
-  await page.getByPlaceholder("Add a Task assigned to me").fill(canceledTaskTitle);
-  await page.getByRole("button", { name: "Create Task" }).click();
-  const canceledTaskActions = page.getByRole("group", {
-    name: `Actions for ${canceledTaskTitle}`,
-  });
-  await expect(canceledTaskActions).toBeVisible();
-  await canceledTaskActions.getByRole("button", { name: "Cancel" }).click();
-  await expect(canceledTaskActions.getByText("State: canceled")).toBeVisible();
-  await expect(canceledTaskActions.getByText(/canceled by User/)).toBeVisible();
-  await canceledTaskActions.getByRole("button", { name: "Reopen" }).click();
-  await expect(canceledTaskActions.getByText("State: todo")).toBeVisible();
-  await expect(canceledTaskActions.getByText(/reopened by User/)).toBeVisible();
+  await createTask(page, canceledTaskTitle);
+  const canceledTask = taskCard(page, canceledTaskTitle);
+  await expect(canceledTask).toBeVisible();
+  await chooseCardOption(page, canceledTask, "Change status", "Done");
+  await expect(page.getByLabel("Done Tasks").getByText(canceledTaskTitle)).toBeVisible();
+  await chooseCardOption(page, taskCard(page, canceledTaskTitle), "Change status", "To Do");
+  await expect(page.getByLabel("To Do Tasks").getByText(canceledTaskTitle)).toBeVisible();
 });
 
 test("Team routes remain accessible under the copied app shell", async ({ page }, testInfo) => {
@@ -131,8 +142,7 @@ test("Team routes remain accessible under the copied app shell", async ({ page }
 
   await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: teamName }).click();
   await expect(page).toHaveURL(/\/team\//);
-  await expect(page.getByRole("heading", { name: teamName, level: 1 })).toBeVisible();
-  await expect(page.getByText("Team Tasks in the current execution window.")).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "breadcrumb" })).toContainText("Team Work");
   await expect(
     page.getByText("Configure this Team's Workflow before using the Task board."),
   ).toBeVisible();

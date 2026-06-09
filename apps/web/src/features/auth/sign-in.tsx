@@ -19,7 +19,7 @@ type SignInProps = {
 export function SignIn({ defaultEmail, invitationId: passedInvitationId, redirect }: SignInProps) {
   const { data: session, refetch } = authClient.useSession();
   const navigate = useNavigate();
-  const search = useSearch({ from: "/_auth/sign-in" });
+  const search = useSearch({ strict: false });
   const invitationId = passedInvitationId ?? search["invitation-id"];
   const passedOtpEmail = defaultEmail ?? search.email;
   const [signInState] = useAtom(signInStateAtom);

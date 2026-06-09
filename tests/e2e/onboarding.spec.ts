@@ -38,7 +38,7 @@ async function waitForOtp(page: Page, email: string) {
 async function signInWithOtp(page: Page, email: string) {
   await page.goto("/sign-in");
   await page.getByLabel("Email address").fill(email);
-  await page.getByRole("button", { name: "Continue" }).click();
+  await page.locator('button[data-loading="false"]', { hasText: "Continue" }).click();
   await page.getByLabel("Verification Code").fill(await waitForOtp(page, email));
 }
 
@@ -174,7 +174,7 @@ test("creates a Church profile and reviews initial Teams", async ({ page }, test
   await page.getByRole("button", { name: "Enter Church Task" }).click();
 
   await expect(page).toHaveURL(/\/my-work$/, { timeout: 20_000 });
-  await expect(page.getByRole("heading", { name: "My Work", level: 1 })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "breadcrumb" })).toContainText("My Work");
 });
 
 test("Create Church clears active Church for onboarding and completed Church switching returns to My Work", async ({
@@ -234,30 +234,24 @@ test("switching to an incomplete Church routes back to onboarding", async ({ pag
   await expect(page.getByRole("button", { name: new RegExp(incompleteChurchName) })).toBeVisible();
 });
 
-test("Church owners can use dev and app-admin navigation", async ({ page }, testInfo) => {
+test("Church owners do not see app-admin navigation", async ({ page }, testInfo) => {
   const email = `internal-nav-${Date.now()}-${testInfo.workerIndex}@example.com`;
   const churchName = `E2E Internal Nav Church ${Date.now()}`;
 
   await signInWithOtp(page, email);
   await completeOnboarding(page, churchName);
 
-  await expect(page.getByText("Dev", { exact: true })).toBeVisible();
-  await expect(page.getByText("Admin", { exact: true })).toBeVisible();
+  const sidebar = page.locator('[data-sidebar="sidebar"]');
+  await expect(sidebar.getByText("Dev", { exact: true })).not.toBeVisible();
+  await expect(sidebar.getByText("Admin", { exact: true })).not.toBeVisible();
 
-  await page.getByRole("link", { name: "Session" }).click();
-  await expect(page).toHaveURL(/\/dev\/session$/);
-  await expect(page.getByRole("heading", { name: "Session", level: 1 })).toBeVisible();
-  await expect(page.getByText("Active Church", { exact: true })).toBeVisible();
-
-  await page.getByRole("link", { name: "Churches" }).click();
-  await expect(page).toHaveURL(/\/admin\/orgs$/);
-  await expect(page.getByPlaceholder("Search organizations")).toBeVisible();
-  await expect(page.getByLabel(`Admin Church ${churchName}`)).toBeVisible();
+  await page.goto("/dev/session");
+  await expect(page.getByRole("heading", { name: "Access Restricted" })).toBeVisible();
+  await expect(page.getByText("App Administrator access required")).toBeVisible();
 
   await page.goto("/admin");
-  await expect(page).toHaveURL(/\/admin\/users$/);
-  await expect(page.getByPlaceholder("Filter Members")).toBeVisible();
-  await expect(page.getByText(email).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Access Restricted" })).toBeVisible();
+  await expect(page.getByText("App Administrator access required")).toBeVisible();
 });
 
 test("settings navigation exposes profile, Church, members, and invitation actions", async ({
@@ -308,7 +302,11 @@ test("settings navigation exposes profile, Church, members, and invitation actio
   await expect(page.getByText("No pending invitations.")).toBeVisible();
 
   await page.getByRole("button", { name: "Invite Member" }).click();
-  await page.getByLabel("Email Addresses").fill(inviteEmail);
+  await page
+    .getByRole("textbox", {
+      name: "Enter or paste one or more email addresses, separated by spaces or commas",
+    })
+    .fill(inviteEmail);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "Invite Member" })).not.toBeVisible();
 });

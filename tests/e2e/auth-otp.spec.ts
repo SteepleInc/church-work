@@ -42,7 +42,7 @@ test("signs in with email OTP using the test capture channel", async ({ page }) 
 
   await page.goto("/sign-in");
   await page.getByLabel("Email address").fill(email);
-  await page.getByRole("button", { name: "Continue" }).click();
+  await page.locator('button[data-loading="false"]', { hasText: "Continue" }).click();
 
   await expect(page.getByText("Use the verification code sent to your email")).toBeVisible();
 

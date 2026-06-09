@@ -37,10 +37,13 @@
     "check-types": "turbo check-types",
     "dev:web": "turbo -F web dev",
     "dev:server": "turbo -F @church-task/backend dev",
+    "dev:server:e2e": "turbo -F @church-task/backend dev:e2e",
     "dev:setup": "turbo -F @church-task/backend dev:setup",
     "test:backend": "turbo -F @church-task/backend test:backend",
     "test:cli": "turbo -F @church-task/cli test:cli",
     "test:e2e": "playwright test",
+    "test:e2e:setup": "bun scripts/setup-e2e.ts",
+    "test:e2e:local": "bun scripts/setup-e2e.ts && playwright test",
     "test:task-execution-smoke": "bun scripts/task-execution-smoke.ts",
     "test:task-execution-smoke:full": "bun scripts/task-execution-smoke.ts --require-full",
     "check": "oxlint && oxfmt --write"

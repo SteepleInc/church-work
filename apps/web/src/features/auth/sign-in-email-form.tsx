@@ -34,22 +34,20 @@ export function SignInEmailForm({ defaultEmail = "", autoSubmit = false }: SignI
       mode: "submit",
       modeAfterSubmission: "blur",
     }),
+    onSubmit: async ({ value }) => {
+      const result = await authClient.emailOtp.sendVerificationOtp({
+        email: value.email,
+        type: "sign-in",
+      });
+
+      if (result.error) {
+        return;
+      }
+
+      setSignInState(SignInState.otp({ email: value.email }));
+    },
     validators: {
-      onDynamic: Schema.standardSchemaV1(SignInSchema),
-      onSubmitAsync: async ({ value }) => {
-        const result = await authClient.emailOtp.sendVerificationOtp({
-          email: value.email,
-          type: "sign-in",
-        });
-
-        if (result.error) {
-          return {
-            form: result.error.message || "Failed to send verification code",
-          };
-        }
-
-        setSignInState(SignInState.otp({ email: value.email }));
-      },
+      onSubmit: Schema.standardSchemaV1(SignInSchema),
     },
   });
 
@@ -78,7 +76,14 @@ export function SignInEmailForm({ defaultEmail = "", autoSubmit = false }: SignI
 
       <emailForm.Subscribe selector={(state) => state.isSubmitting}>
         {(isSubmitting) => (
-          <Button className="w-full gap-2" loading={isSubmitting} type="submit">
+          <Button
+            className="w-full gap-2"
+            loading={isSubmitting}
+            onClick={() => {
+              void emailForm.handleSubmit();
+            }}
+            type="button"
+          >
             Continue
             <ArrowRight />
           </Button>

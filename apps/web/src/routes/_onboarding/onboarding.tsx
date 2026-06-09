@@ -38,7 +38,7 @@ import {
   Trash2,
   UsersRound,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_onboarding/onboarding")({
@@ -120,6 +120,13 @@ function OnboardingRoute() {
   );
   const [newTeamName, setNewTeamName] = useState("");
   const [isCompleting, setIsCompleting] = useState(false);
+
+  useEffect(() => {
+    if (!loading && activeChurch?.completedOnboarding) {
+      void navigate({ to: "/my-work" });
+    }
+  }, [activeChurch, loading, navigate]);
+
   const defaultValues: ChurchProfileValue = {
     city: activeChurch?.city ?? "",
     countryCode: activeChurch?.countryCode ?? "",
@@ -139,7 +146,7 @@ function OnboardingRoute() {
       modeAfterSubmission: "blur",
     }),
     validators: {
-      onDynamic: Schema.standardSchemaV1(ChurchProfileSchema),
+      onSubmit: Schema.standardSchemaV1(ChurchProfileSchema),
     },
     onSubmit: async ({ value }) => {
       setError(null);
