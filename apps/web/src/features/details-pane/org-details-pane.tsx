@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatCreatedAt, formatDisplayUrl } from "@/data/orgs/orgsCollectionDef";
 import type { OrgCollectionItem } from "@/data/orgs/orgsData.app";
+import { OrgActions } from "@/features/actions/orgActions";
 
 export function OrgDetailsPane({
   orgId,
@@ -51,6 +52,7 @@ export function OrgDetailsPane({
 function OrgTopBarButtons({ orgId }: { readonly orgId: string }) {
   return (
     <div className="flex items-center gap-2">
+      <OrgActions orgId={orgId} mode="details-pane" />
       <Button disabled size="sm" type="button" variant="outline">
         Church details
       </Button>

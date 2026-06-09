@@ -12,4 +12,13 @@ describe("orgs collection details-pane wiring", () => {
     expect(orgsCollectionSource).toContain('tab: "details"');
     expect(orgsCollectionSource).toContain("setDetailsPaneState([...detailsPaneState, nextEntry])");
   });
+
+  test("renders App Administrator row actions for every org row", () => {
+    expect(orgsCollectionSource).toContain(
+      'import { OrgActions } from "@/features/actions/orgActions"',
+    );
+    expect(orgsCollectionSource).toContain(
+      'rowActions={(org) => <OrgActions orgId={org.id} mode="table" />}',
+    );
+  });
 });

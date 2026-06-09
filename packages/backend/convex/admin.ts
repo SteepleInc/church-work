@@ -2,7 +2,7 @@ import { authComponent } from "../authCore";
 import { assertAppAdministratorUser } from "../adminAccess";
 import { listBetterAuthModel, listQueryArgsValidator } from "./listQueryHelpers";
 import { components } from "./_generated/api";
-import { query } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
 type BetterAuthOrganization = {
@@ -26,6 +26,20 @@ type BetterAuthOrganization = {
 
 type BetterAuthCountable = {
   readonly _id: string;
+};
+
+type UpdateOrgInput = {
+  readonly name: string;
+  readonly slug?: string | null;
+  readonly churchTimeZone: string;
+  readonly completedOnboarding: boolean;
+  readonly url?: string | null;
+  readonly street?: string | null;
+  readonly city?: string | null;
+  readonly state?: string | null;
+  readonly zip?: string | null;
+  readonly countryCode?: string | null;
+  readonly size?: string | null;
 };
 
 async function countBetterAuthModelByOrganization(
@@ -78,6 +92,22 @@ export function buildAdminOrgCollectionItem(
     membersCount: counts.membersCount,
     teamsCount: counts.teamsCount,
     createdAt: organization.createdAt,
+  };
+}
+
+export function buildAdminOrgUpdate(input: UpdateOrgInput) {
+  return {
+    name: input.name,
+    slug: input.slug ?? null,
+    churchTimeZone: input.churchTimeZone,
+    completedOnboarding: input.completedOnboarding,
+    url: input.url ?? null,
+    street: input.street ?? null,
+    city: input.city ?? null,
+    state: input.state ?? null,
+    zip: input.zip ?? null,
+    countryCode: input.countryCode ?? null,
+    size: input.size ?? null,
   };
 }
 
@@ -178,5 +208,37 @@ export const listAllOrgs = query({
         ),
       ),
     };
+  },
+});
+
+export const updateOrg = mutation({
+  args: {
+    orgId: v.string(),
+    name: v.string(),
+    slug: v.union(v.string(), v.null()),
+    churchTimeZone: v.string(),
+    completedOnboarding: v.boolean(),
+    url: v.union(v.string(), v.null()),
+    street: v.union(v.string(), v.null()),
+    city: v.union(v.string(), v.null()),
+    state: v.union(v.string(), v.null()),
+    zip: v.union(v.string(), v.null()),
+    countryCode: v.union(v.string(), v.null()),
+    size: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    const authUser = await authComponent.safeGetAuthUser(ctx);
+
+    assertAppAdministratorUser(authUser);
+
+    await ctx.runMutation(components.betterAuth.adapter.updateOne, {
+      input: {
+        model: "organization",
+        where: [{ field: "_id", value: args.orgId }],
+        update: buildAdminOrgUpdate(args),
+      },
+    });
+
+    return { ok: true };
   },
 });

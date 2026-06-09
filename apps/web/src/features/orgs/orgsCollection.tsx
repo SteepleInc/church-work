@@ -2,6 +2,7 @@ import { Collection } from "@/components/collections/collection";
 import { useDetailsPaneState } from "@/components/details-pane/details-pane-helpers";
 import { orgsColumnsDef, orgsFiltersDef } from "@/data/orgs/orgsCollectionDef";
 import { useAllOrgsCollectionWithFilters, type OrgCollectionItem } from "@/data/orgs/orgsData.app";
+import { OrgActions } from "@/features/actions/orgActions";
 import { FilterKeys } from "@/shared/global-state";
 
 type OrgsCollectionProps = {
@@ -49,6 +50,7 @@ function GlobalOrgsCollection() {
         setDetailsPaneState([...detailsPaneState, nextEntry]);
       }}
       pageSize={pageSize}
+      rowActions={(org) => <OrgActions orgId={org.id} mode="table" />}
     />
   );
 }

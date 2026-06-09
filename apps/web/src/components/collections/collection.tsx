@@ -5,6 +5,10 @@ import { CollectionCardView } from "@/components/collections/collectionCardView"
 import { CollectionTableView } from "@/components/collections/collectionTableView";
 import type { CollectionTags } from "@/components/collections/collectionComponents";
 import { CollectionToolbar } from "@/components/collections/collectionToolbar";
+import {
+  createRowActionsColumn,
+  type RowActionsRenderer,
+} from "@/components/collections/rowActions";
 import { useCreateTable } from "@/components/collections/useCreateTable";
 import type { ColumnConfig } from "@/components/data-table-filter/core/types";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
@@ -40,6 +44,7 @@ export type CollectionProps<TItem> = {
   readonly noResultsState?: ReactNode;
   readonly onRowClick?: (item: TItem) => void;
   readonly pageSize?: number;
+  readonly rowActions?: RowActionsRenderer<TItem>;
 };
 
 function isLegacyColumnDef<TItem>(
@@ -85,6 +90,7 @@ export function Collection<TItem>({
   noResultsState,
   onRowClick,
   pageSize,
+  rowActions,
 }: CollectionProps<TItem>) {
   const collectionViews = useAtomValue(collectionViewsAtom);
   const persistedView = getCollectionView(collectionViews, _tag);
@@ -92,12 +98,23 @@ export function Collection<TItem>({
   const currentView = forceCards ? "cards" : persistedView;
   const [sorting, setSorting] = useSorting(filterKey);
   const filters = useFiltersValue(filterKey);
-  const normalizedColumnsDef = useMemo(
-    () => columnsDef.map((columnDef) => toTanStackColumnDef(columnDef)),
-    [columnsDef],
+  const normalizedColumnsDef = useMemo(() => {
+    const columns = columnsDef.map((columnDef) => toTanStackColumnDef(columnDef));
+
+    return rowActions ? [...columns, createRowActionsColumn(rowActions)] : columns;
+  }, [columnsDef, rowActions]);
+  const normalizedColumnPinning = useMemo(
+    () =>
+      rowActions
+        ? {
+            ...columnPinning,
+            right: Array.from(new Set([...(columnPinning?.right ?? []), "actions"])),
+          }
+        : columnPinning,
+    [columnPinning, rowActions],
   );
   const table = useCreateTable({
-    columnPinning,
+    columnPinning: normalizedColumnPinning,
     columnsDef: normalizedColumnsDef,
     data: [...data],
     onSortingChange: (updaterOrValue) => {
