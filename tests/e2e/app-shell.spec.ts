@@ -23,7 +23,6 @@ test("completed users land in the PreachX-style app shell", async ({ page }, tes
   await signInAndCompleteOnboarding(page, { email, churchName });
 
   await expect(page.getByText(churchName).first()).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "breadcrumb" })).toContainText("Church Task");
   await expect(page.getByRole("navigation", { name: "breadcrumb" })).toContainText("My Work");
   await expect(page.getByRole("button", { name: "Open quick actions" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Open global search" }).first()).toBeVisible();

@@ -234,30 +234,24 @@ test("switching to an incomplete Church routes back to onboarding", async ({ pag
   await expect(page.getByRole("button", { name: new RegExp(incompleteChurchName) })).toBeVisible();
 });
 
-test("Church owners can use dev and app-admin navigation", async ({ page }, testInfo) => {
+test("Church owners do not see app-admin navigation", async ({ page }, testInfo) => {
   const email = `internal-nav-${Date.now()}-${testInfo.workerIndex}@example.com`;
   const churchName = `E2E Internal Nav Church ${Date.now()}`;
 
   await signInWithOtp(page, email);
   await completeOnboarding(page, churchName);
 
-  await expect(page.getByText("Dev", { exact: true })).toBeVisible();
-  await expect(page.getByText("Admin", { exact: true })).toBeVisible();
+  const sidebar = page.locator('[data-sidebar="sidebar"]');
+  await expect(sidebar.getByText("Dev", { exact: true })).not.toBeVisible();
+  await expect(sidebar.getByText("Admin", { exact: true })).not.toBeVisible();
 
-  await page.getByRole("link", { name: "Session" }).click();
-  await expect(page).toHaveURL(/\/dev\/session$/);
-  await expect(page.getByRole("heading", { name: "Session", level: 1 })).toBeVisible();
-  await expect(page.getByText("Active Church", { exact: true })).toBeVisible();
-
-  await page.getByRole("link", { name: "Churches" }).click();
-  await expect(page).toHaveURL(/\/admin\/orgs$/);
-  await expect(page.getByPlaceholder("Search organizations")).toBeVisible();
-  await expect(page.getByLabel(`Admin Church ${churchName}`)).toBeVisible();
+  await page.goto("/dev/session");
+  await expect(page.getByRole("heading", { name: "Access Restricted" })).toBeVisible();
+  await expect(page.getByText("App Administrator access required")).toBeVisible();
 
   await page.goto("/admin");
-  await expect(page).toHaveURL(/\/admin\/users$/);
-  await expect(page.getByPlaceholder("Filter Members")).toBeVisible();
-  await expect(page.getByText(email).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Access Restricted" })).toBeVisible();
+  await expect(page.getByText("App Administrator access required")).toBeVisible();
 });
 
 test("settings navigation exposes profile, Church, members, and invitation actions", async ({
