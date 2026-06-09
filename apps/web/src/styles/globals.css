@@ -179,15 +179,19 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html,
+  body {
+    @apply h-full overscroll-none;
+  }
+  html {
+    @apply font-sans;
+  }
   body {
     @apply font-sans bg-background text-foreground;
     font-feature-settings:
       "rlig" 1,
       "calt" 1;
     font-variation-settings: "wght" 450;
-  }
-  html {
-    @apply font-sans;
   }
   html.marketing-dark,
   html.marketing-dark body {

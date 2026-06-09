@@ -44,9 +44,8 @@ const organizationFilterFields = new Set([
 
 const userFilterFields = new Set(["_id", "createdAt", "email", "name"] as const);
 
-type OrganizationFilterField = typeof organizationFilterFields extends Set<infer Field>
-  ? Field
-  : never;
+type OrganizationFilterField =
+  typeof organizationFilterFields extends Set<infer Field> ? Field : never;
 type UserFilterField = typeof userFilterFields extends Set<infer Field> ? Field : never;
 
 function isOrganizationFilterField(field: string): field is OrganizationFilterField {

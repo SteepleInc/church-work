@@ -1,8 +1,19 @@
 import { api } from "@church-task/backend/convex/_generated/api";
 import type { TaskStatus } from "@church-task/domain";
+import type { OptimisticLocalStore } from "convex/browser";
 import { useMutation, useQuery } from "convex/react";
 
 import { successfulResponseCollection } from "@/data/convex-query-adapter";
+import { collectionItemOptimisticUpdate } from "@/data/optimistic-collection";
+import {
+  applyTaskTransition,
+  applyTaskUpdate,
+  workflowStatusStateLookup,
+  type OptimisticTask,
+  type TaskTransition,
+  type WorkflowStatusStateLookup,
+  type WorkflowStatusStateSource,
+} from "@/data/tasks/tasksOptimistic";
 
 export type TaskCollectionFilters = {
   readonly surface?: "my_work" | "our_work";
@@ -38,22 +49,68 @@ export function useTasksCollection(params: {
   };
 }
 
+// Intentionally not optimistic: the server derives `cycleId`/`workflowId` (and
+// the task id) on create, so an optimistic row can't satisfy the `mcpListTasks`
+// filters and would flicker. The quick-action also navigates to the new Task on
+// success, so there is no live list waiting on an optimistic insert.
 export function useCreateTaskMutation() {
   return useMutation(api.tasks.mcpCreateTask);
 }
 
+/**
+ * Read the cached Workflow Statuses (`workDefaults.readForChurch`) for a Church
+ * from the optimistic store and turn them into a Workflow Status id → Task
+ * state lookup. Falls back to an empty lookup when the query isn't cached yet,
+ * in which case `applyTaskUpdate` keeps the Task's existing `taskState`.
+ */
+function resolveTaskStateFromStore(
+  store: OptimisticLocalStore,
+  churchId: string,
+): WorkflowStatusStateLookup {
+  const workDefaults = store.getQuery(api.workDefaults.readForChurch, { churchId });
+  const statuses =
+    workDefaults?.ok === true
+      ? (workDefaults.data.workflowStatuses as ReadonlyArray<WorkflowStatusStateSource>)
+      : [];
+  return workflowStatusStateLookup(statuses);
+}
+
 export function useUpdateTaskMutation() {
-  return useMutation(api.tasks.mcpUpdateTask);
+  return useMutation(api.tasks.mcpUpdateTask).withOptimisticUpdate(
+    collectionItemOptimisticUpdate({
+      query: api.tasks.mcpListTasks,
+      collectionKey: "tasks",
+      patch: (task: OptimisticTask, args, store) =>
+        task.id === args.taskId
+          ? applyTaskUpdate(task, args.fields, resolveTaskStateFromStore(store, args.churchId))
+          : undefined,
+    }),
+  );
+}
+
+function taskTransitionOptimisticUpdate(transition: TaskTransition) {
+  return collectionItemOptimisticUpdate({
+    query: api.tasks.mcpListTasks,
+    collectionKey: "tasks",
+    patch: (task: OptimisticTask, args: { readonly taskId: string }) =>
+      task.id === args.taskId ? applyTaskTransition(task, transition) : undefined,
+  });
 }
 
 export function useCompleteTaskMutation() {
-  return useMutation(api.tasks.mcpCompleteTask);
+  return useMutation(api.tasks.mcpCompleteTask).withOptimisticUpdate(
+    taskTransitionOptimisticUpdate("complete"),
+  );
 }
 
 export function useCancelTaskMutation() {
-  return useMutation(api.tasks.mcpCancelTask);
+  return useMutation(api.tasks.mcpCancelTask).withOptimisticUpdate(
+    taskTransitionOptimisticUpdate("cancel"),
+  );
 }
 
 export function useReopenTaskMutation() {
-  return useMutation(api.tasks.mcpReopenTask);
+  return useMutation(api.tasks.mcpReopenTask).withOptimisticUpdate(
+    taskTransitionOptimisticUpdate("reopen"),
+  );
 }

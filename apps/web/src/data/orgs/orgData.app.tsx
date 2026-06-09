@@ -3,8 +3,9 @@ import { api } from "@church-task/backend/convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
 import type { ReactNode } from "react";
 
-import { recordFromQueryResult } from "@/data/convex-query-adapter";
-import type { OrgCollectionItem } from "@/data/orgs/orgsData.app";
+import { recordFromCollection, recordFromQueryResult } from "@/data/convex-query-adapter";
+import { recordOptimisticUpdate } from "@/data/optimistic-collection";
+import { useUserOrgsCollection, type OrgCollectionItem } from "@/data/orgs/orgsData.app";
 
 export type CurrentOrg = {
   readonly id: string;
@@ -32,8 +33,8 @@ export type CurrentOrg = {
 };
 
 export function useOrgData(params: { readonly orgId: string }) {
-  const result = useQuery(api.admin.getOrg, { orgId: params.orgId });
-  const state = recordFromQueryResult<OrgCollectionItem>(result);
+  const orgs = useUserOrgsCollection();
+  const state = recordFromCollection(orgs, (org) => org.id === params.orgId);
 
   return {
     loading: state.loading,
@@ -52,7 +53,15 @@ export function useCurrentOrgOpt() {
 }
 
 export function useUpdateChurchTimeZoneMutation() {
-  return useMutation(api.churchSettings.updateTimeZone);
+  return useMutation(api.churchSettings.updateTimeZone).withOptimisticUpdate(
+    recordOptimisticUpdate({
+      query: api.dashboard.getActiveOrganization,
+      patch: (
+        org: CurrentOrg,
+        args: { readonly churchId: string; readonly churchTimeZone: string },
+      ) => (org.id === args.churchId ? { ...org, churchTimeZone: args.churchTimeZone } : org),
+    }),
+  );
 }
 
 export function CurrentOrgWrapper(props: { readonly children: (org: CurrentOrg) => ReactNode }) {

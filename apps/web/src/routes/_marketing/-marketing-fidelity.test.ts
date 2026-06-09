@@ -14,6 +14,7 @@ const stylesSource = await Bun.file(new URL("../../styles/globals.css", import.m
 describe("marketing PreachX fidelity guards", () => {
   test("keeps the copied PreachX marketing shell and navigation treatment", () => {
     expect(routeSource).toContain("document.documentElement.classList.add('marketing-dark')");
+    expect(routeSource).toContain("/fonts/pangaia/PPPangaia-Variable.woff2");
     expect(routeSource).toContain("dark min-h-full bg-black pt-18 sm:pt-22");
     expect(routeSource).toContain(
       "fixed top-0 right-0 left-0 z-20 flex items-center bg-black px-6 py-4 text-primary sm:px-12 sm:py-6",

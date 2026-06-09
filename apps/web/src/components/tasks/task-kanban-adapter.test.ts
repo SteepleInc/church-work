@@ -60,6 +60,65 @@ describe("Task Kanban adapter", () => {
     });
   });
 
+  test("preserves card assignee and due date when grouping Tasks into columns", () => {
+    const columns = buildTaskBoardColumns([
+      { id: "todo", name: "To Do", sortOrder: 1, taskState: "todo" },
+    ]);
+
+    expect(
+      groupTasksByWorkflowStatus(columns, [
+        {
+          id: "task-1",
+          title: "Prepare slides",
+          workflowStatusId: "todo",
+          taskState: "todo",
+          assignedUserId: "user-1",
+          dueDate: "2026-06-30",
+        },
+      ]),
+    ).toEqual({
+      todo: [
+        {
+          id: "task-1",
+          title: "Prepare slides",
+          workflowStatusId: "todo",
+          taskState: "todo",
+          assignedUserId: "user-1",
+          dueDate: "2026-06-30",
+        },
+      ],
+    });
+  });
+
+  test("keeps the card assignee when a Task is dragged to another column", () => {
+    const nextColumns = moveTaskBetweenBoardColumns({
+      columns: {
+        todo: [
+          {
+            id: "task-1",
+            title: "Call volunteer",
+            workflowStatusId: "todo",
+            taskState: "todo",
+            assignedUserId: "user-1",
+          },
+        ],
+        doing: [],
+      },
+      taskId: "task-1",
+      destinationWorkflowStatusId: "doing",
+      destinationIndex: 0,
+      persistMove: () => {},
+    });
+
+    expect(nextColumns.doing[0]).toEqual({
+      id: "task-1",
+      title: "Call volunteer",
+      workflowStatusId: "doing",
+      taskState: "todo",
+      assignedUserId: "user-1",
+    });
+  });
+
   test("dragging a Task between columns persists the destination Workflow Status", () => {
     const persistedMoves: TaskBoardMove[] = [];
 

@@ -30,6 +30,7 @@ Current contents:
 - `.reference/better-auth` is the Better Auth source. Use it when checking auth APIs, plugin patterns, adapters, tests, and runtime constraints.
 - `.reference/convex-backend` is Convex's backend source. It is primarily Rust with many npm packages, demos, and tests under `npm-packages/`.
 - `.reference/router` is the TanStack Router source. Use it when checking routing APIs, file-route conventions, router internals, and examples.
+- `.reference/circle` is a Linear-inspired project management UI by ln-dev7, built with Next.js, TypeScript, shadcn/ui, and Tailwind CSS. Use it as a UI/UX and component-structure reference for issue/project/team tracking interfaces.
 
 Because `.reference/` is ignored, files added or changed there will not appear in this repo's git status.
 

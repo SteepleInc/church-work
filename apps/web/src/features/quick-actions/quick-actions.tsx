@@ -12,6 +12,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
+import { CreateTaskQuickAction } from "@/features/quick-actions/create-task-quick-action";
 import { EditOrgQuickAction } from "@/features/quick-actions/edit-org-quick-action";
 import { EditUserQuickAction } from "@/features/quick-actions/edit-user-quick-action";
 import { canInviteChurchMembers, InviteMemberQuickAction } from "@/features/settings/invite-member";
@@ -28,7 +29,7 @@ export function QuickActions() {
   const disableQuickActions = useAtomValue(disableQuickActionsAtom);
   const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
   const navigate = useNavigate();
-  const { openCreateChurchTask, openCreateMyTask, openInviteMember } = useQuickActionOpeners();
+  const { openCreateTask, openInviteMember } = useQuickActionOpeners();
 
   useEffect(() => {
     if (disableQuickActions) return;
@@ -51,19 +52,11 @@ export function QuickActions() {
       buildChurchTaskQuickActions({
         canInviteMembers: canInviteChurchMembers(activeChurch?.role),
         closeQuickActions: () => setQuickActionsIsOpen(false),
-        openCreateChurchTask,
-        openCreateMyTask,
+        openCreateTask: () => openCreateTask(),
         navigateToSettings: () => void navigate({ to: "/settings" }),
         openInviteMember,
       }),
-    [
-      activeChurch?.role,
-      navigate,
-      openCreateChurchTask,
-      openCreateMyTask,
-      openInviteMember,
-      setQuickActionsIsOpen,
-    ],
+    [activeChurch?.role, navigate, openCreateTask, openInviteMember, setQuickActionsIsOpen],
   );
 
   return (
@@ -76,6 +69,7 @@ export function QuickActions() {
       >
         <CommandMenuContent actions={actions} />
       </CommandDialog>
+      <CreateTaskQuickAction />
       {activeChurch ? (
         <InviteMemberQuickAction
           activeChurchId={activeChurch.id}

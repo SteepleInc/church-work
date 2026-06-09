@@ -118,7 +118,10 @@ export type BetterAuthWhere = {
 };
 
 type BetterAuthSearchWhere = Omit<BetterAuthWhere, "mode" | "operator"> & {
-  readonly operator?: Exclude<BetterAuthWhere["operator"], "contains" | "starts_with" | "ends_with">;
+  readonly operator?: Exclude<
+    BetterAuthWhere["operator"],
+    "contains" | "starts_with" | "ends_with"
+  >;
 };
 
 type OrganizationSearchField = "name" | "slug";

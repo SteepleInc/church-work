@@ -61,6 +61,9 @@ fi
 # files (*.example) are skipped, and existing files are never overwritten.
 copy_env_files() {
     local src_file dest_file rel_path
+    find "$ROOT_WORKTREE_PATH" \
+        -type d \( -name node_modules -o -name .git -o -name .reference \) -prune \
+        -o -type f -name '.env*' -print |
     while IFS= read -r src_file; do
         rel_path="${src_file#"$ROOT_WORKTREE_PATH"/}"
         dest_file="$rel_path"
@@ -76,11 +79,7 @@ copy_env_files() {
         mkdir -p "$(dirname "$dest_file")"
         cp "$src_file" "$dest_file"
         echo "  Copied $rel_path"
-    done < <(
-        find "$ROOT_WORKTREE_PATH" \
-            -type d \( -name node_modules -o -name .git -o -name .reference \) -prune \
-            -o -type f -name '.env*' -print
-    )
+    done
 }
 
 copy_env_files
