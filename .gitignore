@@ -50,6 +50,7 @@ test-results
 # Misc
 *.tgz
 .cache
+.worktree-index
 .reference/
 tmp
 temp
