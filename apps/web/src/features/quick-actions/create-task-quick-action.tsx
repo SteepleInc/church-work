@@ -2,14 +2,15 @@ import { useNavigate } from "@tanstack/react-router";
 import { revalidateLogic } from "@tanstack/react-form";
 import { Schema } from "effect";
 import { atom, useAtom } from "jotai";
-import { ClipboardPlusIcon, ListTodoIcon } from "lucide-react";
+import { ClipboardPlusIcon } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import {
   getExecutionWorkflowId,
-  getTaskCreationDefaults,
   selectCurrentExecutionCycle,
 } from "@/components/tasks/task-execution-surface";
+import { useOpenTaskDetailsPaneUrl } from "@/components/details-pane/details-pane-helpers";
 import { useAppForm } from "@/components/form/ts-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import { Kbd } from "@/components/ui/kbd";
 import { useCyclesCollection } from "@/data/cycles/cyclesData.app";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { useCreateTaskMutation } from "@/data/tasks/tasksData.app";
+import { useChurchUsersCollection } from "@/data/users/usersData.app";
 import {
   useWorkflowStatusesCollection,
   useWorkflowsCollection,
@@ -28,21 +30,20 @@ import {
   QuickActionsWrapper,
 } from "@/features/quick-actions/quick-actions-components";
 
-export type CreateTaskQuickActionState =
-  | { readonly type: "my" }
-  | { readonly type: "church" }
-  | null;
+export type CreateTaskQuickActionState = { readonly assignTo: string | null } | null;
 
 export const createTaskQuickActionStateAtom = atom<CreateTaskQuickActionState>(null);
 
 const CreateTaskSchema = Schema.Struct({
   title: Schema.String.pipe(Schema.minLength(1, { message: () => "Enter a Task title." })),
+  assignedUserId: Schema.NullOr(Schema.String),
 });
 
 export function CreateTaskQuickAction() {
   const [state, setState] = useAtom(createTaskQuickActionStateAtom);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const openTaskDetailsPaneUrl = useOpenTaskDetailsPaneUrl();
   const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
   const createTask = useCreateTaskMutation();
 
@@ -51,13 +52,14 @@ export function CreateTaskQuickAction() {
   const cyclesCollection = useCyclesCollection({ churchId, currentUserId });
   const workflows = useWorkflowsCollection({ churchId });
   const workflowStatusesCollection = useWorkflowStatusesCollection({ churchId });
+  const usersCollection = useChurchUsersCollection({ churchId });
   const today = new Date().toISOString().slice(0, 10);
   const currentCycle = selectCurrentExecutionCycle(cyclesCollection.cyclesCollection, today);
   const churchDefaultWorkflow = workflows.workflowsCollection.find(
     (workflow) => workflow.isDefault,
   );
   const workflowId = getExecutionWorkflowId({
-    surface: state?.type === "my" ? "my_work" : "our_work",
+    surface: "our_work",
     churchDefaultWorkflowId: churchDefaultWorkflow?.id,
     teamDefaultWorkflowId: null,
   });
@@ -69,14 +71,17 @@ export function CreateTaskQuickAction() {
       (status) => status.taskState === "todo",
     ) ??
     workflowStatusesCollection.workflowStatusesCollection[0];
+  const assigneeOptions = usersCollection.usersCollection.map((user) => ({
+    id: user.id,
+    label: user.name ?? user.email ?? user.id,
+  }));
   const isOpen = state !== null;
   const isLoading =
     cyclesCollection.loading ||
     workflows.loading ||
     workflowStatusesCollection.loading ||
+    usersCollection.loading ||
     !activeChurch;
-  const Icon = state?.type === "my" ? ClipboardPlusIcon : ListTodoIcon;
-  const dialogTitle = state?.type === "my" ? "Create My Task" : "Create Church Task";
 
   const close = () => {
     setState(null);
@@ -87,6 +92,7 @@ export function CreateTaskQuickAction() {
   const form = useAppForm({
     defaultValues: {
       title: "",
+      assignedUserId: state?.assignTo ?? (null as string | null),
     },
     validationLogic: revalidateLogic({
       mode: "submit",
@@ -96,7 +102,7 @@ export function CreateTaskQuickAction() {
       onSubmit: Schema.standardSchemaV1(CreateTaskSchema),
     },
     onSubmit: async ({ value, formApi }) => {
-      if (!activeChurch || !currentUserId || !churchId || !state) return;
+      if (!activeChurch || !currentUserId || !churchId) return;
 
       const trimmedTitle = value.title.trim();
       if (!trimmedTitle) {
@@ -105,22 +111,17 @@ export function CreateTaskQuickAction() {
       }
 
       if (!creationStatus) {
-        setError("Church Task could not find a To Do Workflow Status.");
+        setError("Task could not find a To Do Workflow Status.");
         return;
       }
 
       setError(null);
-      const defaults = getTaskCreationDefaults({
-        surface: state.type === "my" ? "my_work" : "our_work",
-        currentUserId,
-        teamId: null,
-      });
       const result = await createTask({
         churchId,
         actorUserId: currentUserId,
         title: trimmedTitle,
-        teamId: defaults.teamId,
-        assignedUserId: defaults.assignedUserId,
+        teamId: null,
+        assignedUserId: value.assignedUserId,
         workflowStatusId: creationStatus.id,
         dueDate: currentCycle?.endDate ?? today,
         parentTaskId: null,
@@ -131,11 +132,24 @@ export function CreateTaskQuickAction() {
         return;
       }
 
-      const destination = state.type === "my" ? "/my-work" : "/our-work";
+      const createdTaskId = result.data.tasks[0]?.id;
       formApi.reset();
       setState(null);
       setError(null);
-      await navigate({ to: destination });
+
+      if (createdTaskId) {
+        toast.success("Task created.", {
+          action: {
+            label: "Open Task",
+            onClick: () => {
+              const url = openTaskDetailsPaneUrl({ id: createdTaskId });
+              void navigate({ to: url.to, search: url.search });
+            },
+          },
+        });
+      } else {
+        toast.success("Task created.");
+      }
     },
   });
 
@@ -144,8 +158,8 @@ export function CreateTaskQuickAction() {
       <QuickActionsHeader className="p-4">
         <QuickActionsTitle>
           <span className="inline-flex flex-row items-center">
-            <Icon className="mr-2 size-4" />
-            {dialogTitle}
+            <ClipboardPlusIcon className="mr-2 size-4" />
+            Create Task
           </span>
         </QuickActionsTitle>
       </QuickActionsHeader>
@@ -159,10 +173,17 @@ export function CreateTaskQuickAction() {
                   autoFocus
                   disabled={isLoading}
                   label="Task Title"
-                  placeholder={
-                    state?.type === "my" ? "Add a Task assigned to me" : "Add Church-wide Task"
-                  }
+                  placeholder="Add a Task"
                   required
+                />
+              )}
+            </form.AppField>
+            <form.AppField name="assignedUserId">
+              {(field) => (
+                <field.OrgUserSelectField
+                  disabled={isLoading}
+                  label="Assignee"
+                  options={assigneeOptions}
                 />
               )}
             </form.AppField>

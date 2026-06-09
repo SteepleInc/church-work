@@ -1,20 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
 import {
-  formatTaskActivity,
-  getEffectiveTaskExecutionFilters,
-  getMyWorkEmptyStateActions,
-  getTaskAssigneeOptions,
-  getTaskCycleUpdatePreview,
   getTaskCreationDefaults,
-  getTaskDueDateUpdateFields,
   getExecutionWorkflowId,
-  getSubtaskCreationFields,
   getTaskExecutionReadArgs,
-  getTaskLifecycleActions,
   getTaskParentContext,
-  getTaskTeamUpdateFields,
-  getTaskTitleUpdateFields,
   selectCurrentExecutionCycle,
 } from "./task-execution-surface";
 
@@ -127,54 +117,6 @@ describe("Task execution surface", () => {
     });
   });
 
-  test("adds temporary route filters to execution-window reads", () => {
-    expect(
-      getTaskExecutionReadArgs({
-        churchId: "church-1",
-        currentUserId: "user-1",
-        surface: "our_work",
-        cycleId: "cycle-1",
-        filters: { taskState: "in_progress", workflowStatusId: "status-1" },
-      }),
-    ).toEqual({
-      churchId: "church-1",
-      actorUserId: "user-1",
-      surface: "our_work",
-      cycleId: "cycle-1",
-      taskState: "in_progress",
-      workflowStatusId: "status-1",
-    });
-  });
-
-  test("drops stale Workflow Status filters outside the effective Workflow", () => {
-    expect(
-      getEffectiveTaskExecutionFilters(
-        { taskState: "in_progress", workflowStatusId: "church-status" },
-        [
-          {
-            id: "team-status",
-            workflowId: "team-workflow",
-            name: "In Progress",
-            taskState: "in_progress",
-            sortOrder: 1,
-          },
-        ],
-      ),
-    ).toEqual({ taskState: "in_progress", workflowStatusId: undefined });
-
-    expect(
-      getEffectiveTaskExecutionFilters({ workflowStatusId: "team-status" }, [
-        {
-          id: "team-status",
-          workflowId: "team-workflow",
-          name: "In Progress",
-          taskState: "in_progress",
-          sortOrder: 1,
-        },
-      ]),
-    ).toEqual({ taskState: undefined, workflowStatusId: "team-status" });
-  });
-
   test("does not broaden execution reads when no current Cycle is available", () => {
     expect(
       getTaskExecutionReadArgs({
@@ -184,111 +126,6 @@ describe("Task execution surface", () => {
         cycleId: null,
       }),
     ).toBeNull();
-  });
-
-  test("builds actionable My Work empty-state navigation targets", () => {
-    expect(
-      getMyWorkEmptyStateActions([
-        { id: "team-1", name: "Hospitality" },
-        { id: "team-2", name: "Production" },
-      ]),
-    ).toEqual([
-      { kind: "our_work", label: "Open Our Work" },
-      { kind: "team_board", teamId: "team-1", label: "Hospitality" },
-      { kind: "team_board", teamId: "team-2", label: "Production" },
-    ]);
-  });
-
-  test("builds trimmed Task title update fields only for changed titles", () => {
-    expect(getTaskTitleUpdateFields("Call volunteer", " Call leader ")).toEqual({
-      title: "Call leader",
-    });
-    expect(getTaskTitleUpdateFields("Call volunteer", " Call volunteer ")).toBeNull();
-    expect(getTaskTitleUpdateFields("Call volunteer", "   ")).toBeNull();
-  });
-
-  test("builds Task Due Date update fields only for changed dates", () => {
-    expect(getTaskDueDateUpdateFields("2026-06-03", "2026-06-10")).toEqual({
-      dueDate: "2026-06-10",
-    });
-    expect(getTaskDueDateUpdateFields("2026-06-03", "2026-06-03")).toBeNull();
-    expect(getTaskDueDateUpdateFields("2026-06-03", "")).toBeNull();
-  });
-
-  test("previews Cycle moves by preserving the Task weekday", () => {
-    const cycles = [
-      { id: "cycle-1", startDate: "2026-06-01", endDate: "2026-06-07" },
-      { id: "cycle-2", startDate: "2026-06-08", endDate: "2026-06-14" },
-      { id: "cycle-3", startDate: "2026-06-15", endDate: "2026-06-21" },
-    ];
-
-    expect(
-      getTaskCycleUpdatePreview({
-        currentCycleId: "cycle-1",
-        nextCycleId: "cycle-3",
-        currentDueDate: "2026-06-04",
-        cycles,
-      }),
-    ).toEqual({
-      cycleId: "cycle-3",
-      previousDueDate: "2026-06-04",
-      dueDate: "2026-06-18",
-    });
-
-    expect(
-      getTaskCycleUpdatePreview({
-        currentCycleId: "cycle-1",
-        nextCycleId: "cycle-1",
-        currentDueDate: "2026-06-04",
-        cycles,
-      }),
-    ).toBeNull();
-  });
-
-  test("builds Team update fields for Team assignment, changes, and unassignment", () => {
-    expect(getTaskTeamUpdateFields(null, "team-1")).toEqual({ teamId: "team-1" });
-    expect(getTaskTeamUpdateFields("team-1", "team-2")).toEqual({ teamId: "team-2" });
-    expect(getTaskTeamUpdateFields("team-1", "")).toEqual({ teamId: null });
-    expect(getTaskTeamUpdateFields("team-1", "team-1")).toBeNull();
-    expect(getTaskTeamUpdateFields(null, "")).toBeNull();
-  });
-
-  test("offers Church Users as assignees without filtering by Team Membership", () => {
-    const churchUsers = [
-      { id: "team-member", name: "Team Member", email: "member@example.com" },
-      { id: "cross-team-helper", name: "Cross Team Helper", email: "helper@example.com" },
-    ];
-
-    expect(getTaskAssigneeOptions(churchUsers)).toEqual(churchUsers);
-  });
-
-  test("shows lifecycle actions that match the current Task State", () => {
-    expect(getTaskLifecycleActions("todo")).toEqual(["complete", "cancel"]);
-    expect(getTaskLifecycleActions("in_progress")).toEqual(["complete", "cancel"]);
-    expect(getTaskLifecycleActions("done")).toEqual(["cancel"]);
-    expect(getTaskLifecycleActions("canceled")).toEqual(["reopen"]);
-  });
-
-  test("formats recent Task Activity for the execution surface", () => {
-    expect(
-      formatTaskActivity({
-        id: "activity-1",
-        eventType: "task.status_moved",
-        actorType: "user",
-        actorId: "user-1",
-        occurredAt: "2026-06-01T12:00:00.000Z",
-      }),
-    ).toBe("status moved by User user-1");
-
-    expect(
-      formatTaskActivity({
-        id: "activity-2",
-        eventType: "task.completed",
-        actorType: "system",
-        actorId: null,
-        occurredAt: "2026-06-01T12:01:00.000Z",
-      }),
-    ).toBe("completed by System");
   });
 
   test("resolves visible Subtask parent context for board cards", () => {
@@ -321,41 +158,5 @@ describe("Task execution surface", () => {
     });
     expect(getTaskParentContext(childTask, [childTask])).toBeNull();
     expect(getTaskParentContext(parentTask, [parentTask, childTask])).toBeNull();
-  });
-
-  test("builds Subtask creation fields from parent Task context", () => {
-    const parentTask = {
-      id: "parent-task",
-      title: "Prepare service",
-      teamId: "team-1",
-      assignedUserId: "user-1",
-      cycleId: "cycle-1",
-      dueDate: "2026-06-03",
-      parentTaskId: null,
-      workflowStatusId: "in-progress",
-      taskState: "in_progress" as const,
-    };
-
-    expect(
-      getSubtaskCreationFields({
-        parentTask,
-        title: " Print handouts ",
-        workflowStatusId: "todo",
-      }),
-    ).toEqual({
-      title: "Print handouts",
-      teamId: "team-1",
-      assignedUserId: "user-1",
-      workflowStatusId: "todo",
-      dueDate: "2026-06-03",
-      parentTaskId: "parent-task",
-    });
-
-    expect(
-      getSubtaskCreationFields({ parentTask, title: "   ", workflowStatusId: "todo" }),
-    ).toBeNull();
-    expect(
-      getSubtaskCreationFields({ parentTask, title: "Print handouts", workflowStatusId: null }),
-    ).toBeNull();
   });
 });

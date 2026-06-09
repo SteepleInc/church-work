@@ -236,15 +236,13 @@ describe("quick action route behavior", () => {
     const actions = buildChurchTaskQuickActions({
       canInviteMembers: true,
       closeQuickActions: () => {},
-      openCreateChurchTask: () => {},
-      openCreateMyTask: () => {},
+      openCreateTask: () => {},
       navigateToSettings: () => {},
       openInviteMember: () => {},
     });
 
     expect(actions.map((action) => [action.group, action.name])).toEqual([
-      ["quick-action", "Create My Task"],
-      ["quick-action", "Create Church Task"],
+      ["quick-action", "Create Task"],
       ["quick-action", "Invite Member"],
       ["quick-action", "Team Settings"],
       ["quick-action", "Church Settings"],
@@ -259,8 +257,7 @@ describe("quick action route behavior", () => {
     const actions = buildChurchTaskQuickActions({
       canInviteMembers: false,
       closeQuickActions: () => {},
-      openCreateChurchTask: () => {},
-      openCreateMyTask: () => {},
+      openCreateTask: () => {},
       navigateToSettings: () => {},
       openInviteMember: () => {},
     });

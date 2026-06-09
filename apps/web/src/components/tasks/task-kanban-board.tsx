@@ -33,6 +33,7 @@ type TaskKanbanBoardProps = {
     readonly taskId: string;
     readonly workflowStatusId: string;
   }) => void | Promise<void>;
+  readonly onOpenTask?: (taskId: string) => void;
   readonly className?: string;
 };
 
@@ -40,6 +41,7 @@ export function TaskKanbanBoard({
   workflowStatuses,
   tasks,
   onMoveTask,
+  onOpenTask,
   className,
 }: TaskKanbanBoardProps) {
   const columns = buildTaskBoardColumns(workflowStatuses);
@@ -55,6 +57,7 @@ export function TaskKanbanBoard({
       columns={columns}
       initialColumnTasks={initialColumnTasks}
       onMoveTask={onMoveTask}
+      onOpenTask={onOpenTask}
       className={className}
     />
   );
@@ -64,11 +67,13 @@ function StatefulTaskKanbanBoard({
   columns,
   initialColumnTasks,
   onMoveTask,
+  onOpenTask,
   className,
 }: {
   readonly columns: readonly TaskBoardColumn[];
   readonly initialColumnTasks: TaskBoardColumns;
   readonly onMoveTask: TaskKanbanBoardProps["onMoveTask"];
+  readonly onOpenTask?: (taskId: string) => void;
   readonly className?: string;
 }) {
   const [columnTasks, setColumnTasks] = useState(initialColumnTasks);
@@ -100,6 +105,7 @@ function StatefulTaskKanbanBoard({
             column={column}
             value={column.id}
             tasks={columnTasks[column.id] ?? []}
+            onOpenTask={onOpenTask}
           />
         ))}
       </KanbanBoard>
@@ -116,9 +122,17 @@ interface TaskKanbanColumnProps extends Omit<
   readonly tasks: readonly TaskBoardTask[];
   readonly value: string;
   readonly isOverlay?: boolean;
+  readonly onOpenTask?: (taskId: string) => void;
 }
 
-function TaskKanbanColumn({ column, tasks, value, isOverlay, ...props }: TaskKanbanColumnProps) {
+function TaskKanbanColumn({
+  column,
+  tasks,
+  value,
+  isOverlay,
+  onOpenTask,
+  ...props
+}: TaskKanbanColumnProps) {
   return (
     <KanbanColumn value={value} aria-label={`Workflow Status ${column.title}`} {...props}>
       <Card className="mb-2.5 h-full min-w-64 bg-muted/25">
@@ -157,6 +171,7 @@ function TaskKanbanColumn({ column, tasks, value, isOverlay, ...props }: TaskKan
                 task={task}
                 asHandle={!isOverlay}
                 isOverlay={isOverlay}
+                onOpenTask={onOpenTask}
               />
             ))}
           </KanbanColumnContent>
@@ -173,11 +188,27 @@ interface TaskKanbanCardProps extends Omit<
   readonly task: TaskBoardTask;
   readonly asHandle?: boolean;
   readonly isOverlay?: boolean;
+  readonly onOpenTask?: (taskId: string) => void;
 }
 
-function TaskKanbanCard({ task, asHandle, isOverlay, className, ...props }: TaskKanbanCardProps) {
+function TaskKanbanCard({
+  task,
+  asHandle,
+  isOverlay,
+  onOpenTask,
+  className,
+  ...props
+}: TaskKanbanCardProps) {
   const cardContent = (
-    <Card className={cn("shadow-xs", task.taskState === "canceled" && "opacity-70", className)}>
+    <Card
+      className={cn(
+        "shadow-xs",
+        task.taskState === "canceled" && "opacity-70",
+        onOpenTask && "cursor-pointer transition-colors hover:border-ring",
+        className,
+      )}
+      onClick={onOpenTask ? () => onOpenTask(task.id) : undefined}
+    >
       <CardHeader className="p-3 pb-1">
         <CardTitle className="line-clamp-2 text-sm leading-snug">{task.title}</CardTitle>
       </CardHeader>

@@ -27,7 +27,7 @@ export function QuickActions() {
   const disableQuickActions = useAtomValue(disableQuickActionsAtom);
   const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
   const navigate = useNavigate();
-  const { openCreateChurchTask, openCreateMyTask, openInviteMember } = useQuickActionOpeners();
+  const { openCreateTask, openInviteMember } = useQuickActionOpeners();
 
   useEffect(() => {
     if (disableQuickActions) return;
@@ -50,19 +50,11 @@ export function QuickActions() {
       buildChurchTaskQuickActions({
         canInviteMembers: canInviteChurchMembers(activeChurch?.role),
         closeQuickActions: () => setQuickActionsIsOpen(false),
-        openCreateChurchTask,
-        openCreateMyTask,
+        openCreateTask: () => openCreateTask(),
         navigateToSettings: () => void navigate({ to: "/settings" }),
         openInviteMember,
       }),
-    [
-      activeChurch?.role,
-      navigate,
-      openCreateChurchTask,
-      openCreateMyTask,
-      openInviteMember,
-      setQuickActionsIsOpen,
-    ],
+    [activeChurch?.role, navigate, openCreateTask, openInviteMember, setQuickActionsIsOpen],
   );
 
   return (

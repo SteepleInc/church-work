@@ -2,7 +2,6 @@ import { atom, useSetAtom } from "jotai";
 import {
   Building2Icon,
   ClipboardPlusIcon,
-  ListTodoIcon,
   SettingsIcon,
   UserPlusIcon,
   UsersIcon,
@@ -19,8 +18,7 @@ export const quickActionsIsOpenAtom = atom(false);
 type BuildChurchTaskQuickActionsInput = {
   readonly canInviteMembers: boolean;
   readonly closeQuickActions: () => void;
-  readonly openCreateChurchTask: () => void;
-  readonly openCreateMyTask: () => void;
+  readonly openCreateTask: () => void;
   readonly navigateToSettings: () => void;
   readonly openInviteMember: () => void;
 };
@@ -28,8 +26,7 @@ type BuildChurchTaskQuickActionsInput = {
 export function buildChurchTaskQuickActions({
   canInviteMembers,
   closeQuickActions,
-  openCreateChurchTask,
-  openCreateMyTask,
+  openCreateTask,
   navigateToSettings,
   openInviteMember,
 }: BuildChurchTaskQuickActionsInput): QuickActionDefinition[] {
@@ -42,20 +39,11 @@ export function buildChurchTaskQuickActions({
     {
       group: "quick-action",
       icon: ClipboardPlusIcon,
-      name: "Create My Task",
-      description: "Open the task creation dialog assigned to you.",
-      keywords: ["task", "my work", "create", "todo"],
+      name: "Create Task",
+      description: "Open the task creation dialog.",
+      keywords: ["task", "create", "todo", "my work", "church"],
       enabled: true,
-      onSelect: selectAndClose(openCreateMyTask),
-    },
-    {
-      group: "quick-action",
-      icon: ListTodoIcon,
-      name: "Create Church Task",
-      description: "Open the Church-wide task creation dialog.",
-      keywords: ["task", "our work", "church", "create"],
-      enabled: true,
-      onSelect: selectAndClose(openCreateChurchTask),
+      onSelect: selectAndClose(openCreateTask),
     },
     {
       group: "quick-action",
@@ -105,8 +93,10 @@ export function useQuickActionOpeners() {
 
   return useMemo(
     () => ({
-      openCreateChurchTask: () => setCreateTaskQuickActionState({ type: "church" }),
-      openCreateMyTask: () => setCreateTaskQuickActionState({ type: "my" }),
+      openCreateTask: (options: { readonly assignTo?: string | null } = {}) =>
+        setCreateTaskQuickActionState({
+          assignTo: options.assignTo ?? null,
+        }),
       openInviteMember: () => setInviteMemberDialogSource("quick-actions"),
     }),
     [setCreateTaskQuickActionState, setInviteMemberDialogSource],

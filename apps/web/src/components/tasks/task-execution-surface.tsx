@@ -1,27 +1,15 @@
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useOpenTaskDetailsPaneUrl } from "@/components/details-pane/details-pane-helpers";
-import { Input } from "@/components/ui/input";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { useActivitiesForEntityCollection } from "@/data/activities/activitiesData.app";
 import { useCyclesCollection } from "@/data/cycles/cyclesData.app";
 import {
-  useCancelTaskMutation,
-  useCompleteTaskMutation,
-  useCreateTaskMutation,
-  useReopenTaskMutation,
   useTasksCollection,
   useUpdateTaskMutation,
   type TaskCollectionFilters,
 } from "@/data/tasks/tasksData.app";
-import { useTeamsCollection } from "@/data/teams/teamsData.app";
-import { useChurchUsersCollection } from "@/data/users/usersData.app";
 import {
   useWorkflowStatusesCollection,
   useWorkflowsCollection,
 } from "@/data/workflows/workflowsData.app";
-import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 
 import { TaskKanbanBoard } from "./task-kanban-board";
 
@@ -34,11 +22,6 @@ type ExecutionCycle = {
 };
 
 type TaskState = "todo" | "in_progress" | "done" | "canceled";
-
-export type TaskExecutionFilters = {
-  readonly taskState?: TaskState;
-  readonly workflowStatusId?: string;
-};
 
 type TaskSummary = {
   readonly id: string;
@@ -58,34 +41,6 @@ type WorkflowStatus = {
   readonly name: string;
   readonly taskState: TaskState;
   readonly sortOrder: number;
-};
-
-type UserSummary = {
-  readonly id: string;
-  readonly name: string | null;
-  readonly email: string | null;
-};
-
-type TeamSummary = {
-  readonly id: string;
-  readonly name: string;
-};
-
-type MyWorkEmptyStateTeam = {
-  readonly id: string;
-  readonly name: string;
-};
-
-type MyWorkEmptyStateAction =
-  | { readonly kind: "our_work"; readonly label: "Open Our Work" }
-  | { readonly kind: "team_board"; readonly teamId: string; readonly label: string };
-
-type TaskActivitySummary = {
-  readonly id: string;
-  readonly eventType: string;
-  readonly actorType: string;
-  readonly actorId: string | null;
-  readonly occurredAt: string;
 };
 
 export function selectCurrentExecutionCycle(
@@ -110,110 +65,6 @@ export function getTaskCreationDefaults(args: {
   };
 }
 
-export function getSubtaskCreationFields(args: {
-  readonly parentTask: TaskSummary;
-  readonly title: string;
-  readonly workflowStatusId?: string | null;
-}) {
-  const trimmedTitle = args.title.trim();
-
-  if (!trimmedTitle || !args.workflowStatusId) {
-    return null;
-  }
-
-  return {
-    title: trimmedTitle,
-    teamId: args.parentTask.teamId,
-    assignedUserId: args.parentTask.assignedUserId,
-    workflowStatusId: args.workflowStatusId,
-    dueDate: args.parentTask.dueDate,
-    parentTaskId: args.parentTask.id,
-  };
-}
-
-export function getTaskTitleUpdateFields(currentTitle: string, nextTitle: string) {
-  const trimmedTitle = nextTitle.trim();
-
-  if (!trimmedTitle || trimmedTitle === currentTitle) {
-    return null;
-  }
-
-  return { title: trimmedTitle };
-}
-
-export function getTaskDueDateUpdateFields(currentDueDate: string, nextDueDate: string) {
-  if (!nextDueDate || nextDueDate === currentDueDate) {
-    return null;
-  }
-
-  return { dueDate: nextDueDate };
-}
-
-function addDays(localDate: string, days: number) {
-  const [year, month, day] = localDate.split("-").map(Number) as [number, number, number];
-  const date = new Date(Date.UTC(year, month - 1, day + days));
-  return date.toISOString().slice(0, 10);
-}
-
-function daysBetween(startDate: string, endDate: string) {
-  const [startYear, startMonth, startDay] = startDate.split("-").map(Number) as [
-    number,
-    number,
-    number,
-  ];
-  const [endYear, endMonth, endDay] = endDate.split("-").map(Number) as [number, number, number];
-  const start = Date.UTC(startYear, startMonth - 1, startDay);
-  const end = Date.UTC(endYear, endMonth - 1, endDay);
-  return Math.round((end - start) / 86_400_000);
-}
-
-export function getTaskCycleUpdatePreview(args: {
-  readonly currentCycleId: string;
-  readonly nextCycleId: string;
-  readonly currentDueDate: string;
-  readonly cycles: readonly ExecutionCycle[];
-}) {
-  if (!args.nextCycleId || args.nextCycleId === args.currentCycleId) {
-    return null;
-  }
-
-  const currentCycle = args.cycles.find((cycle) => cycle.id === args.currentCycleId);
-  const nextCycle = args.cycles.find((cycle) => cycle.id === args.nextCycleId);
-
-  if (!currentCycle || !nextCycle) {
-    return null;
-  }
-
-  const weekdayOffset = daysBetween(currentCycle.startDate, args.currentDueDate);
-
-  return {
-    cycleId: nextCycle.id,
-    previousDueDate: args.currentDueDate,
-    dueDate: addDays(nextCycle.startDate, weekdayOffset),
-  };
-}
-
-export function getTaskTeamUpdateFields(currentTeamId: string | null, nextTeamId: string) {
-  const teamId = nextTeamId || null;
-
-  if (teamId === currentTeamId) {
-    return null;
-  }
-
-  return { teamId };
-}
-
-export function getTaskAssigneeOptions(users: readonly UserSummary[]) {
-  return users;
-}
-
-export function getTaskLifecycleActions(taskState: TaskState) {
-  if (taskState === "canceled") return ["reopen"] as const;
-  if (taskState === "done") return ["cancel"] as const;
-
-  return ["complete", "cancel"] as const;
-}
-
 export function getExecutionWorkflowId(args: {
   readonly surface: ExecutionSurface;
   readonly churchDefaultWorkflowId?: string | null;
@@ -222,29 +73,12 @@ export function getExecutionWorkflowId(args: {
   return args.surface === "team_board" ? args.teamDefaultWorkflowId : args.churchDefaultWorkflowId;
 }
 
-export function getEffectiveTaskExecutionFilters(
-  filters: TaskExecutionFilters | undefined,
-  workflowStatuses: readonly WorkflowStatus[],
-): TaskExecutionFilters {
-  const workflowStatusIds = new Set(workflowStatuses.map((status) => status.id));
-  const workflowStatusId =
-    filters?.workflowStatusId && workflowStatusIds.has(filters.workflowStatusId)
-      ? filters.workflowStatusId
-      : undefined;
-
-  return {
-    taskState: filters?.taskState,
-    workflowStatusId,
-  };
-}
-
 export function getTaskExecutionReadArgs(args: {
   readonly churchId: string;
   readonly currentUserId: string;
   readonly surface: ExecutionSurface;
   readonly teamId?: string | null;
   readonly cycleId?: string | null;
-  readonly filters?: TaskExecutionFilters;
 }) {
   if (!args.cycleId) {
     return null;
@@ -257,30 +91,7 @@ export function getTaskExecutionReadArgs(args: {
       ? { teamId: args.teamId ?? null }
       : { surface: args.surface }),
     cycleId: args.cycleId,
-    ...(args.filters?.taskState ? { taskState: args.filters.taskState } : {}),
-    ...(args.filters?.workflowStatusId ? { workflowStatusId: args.filters.workflowStatusId } : {}),
   };
-}
-
-export function getMyWorkEmptyStateActions(
-  teams: readonly MyWorkEmptyStateTeam[],
-): readonly MyWorkEmptyStateAction[] {
-  return [
-    { kind: "our_work", label: "Open Our Work" },
-    ...teams.map((team) => ({ kind: "team_board" as const, teamId: team.id, label: team.name })),
-  ];
-}
-
-export function formatTaskActivity(activity: TaskActivitySummary) {
-  const eventLabel = activity.eventType.replace(/^task\./, "").replaceAll("_", " ");
-  const actorLabel =
-    activity.actorType === "user" && activity.actorId
-      ? `User ${activity.actorId}`
-      : activity.actorType === "system"
-        ? "System"
-        : activity.actorType;
-
-  return `${eventLabel} by ${actorLabel}`;
 }
 
 export function getTaskParentContext(task: TaskSummary, tasks: readonly TaskSummary[]) {
@@ -297,11 +108,6 @@ export function TaskExecutionSurface({
   currentUserId,
   surface,
   team,
-  myWorkEmptyStateTeams,
-  filters,
-  onFiltersChange,
-  onOpenOurWork,
-  onOpenTeamBoard,
 }: {
   readonly churchId: string;
   readonly currentUserId: string;
@@ -311,21 +117,14 @@ export function TaskExecutionSurface({
     readonly name: string;
     readonly defaultWorkflowId: string | null;
   } | null;
-  readonly myWorkEmptyStateTeams?: readonly MyWorkEmptyStateTeam[];
-  readonly filters?: TaskExecutionFilters;
-  readonly onFiltersChange?: (filters: TaskExecutionFilters) => void;
-  readonly onOpenOurWork?: () => void;
-  readonly onOpenTeamBoard?: (teamId: string) => void;
 }) {
   const today = new Date().toISOString().slice(0, 10);
-  const [title, setTitle] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const openTaskDetailsPaneUrl = useOpenTaskDetailsPaneUrl();
 
   const cyclesCollection = useCyclesCollection({ churchId, currentUserId });
   const workflows = useWorkflowsCollection({ churchId });
   const workflowStatusesCollection = useWorkflowStatusesCollection({ churchId });
-  const usersCollection = useChurchUsersCollection({ churchId });
-  const teamsCollection = useTeamsCollection({ churchId });
 
   const cycles = cyclesCollection.cyclesCollection;
   const currentCycle = selectCurrentExecutionCycle(cycles, today);
@@ -343,22 +142,18 @@ export function TaskExecutionSurface({
         (status) => status.workflowId === workflowId,
       )
     : [];
-  const effectiveFilters = getEffectiveTaskExecutionFilters(filters, workflowStatuses);
   const taskReadArgs = getTaskExecutionReadArgs({
     churchId,
     currentUserId,
     surface,
     teamId: team?.id ?? null,
     cycleId: currentCycle?.id ?? null,
-    filters: effectiveFilters,
   });
   const taskFilters: TaskCollectionFilters | undefined = taskReadArgs
     ? {
         ...("surface" in taskReadArgs ? { surface: taskReadArgs.surface } : {}),
         ...("teamId" in taskReadArgs ? { teamId: taskReadArgs.teamId } : {}),
         cycleId: taskReadArgs.cycleId,
-        taskState: taskReadArgs.taskState,
-        workflowStatusId: taskReadArgs.workflowStatusId,
       }
     : undefined;
   const tasksCollection = useTasksCollection({
@@ -367,177 +162,18 @@ export function TaskExecutionSurface({
     filters: taskFilters,
   });
 
-  const createTask = useCreateTaskMutation();
   const updateTask = useUpdateTaskMutation();
-  const completeTask = useCompleteTaskMutation();
-  const cancelTask = useCancelTaskMutation();
-  const reopenTask = useReopenTaskMutation();
 
   const tasks = tasksCollection.tasksCollection;
-  const users = usersCollection.usersCollection;
-  const teams = teamsCollection.teamsCollection;
-  const myWorkEmptyStateActions = getMyWorkEmptyStateActions(myWorkEmptyStateTeams ?? []);
-  const creationStatus =
-    workflowStatuses.find((status) => status.taskState === "todo") ?? workflowStatuses[0];
-  const dueDate = currentCycle?.endDate ?? today;
   const isLoading =
     cyclesCollection.loading ||
     workflows.loading ||
     (workflowId !== undefined && workflowId !== null && workflowStatusesCollection.loading) ||
-    (taskReadArgs !== null && tasksCollection.loading) ||
-    usersCollection.loading ||
-    teamsCollection.loading;
-  const surfaceTitle =
-    surface === "my_work"
-      ? "My Work"
-      : surface === "our_work"
-        ? "Our Work"
-        : (team?.name ?? "Team");
-
-  const handleCreateTask = async () => {
-    const trimmedTitle = title.trim();
-    if (!trimmedTitle || !creationStatus) return;
-
-    setError(null);
-    const defaults = getTaskCreationDefaults({ surface, currentUserId, teamId: team?.id ?? null });
-    const result = await createTask({
-      churchId,
-      actorUserId: currentUserId,
-      title: trimmedTitle,
-      teamId: defaults.teamId,
-      assignedUserId: defaults.assignedUserId,
-      workflowStatusId: creationStatus.id,
-      dueDate,
-      parentTaskId: null,
-    });
-
-    if (!result.ok) {
-      setError(result.error.message);
-      return;
-    }
-
-    setTitle("");
-  };
+    (taskReadArgs !== null && tasksCollection.loading);
 
   return (
     <section className="grid gap-4">
-      <Card>
-        <CardHeader className="gap-2">
-          <CardTitle>{surfaceTitle}</CardTitle>
-          <CardDescription>
-            {surface === "my_work"
-              ? "Tasks assigned directly to you in the current execution window."
-              : surface === "our_work"
-                ? "All Tasks in the active Church execution window."
-                : "Team Tasks in the current execution window."}
-          </CardDescription>
-          {currentCycle ? (
-            <p className="text-xs text-muted-foreground">
-              Cycle: {currentCycle.startDate} to {currentCycle.endDate}
-            </p>
-          ) : null}
-        </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-[1fr_auto]">
-          <Input
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder={
-              surface === "my_work"
-                ? "Add a Task assigned to me"
-                : surface === "our_work"
-                  ? "Add Church-wide Task"
-                  : "Add Team Task"
-            }
-          />
-          <Button
-            type="button"
-            disabled={!title.trim() || !creationStatus}
-            onClick={handleCreateTask}
-          >
-            Create Task
-          </Button>
-          {error ? <p className="text-sm text-destructive sm:col-span-2">{error}</p> : null}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="gap-2">
-          <CardTitle>Temporary Filters</CardTitle>
-          <CardDescription>
-            Narrow this execution route without creating a saved view.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2">
-          <NativeSelect
-            size="sm"
-            value={effectiveFilters.taskState ?? ""}
-            aria-label="Filter Task State"
-            onChange={(event) => {
-              onFiltersChange?.({
-                ...filters,
-                taskState: (event.target.value || undefined) as TaskState | undefined,
-              });
-            }}
-          >
-            <NativeSelectOption value="">All states</NativeSelectOption>
-            <NativeSelectOption value="todo">To do</NativeSelectOption>
-            <NativeSelectOption value="in_progress">In progress</NativeSelectOption>
-            <NativeSelectOption value="done">Done</NativeSelectOption>
-            <NativeSelectOption value="canceled">Canceled</NativeSelectOption>
-          </NativeSelect>
-          <NativeSelect
-            size="sm"
-            value={effectiveFilters.workflowStatusId ?? ""}
-            aria-label="Filter Workflow Status"
-            disabled={workflowStatuses.length === 0}
-            onChange={(event) => {
-              onFiltersChange?.({
-                ...filters,
-                workflowStatusId: event.target.value || undefined,
-              });
-            }}
-          >
-            <NativeSelectOption value="">All Workflow Statuses</NativeSelectOption>
-            {workflowStatuses.map((status) => (
-              <NativeSelectOption key={status.id} value={status.id}>
-                {status.name}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        </CardContent>
-      </Card>
-
       {isLoading ? <p className="text-sm text-muted-foreground">Loading Tasks...</p> : null}
-
-      {!isLoading && surface === "my_work" && tasks.length === 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>No Tasks assigned to you</CardTitle>
-            <CardDescription>
-              Use Our Work or Team boards to find shared Church work without leaving My Work.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            {myWorkEmptyStateActions.map((action) => (
-              <Button
-                key={action.kind === "our_work" ? "our_work" : action.teamId}
-                type="button"
-                variant={action.kind === "our_work" ? "default" : "outline"}
-                onClick={() => {
-                  if (action.kind === "our_work") {
-                    onOpenOurWork?.();
-                    return;
-                  }
-
-                  onOpenTeamBoard?.(action.teamId);
-                }}
-              >
-                {action.label}
-              </Button>
-            ))}
-          </CardContent>
-        </Card>
-      ) : null}
 
       {workflowStatuses.length > 0 ? (
         <TaskKanbanBoard
@@ -551,6 +187,10 @@ export function TaskExecutionSurface({
               fields: { workflowStatusId: move.workflowStatusId },
             });
           }}
+          onOpenTask={(taskId) => {
+            const url = openTaskDetailsPaneUrl({ id: taskId });
+            void navigate({ to: url.to, search: url.search });
+          }}
         />
       ) : !isLoading ? (
         <p className="text-sm text-muted-foreground">
@@ -558,373 +198,7 @@ export function TaskExecutionSurface({
           the Task board.
         </p>
       ) : null}
-
-      {tasks.length > 0 ? (
-        <TaskActionList
-          churchId={churchId}
-          currentUserId={currentUserId}
-          tasks={tasks}
-          cycles={cycles}
-          users={users}
-          teams={teams}
-          creationStatusId={creationStatus?.id ?? null}
-          createSubtask={(fields) =>
-            createTask({ churchId, actorUserId: currentUserId, ...fields })
-          }
-          updateTask={(taskId, fields) =>
-            updateTask({ churchId, actorUserId: currentUserId, taskId, fields })
-          }
-          completeTask={(taskId) => completeTask({ churchId, actorUserId: currentUserId, taskId })}
-          cancelTask={(taskId) => cancelTask({ churchId, actorUserId: currentUserId, taskId })}
-          reopenTask={(taskId) => reopenTask({ churchId, actorUserId: currentUserId, taskId })}
-        />
-      ) : null}
     </section>
-  );
-}
-
-function TaskActionList({
-  churchId,
-  tasks,
-  cycles,
-  users,
-  teams,
-  creationStatusId,
-  createSubtask,
-  updateTask,
-  completeTask,
-  cancelTask,
-  reopenTask,
-}: {
-  readonly churchId: string;
-  readonly currentUserId: string;
-  readonly tasks: readonly TaskSummary[];
-  readonly cycles: readonly ExecutionCycle[];
-  readonly users: readonly UserSummary[];
-  readonly teams: readonly TeamSummary[];
-  readonly creationStatusId: string | null;
-  readonly createSubtask: (fields: {
-    readonly title: string;
-    readonly teamId: string | null;
-    readonly assignedUserId: string | null;
-    readonly workflowStatusId: string;
-    readonly dueDate: string;
-    readonly parentTaskId: string;
-  }) => void | Promise<unknown>;
-  readonly updateTask: (
-    taskId: string,
-    fields: {
-      readonly title?: string;
-      readonly dueDate?: string;
-      readonly cycleId?: string;
-      readonly assignedUserId?: string | null;
-      readonly teamId?: string | null;
-    },
-  ) => void | Promise<unknown>;
-  readonly completeTask: (taskId: string) => void | Promise<unknown>;
-  readonly cancelTask: (taskId: string) => void | Promise<unknown>;
-  readonly reopenTask: (taskId: string) => void | Promise<unknown>;
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Task Actions</CardTitle>
-        <CardDescription>
-          Update assignment, Team, and lifecycle without leaving the board.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-3">
-        {tasks.map((task) => (
-          <TaskActionRow
-            key={task.id}
-            churchId={churchId}
-            task={task}
-            cycles={cycles}
-            users={users}
-            teams={teams}
-            creationStatusId={creationStatusId}
-            createSubtask={createSubtask}
-            updateTask={updateTask}
-            completeTask={completeTask}
-            cancelTask={cancelTask}
-            reopenTask={reopenTask}
-          />
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-
-function TaskActionRow({
-  churchId,
-  task,
-  cycles,
-  users,
-  teams,
-  creationStatusId,
-  createSubtask,
-  updateTask,
-  completeTask,
-  cancelTask,
-  reopenTask,
-}: {
-  readonly churchId: string;
-  readonly task: TaskSummary;
-  readonly cycles: readonly ExecutionCycle[];
-  readonly users: readonly UserSummary[];
-  readonly teams: readonly TeamSummary[];
-  readonly creationStatusId: string | null;
-  readonly createSubtask: (fields: {
-    readonly title: string;
-    readonly teamId: string | null;
-    readonly assignedUserId: string | null;
-    readonly workflowStatusId: string;
-    readonly dueDate: string;
-    readonly parentTaskId: string;
-  }) => void | Promise<unknown>;
-  readonly updateTask: (
-    taskId: string,
-    fields: {
-      readonly title?: string;
-      readonly dueDate?: string;
-      readonly cycleId?: string;
-      readonly assignedUserId?: string | null;
-      readonly teamId?: string | null;
-    },
-  ) => void | Promise<unknown>;
-  readonly completeTask: (taskId: string) => void | Promise<unknown>;
-  readonly cancelTask: (taskId: string) => void | Promise<unknown>;
-  readonly reopenTask: (taskId: string) => void | Promise<unknown>;
-}) {
-  const openTaskDetailsPaneUrl = useOpenTaskDetailsPaneUrl();
-  const [draftTitle, setDraftTitle] = useState(task.title);
-  const [draftDueDate, setDraftDueDate] = useState(task.dueDate);
-  const [subtaskTitle, setSubtaskTitle] = useState("");
-  const titleUpdateFields = getTaskTitleUpdateFields(task.title, draftTitle);
-  const dueDateUpdateFields = getTaskDueDateUpdateFields(task.dueDate, draftDueDate);
-  const subtaskCreationFields = getSubtaskCreationFields({
-    parentTask: task,
-    title: subtaskTitle,
-    workflowStatusId: creationStatusId,
-  });
-  const assigneeOptions = getTaskAssigneeOptions(users);
-  const lifecycleActions = getTaskLifecycleActions(task.taskState);
-
-  return (
-    <div
-      aria-label={`Actions for ${task.title}`}
-      className="grid gap-3 rounded-lg border p-3 lg:grid-cols-[minmax(12rem,1fr)_auto_auto_auto_auto] lg:items-center"
-      role="group"
-    >
-      <div className="grid gap-2">
-        <Input
-          aria-label={`Title for ${task.title}`}
-          value={draftTitle}
-          onChange={(event) => setDraftTitle(event.target.value)}
-        />
-        <p className="text-xs text-muted-foreground">State: {task.taskState}</p>
-        <Button
-          render={<Link {...openTaskDetailsPaneUrl({ id: task.id })} />}
-          type="button"
-          size="sm"
-          variant="outline"
-          className="w-fit"
-        >
-          Open details
-        </Button>
-        <TaskActivityList churchId={churchId} taskId={task.id} />
-        <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-          <Input
-            aria-label={`Subtask title for ${task.title}`}
-            value={subtaskTitle}
-            onChange={(event) => setSubtaskTitle(event.target.value)}
-            placeholder="Add Subtask"
-          />
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={!subtaskCreationFields}
-            onClick={() => {
-              if (!subtaskCreationFields) return;
-              void createSubtask(subtaskCreationFields);
-              setSubtaskTitle("");
-            }}
-          >
-            Add Subtask
-          </Button>
-        </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="w-fit"
-          disabled={!titleUpdateFields}
-          onClick={() => {
-            if (!titleUpdateFields) return;
-            void updateTask(task.id, titleUpdateFields);
-          }}
-        >
-          Save Title
-        </Button>
-        <div className="grid gap-1 sm:max-w-44">
-          <label className="text-xs font-medium" htmlFor={`due-date-${task.id}`}>
-            Due Date
-          </label>
-          <div className="flex gap-2">
-            <Input
-              id={`due-date-${task.id}`}
-              aria-label={`Due Date for ${task.title}`}
-              type="date"
-              value={draftDueDate}
-              onChange={(event) => setDraftDueDate(event.target.value)}
-            />
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={!dueDateUpdateFields}
-              onClick={() => {
-                if (!dueDateUpdateFields) return;
-                void updateTask(task.id, dueDateUpdateFields);
-              }}
-            >
-              Save
-            </Button>
-          </div>
-        </div>
-      </div>
-      <NativeSelect
-        size="sm"
-        value={task.cycleId}
-        aria-label={`Move Cycle for ${task.title}`}
-        onChange={(event) => {
-          const preview = getTaskCycleUpdatePreview({
-            currentCycleId: task.cycleId,
-            nextCycleId: event.target.value,
-            currentDueDate: task.dueDate,
-            cycles,
-          });
-
-          if (!preview) return;
-
-          const confirmed = window.confirm(
-            `Changing Cycle will shift Due Date from ${preview.previousDueDate} to ${preview.dueDate}. Continue?`,
-          );
-
-          if (!confirmed) return;
-
-          void updateTask(task.id, { cycleId: preview.cycleId });
-        }}
-      >
-        {cycles.map((cycle) => (
-          <NativeSelectOption key={cycle.id} value={cycle.id}>
-            {cycle.startDate} to {cycle.endDate}
-          </NativeSelectOption>
-        ))}
-      </NativeSelect>
-      <NativeSelect
-        size="sm"
-        value={task.assignedUserId ?? ""}
-        aria-label={`Assign ${task.title}`}
-        onChange={(event) => {
-          void updateTask(task.id, { assignedUserId: event.target.value || null });
-        }}
-      >
-        <NativeSelectOption value="">Unassigned</NativeSelectOption>
-        {assigneeOptions.map((user) => (
-          <NativeSelectOption key={user.id} value={user.id}>
-            {user.name ?? user.email ?? user.id}
-          </NativeSelectOption>
-        ))}
-      </NativeSelect>
-      <NativeSelect
-        size="sm"
-        value={task.teamId ?? ""}
-        aria-label={`Assign Team for ${task.title}`}
-        onChange={(event) => {
-          const fields = getTaskTeamUpdateFields(task.teamId, event.target.value);
-          if (!fields) return;
-          void updateTask(task.id, fields);
-        }}
-      >
-        <NativeSelectOption value="">No Team</NativeSelectOption>
-        {teams.map((team) => (
-          <NativeSelectOption key={team.id} value={team.id}>
-            {team.name}
-          </NativeSelectOption>
-        ))}
-      </NativeSelect>
-      <div className="flex flex-wrap gap-2">
-        {lifecycleActions.map((action) => {
-          if (action === "reopen") {
-            return (
-              <Button
-                key={action}
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => reopenTask(task.id)}
-              >
-                Reopen
-              </Button>
-            );
-          }
-
-          if (action === "complete") {
-            return (
-              <Button
-                key={action}
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => completeTask(task.id)}
-              >
-                Complete
-              </Button>
-            );
-          }
-
-          return (
-            <Button
-              key={action}
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => cancelTask(task.id)}
-            >
-              Cancel
-            </Button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function TaskActivityList({
-  churchId,
-  taskId,
-}: {
-  readonly churchId: string;
-  readonly taskId: string;
-}) {
-  const activitiesResult = useActivitiesForEntityCollection({
-    churchId,
-    entityType: "task",
-    entityId: taskId,
-  });
-  const activities = activitiesResult.activitiesCollection.slice(-3).reverse();
-
-  return (
-    <div aria-label="Recent Task Activity" className="grid gap-1 text-xs text-muted-foreground">
-      <p className="font-medium text-foreground">Recent Activity</p>
-      {activitiesResult.loading ? <p>Loading Activity...</p> : null}
-      {!activitiesResult.loading && activities.length === 0 ? <p>No Activity yet.</p> : null}
-      {activities.map((activity) => (
-        <p key={activity.id}>{formatTaskActivity(activity)}</p>
-      ))}
-    </div>
   );
 }
 
