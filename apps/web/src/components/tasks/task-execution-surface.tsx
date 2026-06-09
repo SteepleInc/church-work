@@ -1,10 +1,12 @@
 import { useOpenTaskDetailsPaneUrl } from "@/components/details-pane/details-pane-helpers";
 import { useCyclesCollection } from "@/data/cycles/cyclesData.app";
+import { useTeamMembershipsCollection } from "@/data/teams/teamsData.app";
 import {
   useTasksCollection,
   useUpdateTaskMutation,
   type TaskCollectionFilters,
 } from "@/data/tasks/tasksData.app";
+import { useChurchUsersCollection } from "@/data/users/usersData.app";
 import {
   useWorkflowStatusesCollection,
   useWorkflowsCollection,
@@ -30,6 +32,7 @@ type TaskSummary = {
   readonly assignedUserId: string | null;
   readonly cycleId: string;
   readonly dueDate: string;
+  readonly createdAt: number;
   readonly parentTaskId: string | null;
   readonly workflowStatusId: string;
   readonly taskState: TaskState;
@@ -94,6 +97,18 @@ export function getTaskExecutionReadArgs(args: {
   };
 }
 
+export function buildTeamMemberIndex(
+  memberships: readonly { readonly teamId: string; readonly userId: string }[],
+): ReadonlyMap<string, ReadonlySet<string>> {
+  const index = new Map<string, Set<string>>();
+  for (const membership of memberships) {
+    const members = index.get(membership.teamId) ?? new Set<string>();
+    members.add(membership.userId);
+    index.set(membership.teamId, members);
+  }
+  return index;
+}
+
 export function getTaskParentContext(task: TaskSummary, tasks: readonly TaskSummary[]) {
   if (!task.parentTaskId) return null;
 
@@ -125,6 +140,11 @@ export function TaskExecutionSurface({
   const cyclesCollection = useCyclesCollection({ churchId, currentUserId });
   const workflows = useWorkflowsCollection({ churchId });
   const workflowStatusesCollection = useWorkflowStatusesCollection({ churchId });
+  const usersCollection = useChurchUsersCollection({ churchId });
+  const teamMembershipsCollection = useTeamMembershipsCollection({ churchId });
+  const teamMemberIdsByTeamId = buildTeamMemberIndex(
+    teamMembershipsCollection.teamMembershipsCollection,
+  );
 
   const cycles = cyclesCollection.cyclesCollection;
   const currentCycle = selectCurrentExecutionCycle(cycles, today);
@@ -179,12 +199,34 @@ export function TaskExecutionSurface({
         <TaskKanbanBoard
           workflowStatuses={workflowStatuses.map(toBoardWorkflowStatus)}
           tasks={tasks.map((task) => toBoardTask(task, tasks))}
+          assigneeOptions={usersCollection.usersCollection.map((user) => ({
+            id: user.id,
+            label: user.name ?? user.email ?? user.id,
+          }))}
+          currentUserId={currentUserId}
+          teamMemberIdsByTeamId={teamMemberIdsByTeamId}
           onMoveTask={(move) => {
             void updateTask({
               churchId,
               actorUserId: currentUserId,
               taskId: move.taskId,
               fields: { workflowStatusId: move.workflowStatusId },
+            });
+          }}
+          onAssignTask={(change) => {
+            void updateTask({
+              churchId,
+              actorUserId: currentUserId,
+              taskId: change.taskId,
+              fields: { assignedUserId: change.assignedUserId },
+            });
+          }}
+          onChangeTaskStatus={(change) => {
+            void updateTask({
+              churchId,
+              actorUserId: currentUserId,
+              taskId: change.taskId,
+              fields: { workflowStatusId: change.workflowStatusId },
             });
           }}
           onOpenTask={(taskId) => {
@@ -218,6 +260,8 @@ function toBoardTask(task: TaskSummary, tasks: readonly TaskSummary[]) {
     teamId: task.teamId,
     cycleId: task.cycleId,
     dueDate: task.dueDate,
+    createdAt: task.createdAt,
+    assignedUserId: task.assignedUserId,
     parentTask: getTaskParentContext(task, tasks),
     workflowStatusId: task.workflowStatusId,
     taskState: task.taskState,

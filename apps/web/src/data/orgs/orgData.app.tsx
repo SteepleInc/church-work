@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "convex/react";
 import type { ReactNode } from "react";
 
 import { recordFromCollection, recordFromQueryResult } from "@/data/convex-query-adapter";
+import { recordOptimisticUpdate } from "@/data/optimistic-collection";
 import { useUserOrgsCollection, type OrgCollectionItem } from "@/data/orgs/orgsData.app";
 
 export type CurrentOrg = {
@@ -52,7 +53,15 @@ export function useCurrentOrgOpt() {
 }
 
 export function useUpdateChurchTimeZoneMutation() {
-  return useMutation(api.churchSettings.updateTimeZone);
+  return useMutation(api.churchSettings.updateTimeZone).withOptimisticUpdate(
+    recordOptimisticUpdate({
+      query: api.dashboard.getActiveOrganization,
+      patch: (
+        org: CurrentOrg,
+        args: { readonly churchId: string; readonly churchTimeZone: string },
+      ) => (org.id === args.churchId ? { ...org, churchTimeZone: args.churchTimeZone } : org),
+    }),
+  );
 }
 
 export function CurrentOrgWrapper(props: { readonly children: (org: CurrentOrg) => ReactNode }) {

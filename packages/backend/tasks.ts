@@ -131,6 +131,7 @@ export const serializeTaskModel = (data: Awaited<ReturnType<typeof readTaskModel
     assignedUserId: task.assignedUserId ?? null,
     cycleId: task.cycleId,
     dueDate: task.dueDate,
+    createdAt: task._creationTime,
     parentTaskId: task.parentTaskId,
     workflowId: task.workflowId,
     workflowStatusId: task.workflowStatusId,

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  buildTeamMemberIndex,
   getTaskCreationDefaults,
   getExecutionWorkflowId,
   getTaskExecutionReadArgs,
@@ -136,6 +137,7 @@ describe("Task execution surface", () => {
       assignedUserId: null,
       cycleId: "cycle-1",
       dueDate: "2026-06-03",
+      createdAt: 0,
       parentTaskId: null,
       workflowStatusId: "todo",
       taskState: "todo" as const,
@@ -147,6 +149,7 @@ describe("Task execution surface", () => {
       assignedUserId: "user-1",
       cycleId: "cycle-1",
       dueDate: "2026-06-03",
+      createdAt: 0,
       parentTaskId: parentTask.id,
       workflowStatusId: "todo",
       taskState: "todo" as const,
@@ -158,5 +161,17 @@ describe("Task execution surface", () => {
     });
     expect(getTaskParentContext(childTask, [childTask])).toBeNull();
     expect(getTaskParentContext(parentTask, [parentTask, childTask])).toBeNull();
+  });
+
+  test("indexes team members by team id for the assignee picker", () => {
+    const index = buildTeamMemberIndex([
+      { teamId: "team-a", userId: "u-1" },
+      { teamId: "team-a", userId: "u-2" },
+      { teamId: "team-b", userId: "u-3" },
+    ]);
+
+    expect([...(index.get("team-a") ?? [])]).toEqual(["u-1", "u-2"]);
+    expect([...(index.get("team-b") ?? [])]).toEqual(["u-3"]);
+    expect(index.get("team-missing")).toBeUndefined();
   });
 });

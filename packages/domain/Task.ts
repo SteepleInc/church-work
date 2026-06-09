@@ -29,6 +29,9 @@ export const TaskSchema = Schema.Struct({
   assignedUserId: Schema.Union(Schema.String, Schema.Null),
   cycleId: Schema.String,
   dueDate: Schema.String,
+  // Convex's built-in document creation time (epoch ms). Surfaced from
+  // `_creationTime` by the task serializers so clients can show "Created …".
+  createdAt: Schema.Number,
   parentTaskId: Schema.Union(Schema.String, Schema.Null),
   workflowId: Schema.String,
   workflowStatusId: Schema.String,
