@@ -113,10 +113,11 @@ export function Collection<TItem>({
         : columnPinning,
     [columnPinning, rowActions],
   );
+  const tableData = useMemo(() => [...data], [data]);
   const table = useCreateTable({
     columnPinning: normalizedColumnPinning,
     columnsDef: normalizedColumnsDef,
-    data: [...data],
+    data: tableData,
     onSortingChange: (updaterOrValue) => {
       if (typeof updaterOrValue === "function") {
         setSorting((previous) => updaterOrValue(previous as SortingState));
