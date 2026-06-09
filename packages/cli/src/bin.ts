@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { runCli } from "./cli";
+import { flushTelemetry } from "./telemetry";
 
 const result = await runCli(process.argv.slice(2), { env: process.env });
 
@@ -12,3 +13,5 @@ if (result.stderr) {
 }
 
 process.exitCode = result.exitCode;
+
+await flushTelemetry();

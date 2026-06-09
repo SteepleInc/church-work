@@ -1,3 +1,5 @@
+import "./telemetry";
+
 import { env } from "@church-task/env/web";
 import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
