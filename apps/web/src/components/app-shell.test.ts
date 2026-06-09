@@ -61,6 +61,7 @@ const globalSearchFooterSource = await Bun.file(
 const dashboardRouteSource = await Bun.file(
   new URL("../routes/-dashboard.tsx", import.meta.url),
 ).text();
+const appShellSource = await Bun.file(new URL("./app-shell.tsx", import.meta.url)).text();
 
 describe("app shell route behavior", () => {
   test("lands completed app users on My Work", () => {
@@ -82,6 +83,14 @@ describe("app shell route behavior", () => {
     expect(getBreadcrumbLabel("/team/team-1")).toBe("Team Work");
     expect(getBreadcrumbLabel("/dev/session")).toBe("Dev Session");
     expect(getBreadcrumbLabel("/admin/orgs")).toBe("App Admin Churches");
+  });
+
+  test("renders app breadcrumbs without a Church Task root crumb", () => {
+    expect(appShellSource).toContain(
+      "<BreadcrumbPage>{getBreadcrumbLabel(pathname)}</BreadcrumbPage>",
+    );
+    expect(appShellSource).not.toContain("<BreadcrumbPage>Church Task</BreadcrumbPage>");
+    expect(appShellSource).not.toContain("<BreadcrumbSeparator />");
   });
 
   test("keeps global app overlays at the PreachX shell level and order", () => {

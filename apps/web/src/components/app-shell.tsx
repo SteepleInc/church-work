@@ -11,7 +11,6 @@ import {
   BreadcrumbItem,
   BreadcrumbList,
   BreadcrumbPage,
-  BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -129,10 +128,6 @@ function AppBreadcrumbs() {
   return (
     <Breadcrumb>
       <BreadcrumbList>
-        <BreadcrumbItem>
-          <BreadcrumbPage>Church Task</BreadcrumbPage>
-        </BreadcrumbItem>
-        <BreadcrumbSeparator />
         <BreadcrumbItem>
           <BreadcrumbPage>{getBreadcrumbLabel(pathname)}</BreadcrumbPage>
         </BreadcrumbItem>
