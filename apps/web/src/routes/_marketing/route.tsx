@@ -5,6 +5,15 @@ import { useEffect } from "react";
 export const Route = createFileRoute("/_marketing")({
   component: MarketingLayoutComponent,
   head: () => ({
+    links: [
+      {
+        as: "font",
+        crossOrigin: "anonymous",
+        href: "/fonts/pangaia/PPPangaia-Variable.woff2",
+        rel: "preload",
+        type: "font/woff2",
+      },
+    ],
     scripts: [
       {
         children: "document.documentElement.classList.add('marketing-dark')",

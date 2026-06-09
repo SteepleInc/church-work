@@ -31,13 +31,6 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
         type: "font/woff2",
       },
       {
-        as: "font",
-        crossOrigin: "anonymous",
-        href: "/fonts/pangaia/PPPangaia-Variable.woff2",
-        rel: "preload",
-        type: "font/woff2",
-      },
-      {
         rel: "icon",
         href: "/favicon.ico",
       },
