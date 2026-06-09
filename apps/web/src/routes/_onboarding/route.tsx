@@ -9,6 +9,17 @@ import { ArrowRight, Church } from "lucide-react";
 
 export const Route = createFileRoute("/_onboarding")({
   component: OnboardingLayout,
+  head: () => ({
+    links: [
+      {
+        as: "font",
+        crossOrigin: "anonymous",
+        href: "/fonts/pangaia/PPPangaia-Variable.woff2",
+        rel: "preload",
+        type: "font/woff2",
+      },
+    ],
+  }),
 });
 
 function OnboardingLayout() {
