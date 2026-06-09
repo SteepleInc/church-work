@@ -6,6 +6,7 @@
   "author": "",
   "scripts": {
     "dev": "bun --env-file=../../.env convex dev",
+    "dev:e2e": "bun --env-file=../../.env.e2e convex dev --env-file ../../.env.e2e --local-cloud-port 2201 --local-site-port 2202",
     "dev:setup": "bun --env-file=../../.env convex dev --configure --until-success",
     "test:backend": "vitest run --config vitest.config.ts"
   },

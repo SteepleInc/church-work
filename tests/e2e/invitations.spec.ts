@@ -38,7 +38,7 @@ async function waitForOtp(page: Page, email: string) {
 async function signInWithOtp(page: Page, email: string) {
   await page.goto("/sign-in");
   await page.getByLabel("Email address").fill(email);
-  await page.getByRole("button", { name: "Continue" }).click();
+  await page.locator('button[data-loading="false"]', { hasText: "Continue" }).click();
   await page.getByLabel("Verification Code").fill(await waitForOtp(page, email));
 }
 
@@ -105,7 +105,7 @@ test("accepts an invitation through OTP sign-in and lands in the invited Church"
   await page.goto(`/accept-invitation/${invitationId}`);
   await expect(page).toHaveURL(new RegExp(`/sign-in\\?invitation-id=${invitationId}$`));
   await page.getByLabel("Email address").fill(inviteeEmail);
-  await page.getByRole("button", { name: "Continue" }).click();
+  await page.locator('button[data-loading="false"]', { hasText: "Continue" }).click();
   await page.getByLabel("Verification Code").fill(await waitForOtp(page, inviteeEmail));
 
   await expect(page).toHaveURL(new RegExp(`/accept-invitation/${invitationId}$`));

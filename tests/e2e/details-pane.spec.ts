@@ -41,7 +41,7 @@ async function waitForOtp(page: Page, email: string) {
 async function signInWithOtp(page: Page, email: string) {
   await page.goto("/sign-in");
   await page.getByLabel("Email address").fill(email);
-  await page.getByRole("button", { name: "Continue" }).click();
+  await page.locator('button[data-loading="false"]', { hasText: "Continue" }).click();
   await page.getByLabel("Verification Code").fill(await waitForOtp(page, email));
 }
 
@@ -75,14 +75,16 @@ test("opens a Task details pane from URL state and supports reload/deep-link", a
   await signInWithOtp(page, email);
   await completeOnboarding(page, churchName);
 
-  await page.getByPlaceholder("Add a Task assigned to me").fill(taskTitle);
-  await page.getByRole("button", { name: "Create Task" }).click();
-  const taskActions = page.getByRole("group", { name: `Actions for ${taskTitle}` });
-  await expect(taskActions).toBeVisible();
+  await page.getByRole("main").getByRole("button", { name: "Create Task" }).click();
+  const createTaskDialog = page.getByRole("dialog", { name: "Create Task" });
+  await createTaskDialog.getByPlaceholder("Add a Task").fill(taskTitle);
+  await createTaskDialog.getByRole("button", { name: "Create Task" }).click();
+  const taskCard = page.getByLabel(`Task card ${taskTitle}`);
+  await expect(taskCard).toBeVisible();
 
-  await taskActions.getByRole("link", { name: "Open details" }).click();
+  await taskCard.click();
 
-  const detailsPane = page.getByRole("complementary", { name: "Details Pane" });
+  const detailsPane = page.getByRole("dialog", { name: "Details Pane" });
   await expect(detailsPane).toBeVisible();
   await expect(detailsPane.getByText("Task details", { exact: true })).toBeVisible();
   await expect(detailsPane.getByRole("heading", { name: taskTitle })).toBeVisible();
@@ -93,11 +95,11 @@ test("opens a Task details pane from URL state and supports reload/deep-link", a
 
   const deepLinkUrl = page.url();
   await page.reload();
-  await expect(page.getByRole("complementary", { name: "Details Pane" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Details Pane" })).toBeVisible();
   await expect(page.getByRole("heading", { name: taskTitle })).toBeVisible();
 
   const deepLinkPage = await context.newPage();
   await deepLinkPage.goto(deepLinkUrl);
-  await expect(deepLinkPage.getByRole("complementary", { name: "Details Pane" })).toBeVisible();
+  await expect(deepLinkPage.getByRole("dialog", { name: "Details Pane" })).toBeVisible();
   await expect(deepLinkPage.getByRole("heading", { name: taskTitle })).toBeVisible();
 });

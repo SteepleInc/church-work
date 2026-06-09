@@ -43,7 +43,7 @@ async function waitForOtp(page: Page, email: string) {
 async function signInWithOtp(page: Page, email: string) {
   await page.goto("/sign-in");
   await page.getByLabel("Email address").fill(email);
-  await page.getByRole("button", { name: "Continue" }).click();
+  await page.locator('button[data-loading="false"]', { hasText: "Continue" }).click();
   await page.getByLabel("Verification Code").fill(await waitForOtp(page, email));
 }
 
@@ -65,12 +65,14 @@ test("opens Quick Actions and completes a copied create-task action", async ({
   await expect(page.getByRole("dialog", { name: "Quick Actions Menu" })).toBeVisible();
   await expect(page.getByText("Quick Action", { exact: true })).toBeVisible();
   await expect(page.getByText("Big Actions", { exact: true })).not.toBeVisible();
-  await page.getByText("Create Church Task", { exact: true }).click();
+  await page.getByRole("option", { name: "Create Task" }).click();
 
-  await expect(page.getByRole("dialog", { name: "Create Church Task" })).toBeVisible();
-  await page.getByPlaceholder("Add Church-wide Task").fill(taskTitle);
-  await page.getByRole("button", { name: "Create Task" }).click();
-  await expect(page).toHaveURL(/\/our-work$/);
+  const createTaskDialog = page.getByRole("dialog", { name: "Create Task" });
+  await expect(createTaskDialog).toBeVisible();
+  await createTaskDialog.getByPlaceholder("Add a Task").fill(taskTitle);
+  await createTaskDialog.getByRole("button", { name: "Create Task" }).click();
+  await expect(page).toHaveURL(/\/my-work$/);
+  await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Our Work" }).click();
   await expect(page.getByText(taskTitle).first()).toBeVisible();
 
   await page.keyboard.press(process.platform === "darwin" ? "Meta+K" : "Control+K");
