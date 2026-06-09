@@ -30,6 +30,33 @@ const searchWhereValidator = v.object({
 
 type SearchWhere = typeof searchWhereValidator.type;
 
+const organizationFilterFields = new Set([
+  "_id",
+  "churchTimeZone",
+  "completedOnboarding",
+  "createdAt",
+  "name",
+  "size",
+  "slug",
+  "state",
+  "url",
+] as const);
+
+const userFilterFields = new Set(["_id", "createdAt", "email", "name"] as const);
+
+type OrganizationFilterField = typeof organizationFilterFields extends Set<infer Field>
+  ? Field
+  : never;
+type UserFilterField = typeof userFilterFields extends Set<infer Field> ? Field : never;
+
+function isOrganizationFilterField(field: string): field is OrganizationFilterField {
+  return organizationFilterFields.has(field as OrganizationFilterField);
+}
+
+function isUserFilterField(field: string): field is UserFilterField {
+  return userFilterFields.has(field as UserFilterField);
+}
+
 export const listOrganizationsBySearch = query({
   args: {
     paginationOpts: paginationOptsValidator,
@@ -51,32 +78,38 @@ export const listOrganizationsBySearch = query({
     if (wheres && wheres.length > 0) {
       queryWithSearch = queryWithSearch.filter((q) => {
         const predicateFor = (where: SearchWhere) => {
+          if (!isOrganizationFilterField(where.field)) {
+            return q.eq(q.field("createdAt"), -1);
+          }
+
+          const field = where.field;
+
           switch (where.operator) {
             case "lt":
-              return q.lt(q.field(where.field), where.value);
+              return q.lt(q.field(field), where.value);
             case "lte":
-              return q.lte(q.field(where.field), where.value);
+              return q.lte(q.field(field), where.value);
             case "gt":
-              return q.gt(q.field(where.field), where.value);
+              return q.gt(q.field(field), where.value);
             case "gte":
-              return q.gte(q.field(where.field), where.value);
+              return q.gte(q.field(field), where.value);
             case "ne":
-              return q.neq(q.field(where.field), where.value);
+              return q.neq(q.field(field), where.value);
             case "in":
               return q.or(
                 ...(where.value as Array<string | number>).map((value) =>
-                  q.eq(q.field(where.field), value),
+                  q.eq(q.field(field), value),
                 ),
               );
             case "not_in":
               return q.and(
                 ...(where.value as Array<string | number>).map((value) =>
-                  q.neq(q.field(where.field), value),
+                  q.neq(q.field(field), value),
                 ),
               );
             case "eq":
             default:
-              return q.eq(q.field(where.field), where.value);
+              return q.eq(q.field(field), where.value);
           }
         };
 
@@ -96,7 +129,9 @@ export const listOrganizationsBySearch = query({
       numItems: args.pageSize,
     });
 
-    if (!args.select) {
+    const select = args.select;
+
+    if (!select) {
       return result;
     }
 
@@ -104,7 +139,7 @@ export const listOrganizationsBySearch = query({
       ...result,
       page: result.page.map((document) =>
         Object.fromEntries(
-          args.select.flatMap((field) =>
+          select.flatMap((field) =>
             field in document ? [[field, document[field as keyof typeof document]]] : [],
           ),
         ),
@@ -134,32 +169,38 @@ export const listUsersBySearch = query({
     if (wheres && wheres.length > 0) {
       queryWithSearch = queryWithSearch.filter((q) => {
         const predicateFor = (where: SearchWhere) => {
+          if (!isUserFilterField(where.field)) {
+            return q.eq(q.field("createdAt"), -1);
+          }
+
+          const field = where.field;
+
           switch (where.operator) {
             case "lt":
-              return q.lt(q.field(where.field), where.value);
+              return q.lt(q.field(field), where.value);
             case "lte":
-              return q.lte(q.field(where.field), where.value);
+              return q.lte(q.field(field), where.value);
             case "gt":
-              return q.gt(q.field(where.field), where.value);
+              return q.gt(q.field(field), where.value);
             case "gte":
-              return q.gte(q.field(where.field), where.value);
+              return q.gte(q.field(field), where.value);
             case "ne":
-              return q.neq(q.field(where.field), where.value);
+              return q.neq(q.field(field), where.value);
             case "in":
               return q.or(
                 ...(where.value as Array<string | number>).map((value) =>
-                  q.eq(q.field(where.field), value),
+                  q.eq(q.field(field), value),
                 ),
               );
             case "not_in":
               return q.and(
                 ...(where.value as Array<string | number>).map((value) =>
-                  q.neq(q.field(where.field), value),
+                  q.neq(q.field(field), value),
                 ),
               );
             case "eq":
             default:
-              return q.eq(q.field(where.field), where.value);
+              return q.eq(q.field(field), where.value);
           }
         };
 
@@ -179,7 +220,9 @@ export const listUsersBySearch = query({
       numItems: args.pageSize,
     });
 
-    if (!args.select) {
+    const select = args.select;
+
+    if (!select) {
       return result;
     }
 
@@ -187,7 +230,7 @@ export const listUsersBySearch = query({
       ...result,
       page: result.page.map((document) =>
         Object.fromEntries(
-          args.select.flatMap((field) =>
+          select.flatMap((field) =>
             field in document ? [[field, document[field as keyof typeof document]]] : [],
           ),
         ),
