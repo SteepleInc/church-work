@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Array, Boolean, Match, pipe } from "effect";
-import { BuildingIcon, CheckSquareIcon, UsersIcon } from "lucide-react";
+import { BuildingIcon, CheckSquareIcon, UserIcon, UsersIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { useOpenDetailsPaneUrl } from "@/components/details-pane/details-pane-helpers";
@@ -15,6 +15,7 @@ import { useOrgData } from "@/data/orgs/orgData.app";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { useTaskData } from "@/data/tasks/taskData.app";
 import { useTeamData } from "@/data/teams/teamData.app";
+import { useUserData } from "@/data/users/userData.app";
 import { cn } from "@/lib/utils";
 
 type DetailsPaneHistoryProps = {
@@ -68,6 +69,14 @@ export function DetailsPaneHistory({ history }: DetailsPaneHistoryProps) {
                             key={`${team._tag}-${team.id}-${index}`}
                             linkProps={linkProps}
                             teamId={team.id}
+                          />
+                        )),
+                        Match.tag("user", (user) => (
+                          <UserBreadCrumb
+                            isCurrentPage={isCurrentPage}
+                            key={`${user._tag}-${user.id}-${index}`}
+                            linkProps={linkProps}
+                            userId={user.id}
                           />
                         )),
                         Match.exhaustive,
@@ -155,5 +164,16 @@ function TeamBreadCrumb({
 
   return (
     <HistoryBreadCrumb Icon={<UsersIcon className="size-3" />} title={teamOpt?.name} {...props} />
+  );
+}
+
+function UserBreadCrumb({
+  userId,
+  ...props
+}: Pick<HistoryBreadCrumbProps, "linkProps" | "isCurrentPage"> & { readonly userId: string }) {
+  const { userOpt } = useUserData({ userId });
+
+  return (
+    <HistoryBreadCrumb Icon={<UserIcon className="size-3" />} title={userOpt?.name} {...props} />
   );
 }

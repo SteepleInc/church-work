@@ -1,7 +1,9 @@
 import { nullOp } from "@church-task/shared/noOps";
+import { api } from "@church-task/backend/convex/_generated/api";
+import { useQuery } from "convex/react";
 import type { ReactNode } from "react";
 
-import { recordFromCollection } from "@/data/convex-query-adapter";
+import { recordFromCollection, recordFromQueryResult } from "@/data/convex-query-adapter";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { useChurchUsersCollection, type UserCollectionItem } from "@/data/users/usersData.app";
 
@@ -22,6 +24,16 @@ export function useCurrentUserOpt() {
 export function useUserOpt(params: { readonly churchId: string | null; readonly userId: string }) {
   const users = useChurchUsersCollection({ churchId: params.churchId });
   const state = recordFromCollection(users, (user) => user.id === params.userId);
+
+  return {
+    loading: state.loading,
+    userOpt: state.record,
+  };
+}
+
+export function useUserData(params: { readonly userId: string }) {
+  const result = useQuery(api.admin.getUser, { userId: params.userId });
+  const state = recordFromQueryResult<UserCollectionItem>(result);
 
   return {
     loading: state.loading,

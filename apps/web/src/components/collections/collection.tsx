@@ -1,120 +1,209 @@
-import { useMemo, useState, type ReactNode } from "react";
+/** biome-ignore-all lint/suspicious/noExplicitAny: lib code */
+"use client";
 
-import { Card } from "@/components/ui/card";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
-import { Input } from "@/components/ui/input";
+import type { ColumnDef, ColumnPinningState, SortingState } from "@tanstack/react-table";
+import { Array, Option, pipe } from "effect";
+import { useAtom } from "jotai";
+import { type ReactNode, useCallback, useMemo } from "react";
+
+import { CollectionCardView } from "@/components/collections/collectionCardView";
+import type { CollectionTags } from "@/components/collections/collectionComponents";
+import { CollectionTableView } from "@/components/collections/collectionTableView";
+import { CollectionToolbar } from "@/components/collections/collectionToolbar";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  createRowActionsColumn,
+  type RowActionsRenderer,
+} from "@/components/collections/rowActions";
+import { useCreateTable } from "@/components/collections/useCreateTable";
+import { Divider } from "@/components/ui/divider";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import {
+  collectionViewMatch,
+  collectionViewsAtom,
+  type FilterKeys,
+  getCollectionView,
+} from "@/shared/global-state";
+import { useFiltersValue, useSorting } from "@/shared/hooks/useFilters";
+import { useIsMdScreen } from "@/shared/hooks/use-media-query";
 
-export type CollectionColumnDef<TItem> = {
-  readonly id: string;
-  readonly header: string;
-  readonly cell: (item: TItem) => ReactNode;
-  readonly className?: string;
+type CollectionProps<TData> = {
+  filterPlaceHolder: string;
+  filterColumnId: string;
+  Actions?: ReactNode;
+  emptyState?: ReactNode;
+  noResultsState?: ReactNode;
+  _tag: CollectionTags;
+  rowSize?: number;
+  filterKey: FilterKeys;
+  columnsDef: Array<ColumnDef<TData>>;
+  columnPinning?: ColumnPinningState;
+  data: ReadonlyArray<TData>;
+  loading?: boolean;
+  nextPage: () => void;
+  pageSize: number;
+  limit: number;
+  /**
+   * Optional render function for row actions.
+   * When provided, an actions column is automatically added and pinned to the right.
+   */
+  rowActions?: RowActionsRenderer<TData>;
 };
 
-export type CollectionProps<TItem> = {
-  readonly _tag: string;
-  readonly Actions?: ReactNode;
-  readonly columnsDef: readonly CollectionColumnDef<TItem>[];
-  readonly data: readonly TItem[];
-  readonly filterColumnId: string;
-  readonly filterKey: string;
-  readonly filterPlaceHolder: string;
-  readonly filtersDef?: readonly unknown[];
-  readonly getRowKey: (item: TItem) => string;
-  readonly getRowLabel: (item: TItem) => string;
-  readonly loading?: boolean;
-  readonly rowActions?: (item: TItem) => ReactNode;
-};
+export const Collection = <TData,>(props: CollectionProps<TData>): ReactNode => {
+  // eslint-disable-next-line react-compiler/react-compiler
+  "use no memo";
 
-export function Collection<TItem>({
-  Actions,
-  columnsDef,
-  data,
-  filterColumnId,
-  filterPlaceHolder,
-  getRowKey,
-  getRowLabel,
-  loading = false,
-  rowActions,
-}: CollectionProps<TItem>) {
-  const [query, setQuery] = useState("");
-  const filterColumn = columnsDef.find((column) => column.id === filterColumnId) ?? columnsDef[0];
-  const filteredData = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
+  const {
+    filterColumnId,
+    filterPlaceHolder,
+    Actions,
+    emptyState,
+    noResultsState,
+    _tag,
+    rowSize,
+    filterKey,
+    columnsDef,
+    columnPinning,
+    data,
+    loading,
+    nextPage,
+    pageSize,
+    limit,
+    rowActions,
+  } = props;
 
-    if (!normalizedQuery) {
-      return data;
+  // If rowActions is provided, add the actions column to the column definitions
+  const enhancedColumnsDef = useMemo(
+    () =>
+      pipe(
+        rowActions,
+        Option.fromNullable,
+        Option.match({
+          onNone: () => columnsDef,
+          onSome: (renderActions) => [...columnsDef, createRowActionsColumn(renderActions)],
+        }),
+      ),
+    [columnsDef, rowActions],
+  );
+
+  // If rowActions is provided, pin the actions column to the right
+  const enhancedColumnPinning = useMemo(
+    (): ColumnPinningState =>
+      pipe(
+        rowActions,
+        Option.fromNullable,
+        Option.match({
+          onNone: () => columnPinning ?? {},
+          onSome: () => ({
+            ...columnPinning,
+            right: [...(columnPinning?.right ?? []), "actions"],
+          }),
+        }),
+      ),
+    [columnPinning, rowActions],
+  );
+
+  // Get sorting state from URL (stored alongside filters under the same filterKey)
+  const [sorting, setSorting] = useSorting(filterKey);
+
+  // Adapter to convert TanStack Table's SortingState updater to our URL-based setter
+  const onSortingChange = useCallback(
+    (updaterOrValue: SortingState | ((old: SortingState) => SortingState)) => {
+      if (typeof updaterOrValue === "function") {
+        setSorting((prev) => updaterOrValue(prev as SortingState));
+      } else {
+        setSorting(updaterOrValue);
+      }
+    },
+    [setSorting],
+  );
+
+  const tableData = useMemo(() => [...data], [data]);
+
+  const table = useCreateTable({
+    columnPinning: enhancedColumnPinning,
+    columnsDef: enhancedColumnsDef,
+    data: tableData,
+    onSortingChange,
+    sorting: sorting as SortingState,
+  });
+
+  const [collectionViews] = useAtom(collectionViewsAtom);
+  const isMdScreen = useIsMdScreen();
+
+  // Force cards view on small screens, otherwise use the stored preference
+  const collectionView = isMdScreen ? getCollectionView(collectionViews, _tag) : "cards";
+
+  // Read URL filters to determine if we have any active filters
+  const urlFilters = useFiltersValue(filterKey);
+
+  // Check if there are any active filters (search or otherwise)
+  const hasActiveFilters = pipe(urlFilters, Array.isNonEmptyReadonlyArray);
+
+  // Determine which content to show when data is empty
+  const getEmptyContent = (): ReactNode | null => {
+    if (loading || data.length > 0) {
+      return null;
     }
+    if (hasActiveFilters) {
+      return (
+        noResultsState ?? (
+          <Empty className="min-h-48">
+            <EmptyHeader>
+              <EmptyTitle>No records found</EmptyTitle>
+              <EmptyDescription>Clear filters to see every matching record.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        )
+      );
+    }
+    return emptyState ?? null;
+  };
 
-    return data.filter((item) => {
-      const primaryValue = filterColumn ? String(filterColumn.cell(item) ?? "") : "";
-      const rowValue = [primaryValue, getRowLabel(item)].join(" ");
-
-      return rowValue.toLowerCase().includes(normalizedQuery);
-    });
-  }, [data, filterColumn, getRowLabel, query]);
+  const emptyContent = getEmptyContent();
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="-mt-1 mb-2 flex items-center gap-2 pt-1 md:mr-4 md:mb-4">
-        <Input
-          className="h-9 max-w-sm"
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={filterPlaceHolder}
-          value={query}
-        />
-        {Actions}
-      </div>
+      <CollectionToolbar<TData>
+        _tag={_tag}
+        Actions={Actions}
+        // We do this negative margin top and padding top because of shadows in components for active states that exist
+        // within it that get clipped.
+        className="-mt-1 mb-2 pt-1 md:mr-4 md:mb-4"
+        data={data}
+        filterColumnId={filterColumnId}
+        filterKey={filterKey}
+        filterPlaceHolder={filterPlaceHolder}
+        table={table}
+      />
 
-      {loading ? (
-        <Card className="flex min-h-48 items-center justify-center text-muted-foreground text-sm">
-          Loading...
-        </Card>
-      ) : (
-        <Card className="overflow-hidden p-0">
-          {filteredData.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {columnsDef.map((column) => (
-                    <TableHead key={column.id}>{column.header}</TableHead>
-                  ))}
-                  {rowActions ? <TableHead className="w-px" /> : null}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredData.map((item) => (
-                  <TableRow aria-label={getRowLabel(item)} key={getRowKey(item)}>
-                    {columnsDef.map((column) => (
-                      <TableCell className={column.className} key={column.id}>
-                        {column.cell(item)}
-                      </TableCell>
-                    ))}
-                    {rowActions ? <TableCell>{rowActions(item)}</TableCell> : null}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <Empty className="min-h-48 border-0">
-              <EmptyHeader>
-                <EmptyTitle>No records found</EmptyTitle>
-                <EmptyDescription>
-                  Try a different search or switch Church context.
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          )}
-        </Card>
-      )}
+      {emptyContent ??
+        pipe(
+          collectionView,
+          collectionViewMatch({
+            cards: () => (
+              <>
+                <Divider variant="page" />
+
+                <CollectionCardView
+                  limit={limit}
+                  nextPage={nextPage}
+                  pageSize={pageSize}
+                  rowSize={rowSize}
+                  table={table}
+                />
+              </>
+            ),
+            table: () => (
+              <CollectionTableView
+                limit={limit}
+                nextPage={nextPage}
+                pageSize={pageSize}
+                table={table}
+              />
+            ),
+          }),
+        )}
     </div>
   );
-}
+};

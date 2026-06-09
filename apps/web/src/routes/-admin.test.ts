@@ -63,8 +63,8 @@ describe("admin route fidelity", () => {
     expect(orgsCollectionSource).toContain("<Collection<OrgCollectionItem>");
     expect(usersCollectionSource).toContain("export function UsersCollection");
     expect(usersCollectionSource).toContain("<Collection<UserCollectionItem>");
-    expect(collectionSource).toContain("placeholder={filterPlaceHolder}");
-    expect(collectionSource).toContain("<Table>");
+    expect(collectionSource).toContain("filterPlaceHolder={filterPlaceHolder}");
+    expect(collectionSource).toContain("<CollectionTableView");
     expect(combinedSource).not.toMatch(/preacher|sermon|video|channel|agreement|royalty/i);
   });
 });

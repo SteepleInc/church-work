@@ -1,13 +1,40 @@
 import { afterEach, describe, expect, test } from "vitest";
 
+import { shouldLogAuthEmails } from "../authCore";
 import { isOtpCaptureEnabled } from "../convex/http";
 
 const originalEnv = { ...process.env };
 
 afterEach(() => {
   process.env.NODE_ENV = originalEnv.NODE_ENV;
+  process.env.CONVEX_DEPLOYMENT = originalEnv.CONVEX_DEPLOYMENT;
   process.env.OTP_CAPTURE_ENABLED = originalEnv.OTP_CAPTURE_ENABLED;
   process.env.SITE_URL = originalEnv.SITE_URL;
+});
+
+describe("shouldLogAuthEmails", () => {
+  test("is enabled for Convex dev deployments", () => {
+    process.env.NODE_ENV = "production";
+    process.env.CONVEX_DEPLOYMENT = "dev:fantastic-vulture-71";
+
+    expect(shouldLogAuthEmails()).toBe(true);
+  });
+
+  test("is enabled for local app urls", () => {
+    process.env.NODE_ENV = "production";
+    process.env.CONVEX_DEPLOYMENT = undefined;
+    process.env.SITE_URL = "http://localhost:2001";
+
+    expect(shouldLogAuthEmails()).toBe(true);
+  });
+
+  test("is disabled for production deployments", () => {
+    process.env.NODE_ENV = "production";
+    process.env.CONVEX_DEPLOYMENT = "prod:steady-otter-42";
+    process.env.SITE_URL = "https://churchtask.app";
+
+    expect(shouldLogAuthEmails()).toBe(false);
+  });
 });
 
 describe("isOtpCaptureEnabled", () => {

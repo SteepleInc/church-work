@@ -2,7 +2,7 @@ import { env } from "@church-task/env/web";
 import type { clearOrgForOnboarding } from "@church-task/backend/authCore";
 import { convexClient, crossDomainClient } from "@convex-dev/better-auth/client/plugins";
 import type { BetterAuthClientPlugin } from "better-auth/client";
-import { emailOTPClient, organizationClient } from "better-auth/client/plugins";
+import { adminClient, emailOTPClient, organizationClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
 const completeOnboardingClient = () =>
@@ -36,6 +36,7 @@ export const authClient = createAuthClient({
   baseURL: env.VITE_CONVEX_SITE_URL,
   plugins: [
     emailOTPClient(),
+    adminClient(),
     completeOnboardingClient(),
     clearOrgForOnboardingClient(),
     organizationClient({

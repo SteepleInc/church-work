@@ -24,12 +24,9 @@ describe("internal navigation", () => {
     );
   });
 
-  test("gates internal navigation to Church owners and admins", () => {
-    expect(canAccessInternalNavigation("owner")).toBe(true);
-    expect(canAccessInternalNavigation("admin")).toBe(true);
-    expect(canAccessInternalNavigation(["member", "admin"])).toBe(true);
-    expect(canAccessInternalNavigation("member")).toBe(false);
-    expect(canAccessInternalNavigation(null)).toBe(false);
+  test("gates internal navigation to App Administrators only", () => {
+    expect(canAccessInternalNavigation(true)).toBe(true);
+    expect(canAccessInternalNavigation(false)).toBe(false);
   });
 
   test("adds breadcrumb labels for internal routes", () => {

@@ -1,7 +1,11 @@
 import { Collection } from "@/components/collections/collection";
-import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
-import { globalUsersFiltersDef, globalUsersTableColumns } from "@/data/users/usersCollectionDef";
-import { useChurchUsersCollection, type UserCollectionItem } from "@/data/users/usersData.app";
+import { usersColumnsDef } from "@/data/users/usersCollectionDef";
+import {
+  useAllUsersCollectionWithFilters,
+  type UserCollectionItem,
+} from "@/data/users/usersData.app";
+import { UserActions } from "@/features/actions/userActions";
+import { FilterKeys } from "@/shared/global-state";
 
 type UsersCollectionProps = {
   readonly _tag: "global";
@@ -18,23 +22,23 @@ export function UsersCollection(props: UsersCollectionProps) {
 }
 
 function GlobalUsersCollection() {
-  const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
-  const { loading, usersCollection } = useChurchUsersCollection({
-    churchId: activeChurch?.id ?? null,
-  });
+  const { limit, loading, nextPage, pageSize, usersCollection } =
+    useAllUsersCollectionWithFilters();
 
   return (
     <Collection<UserCollectionItem>
       _tag="users"
-      columnsDef={globalUsersTableColumns}
+      columnPinning={{ left: ["name"] }}
+      columnsDef={usersColumnsDef}
       data={usersCollection}
-      filterColumnId="email"
-      filterKey="users"
-      filterPlaceHolder="Filter Members"
-      filtersDef={globalUsersFiltersDef}
-      getRowKey={(user) => user.memberId}
-      getRowLabel={(user) => `Admin User ${user.name ?? user.email}`}
+      filterColumnId="name"
+      filterKey={FilterKeys.Users}
+      filterPlaceHolder="Search users"
+      limit={limit}
       loading={loading}
+      nextPage={nextPage}
+      pageSize={pageSize}
+      rowActions={(user) => <UserActions mode="table" userId={user.id} />}
     />
   );
 }

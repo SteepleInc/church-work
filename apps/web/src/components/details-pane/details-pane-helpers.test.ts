@@ -15,6 +15,15 @@ describe("details pane route search", () => {
     ).toEqual([{ _tag: "task", id: "task-1", tab: "details" }]);
   });
 
+  test("round-trips org details pane history stacks", () => {
+    const history = [
+      { _tag: "org" as const, id: "org-1", tab: "details" as const },
+      { _tag: "org" as const, id: "org-2", tab: "details" as const },
+    ];
+
+    expect(parseDetailsPaneState(getDetailsPaneSearch({}, history))).toEqual(history);
+  });
+
   test("drops invalid details pane state", () => {
     expect(
       parseDetailsPaneState({

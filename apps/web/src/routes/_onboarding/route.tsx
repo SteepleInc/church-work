@@ -61,6 +61,10 @@ function OnboardingLayout() {
           </aside>
 
           <main className="relative flex h-full w-auto flex-col overflow-hidden bg-cream p-4 text-foreground xs:p-6 md:h-auto md:flex-1 md:p-4 lg:p-8 dark:bg-black">
+            <div className="absolute top-4 right-4 hidden flex-row items-center gap-2 md:flex lg:top-8 lg:right-8">
+              <ModeToggle />
+              <UserMenu />
+            </div>
             <Outlet />
           </main>
 

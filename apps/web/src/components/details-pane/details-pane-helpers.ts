@@ -10,6 +10,7 @@ import {
   type DetailsPaneTask,
   type DetailsPaneTeam,
   type DetailsPaneUnion,
+  type DetailsPaneUser,
 } from "@/components/details-pane/details-pane-types";
 
 export function parseDetailsPaneState(search: { readonly "details-pane"?: unknown }) {
@@ -84,6 +85,7 @@ export function useChangeDetailsPaneId() {
             Match.tag("org", (org) => ({ ...org, id })),
             Match.tag("task", (task) => ({ ...task, id })),
             Match.tag("team", (team) => ({ ...team, id })),
+            Match.tag("user", (user) => ({ ...user, id })),
             Match.exhaustive,
           )(entry),
         ),
@@ -186,6 +188,13 @@ export function useOpenTeamDetailsPaneUrl(options: { readonly replace?: boolean 
 export function useOpenOrgDetailsPaneUrl(options: { readonly replace?: boolean } = {}) {
   return useOpenEntityDetailsPaneUrl<DetailsPaneOrg>({
     defaultParams: { _tag: "org", tab: "details" },
+    replace: options.replace,
+  });
+}
+
+export function useOpenUserDetailsPaneUrl(options: { readonly replace?: boolean } = {}) {
+  return useOpenEntityDetailsPaneUrl<DetailsPaneUser>({
+    defaultParams: { _tag: "user", tab: "details" },
     replace: options.replace,
   });
 }

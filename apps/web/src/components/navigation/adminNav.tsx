@@ -2,12 +2,12 @@ import { adminNavItems } from "@/components/navigation/nav-shared";
 import { SideBarItem } from "@/components/navigation/sidebar-item";
 import { canAccessInternalNavigation } from "@/components/navigation/internal-navigation";
 import { SidebarGroup, SidebarGroupLabel, SidebarMenu } from "@/components/ui/sidebar";
-import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
+import { useIsAdmin } from "@/data/users/adminData.app";
 
 export function AdminNav() {
-  const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
+  const isAppAdministrator = useIsAdmin();
 
-  if (!canAccessInternalNavigation(activeChurch?.role)) {
+  if (!canAccessInternalNavigation(isAppAdministrator)) {
     return null;
   }
 

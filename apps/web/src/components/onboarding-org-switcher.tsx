@@ -43,11 +43,13 @@ export function OnboardingOrgSwitcher({ className }: { readonly className?: stri
     return (
       <div
         className={cn(
-          "flex h-auto w-full items-center gap-3 rounded-lg bg-background/10 px-3 py-2 text-background dark:bg-foreground/10 dark:text-foreground",
+          "flex h-auto w-full items-center gap-3 rounded-lg bg-onboarding-panel-foreground/10 px-3 py-2 text-onboarding-panel-foreground",
           className,
         )}
       >
-        <Plus className="size-4" />
+        <div className="flex size-8 items-center justify-center rounded-md border border-onboarding-panel-foreground/30 border-dashed">
+          <Plus className="size-4" />
+        </div>
         <span className="truncate font-semibold">
           {getOnboardingOrgSwitcherLabel({ currentOrgName: null })}
         </span>
@@ -59,7 +61,7 @@ export function OnboardingOrgSwitcher({ className }: { readonly className?: stri
     return (
       <div
         className={cn(
-          "flex h-auto w-full items-center gap-3 rounded-lg bg-background/10 px-3 py-2 text-background dark:bg-foreground/10 dark:text-foreground",
+          "flex h-auto w-full items-center gap-3 rounded-lg bg-onboarding-panel-foreground/10 px-3 py-2 text-onboarding-panel-foreground",
           className,
         )}
       >
@@ -81,7 +83,7 @@ export function OnboardingOrgSwitcher({ className }: { readonly className?: stri
         <DropdownMenuTrigger
           render={
             <Button
-              className="h-auto w-full justify-start gap-3 bg-background/10 px-3 py-2 text-background hover:bg-background/20 hover:text-background dark:bg-foreground/10 dark:text-foreground dark:hover:bg-foreground/20 dark:hover:text-foreground"
+              className="h-auto w-full justify-start gap-3 bg-onboarding-panel-foreground/10 px-3 py-2 text-onboarding-panel-foreground hover:bg-onboarding-panel-foreground/20 hover:text-onboarding-panel-foreground"
               variant="ghost"
             />
           }
@@ -144,7 +146,7 @@ export function OnboardingOrgSwitcher({ className }: { readonly className?: stri
 
 function ChurchInitials({ name }: { readonly name: string }) {
   return (
-    <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-background text-foreground text-xs font-semibold dark:bg-foreground dark:text-background">
+    <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-onboarding-panel-foreground/20 text-onboarding-panel-foreground text-xs font-semibold">
       {name.slice(0, 1).toLocaleUpperCase() || "C"}
     </div>
   );

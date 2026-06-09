@@ -25,12 +25,8 @@ export const appAdminNavItems: readonly InternalNavItem[] = [
   { label: "Users", to: "/admin/users", matchPath: "/admin/users" },
 ];
 
-export function canAccessInternalNavigation(role: string | string[] | null | undefined) {
-  if (Array.isArray(role)) {
-    return role.includes("owner") || role.includes("admin");
-  }
-
-  return role === "owner" || role === "admin";
+export function canAccessInternalNavigation(isAppAdministrator: boolean) {
+  return isAppAdministrator;
 }
 
 export function getInternalRouteBreadcrumbLabel(pathname: string) {
@@ -53,8 +49,12 @@ export function getInternalRouteBreadcrumbLabel(pathname: string) {
   return null;
 }
 
-export function InternalNavigationSections({ role }: { readonly role: string | string[] }) {
-  if (!canAccessInternalNavigation(role)) {
+export function InternalNavigationSections({
+  isAppAdministrator,
+}: {
+  readonly isAppAdministrator: boolean;
+}) {
+  if (!canAccessInternalNavigation(isAppAdministrator)) {
     return null;
   }
 

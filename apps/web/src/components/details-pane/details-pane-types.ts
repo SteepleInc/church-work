@@ -21,7 +21,19 @@ export const DetailsPaneOrg = Schema.Struct({
 });
 export type DetailsPaneOrg = typeof DetailsPaneOrg.Type;
 
-export const DetailsPaneUnion = Schema.Union(DetailsPaneTask, DetailsPaneTeam, DetailsPaneOrg);
+export const DetailsPaneUser = Schema.Struct({
+  _tag: Schema.Literal("user"),
+  id: Schema.String,
+  tab: Schema.Literal("details"),
+});
+export type DetailsPaneUser = typeof DetailsPaneUser.Type;
+
+export const DetailsPaneUnion = Schema.Union(
+  DetailsPaneTask,
+  DetailsPaneTeam,
+  DetailsPaneOrg,
+  DetailsPaneUser,
+);
 export type DetailsPaneUnion = typeof DetailsPaneUnion.Type;
 
 export const DetailsPaneParams = Schema.Array(DetailsPaneUnion);

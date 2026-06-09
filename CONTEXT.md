@@ -142,6 +142,26 @@ _Avoid_: Workflow Column, Board Column
 The canonical category of a Task's Workflow Status: To Do, In Progress, Done, or Canceled. Initial Task States are fixed, though future product versions may allow Churches to define their own Task States.
 _Avoid_: Percent complete, story status
 
+**App Administration**:
+The cross-Church support surface for operating Church Task itself, reached under the `/admin` route. App Administration lists every Church and every User across all tenants, unlike normal product surfaces which are scoped to the Active Church.
+_Avoid_: Internal tools as the canonical name, super admin area, back office
+
+**App Administrator**:
+A User granted an application-level admin role that is independent of any Church Membership Role. App Administrator status is what authorizes the App Administration surface and User impersonation; being an owner or admin of one's own Church does not make a User an App Administrator.
+_Avoid_: Super admin, owner, staff, global admin
+
+**Impersonation**:
+An App Administrator action that starts a session acting as another User for support purposes. Impersonation is gated to App Administrators and is distinct from any Church Membership.
+_Avoid_: Login as, sudo, masquerade
+
+**Collection**:
+The reusable presentation of a list of domain records as either a sortable, filterable table or a card grid, with a toolbar, row actions, and an optional Details Pane. A Collection is the standard way App Administration and product surfaces render Churches, Users, and similar lists.
+_Avoid_: Data table as the canonical name, grid, list view
+
+**Details Pane**:
+The side panel that opens when a record in a Collection is selected, showing that record's header, tabs, actions, and detail sections without leaving the list. A Details Pane keeps a history stack so navigating between related records can be reversed.
+_Avoid_: Drawer, sidebar, inspector
+
 ## Example Dialogue
 
 **Pastor**: We need the Easter graphics work to show up every year in the Cycle that contains Easter.

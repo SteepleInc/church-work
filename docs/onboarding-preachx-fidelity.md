@@ -34,7 +34,7 @@ Intentional differences:
 
 - PreachX has five onboarding steps for church organizations. Church Task intentionally has two: Church Profile and Initial Teams.
 - PreachX copy mentions sermon royalty and preacher setup. Church Task copy uses Church, Teams, and work setup language.
-- PreachX's desktop theme/user controls are not rendered in Church Task's onboarding shell for this repair because #91 explicitly called out removing the divergent top-right controls unless the selected adaptation matched PreachX.
+- The onboarding shell now renders PreachX's desktop theme/user controls (`ModeToggle` + `UserMenu`) floating in the top-right of the right panel, matching PreachX exactly so the user avatar and theme toggle are reachable on desktop.
 
 Screenshot/visual acceptance checklist:
 

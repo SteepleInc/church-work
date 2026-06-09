@@ -1,6 +1,8 @@
 import { Collection } from "@/components/collections/collection";
-import { orgsColumnsDef, orgsFiltersDef } from "@/data/orgs/orgsCollectionDef";
-import { useUserOrgsCollection, type OrgCollectionItem } from "@/data/orgs/orgsData.app";
+import { orgsColumnsDef } from "@/data/orgs/orgsCollectionDef";
+import { useAllOrgsCollectionWithFilters, type OrgCollectionItem } from "@/data/orgs/orgsData.app";
+import { OrgActions } from "@/features/actions/orgActions";
+import { FilterKeys } from "@/shared/global-state";
 
 type OrgsCollectionProps = {
   readonly _tag: "global";
@@ -17,20 +19,22 @@ export function OrgsCollection(props: OrgsCollectionProps) {
 }
 
 function GlobalOrgsCollection() {
-  const { loading, orgsCollection } = useUserOrgsCollection();
+  const { limit, loading, nextPage, orgsCollection, pageSize } = useAllOrgsCollectionWithFilters();
 
   return (
     <Collection<OrgCollectionItem>
       _tag="orgs"
+      columnPinning={{ left: ["name"] }}
       columnsDef={orgsColumnsDef}
       data={orgsCollection}
       filterColumnId="name"
-      filterKey="orgs"
+      filterKey={FilterKeys.Orgs}
       filterPlaceHolder="Search organizations"
-      filtersDef={orgsFiltersDef}
-      getRowKey={(org) => org.id}
-      getRowLabel={(org) => `Admin Church ${org.name}`}
+      limit={limit}
       loading={loading}
+      nextPage={nextPage}
+      pageSize={pageSize}
+      rowActions={(org) => <OrgActions mode="table" orgId={org.id} />}
     />
   );
 }

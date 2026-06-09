@@ -6,9 +6,12 @@ const onboardingSource = await Bun.file(new URL("./onboarding.tsx", import.meta.
 describe("onboarding PreachX fidelity guards", () => {
   test("removes the mismatched generated onboarding chrome", () => {
     expect(routeSource).not.toContain("Next up");
-    expect(routeSource).not.toContain("top-4 right-4 hidden flex-row items-center gap-2 md:flex");
     expect(onboardingSource).not.toContain("Step 1 of 2");
     expect(onboardingSource).not.toContain("Step 2 of 2");
+  });
+
+  test("renders the PreachX desktop top-right theme/user controls", () => {
+    expect(routeSource).toContain("top-4 right-4 hidden flex-row items-center gap-2 md:flex");
   });
 
   test("keeps the copied PreachX onboarding frame spacing", () => {

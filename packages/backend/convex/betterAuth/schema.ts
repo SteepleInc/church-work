@@ -16,12 +16,18 @@ export const tables = {
     phoneNumber: v.optional(v.union(v.null(), v.string())),
     phoneNumberVerified: v.optional(v.union(v.null(), v.boolean())),
     userId: v.optional(v.union(v.null(), v.string())),
+    role: v.optional(v.union(v.null(), v.string())),
+    banned: v.optional(v.union(v.null(), v.boolean())),
+    banReason: v.optional(v.union(v.null(), v.string())),
+    banExpires: v.optional(v.union(v.null(), v.number())),
   })
     .index("email_name", ["email", "name"])
     .index("name", ["name"])
     .index("userId", ["userId"])
     .index("username", ["username"])
-    .index("phoneNumber", ["phoneNumber"]),
+    .index("phoneNumber", ["phoneNumber"])
+    .searchIndex("search_name", { searchField: "name" })
+    .searchIndex("search_email", { searchField: "email" }),
   session: defineTable({
     expiresAt: v.number(),
     token: v.string(),
@@ -33,6 +39,7 @@ export const tables = {
     activeOrganizationId: v.optional(v.union(v.null(), v.string())),
     activeTeamId: v.optional(v.union(v.null(), v.string())),
     skipOrgFallback: v.optional(v.union(v.null(), v.boolean())),
+    impersonatedBy: v.optional(v.union(v.null(), v.string())),
   })
     .index("expiresAt", ["expiresAt"])
     .index("expiresAt_userId", ["expiresAt", "userId"])
@@ -140,8 +147,15 @@ export const tables = {
     size: v.optional(v.union(v.null(), v.string())),
     createdAt: v.number(),
   })
+    .index("churchTimeZone", ["churchTimeZone"])
+    .index("completedOnboarding", ["completedOnboarding"])
+    .index("createdAt", ["createdAt"])
     .index("slug", ["slug"])
-    .index("name", ["name"]),
+    .index("size", ["size"])
+    .index("url", ["url"])
+    .index("name", ["name"])
+    .searchIndex("search_name", { searchField: "name" })
+    .searchIndex("search_slug", { searchField: "slug" }),
   member: defineTable({
     organizationId: v.string(),
     userId: v.string(),

@@ -6,6 +6,7 @@ import { canAccessInternalNavigation } from "@/components/navigation/internal-na
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { useUserOrgsCollection } from "@/data/orgs/orgsData.app";
 import { useTeamsCollection } from "@/data/teams/teamsData.app";
+import { useIsAdmin } from "@/data/users/adminData.app";
 import { useChurchUsersCollection } from "@/data/users/usersData.app";
 import { authClient } from "@/lib/auth-client";
 
@@ -205,12 +206,13 @@ function AppAdminUsersContent() {
 }
 
 export function InternalAccessGate({ children }: { readonly children: ReactNode }) {
-  const { currentOrgOpt: activeChurch, loading } = useCurrentOrgOpt();
+  const session = authClient.useSession();
+  const isAppAdministrator = useIsAdmin();
 
-  if (loading) {
+  if (session.isPending) {
     return (
       <InternalPageFrame
-        description="Checking your active Church role before showing internal tools."
+        description="Checking your App Administrator role before showing internal tools."
         eyebrow="Internal"
         title="Loading Internal Access"
       >
@@ -219,18 +221,18 @@ export function InternalAccessGate({ children }: { readonly children: ReactNode 
     );
   }
 
-  if (!canAccessInternalNavigation(activeChurch?.role)) {
+  if (!canAccessInternalNavigation(isAppAdministrator)) {
     return (
       <InternalPageFrame
-        description="Internal dev and app-admin tools are available only to Church owners and admins."
+        description="Internal dev and app-admin tools are available only to App Administrators."
         eyebrow="Internal"
         title="Access Restricted"
       >
         <Card>
           <CardHeader>
-            <CardTitle>Owner or admin access required</CardTitle>
+            <CardTitle>App Administrator access required</CardTitle>
             <CardDescription>
-              Ask a Church owner to update your role if you need this support surface.
+              Ask an App Administrator to update your role if you need this support surface.
             </CardDescription>
           </CardHeader>
         </Card>
