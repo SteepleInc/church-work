@@ -15,6 +15,7 @@ import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { CreateTaskQuickAction } from "@/features/quick-actions/create-task-quick-action";
 import { EditOrgQuickAction } from "@/features/quick-actions/edit-org-quick-action";
 import { EditUserQuickAction } from "@/features/quick-actions/edit-user-quick-action";
+import { TeamQuickAction } from "@/features/quick-actions/team-quick-action";
 import { InviteMemberQuickAction } from "@/features/settings/invite-member";
 import { canInviteChurchMembers } from "@/features/settings/invite-member-utils";
 import {
@@ -22,7 +23,10 @@ import {
   quickActionsIsOpenAtom,
   useQuickActionOpeners,
 } from "@/features/quick-actions/quick-actions-state";
-import { buildChurchTaskQuickActions } from "@/features/quick-actions/quick-actions-utils";
+import {
+  buildChurchTaskQuickActions,
+  canManageChurchTeams,
+} from "@/features/quick-actions/quick-actions-utils";
 import type { QuickActionDefinition } from "@/features/quick-actions/quick-actions-types";
 
 export function QuickActions() {
@@ -30,7 +34,7 @@ export function QuickActions() {
   const disableQuickActions = useAtomValue(disableQuickActionsAtom);
   const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
   const navigate = useNavigate();
-  const { openCreateTask, openInviteMember } = useQuickActionOpeners();
+  const { openCreateTask, openCreateTeam, openInviteMember } = useQuickActionOpeners();
 
   useEffect(() => {
     if (disableQuickActions) return;
@@ -48,16 +52,29 @@ export function QuickActions() {
     return () => document.removeEventListener("keydown", handler);
   }, [disableQuickActions, setQuickActionsIsOpen]);
 
+  const activeChurchId = activeChurch?.id ?? null;
   const actions = useMemo(
     () =>
       buildChurchTaskQuickActions({
         canInviteMembers: canInviteChurchMembers(activeChurch?.role),
+        canManageTeams: activeChurchId !== null && canManageChurchTeams(activeChurch?.role),
         closeQuickActions: () => setQuickActionsIsOpen(false),
         openCreateTask: () => openCreateTask(),
+        openCreateTeam: () => {
+          if (activeChurchId) openCreateTeam({ churchId: activeChurchId });
+        },
         navigateToSettings: () => void navigate({ to: "/settings" }),
         openInviteMember,
       }),
-    [activeChurch?.role, navigate, openCreateTask, openInviteMember, setQuickActionsIsOpen],
+    [
+      activeChurch?.role,
+      activeChurchId,
+      navigate,
+      openCreateTask,
+      openCreateTeam,
+      openInviteMember,
+      setQuickActionsIsOpen,
+    ],
   );
 
   return (
@@ -80,6 +97,7 @@ export function QuickActions() {
       ) : null}
       <EditOrgQuickAction />
       <EditUserQuickAction />
+      <TeamQuickAction />
     </>
   );
 }

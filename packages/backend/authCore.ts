@@ -431,6 +431,10 @@ export function createAuthOptions(ctx: GenericCtx<DataModel>) {
                 type: "string",
                 required: false,
               },
+              color: {
+                type: "string",
+                required: false,
+              },
             },
           },
         },

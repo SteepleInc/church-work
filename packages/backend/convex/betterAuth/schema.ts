@@ -186,6 +186,7 @@ export const tables = {
     archivedAt: v.optional(v.union(v.null(), v.string())),
     sortOrder: v.optional(v.union(v.null(), v.number())),
     defaultWorkflowId: v.optional(v.union(v.null(), v.string())),
+    color: v.optional(v.union(v.null(), v.string())),
   })
     .index("organizationId", ["organizationId"])
     .index("organizationId_name", ["organizationId", "name"]),

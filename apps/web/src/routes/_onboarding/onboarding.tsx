@@ -12,15 +12,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { TeamAvatar } from "@/components/avatars/teamAvatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
-  useCreateTeamMutation,
   useDeleteTeamMutation,
-  useRenameTeamMutation,
   useTeamsCollection,
   type TeamCollectionItem,
 } from "@/data/teams/teamsData.app";
+import { useQuickActionOpeners } from "@/features/quick-actions/quick-actions-state";
 import {
   getOnboardingStepTitle,
   OnboardingStep,
@@ -35,17 +35,7 @@ import { detectedTimeZone, resolveTimeZoneFromCoordinates } from "@/lib/time-zon
 import { revalidateLogic } from "@tanstack/react-form";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Schema } from "effect";
-import {
-  ArrowRight,
-  Building2,
-  Church,
-  PartyPopper,
-  Pencil,
-  Plus,
-  Search,
-  Trash2,
-  UsersRound,
-} from "lucide-react";
+import { ArrowRight, Church, PartyPopper, Pencil, Plus, Search, UsersRound, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -343,7 +333,7 @@ function ChurchProfileStepCard() {
                   loading={isSubmitting}
                   type="submit"
                 >
-                  Continue to Teams
+                  Next
                   <ArrowRight />
                 </Button>
               )}
@@ -359,37 +349,12 @@ function InitialTeamsStepCard(props: {
   readonly churchId: string;
   readonly onComplete: () => Promise<void>;
 }) {
-  const { teamsCollection, loading } = useTeamsCollection({ churchId: props.churchId });
-  const createTeam = useCreateTeamMutation();
-  const renameTeam = useRenameTeamMutation();
+  const { teamsCollection } = useTeamsCollection({ churchId: props.churchId });
   const deleteTeam = useDeleteTeamMutation();
-  const [newTeamName, setNewTeamName] = useState("");
+  const { openCreateTeam, openEditTeam } = useQuickActionOpeners();
 
   const teams = [...teamsCollection].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   const hasTeams = teams.length > 0;
-
-  const addTeam = () => {
-    const name = newTeamName.trim();
-    if (!name) return;
-
-    setNewTeamName("");
-    void createTeam({ churchId: props.churchId, name }).then((result) => {
-      if ("error" in result) {
-        toast.error(result.error.message);
-      }
-    });
-  };
-
-  const commitRename = (team: TeamCollectionItem, name: string) => {
-    const trimmed = name.trim();
-    if (!trimmed || trimmed === team.name) return;
-
-    void renameTeam({ churchId: props.churchId, name: trimmed, teamId: team.id }).then((result) => {
-      if ("error" in result) {
-        toast.error(result.error.message);
-      }
-    });
-  };
 
   const removeTeam = (team: TeamCollectionItem) => {
     void deleteTeam({ churchId: props.churchId, teamId: team.id }).then((result) => {
@@ -404,32 +369,18 @@ function InitialTeamsStepCard(props: {
       <Card className="w-full overflow-hidden">
         <CardHeader className="items-center sm:items-start">
           <CardAdornment className="row-span-1 mr-2 self-center sm:row-span-2 sm:self-start">
-            <Building2 className="size-5" />
+            <UsersRound className="size-5" />
           </CardAdornment>
           <CardTitle className="self-center sm:self-start">Teams</CardTitle>
           <CardAction className="row-span-1 self-center sm:row-span-2 sm:self-start">
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <label className="sr-only" htmlFor="new-team-name">
-                New Team Name
-              </label>
-              <input
-                className="h-8 w-full min-w-0 rounded-lg border border-input bg-background px-2.5 text-sm ring-offset-background transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:w-44"
-                id="new-team-name"
-                onChange={(event) => setNewTeamName(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    addTeam();
-                  }
-                }}
-                placeholder="Add a Team"
-                value={newTeamName}
-              />
-              <Button onClick={addTeam} type="button" variant="outline">
-                <Plus />
-                Add Team
-              </Button>
-            </div>
+            <Button
+              onClick={() => openCreateTeam({ churchId: props.churchId })}
+              type="button"
+              variant="outline"
+            >
+              <Plus />
+              Add Team
+            </Button>
           </CardAction>
           <CardDescription className="col-span-2 col-start-2 sm:col-span-1">
             Review the starting Teams Church Task created for your Church.
@@ -444,22 +395,23 @@ function InitialTeamsStepCard(props: {
                   className="flex flex-row items-center gap-3 rounded-lg border px-4 py-3 shadow-sm"
                   key={team.id}
                 >
-                  <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                    <UsersRound className="size-5" />
-                  </div>
+                  <TeamAvatar color={team.color} name={team.name} size={44} />
+
                   <div className="flex min-w-0 flex-1 flex-col items-start">
-                    <label className="sr-only" htmlFor={`initial-team-${team.id}`}>
-                      Team {index + 1} Name
-                    </label>
-                    <TeamNameInput
-                      id={`initial-team-${team.id}`}
-                      name={team.name}
-                      onCommit={(name) => commitRename(team, name)}
-                    />
+                    <p className="font-semibold">{team.name}</p>
                     <p className="-mt-1 text-muted-foreground text-sm">Initial Church Task Team</p>
                   </div>
 
                   <div className="ml-auto flex gap-1">
+                    <Button
+                      aria-label={`Edit ${team.name || `Team ${index + 1}`}`}
+                      onClick={() => openEditTeam({ churchId: props.churchId, teamId: team.id })}
+                      size="icon"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Pencil />
+                    </Button>
                     <Button
                       aria-label={`Remove ${team.name || `Team ${index + 1}`}`}
                       onClick={() => removeTeam(team)}
@@ -467,7 +419,7 @@ function InitialTeamsStepCard(props: {
                       type="button"
                       variant="ghost"
                     >
-                      <Trash2 />
+                      <X />
                     </Button>
                   </div>
                 </div>
@@ -477,45 +429,24 @@ function InitialTeamsStepCard(props: {
         ) : null}
       </Card>
 
-      <p className="text-sm text-muted-foreground">
-        {loading
-          ? "Loading Teams..."
-          : teams.length === 0
-            ? "You can continue without Teams and create them later in settings."
-            : `${teams.length} Team${teams.length === 1 ? "" : "s"} ready for your Church.`}
-      </p>
-
       <ActionRow className="-mx-4 -mb-4 w-[calc(100%+2rem)]">
-        <Button className="ml-auto" onClick={() => void props.onComplete()} type="button">
-          Continue
-          <ArrowRight />
+        <Button
+          className="ml-auto"
+          onClick={() => void props.onComplete()}
+          type="button"
+          variant={hasTeams ? "default" : "ghost"}
+        >
+          {hasTeams ? (
+            <>
+              Next
+              <ArrowRight />
+            </>
+          ) : (
+            "Skip"
+          )}
         </Button>
       </ActionRow>
     </div>
-  );
-}
-
-function TeamNameInput(props: {
-  readonly id: string;
-  readonly name: string;
-  readonly onCommit: (name: string) => void;
-}) {
-  const [draft, setDraft] = useState(props.name);
-
-  return (
-    <input
-      className="h-8 w-full rounded-md border border-transparent bg-transparent px-0 font-semibold text-sm outline-none transition-colors focus:border-input focus:bg-background focus:px-2 focus:ring-2 focus:ring-ring/40"
-      id={props.id}
-      onBlur={() => props.onCommit(draft)}
-      onChange={(event) => setDraft(event.target.value)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          event.currentTarget.blur();
-        }
-      }}
-      value={draft}
-    />
   );
 }
 

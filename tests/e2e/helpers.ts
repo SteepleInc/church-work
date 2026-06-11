@@ -47,17 +47,17 @@ export async function completeOnboarding(page: Page, churchName: string) {
   await page.getByTestId("onboarding-enter-manually").click();
   await page.getByLabel("Church Name").fill(churchName);
   await page.getByLabel("Church Time Zone").fill("America/Chicago");
-  await page.getByRole("button", { name: "Continue to Teams" }).click();
+  await page.getByRole("button", { name: "Next" }).click();
 
   await expect(page.getByText("Review the starting Teams", { exact: false })).toBeVisible({
     timeout: 20_000,
   });
   // Wait for the seeded Starter Teams to finish streaming in so the layout
-  // is stable before clicking Continue.
-  await expect(page.getByText("6 Teams ready for your Church.")).toBeVisible({
+  // is stable before clicking Next.
+  await expect(page.getByText("Initial Church Task Team")).toHaveCount(6, {
     timeout: 20_000,
   });
-  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Next" }).click();
 
   await expect(page.getByRole("button", { name: "Enter Church Task" })).toBeEnabled();
   await page.getByRole("button", { name: "Enter Church Task" }).click();

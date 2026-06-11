@@ -4,22 +4,34 @@ import {
   SettingsIcon,
   UserPlusIcon,
   UsersIcon,
+  UsersRoundIcon,
 } from "lucide-react";
 
 import type { QuickActionDefinition } from "@/features/quick-actions/quick-actions-types";
+import type { CurrentMemberRole } from "@/features/settings/invite-member-utils";
+
+export function canManageChurchTeams(currentRole: CurrentMemberRole) {
+  return Array.isArray(currentRole)
+    ? currentRole.includes("owner") || currentRole.includes("admin")
+    : currentRole === "owner" || currentRole === "admin";
+}
 
 type BuildChurchTaskQuickActionsInput = {
   readonly canInviteMembers: boolean;
+  readonly canManageTeams: boolean;
   readonly closeQuickActions: () => void;
   readonly openCreateTask: () => void;
+  readonly openCreateTeam: () => void;
   readonly navigateToSettings: () => void;
   readonly openInviteMember: () => void;
 };
 
 export function buildChurchTaskQuickActions({
   canInviteMembers,
+  canManageTeams,
   closeQuickActions,
   openCreateTask,
+  openCreateTeam,
   navigateToSettings,
   openInviteMember,
 }: BuildChurchTaskQuickActionsInput): QuickActionDefinition[] {
@@ -37,6 +49,18 @@ export function buildChurchTaskQuickActions({
       keywords: ["task", "create", "todo", "my work", "church"],
       enabled: true,
       onSelect: selectAndClose(openCreateTask),
+    },
+    {
+      group: "quick-action",
+      icon: UsersRoundIcon,
+      name: "Create Team",
+      description: "Create a Team in this Church.",
+      keywords: ["team", "create", "group", "church"],
+      enabled: canManageTeams,
+      disabledReason: canManageTeams
+        ? undefined
+        : "Only Church owners and admins can create Teams.",
+      onSelect: selectAndClose(openCreateTeam),
     },
     {
       group: "quick-action",

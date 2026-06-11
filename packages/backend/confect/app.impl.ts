@@ -1,3 +1,4 @@
+import { getTeamColorForName, isTeamColor } from "@church-task/domain/Team";
 import { FunctionImpl, GroupImpl, MutationCtx, QueryCtx } from "@confect/server";
 import { Effect, Layer } from "effect";
 
@@ -110,6 +111,7 @@ type BetterAuthTeam = {
   readonly archivedAt?: string | null;
   readonly sortOrder?: number | null;
   readonly defaultWorkflowId?: string | null;
+  readonly color?: string | null;
 };
 
 type BetterAuthTeamMember = {
@@ -176,6 +178,9 @@ const serializeTeam = (team: BetterAuthTeam) => ({
   id: team._id,
   name: team.name,
   churchId: team.organizationId,
+  // Teams created before colors were stored fall back to the same
+  // name-derived color the create path would have assigned.
+  color: isTeamColor(team.color) ? team.color : getTeamColorForName(team.name),
   archivedAt: team.archivedAt ?? null,
   sortOrder: team.sortOrder ?? 0,
   defaultWorkflowId: team.defaultWorkflowId ?? null,
@@ -1659,6 +1664,7 @@ const teamCreateForChurch = FunctionImpl.make(api, "teams", "createForChurch", (
             archivedAt: null,
             sortOrder,
             defaultWorkflowId: null,
+            color: getTeamColorForName(args.name),
           },
         },
       }),

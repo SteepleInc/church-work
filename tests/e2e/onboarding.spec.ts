@@ -75,7 +75,7 @@ async function submitChurchProfile(page: Page, churchName: string) {
   await expect(page.getByLabel("Find Your Church")).not.toBeVisible();
   await page.getByLabel("Church Name").fill(churchName);
   await page.getByLabel("Church Time Zone").fill("America/Chicago");
-  await page.getByRole("button", { name: "Continue to Teams" }).click();
+  await page.getByRole("button", { name: "Next" }).click();
   await expect(page.getByText("Review the starting Teams", { exact: false })).toBeVisible({
     timeout: 20_000,
   });
@@ -88,7 +88,7 @@ async function expectTeamsStep(page: Page) {
   await expect(page.getByText("Initial Church Task Team").first()).toBeVisible();
   // Wait for the seeded Starter Teams to finish streaming in; otherwise the
   // rows shift the layout under subsequent clicks.
-  await expect(page.getByText("6 Teams ready for your Church.")).toBeVisible({
+  await expect(page.getByText("Initial Church Task Team")).toHaveCount(6, {
     timeout: 20_000,
   });
 }
@@ -96,7 +96,7 @@ async function expectTeamsStep(page: Page) {
 async function finishOnboardingFromTeamsStep(page: Page) {
   // Substring name match: the button's accessible name includes the
   // Button component's screen-reader "Loading" status prefix.
-  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Next" }).click();
   await expect(page.getByRole("button", { name: "Enter Church Task" })).toBeEnabled();
   await page.getByRole("button", { name: "Enter Church Task" }).click();
   await expect(page).toHaveURL(/\/my-work$/, { timeout: 20_000 });
@@ -183,28 +183,39 @@ test("creates a Church profile and edits the live starting Teams", async ({ page
   // The teams step is a live editor over the seeded Starter Teams.
   await expectTeamsStep(page);
   await expect(page.getByText("Workflow setup")).not.toBeVisible();
-  await expect(page.getByLabel("Team 1 Name")).toHaveValue("Worship");
-  await expect(page.getByText("6 Teams ready for your Church.")).toBeVisible();
+  await expect(page.getByText("Worship", { exact: true })).toBeVisible();
 
-  await page.getByLabel("Team 1 Name").fill("Creative");
-  await page.getByLabel("Team 1 Name").press("Enter");
+  // Deleting is fire-and-forget; the dialog-driven rename and create below
+  // await server completion, and mutations are ordered, so by the time the
+  // create lands the delete has too.
   await page.getByRole("button", { name: "Remove Social Media" }).click();
-  await page.getByLabel("New Team Name").fill("Students");
-  await page.getByRole("button", { name: "Add Team" }).click();
-  await expect(page.getByLabel("Team 1 Name")).toHaveValue("Creative");
-  await expect(page.getByLabel("Team 6 Name")).toHaveValue("Students");
-  await expect(page.getByText("6 Teams ready for your Church.")).toBeVisible();
 
-  // Wait for the server to replace optimistic rows with real ids; mutations
-  // are ordered, so this confirms the rename and delete landed too.
-  await expect(page.locator('input[id^="initial-team-optimistic-"]')).toHaveCount(0);
+  await page.getByRole("button", { name: "Edit Worship" }).click();
+  const editTeamDialog = page.getByRole("dialog", { name: "Edit Team" });
+  await expect(editTeamDialog).toBeVisible();
+  await editTeamDialog.getByLabel("Team Name").fill("Creative");
+  await editTeamDialog.getByRole("button", { name: "Save Team" }).click();
+  await expect(editTeamDialog).not.toBeVisible();
+  await expect(page.getByText("Creative", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Add Team" }).click();
+  const createTeamDialog = page.getByRole("dialog", { name: "Create Team" });
+  await expect(createTeamDialog).toBeVisible();
+  await createTeamDialog.getByLabel("Team Name").fill("Students");
+  await createTeamDialog.getByRole("button", { name: "Create Team" }).click();
+  await expect(createTeamDialog).not.toBeVisible();
+  await expect(page.getByText("Students", { exact: true })).toBeVisible();
+
+  await expect(page.getByText("Social Media", { exact: true })).not.toBeVisible();
+  await expect(page.getByText("Initial Church Task Team")).toHaveCount(6);
 
   // The core regression: refreshing mid-onboarding keeps the user on the
   // teams step with their persisted Church and Team edits intact.
   await page.reload();
   await expectTeamsStep(page);
-  await expect(page.getByLabel("Team 1 Name")).toHaveValue("Creative");
-  await expect(page.getByLabel("Team 6 Name")).toHaveValue("Students");
+  await expect(page.getByText("Creative", { exact: true })).toBeVisible();
+  await expect(page.getByText("Students", { exact: true })).toBeVisible();
+  await expect(page.getByText("Social Media", { exact: true })).not.toBeVisible();
 
   await finishOnboardingFromTeamsStep(page);
   await expect(page.getByRole("navigation", { name: "breadcrumb" })).toContainText("My Work");

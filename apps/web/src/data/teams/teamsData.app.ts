@@ -1,5 +1,5 @@
 import { api } from "@church-task/backend/convex/_generated/api";
-import type { Team, TeamMembership } from "@church-task/domain";
+import { getTeamColorForName, type Team, type TeamMembership } from "@church-task/domain";
 import { useMutation, useQuery } from "convex/react";
 
 import {
@@ -15,7 +15,10 @@ import {
   collectionListOptimisticUpdate,
 } from "@/data/optimistic-collection";
 
-export type TeamCollectionItem = Pick<Team, "id" | "name" | "defaultWorkflowId" | "sortOrder">;
+export type TeamCollectionItem = Pick<
+  Team,
+  "id" | "name" | "color" | "defaultWorkflowId" | "sortOrder"
+>;
 
 export type TeamMembershipCollectionItem = Pick<TeamMembership, "id" | "teamId" | "userId">;
 
@@ -68,6 +71,8 @@ export function useCreateTeamMutation() {
         appendItem(teams, {
           id: optimisticId("team"),
           name: args.name,
+          // Same derivation the server uses, so the optimistic row matches.
+          color: getTeamColorForName(args.name),
           defaultWorkflowId: null,
           sortOrder: teams.reduce((max, team) => Math.max(max, team.sortOrder ?? -1), -1) + 1,
         }),

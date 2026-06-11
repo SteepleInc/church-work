@@ -86,6 +86,10 @@ _Avoid_: Department, ministry
 
 _Note_: There is no global Active Team; Teams are used contextually for filtering, visibility, workflow, and assignment inside the Active Church.
 
+**Team Color**:
+The color assigned to a Team from a fixed product palette, shown wherever the Team is represented visually (such as its avatar). A Team Color is assigned automatically when the Team is created, derived from its name, and is stored with the Team so it can later be changed by Users.
+_Avoid_: Arbitrary hex colors, avatar color as a separate concept
+
 **Team Membership**:
 The relationship between a User and a Team inside a Church. Team Membership determines which Team's work is naturally visible and relevant to that User.
 _Avoid_: Department membership, ministry membership

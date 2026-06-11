@@ -202,6 +202,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
             | {
                 data: {
                   archivedAt?: null | string;
+                  color?: null | string;
                   createdAt: number;
                   defaultWorkflowId?: null | string;
                   name: string;
@@ -733,6 +734,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "archivedAt"
                     | "sortOrder"
                     | "defaultWorkflowId"
+                    | "color"
                     | "_id";
                   mode?: "sensitive" | "insensitive";
                   operator?:
@@ -1331,6 +1333,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "archivedAt"
                     | "sortOrder"
                     | "defaultWorkflowId"
+                    | "color"
                     | "_id";
                   mode?: "sensitive" | "insensitive";
                   operator?:
@@ -2157,6 +2160,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                 model: "team";
                 update: {
                   archivedAt?: null | string;
+                  color?: null | string;
                   createdAt?: number;
                   defaultWorkflowId?: null | string;
                   name?: string;
@@ -2174,6 +2178,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "archivedAt"
                     | "sortOrder"
                     | "defaultWorkflowId"
+                    | "color"
                     | "_id";
                   mode?: "sensitive" | "insensitive";
                   operator?:
@@ -2923,6 +2928,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                 model: "team";
                 update: {
                   archivedAt?: null | string;
+                  color?: null | string;
                   createdAt?: number;
                   defaultWorkflowId?: null | string;
                   name?: string;
@@ -2940,6 +2946,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "archivedAt"
                     | "sortOrder"
                     | "defaultWorkflowId"
+                    | "color"
                     | "_id";
                   mode?: "sensitive" | "insensitive";
                   operator?:

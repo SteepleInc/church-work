@@ -1,3 +1,4 @@
+import { getTeamColorForName } from "@church-task/domain/Team";
 import type { GenericDatabaseReader, GenericMutationCtx } from "convex/server";
 
 import { components } from "./convex/_generated/api";
@@ -131,6 +132,7 @@ export async function seedDefaultWorkModel(ctx: MutationCtx, churchId: string) {
             archivedAt: null,
             sortOrder,
             defaultWorkflowId: null,
+            color: getTeamColorForName(name),
           },
         },
       });
