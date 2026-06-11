@@ -1,0 +1,9 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "references": {
+    "preach-x": {
+      "path": "/Users/izakfilmalter/Projects/PreachX/preach-x",
+      "description": "Use as the source reference for copied core shell code and design language patterns."
+    }
+  }
+}

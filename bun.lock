@@ -11,7 +11,6 @@
         "@opentelemetry/api": "^1.9.1",
         "@opentelemetry/api-logs": "^0.218.0",
         "@opentelemetry/auto-instrumentations-node": "^0.76.0",
-        "@opentelemetry/context-zone": "^2.7.1",
         "@opentelemetry/core": "^2.7.1",
         "@opentelemetry/exporter-logs-otlp-http": "^0.218.0",
         "@opentelemetry/exporter-metrics-otlp-http": "^0.218.0",
@@ -511,10 +510,6 @@
     "@opentelemetry/configuration": ["@opentelemetry/configuration@0.218.0", "", { "dependencies": { "@opentelemetry/core": "2.7.1", "yaml": "^2.0.0" }, "peerDependencies": { "@opentelemetry/api": "^1.9.0" } }, "sha512-W8wIz7H2R1pufR5jfjb3gU2XkMpm2x/7b1RJcsuzvd70Il/rWWE+g5/Od7hQKrxRTSrTrOWlru101PWXz5I1EQ=="],
 
     "@opentelemetry/context-async-hooks": ["@opentelemetry/context-async-hooks@2.7.1", "", { "peerDependencies": { "@opentelemetry/api": ">=1.0.0 <1.10.0" } }, "sha512-OPFBYuXEn1E4ja3Y6eeA7O+ZnLBNcXTV5Cgsn1VaqBZ6hC5FnpZPLBNme1LJY8ZtF4aOujPKFoeWN4ik487KuQ=="],
-
-    "@opentelemetry/context-zone": ["@opentelemetry/context-zone@2.7.1", "", { "dependencies": { "@opentelemetry/context-zone-peer-dep": "2.7.1", "zone.js": "^0.11.0 || ^0.12.0 || ^0.13.0 || ^0.14.0 || ^0.15.0 || ^0.16.0" } }, "sha512-B42kO3zIMVbJ+wj5nlSkDvLF8cJY+7wDKLomHp10GL00nvUnhY67UQ/soZQgKR4dvPf8zTKbcONDsOiJLyRuXw=="],
-
-    "@opentelemetry/context-zone-peer-dep": ["@opentelemetry/context-zone-peer-dep@2.7.1", "", { "peerDependencies": { "@opentelemetry/api": ">=1.0.0 <1.10.0", "zone.js": "^0.10.2 || ^0.11.0 || ^0.12.0 || ^0.13.0 || ^0.14.0 || ^0.15.0 || ^0.16.0" } }, "sha512-QPLvl82Ds+W9Tjz0s4b8UDUK9YkCb3pvaur4JQdgHe+eph6Ii20NbiC+wsdnBtG17DTPhmZcFvWMcQXZFBgeVw=="],
 
     "@opentelemetry/core": ["@opentelemetry/core@2.7.1", "", { "dependencies": { "@opentelemetry/semantic-conventions": "^1.29.0" }, "peerDependencies": { "@opentelemetry/api": ">=1.0.0 <1.10.0" } }, "sha512-QAqIj32AtK6+pEVNG7EOVxHdE06RP+FM5qpiEJ4RtDcFIqKUZHYhl7/7UY5efhwmwNAg7j8QbJVBLxMerc0+gw=="],
 
@@ -2007,8 +2002,6 @@
     "zod": ["zod@4.4.3", "", {}, "sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ=="],
 
     "zod-to-json-schema": ["zod-to-json-schema@3.25.2", "", { "peerDependencies": { "zod": "^3.25.28 || ^4" } }, "sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA=="],
-
-    "zone.js": ["zone.js@0.16.2", "", {}, "sha512-Eky7p2Z1Ig3NnbfodSPoARCjKBSTFMnE/ACsP1L/XJEfY4SdOFce19BsUCWVwL6K5ABZFy5J3bjcMWffX+YM3Q=="],
 
     "@babel/core/semver": ["semver@6.3.1", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA=="],
 

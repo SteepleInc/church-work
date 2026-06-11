@@ -360,7 +360,7 @@ function InitialTeamsStepCard(props: {
 
   return (
     <div className="flex flex-col gap-4 overflow-hidden p-4">
-      <Card className="w-full overflow-hidden">
+      <Card className="w-full overflow-hidden pb-0">
         <CardHeader className="items-center sm:items-start">
           <CardAdornment className="row-span-1 mr-2 self-center sm:row-span-2 sm:self-start">
             <UsersRound className="size-5" />
@@ -382,7 +382,7 @@ function InitialTeamsStepCard(props: {
         </CardHeader>
 
         {hasTeams ? (
-          <ScrollArea className="max-h-[42dvh] p-0 px-4">
+          <ScrollArea className="p-0 px-4">
             <div className="flex flex-col gap-2 pb-4" aria-label="Initial Teams">
               {teams.map((team, index) => (
                 <div
@@ -393,7 +393,6 @@ function InitialTeamsStepCard(props: {
 
                   <div className="flex min-w-0 flex-1 flex-col items-start">
                     <p className="font-semibold">{team.name}</p>
-                    <p className="-mt-1 text-muted-foreground text-sm">Initial Church Task Team</p>
                   </div>
 
                   <div className="ml-auto flex gap-1">

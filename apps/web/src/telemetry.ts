@@ -1,5 +1,4 @@
 import { diag, DiagConsoleLogger, DiagLogLevel, metrics, trace } from "@opentelemetry/api";
-import { ZoneContextManager } from "@opentelemetry/context-zone";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
@@ -42,7 +41,7 @@ const tracerProvider = new WebTracerProvider({
   spanProcessors: [new BatchSpanProcessor(traceExporter)],
 });
 
-tracerProvider.register({ contextManager: new ZoneContextManager() });
+tracerProvider.register();
 
 const metricExporter = new OTLPMetricExporter({
   url: `${SUPERLOG_ENDPOINT}/v1/metrics`,
