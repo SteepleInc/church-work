@@ -4,6 +4,7 @@ import { Menu as MenuPrimitive } from "@base-ui/react/menu";
 import { cn } from "@/lib/utils";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowRight01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
+import { Loader2Icon } from "lucide-react";
 
 function DropdownMenu({ ...props }: MenuPrimitive.Root.Props) {
   return <MenuPrimitive.Root data-slot="dropdown-menu" {...props} />;
@@ -98,6 +99,57 @@ function DropdownMenuItem({
       )}
       {...props}
     />
+  );
+}
+
+function DropdownMenuItemWithLoading({
+  className,
+  children,
+  contentWrapperClassName,
+  inset,
+  loading = false,
+  onClick,
+  variant = "default",
+  ...props
+}: MenuPrimitive.Item.Props & {
+  readonly contentWrapperClassName?: string;
+  readonly inset?: boolean;
+  readonly loading?: boolean;
+  readonly variant?: "default" | "destructive";
+}) {
+  return (
+    <MenuPrimitive.Item
+      className={cn(
+        "group/dropdown-menu-item relative flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground data-inset:pl-7 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive dark:data-[variant=destructive]:focus:bg-destructive/20 data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-[variant=destructive]:*:[svg]:text-destructive group",
+        className,
+      )}
+      data-inset={inset}
+      data-loading={loading}
+      data-slot="dropdown-menu-item"
+      data-variant={variant}
+      closeOnClick={false}
+      disabled={loading}
+      onClick={(event) => {
+        if (loading) {
+          return;
+        }
+        event.preventDefault();
+        onClick?.(event);
+      }}
+      {...props}
+    >
+      <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-data-[loading=true]:opacity-100">
+        <Loader2Icon className="size-4 animate-spin" />
+      </span>
+      <span
+        className={cn(
+          "flex items-center gap-2 transition-opacity group-data-[loading=true]:opacity-30",
+          contentWrapperClassName,
+        )}
+      >
+        {children}
+      </span>
+    </MenuPrimitive.Item>
   );
 }
 
@@ -252,6 +304,7 @@ export {
   DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuItem,
+  DropdownMenuItemWithLoading,
   DropdownMenuCheckboxItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,

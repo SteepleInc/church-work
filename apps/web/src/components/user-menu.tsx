@@ -8,9 +8,10 @@ import { QueryResult, useQuery } from "@confect/react";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuItemWithLoading,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { clearIntentionalSignOut, markIntentionalSignOut } from "@/features/auth/sign-out-routing";
 import { useNavigate } from "@tanstack/react-router";
 
 import { authClient } from "@/lib/auth-client";
@@ -27,17 +28,12 @@ export default function UserMenu({ avatarSize = 24, className, ...buttonProps }:
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   const signOut = async () => {
+    markIntentionalSignOut();
     setIsSigningOut(true);
 
-    await authClient.signOut({
-      fetchOptions: {
-        onSuccess: () => {
-          navigate({
-            to: "/",
-          });
-        },
-      },
-    });
+    await authClient.signOut();
+    await navigate({ to: "/" });
+    clearIntentionalSignOut();
 
     setIsSigningOut(false);
   };
@@ -63,10 +59,10 @@ export default function UserMenu({ avatarSize = 24, className, ...buttonProps }:
         <span className="sr-only">User menu</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem disabled={isSigningOut} onClick={signOut}>
+        <DropdownMenuItemWithLoading loading={isSigningOut} onClick={signOut}>
           <LogOutIcon className="size-4" />
           Sign out
-        </DropdownMenuItem>
+        </DropdownMenuItemWithLoading>
       </DropdownMenuContent>
     </DropdownMenu>
   );

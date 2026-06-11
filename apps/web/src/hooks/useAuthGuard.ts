@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { COMPLETED_APP_LANDING_PATH } from "@/data/org-routing";
 import type { SessionOrgRoutingFields } from "@/data/org-routing";
 import { useCurrentOrgOpt, type CurrentOrg } from "@/data/orgs/orgData.app";
+import { clearIntentionalSignOut, isIntentionalSignOut } from "@/features/auth/sign-out-routing";
 import { authClient } from "@/lib/auth-client";
 
 type UseAuthGuardOptions = {
@@ -43,6 +44,12 @@ export function useAuthGuard(options: UseAuthGuardOptions = {}): UseAuthGuardRes
     }
 
     if (requireAuth && !session) {
+      if (isIntentionalSignOut()) {
+        clearIntentionalSignOut();
+        void navigate({ to: "/" });
+        return;
+      }
+
       void navigate({ to: "/sign-in" });
       return;
     }
