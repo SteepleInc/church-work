@@ -1,13 +1,13 @@
 import { OtpForm } from "@/components/otp-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SignInEmailForm } from "@/features/auth/sign-in-email-form";
-import { signInStateAtom } from "@/features/auth/sign-in-state";
+import { getInitialSignInState, signInStateAtom } from "@/features/auth/sign-in-state";
 import { authClient } from "@/lib/auth-client";
 import { getSessionOrgSwitchTarget, type SessionOrgRoutingFields } from "@/data/org-routing";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { Match } from "effect";
 import { useAtom } from "jotai";
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect } from "react";
 import { toast } from "sonner";
 
 type SignInProps = {
@@ -22,7 +22,11 @@ export function SignIn({ defaultEmail, invitationId: passedInvitationId, redirec
   const search = useSearch({ strict: false });
   const invitationId = passedInvitationId ?? search["invitation-id"];
   const passedOtpEmail = defaultEmail ?? search.email;
-  const [signInState] = useAtom(signInStateAtom);
+  const [signInState, setSignInState] = useAtom(signInStateAtom);
+
+  useLayoutEffect(() => {
+    setSignInState(getInitialSignInState({ email: passedOtpEmail }));
+  }, [passedOtpEmail, setSignInState]);
 
   useEffect(() => {
     if (!session?.user) {

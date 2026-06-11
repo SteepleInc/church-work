@@ -9,4 +9,8 @@ export const SignInState = {
   otp: (params: { readonly email: string }): SignInState => ({ _tag: "otp", email: params.email }),
 };
 
+export function getInitialSignInState(params: { readonly email?: string }) {
+  return params.email ? SignInState.otp({ email: params.email }) : SignInState.email();
+}
+
 export const signInStateAtom = atom<SignInState>(SignInState.email());
