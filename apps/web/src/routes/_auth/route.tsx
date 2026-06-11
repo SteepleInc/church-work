@@ -10,6 +10,7 @@ function AuthLayoutComponent() {
     <main className="relative flex h-screen w-full flex-row">
       <Button
         className="absolute top-4 right-4"
+        nativeButton={false}
         render={<Link preload="intent" to="/" />}
         variant="ghost"
       >

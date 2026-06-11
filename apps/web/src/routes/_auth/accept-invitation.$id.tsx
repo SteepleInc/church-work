@@ -210,7 +210,12 @@ function InvitationError() {
         </p>
       </CardContent>
       <CardFooter>
-        <Button className="w-full" render={<Link preload="intent" to="/" />} variant="outline">
+        <Button
+          className="w-full"
+          nativeButton={false}
+          render={<Link preload="intent" to="/" />}
+          variant="outline"
+        >
           Go back home
         </Button>
       </CardFooter>
