@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 
 describe("admin route fidelity", () => {
   it("keeps the copied PreachX admin parent route with redirect and gated outlet", () => {
-    const adminRouteSource = readFileSync("apps/web/src/routes/_org/admin.tsx", "utf8");
+    const adminRouteSource = readFileSync(new URL("./_org/admin.tsx", import.meta.url), "utf8");
 
     expect(adminRouteSource).toContain('createFileRoute("/_org/admin")');
     expect(adminRouteSource).toContain('location.pathname === "/admin"');
@@ -13,8 +13,11 @@ describe("admin route fidelity", () => {
   });
 
   it("uses PreachX MainContainer collection pages for admin Churches and Users", () => {
-    const orgsRouteSource = readFileSync("apps/web/src/routes/_org/admin.orgs.tsx", "utf8");
-    const usersRouteSource = readFileSync("apps/web/src/routes/_org/admin.users.tsx", "utf8");
+    const orgsRouteSource = readFileSync(new URL("./_org/admin.orgs.tsx", import.meta.url), "utf8");
+    const usersRouteSource = readFileSync(
+      new URL("./_org/admin.users.tsx", import.meta.url),
+      "utf8",
+    );
 
     expect(orgsRouteSource).toContain("<MainContainer>");
     expect(orgsRouteSource).toContain('<OrgsCollection _tag="global" />');
@@ -27,9 +30,12 @@ describe("admin route fidelity", () => {
   });
 
   it("uses copied PreachX AdminNav instead of inline app navigation admin markup", () => {
-    const adminNavSource = readFileSync("apps/web/src/components/navigation/adminNav.tsx", "utf8");
+    const adminNavSource = readFileSync(
+      new URL("../components/navigation/adminNav.tsx", import.meta.url),
+      "utf8",
+    );
     const appNavigationSource = readFileSync(
-      "apps/web/src/components/navigation/app-navigation.tsx",
+      new URL("../components/navigation/app-navigation.tsx", import.meta.url),
       "utf8",
     );
 
@@ -44,15 +50,15 @@ describe("admin route fidelity", () => {
 
   it("keeps Church Task admin collections in copied feature paths and free of excluded PreachX product surfaces", () => {
     const collectionSource = readFileSync(
-      "apps/web/src/components/collections/collection.tsx",
+      new URL("../components/collections/collection.tsx", import.meta.url),
       "utf8",
     );
     const orgsCollectionSource = readFileSync(
-      "apps/web/src/features/orgs/orgsCollection.tsx",
+      new URL("../features/orgs/orgsCollection.tsx", import.meta.url),
       "utf8",
     );
     const usersCollectionSource = readFileSync(
-      "apps/web/src/features/users/usersCollection.tsx",
+      new URL("../features/users/usersCollection.tsx", import.meta.url),
       "utf8",
     );
     const combinedSource = [collectionSource, orgsCollectionSource, usersCollectionSource].join(

@@ -7,7 +7,7 @@ import {
   getTaskExecutionReadArgs,
   getTaskParentContext,
   selectCurrentExecutionCycle,
-} from "./task-execution-surface";
+} from "./task-execution-surface-utils";
 
 describe("Task execution surface", () => {
   test("selects the Cycle containing today for execution-window reads", () => {

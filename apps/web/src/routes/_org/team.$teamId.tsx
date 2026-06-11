@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { DashboardPage, validateDashboardSearch } from "@/routes/-dashboard";
+import { DashboardPage } from "@/routes/-dashboard";
+import { validateDashboardSearch } from "@/routes/-dashboard-utils";
 
 export const Route = createFileRoute("/_org/team/$teamId")({
   validateSearch: validateDashboardSearch,

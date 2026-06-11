@@ -32,7 +32,7 @@ import { useTeamMembershipsCollection, useTeamsCollection } from "@/data/teams/t
 import { useIsAdmin } from "@/data/users/adminData.app";
 import { GlobalSearchToggle } from "@/features/global-search/global-search-toggle";
 import { QuickActionsToggle } from "@/features/quick-actions/quick-actions-toggle";
-import { getMemberTeams } from "@/routes/-dashboard";
+import { getMemberTeams } from "@/routes/-dashboard-utils";
 
 type AppSidebarProps = ComponentProps<typeof Sidebar>;
 

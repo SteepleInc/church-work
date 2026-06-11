@@ -5,12 +5,12 @@ import {
   appShellOverlayOrder,
   getBreadcrumbLabel,
   getPrimaryAppShellNavItems,
-} from "./app-shell";
+} from "./app-shell-utils";
 import {
   filterGlobalSearchResults,
   GLOBAL_SEARCH_SHORTCUT,
 } from "@/features/global-search/global-search-utils";
-import { buildChurchTaskQuickActions } from "@/features/quick-actions/quick-actions-state";
+import { buildChurchTaskQuickActions } from "@/features/quick-actions/quick-actions-utils";
 import { ListTodoIcon, UsersIcon } from "lucide-react";
 import { getAvatarInitials } from "@/components/ui/avatar";
 
@@ -163,7 +163,7 @@ describe("app shell route behavior", () => {
     expect(appNavigationSource).toContain("<CommentTextIcon />");
   });
 
-  test("keeps the org switcher dropdown close to the copied PreachX structure", () => {
+  test("keeps the org switcher dropdown close to the copied PreachX structure with onboarding status", () => {
     expect(orgSwitcherSource).toContain(
       'import { CheckCircleIcon } from "@/components/icons/checkCircleIcon";',
     );
@@ -177,7 +177,9 @@ describe("app shell route behavior", () => {
     expect(orgSwitcherSource).toContain('placeholder="Search"');
     expect(orgSwitcherSource).toContain('viewportClassName="p-1"');
     expect(orgSwitcherSource).toContain('<span className="line-clamp-2">{org.name}</span>');
-    expect(orgSwitcherSource).not.toContain("Onboarding incomplete");
+    expect(orgSwitcherSource).toContain("!org.completedOnboarding");
+    expect(orgSwitcherSource).toContain("Onboarding incomplete");
+    expect(orgSwitcherSource).toContain("completedOnboarding: org.completedOnboarding");
     expect(orgSwitcherSource).not.toContain("DropdownMenuGroup");
     expect(orgSwitcherSource).not.toContain('from "lucide-react"');
   });
@@ -191,10 +193,12 @@ describe("app shell route behavior", () => {
   });
 
   test("keeps the copied PreachX inset sidebar inner treatment", () => {
-    expect(sidebarPrimitiveSource).toContain("group-data-[variant=inset]:rounded-lg");
-    expect(sidebarPrimitiveSource).toContain("group-data-[variant=inset]:border");
-    expect(sidebarPrimitiveSource).toContain("group-data-[variant=inset]:border-sidebar-border");
-    expect(sidebarPrimitiveSource).toContain("group-data-[variant=inset]:shadow-sm");
+    expect(sidebarPrimitiveSource).toContain('data-slot="sidebar-inner"');
+    expect(sidebarPrimitiveSource).toContain("flex h-full w-full flex-col bg-sidebar");
+    expect(sidebarPrimitiveSource).toContain("group-data-[variant=floating]:rounded-lg");
+    expect(sidebarPrimitiveSource).toContain("group-data-[variant=floating]:border");
+    expect(sidebarPrimitiveSource).toContain("group-data-[variant=floating]:border-sidebar-border");
+    expect(sidebarPrimitiveSource).toContain("group-data-[variant=floating]:shadow-sm");
   });
 
   test("uses the copied PreachX animated sidebar trigger icon", () => {
@@ -226,7 +230,10 @@ describe("app shell route behavior", () => {
     expect(sidebarPrimitiveSource).toContain("const isTouch = useTouchPrimary();");
     expect(sidebarPrimitiveSource).toContain("if (isMobile) {");
     expect(sidebarPrimitiveSource).toContain('className={cn("flex min-h-0", scrollAreaClassName)}');
-    expect(sidebarPrimitiveSource).toContain('isTouch ? "" : "[&>div]:!inline [&>div]:min-h-full"');
+    expect(sidebarPrimitiveSource).toContain("Base UI's ScrollArea renders children directly");
+    expect(sidebarPrimitiveSource).toContain(
+      'isTouch ? "" : "flex min-h-full flex-col [&>div]:min-h-full [&>div]:flex-1"',
+    );
   });
 
   test("keeps the copied PreachX sidebar tooltip provider wrapper", () => {

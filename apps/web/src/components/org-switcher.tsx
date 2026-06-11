@@ -25,19 +25,7 @@ import { useChangeOrg } from "@/data/useChangeOrg";
 import { useOrgId } from "@/data/useOrgId";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { type OrgCollectionItem, useUserOrgsCollection } from "@/data/orgs/orgsData.app";
-
-export function getFilteredOrgSwitcherItems(params: {
-  readonly orgs: readonly OrgCollectionItem[];
-  readonly search: string;
-}) {
-  const search = params.search.trim().toLocaleLowerCase();
-
-  if (!search) {
-    return [...params.orgs];
-  }
-
-  return params.orgs.filter((org) => org.name.toLocaleLowerCase().includes(search));
-}
+import { getFilteredOrgSwitcherItems } from "@/components/org-switcher-utils";
 
 export function OrgSwitcher() {
   const { currentOrgOpt, loading: currentOrgLoading } = useCurrentOrgOpt();

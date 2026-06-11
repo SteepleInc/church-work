@@ -19,27 +19,19 @@ import {
   QuickActionsWrapper,
 } from "@/features/quick-actions/quick-actions-components";
 import { authClient } from "@/lib/auth-client";
+import {
+  canInviteChurchMembers,
+  getInvalidInviteMemberEmails,
+  inviteMemberRoleOptions,
+  parseInviteMemberEmails,
+  type CurrentMemberRole,
+} from "@/features/settings/invite-member-utils";
 
 type InvitationRole = "member" | "admin";
-type CurrentMemberRole = string | readonly string[] | null | undefined;
 
 export type InviteMemberDialogSource = "settings" | "quick-actions";
 
 export const inviteMemberDialogSourceAtom = atom<InviteMemberDialogSource | null>(null);
-
-export const inviteMemberRoleOptions: readonly {
-  readonly label: string;
-  readonly value: InvitationRole;
-}[] = [
-  { label: "Member", value: "member" },
-  { label: "Admin", value: "admin" },
-];
-
-export function canInviteChurchMembers(currentRole: CurrentMemberRole) {
-  return Array.isArray(currentRole)
-    ? currentRole.includes("owner") || currentRole.includes("admin")
-    : currentRole === "owner" || currentRole === "admin";
-}
 
 const InviteMemberSchema = Schema.Struct({
   emails: Schema.Array(Schema.String.pipe(Schema.minLength(3))).pipe(
@@ -47,21 +39,6 @@ const InviteMemberSchema = Schema.Struct({
   ),
   role: Schema.Literal("member", "admin"),
 });
-
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-export function parseInviteMemberEmails(value: string) {
-  const emails = value
-    .split(/[\s,;]+/)
-    .map((email) => email.trim().toLowerCase())
-    .filter((email) => email.length > 0);
-
-  return Array.from(new Set(emails));
-}
-
-export function getInvalidInviteMemberEmails(emails: readonly string[]) {
-  return emails.filter((email) => !emailPattern.test(email));
-}
 
 type InviteMemberButtonProps = Omit<ComponentPropsWithoutRef<typeof Button>, "onClick">;
 

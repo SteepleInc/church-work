@@ -1,5 +1,5 @@
 import { ArrowRightIcon } from "@/components/icons/arrowRightIcon";
-import { COMPLETED_APP_LANDING_PATH } from "@/components/app-shell";
+import { COMPLETED_APP_LANDING_PATH } from "@/components/app-shell-utils";
 import { AnimatedGroup } from "@/components/motion-primitives/animatedGroup";
 import { TextEffect } from "@/components/motion-primitives/textEffect";
 import { Button } from "@/components/ui/button";

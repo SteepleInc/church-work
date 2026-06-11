@@ -7,7 +7,7 @@ import {
   normalizeOptionalChurchProfileValue,
   normalizeProfileName,
   settingsSections,
-} from "@/routes/-settings";
+} from "@/routes/-settings-utils";
 
 describe("settings route sections", () => {
   it("keeps the copied sectioned settings structure focused on active Church Task areas", () => {
@@ -34,9 +34,9 @@ describe("settings route sections", () => {
   });
 
   it("keeps settings navigation in the sidebar instead of a settings card-grid landing", () => {
-    const settingsSource = readFileSync("apps/web/src/routes/-settings.tsx", "utf8");
+    const settingsSource = readFileSync(new URL("./-settings.tsx", import.meta.url), "utf8");
     const appNavigationSource = readFileSync(
-      "apps/web/src/components/navigation/app-navigation.tsx",
+      new URL("../components/navigation/app-navigation.tsx", import.meta.url),
       "utf8",
     );
 
@@ -47,12 +47,18 @@ describe("settings route sections", () => {
   });
 
   it("uses the copied PreachX Team settings route shape with parent tabs", () => {
-    const teamRouteSource = readFileSync("apps/web/src/routes/_org/settings.team.tsx", "utf8");
-    const teamTabRouteSource = readFileSync(
-      "apps/web/src/routes/_org/settings.team.$teamTab.tsx",
+    const teamRouteSource = readFileSync(
+      new URL("./_org/settings.team.tsx", import.meta.url),
       "utf8",
     );
-    const teamTabsSource = readFileSync("apps/web/src/features/users/team-tabs.tsx", "utf8");
+    const teamTabRouteSource = readFileSync(
+      new URL("./_org/settings.team.$teamTab.tsx", import.meta.url),
+      "utf8",
+    );
+    const teamTabsSource = readFileSync(
+      new URL("../features/users/team-tabs.tsx", import.meta.url),
+      "utf8",
+    );
 
     expect(teamRouteSource).toContain("<MainContainer>");
     expect(teamRouteSource).toContain('<TeamTabs basePath="/settings/team" className="px-0" />');
@@ -67,8 +73,11 @@ describe("settings route sections", () => {
   });
 
   it("composes Profile and Church settings with copied PreachX CardForm", () => {
-    const settingsSource = readFileSync("apps/web/src/routes/-settings.tsx", "utf8");
-    const cardFormSource = readFileSync("apps/web/src/components/form/card-form.tsx", "utf8");
+    const settingsSource = readFileSync(new URL("./-settings.tsx", import.meta.url), "utf8");
+    const cardFormSource = readFileSync(
+      new URL("../components/form/card-form.tsx", import.meta.url),
+      "utf8",
+    );
 
     expect(settingsSource).toContain('import { CardForm } from "@/components/form/card-form"');
     expect(settingsSource.match(/<CardForm/g)?.length).toBe(2);

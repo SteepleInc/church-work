@@ -15,14 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { GripVerticalIcon, Triangle } from "lucide-react";
-import {
-  type ComponentProps,
-  type MutableRefObject,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type ComponentProps, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   AssigneeAvatar,
@@ -35,7 +28,6 @@ import {
   StatusComboboxSelector,
   WorkflowStatusIcon,
   type AssigneeOption,
-  type CardSelectOption,
   type TaskPriority,
   type TaskSize,
 } from "./task-card-fields";
@@ -48,6 +40,12 @@ import {
   type TaskBoardTaskState,
   type TaskBoardWorkflowStatus,
 } from "./task-kanban-adapter";
+import {
+  matchPickerHotkey,
+  statusOptions,
+  toTaskIdentifier,
+  type PickerHotkey,
+} from "./task-kanban-board-utils";
 
 export type TaskCardAssignChange = {
   readonly taskId: string;
@@ -104,28 +102,6 @@ function isEditableTarget(target: EventTarget | null): boolean {
   if (target.isContentEditable) return true;
   const tag = target.tagName;
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
-}
-
-// A card-level shortcut binding: pressing `key` (with `shift` held when set)
-// invokes the opener stored in `openRef`, opening that field's picker. `key`
-// is compared case-insensitively.
-type PickerHotkey = {
-  readonly key: string;
-  readonly shift?: boolean;
-  readonly openRef: MutableRefObject<(() => void) | null>;
-};
-
-export function matchPickerHotkey(
-  event: Pick<KeyboardEvent, "key" | "shiftKey" | "metaKey" | "ctrlKey" | "altKey">,
-  hotkeys: readonly PickerHotkey[],
-): PickerHotkey | null {
-  if (event.metaKey || event.ctrlKey || event.altKey) return null;
-  const key = event.key.toLowerCase();
-  return (
-    hotkeys.find(
-      (hotkey) => hotkey.key.toLowerCase() === key && Boolean(hotkey.shift) === event.shiftKey,
-    ) ?? null
-  );
 }
 
 // Opens a card's field picker when its shortcut is pressed while the card is
@@ -318,25 +294,6 @@ interface TaskKanbanCardProps extends Omit<
   readonly onAssignTask?: TaskKanbanBoardProps["onAssignTask"];
   readonly onChangeTaskStatus?: TaskKanbanBoardProps["onChangeTaskStatus"];
   readonly onOpenTask?: (taskId: string) => void;
-}
-
-// Placeholder identifier until Tasks get a human-readable key (e.g. "DEV-369").
-export function toTaskIdentifier(id: string): string {
-  const trailing = id.split(/[_-]/).at(-1) ?? id;
-  return `TASK-${trailing.slice(-4).toUpperCase()}`;
-}
-
-export function statusOptions(
-  workflowStatuses: readonly TaskBoardWorkflowStatus[],
-): readonly CardSelectOption<string>[] {
-  return [...workflowStatuses]
-    .filter((status) => status.archivedAt == null)
-    .sort((left, right) => left.sortOrder - right.sortOrder)
-    .map((status) => ({
-      value: status.id,
-      label: status.name,
-      icon: <WorkflowStatusIcon taskState={status.taskState} />,
-    }));
 }
 
 function TaskKanbanCard({

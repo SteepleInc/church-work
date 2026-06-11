@@ -18,10 +18,7 @@ import { useChangeOrg } from "@/data/useChangeOrg";
 import { useOrgId } from "@/data/useOrgId";
 import { type OrgCollectionItem, useUserOrgsCollection } from "@/data/orgs/orgsData.app";
 import { cn } from "@/lib/utils";
-
-export function getOnboardingOrgSwitcherLabel(params: { readonly currentOrgName: string | null }) {
-  return params.currentOrgName ?? "Creating new Church...";
-}
+import { getOnboardingOrgSwitcherLabel } from "@/components/org-switcher-utils";
 
 export function OnboardingOrgSwitcher({ className }: { readonly className?: string }) {
   const { orgsCollection, loading } = useUserOrgsCollection();

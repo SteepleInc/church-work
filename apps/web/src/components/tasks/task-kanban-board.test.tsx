@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { matchPickerHotkey, statusOptions, toTaskIdentifier } from "./task-kanban-board";
+import { matchPickerHotkey, statusOptions, toTaskIdentifier } from "./task-kanban-board-utils";
 import type { TaskBoardWorkflowStatus } from "./task-kanban-adapter";
 
 type HotkeyEvent = Parameters<typeof matchPickerHotkey>[0];

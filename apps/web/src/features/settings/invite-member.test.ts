@@ -6,7 +6,7 @@ import {
   getInvalidInviteMemberEmails,
   inviteMemberRoleOptions,
   parseInviteMemberEmails,
-} from "@/features/settings/invite-member";
+} from "@/features/settings/invite-member-utils";
 
 describe("invite member settings helpers", () => {
   it("normalizes pasted email lists like the copied invite member action", () => {
@@ -40,14 +40,17 @@ describe("invite member settings helpers", () => {
 
   it("uses the copied PreachX TagInputField shape for email entry", () => {
     const inviteMemberSource = readFileSync(
-      "apps/web/src/features/settings/invite-member.tsx",
+      new URL("./invite-member.tsx", import.meta.url),
       "utf8",
     );
     const tagInputFieldSource = readFileSync(
-      "apps/web/src/components/form/tag-input-field.tsx",
+      new URL("../../components/form/tag-input-field.tsx", import.meta.url),
       "utf8",
     );
-    const tagInputSource = readFileSync("apps/web/src/components/ui/tag-input.tsx", "utf8");
+    const tagInputSource = readFileSync(
+      new URL("../../components/ui/tag-input.tsx", import.meta.url),
+      "utf8",
+    );
 
     expect(inviteMemberSource).toContain("<field.TagInputField");
     expect(inviteMemberSource).not.toContain("<field.TextareaField");

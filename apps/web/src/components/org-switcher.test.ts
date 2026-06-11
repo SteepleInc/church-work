@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { getFilteredOrgSwitcherItems } from "./org-switcher";
+import { getFilteredOrgSwitcherItems } from "./org-switcher-utils";
 
 const orgs = [
   {

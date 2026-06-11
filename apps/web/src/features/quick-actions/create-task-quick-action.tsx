@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import {
   getExecutionWorkflowId,
   selectCurrentExecutionCycle,
-} from "@/components/tasks/task-execution-surface";
+} from "@/components/tasks/task-execution-surface-utils";
 import { useOpenTaskDetailsPaneUrl } from "@/components/details-pane/details-pane-helpers";
 import { useAppForm } from "@/components/form/ts-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { isAppAdministratorSessionUser } from "./adminData.app";
+import { isAppAdministratorSessionUser } from "./adminData-utils";
 
 describe("App Administrator session state", () => {
   test("recognizes only Better Auth admin-role users as App Administrators", () => {

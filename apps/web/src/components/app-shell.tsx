@@ -1,9 +1,9 @@
 import { Outlet, useLocation } from "@tanstack/react-router";
 import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
 
+import { getBreadcrumbLabel } from "@/components/app-shell-utils";
 import { ModeToggle } from "@/components/mode-toggle";
 import { AppNavigation } from "@/components/navigation/app-navigation";
-import { getInternalRouteBreadcrumbLabel } from "@/components/navigation/internal-navigation";
 import SignInForm from "@/components/sign-in-form";
 import {
   Breadcrumb,
@@ -14,51 +14,11 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import UserMenu from "@/components/user-menu";
-import { COMPLETED_APP_LANDING_PATH } from "@/data/org-routing";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { GlobalSearch } from "@/features/global-search/global-search";
 import { QuickActions } from "@/features/quick-actions/quick-actions";
 import { DetailsPane } from "@/components/details-pane/details-pane";
 import { BigActions } from "@/features/big-actions/big-actions";
-
-export { COMPLETED_APP_LANDING_PATH };
-
-export const appShellOverlayOrder = [
-  "DetailsPane",
-  "QuickActions",
-  "BigActions",
-  "GlobalSearch",
-] as const;
-
-export function getPrimaryAppShellNavItems() {
-  return [
-    { label: "My Work", to: "/my-work", matchPath: "/my-work" },
-    { label: "Our Work", to: "/our-work", matchPath: "/our-work" },
-    { label: "Settings", to: "/settings", matchPath: "/settings" },
-  ];
-}
-
-export function getBreadcrumbLabel(pathname: string): string {
-  const internalRouteLabel = getInternalRouteBreadcrumbLabel(pathname);
-
-  if (internalRouteLabel) {
-    return internalRouteLabel;
-  }
-
-  if (pathname.startsWith("/our-work")) {
-    return "Our Work";
-  }
-
-  if (pathname.startsWith("/settings")) {
-    return "Settings";
-  }
-
-  if (pathname.startsWith("/team/")) {
-    return "Team Work";
-  }
-
-  return "My Work";
-}
 
 export function AppShell() {
   return (

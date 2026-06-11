@@ -1,12 +1,9 @@
 import { authClient } from "@/lib/auth-client";
+import { isAppAdministratorSessionUser } from "@/data/users/adminData-utils";
 
 type SessionUserWithRole = {
   readonly role?: string | null;
 };
-
-export function isAppAdministratorSessionUser(user: SessionUserWithRole | null | undefined) {
-  return user?.role === "admin";
-}
 
 export function useIsAdmin() {
   const { data } = authClient.useSession();

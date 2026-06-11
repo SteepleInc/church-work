@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { getOnboardingOrgSwitcherLabel } from "./onboarding-org-switcher";
+import { getOnboardingOrgSwitcherLabel } from "./org-switcher-utils";
 
 describe("OnboardingOrgSwitcher", () => {
   test("shows creating-new-Church state when there is no active Church", () => {

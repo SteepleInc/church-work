@@ -15,13 +15,14 @@ import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { CreateTaskQuickAction } from "@/features/quick-actions/create-task-quick-action";
 import { EditOrgQuickAction } from "@/features/quick-actions/edit-org-quick-action";
 import { EditUserQuickAction } from "@/features/quick-actions/edit-user-quick-action";
-import { canInviteChurchMembers, InviteMemberQuickAction } from "@/features/settings/invite-member";
+import { InviteMemberQuickAction } from "@/features/settings/invite-member";
+import { canInviteChurchMembers } from "@/features/settings/invite-member-utils";
 import {
-  buildChurchTaskQuickActions,
   disableQuickActionsAtom,
   quickActionsIsOpenAtom,
   useQuickActionOpeners,
 } from "@/features/quick-actions/quick-actions-state";
+import { buildChurchTaskQuickActions } from "@/features/quick-actions/quick-actions-utils";
 import type { QuickActionDefinition } from "@/features/quick-actions/quick-actions-types";
 
 export function QuickActions() {

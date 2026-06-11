@@ -6,7 +6,7 @@ import {
   getMemberTeams,
   getUnavailableTeamBoardActions,
   validateDashboardSearch,
-} from "./-dashboard";
+} from "./-dashboard-utils";
 
 describe("dashboard execution route search", () => {
   test("keeps page identity out of dashboard search state", () => {
