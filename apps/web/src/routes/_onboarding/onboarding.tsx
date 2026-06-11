@@ -92,9 +92,11 @@ type ChurchProfileValue = {
 function OnboardingRoute() {
   const navigate = useNavigate();
   const search = Route.useSearch();
-  const { activeChurch, loading } = useAuthGuard({ redirectIfOnboarded: true });
+  const { activeChurch, sessionActiveChurchId } = useAuthGuard({ redirectIfOnboarded: true });
 
-  const step = resolveOnboardingStep({ urlStep: search.step, activeChurch });
+  const activeChurchForStep =
+    activeChurch ?? (sessionActiveChurchId ? { completedOnboarding: false } : null);
+  const step = resolveOnboardingStep({ urlStep: search.step, activeChurch: activeChurchForStep });
   const currentStepNumber = onboardingStepLookup[step._tag];
 
   const setStep = async (newStep: OnboardingStep) => {
@@ -103,14 +105,6 @@ function OnboardingRoute() {
       to: "/onboarding",
     });
   };
-
-  if (loading) {
-    return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Loading Church profile...
-      </div>
-    );
-  }
 
   return (
     <div className="mx-auto flex max-h-full w-full max-w-2xl flex-col items-start gap-4 md:m-auto md:max-h-[90%]">
@@ -136,14 +130,14 @@ function OnboardingRoute() {
 
         {step._tag === "churchProfile" ? (
           <ChurchProfileStepCard />
-        ) : step._tag === "initialTeams" ? (
+        ) : step._tag === "initialTeams" && activeChurch ? (
           <InitialTeamsStepCard
             churchId={activeChurch!.id}
             onComplete={() => setStep({ _tag: "finished" })}
           />
-        ) : (
+        ) : step._tag === "finished" && activeChurch ? (
           <FinishedStepCard churchId={activeChurch!.id} />
-        )}
+        ) : null}
       </div>
     </div>
   );

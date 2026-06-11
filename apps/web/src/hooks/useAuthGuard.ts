@@ -7,6 +7,8 @@ import { useCurrentOrgOpt, type CurrentOrg } from "@/data/orgs/orgData.app";
 import { authClient } from "@/lib/auth-client";
 
 type UseAuthGuardOptions = {
+  /** Redirect to sign-in when there is no authenticated session. */
+  readonly requireAuth?: boolean;
   /** Redirect to /onboarding when the Active Church is missing or has not Completed Onboarding. */
   readonly requireOnboarding?: boolean;
   /** Redirect into the product when the Active Church has Completed Onboarding. */
@@ -16,20 +18,21 @@ type UseAuthGuardOptions = {
 type UseAuthGuardResult = {
   readonly loading: boolean;
   readonly activeChurch: CurrentOrg | null;
+  readonly sessionActiveChurchId: string | null;
   readonly hasCompletedOnboarding: boolean;
 };
 
 /**
- * Routing guard over the live Active Church query. Gating reads the reactive
- * Convex query directly (no session mirror); see
- * docs/adr/0008-persist-early-onboarding-with-derived-steps.md.
+ * Routing guard over session auth state. The live Active Church query remains
+ * available for page rendering, but route gating should not wait for it.
  */
 export function useAuthGuard(options: UseAuthGuardOptions = {}): UseAuthGuardResult {
-  const { requireOnboarding = false, redirectIfOnboarded = false } = options;
+  const { requireAuth = false, requireOnboarding = false, redirectIfOnboarded = false } = options;
   const navigate = useNavigate();
   const { data: session, isPending: sessionLoading } = authClient.useSession();
   const { currentOrgOpt: activeChurch, loading } = useCurrentOrgOpt();
   const sessionRouting = session?.session as SessionOrgRoutingFields | undefined;
+  const sessionActiveChurchId = sessionRouting?.activeOrganizationId ?? null;
   const hasCompletedOnboarding = Boolean(
     sessionRouting?.orgCompletedOnboarding ?? activeChurch?.completedOnboarding,
   );
@@ -39,15 +42,33 @@ export function useAuthGuard(options: UseAuthGuardOptions = {}): UseAuthGuardRes
       return;
     }
 
-    if (requireOnboarding && !hasCompletedOnboarding) {
+    if (requireAuth && !session) {
+      void navigate({ to: "/sign-in" });
+      return;
+    }
+
+    if (requireOnboarding && session && !hasCompletedOnboarding) {
       void navigate({ to: "/onboarding" });
       return;
     }
 
-    if (redirectIfOnboarded && hasCompletedOnboarding) {
+    if (redirectIfOnboarded && session && hasCompletedOnboarding) {
       void navigate({ to: COMPLETED_APP_LANDING_PATH });
     }
-  }, [hasCompletedOnboarding, navigate, redirectIfOnboarded, requireOnboarding, sessionLoading]);
+  }, [
+    hasCompletedOnboarding,
+    navigate,
+    redirectIfOnboarded,
+    requireAuth,
+    requireOnboarding,
+    session,
+    sessionLoading,
+  ]);
 
-  return { loading: sessionLoading || loading, activeChurch, hasCompletedOnboarding };
+  return {
+    loading: sessionLoading,
+    activeChurch: loading ? null : activeChurch,
+    sessionActiveChurchId,
+    hasCompletedOnboarding,
+  };
 }

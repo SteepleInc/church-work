@@ -10,6 +10,12 @@ describe("onboarding PreachX fidelity guards", () => {
     expect(onboardingSource).not.toContain("Step 2 of 2");
   });
 
+  test("renders the PreachX onboarding shell without auth or org loading screens", () => {
+    expect(routeSource).not.toContain("AuthLoading");
+    expect(routeSource).not.toContain("Loading onboarding");
+    expect(onboardingSource).not.toContain("Loading Church profile");
+  });
+
   test("renders the PreachX desktop top-right theme/user controls", () => {
     expect(routeSource).toContain("top-4 right-4 hidden flex-row items-center gap-2 md:flex");
   });

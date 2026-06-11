@@ -15,42 +15,66 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useCreateOrg } from "@/data/useCreateOrg";
 import { useChangeOrg } from "@/data/useChangeOrg";
-import { useOrgId } from "@/data/useOrgId";
 import { type OrgCollectionItem, useUserOrgsCollection } from "@/data/orgs/orgsData.app";
+import type { SessionOrgRoutingFields } from "@/data/org-routing";
+import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
-import { getOnboardingOrgSwitcherLabel } from "@/components/org-switcher-utils";
+import { Link } from "@tanstack/react-router";
 
 export function OnboardingOrgSwitcher({ className }: { readonly className?: string }) {
   const { orgsCollection, loading } = useUserOrgsCollection();
-  const orgId = useOrgId();
+  const { data: session } = authClient.useSession();
+  const sessionRouting = session?.session as SessionOrgRoutingFields | undefined;
+  const orgId = sessionRouting?.activeOrganizationId ?? "";
   const [search, setSearch] = useState("");
   const { changeOrg, isChangingOrg } = useChangeOrg();
   const { createOrg } = useCreateOrg();
   const currentOrg = orgsCollection.find((org) => org.id === orgId) ?? null;
   const hasMultipleOrgs = orgsCollection.length > 1;
+  const hasOrgs = orgsCollection.length > 0;
   const filteredOrgs = orgsCollection.filter((org) =>
     org.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()),
+  );
+
+  const switcherContent = (
+    <>
+      {currentOrg ? (
+        <>
+          <ChurchInitials name={currentOrg.name} />
+          <div className="grid flex-1 text-left text-sm leading-tight">
+            <span className="truncate font-semibold">{currentOrg.name}</span>
+            <span className="truncate text-xs opacity-70">Church</span>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="flex size-8 items-center justify-center rounded-md border border-onboarding-panel-foreground/30 border-dashed">
+            <Plus className="size-4" />
+          </div>
+          <div className="grid flex-1 text-left text-sm leading-tight">
+            <span className="truncate font-semibold">Creating new Church...</span>
+          </div>
+        </>
+      )}
+      {hasMultipleOrgs ? <ChevronsUpDown className="ml-auto size-4" /> : null}
+    </>
   );
 
   if (loading) {
     return null;
   }
 
-  if (!orgsCollection.length) {
+  if (!hasOrgs) {
     return (
-      <div
+      <Link
         className={cn(
-          "flex h-auto w-full items-center gap-3 rounded-lg bg-onboarding-panel-foreground/10 px-3 py-2 text-onboarding-panel-foreground",
+          "hidden text-onboarding-panel-foreground/70 transition-colors hover:text-onboarding-panel-foreground md:block",
           className,
         )}
+        to="/"
       >
-        <div className="flex size-8 items-center justify-center rounded-md border border-onboarding-panel-foreground/30 border-dashed">
-          <Plus className="size-4" />
-        </div>
-        <span className="truncate font-semibold">
-          {getOnboardingOrgSwitcherLabel({ currentOrgName: null })}
-        </span>
-      </div>
+        Home
+      </Link>
     );
   }
 
@@ -62,10 +86,7 @@ export function OnboardingOrgSwitcher({ className }: { readonly className?: stri
           className,
         )}
       >
-        <ChurchInitials name={currentOrg?.name ?? "Church"} />
-        <span className="truncate font-semibold">
-          {getOnboardingOrgSwitcherLabel({ currentOrgName: currentOrg?.name ?? null })}
-        </span>
+        {switcherContent}
       </div>
     );
   }
@@ -81,20 +102,22 @@ export function OnboardingOrgSwitcher({ className }: { readonly className?: stri
           render={
             <Button
               className="h-auto w-full justify-start gap-3 bg-onboarding-panel-foreground/10 px-3 py-2 text-onboarding-panel-foreground hover:bg-onboarding-panel-foreground/20 hover:text-onboarding-panel-foreground"
+              contentWrapperClassName="w-full"
               variant="ghost"
             />
           }
         >
-          <ChurchInitials name={currentOrg?.name ?? "Church"} />
-          <span className="truncate font-semibold">
-            {getOnboardingOrgSwitcherLabel({ currentOrgName: currentOrg?.name ?? null })}
-          </span>
-          <ChevronsUpDown className="ml-auto size-4" />
+          {switcherContent}
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="center" className="flex min-w-56 flex-col rounded-lg p-0">
+        <DropdownMenuContent
+          align="center"
+          className="flex min-w-56 flex-col rounded-lg p-0 md:w-(--radix-dropdown-menu-trigger-width)"
+          side="bottom"
+          sideOffset={4}
+        >
           {orgsCollection.length > 5 ? (
             <Input
-              className="shrink-0 rounded-none border-x-0 border-t-0"
+              className="shrink-0"
               onChange={(event) => setSearch(event.currentTarget.value)}
               onKeyDown={(event) => event.stopPropagation()}
               placeholder="Search Churches..."

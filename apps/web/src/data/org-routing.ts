@@ -3,6 +3,7 @@ export const COMPLETED_APP_LANDING_PATH = "/my-work";
 export type OrgSwitchTarget = typeof COMPLETED_APP_LANDING_PATH | "/onboarding";
 
 export type SessionOrgRoutingFields = {
+  readonly activeOrganizationId?: string | null;
   readonly orgCompletedOnboarding?: boolean | null;
 };
 
