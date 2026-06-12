@@ -279,6 +279,7 @@ function toBoardWorkflowStatus(status: WorkflowStatus) {
 function toBoardTask(task: TaskSummary, tasks: readonly TaskSummary[]) {
   return {
     id: task.id,
+    identifier: task.identifier,
     title: task.title,
     teamId: task.teamId,
     cycleId: task.cycleId,

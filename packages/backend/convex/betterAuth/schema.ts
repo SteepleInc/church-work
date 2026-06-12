@@ -192,6 +192,10 @@ export const tables = {
     color: v.optional(v.union(v.null(), v.string())),
     identifier: v.optional(v.union(v.null(), v.string())),
     previousIdentifiers: v.optional(v.union(v.null(), v.array(v.string()))),
+    // Per-Team Task number counter (ADR 0013): the next number a Task created
+    // in this Team will draw. Convex serializable transactions keep
+    // concurrent draws safe.
+    nextTaskNumber: v.optional(v.union(v.null(), v.number())),
   })
     .index("organizationId", ["organizationId"])
     .index("organizationId_name", ["organizationId", "name"])

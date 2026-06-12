@@ -1,11 +1,81 @@
-import type { RestorableTaskStatus, TaskStatus } from "@church-task/domain/Task";
-import type { GenericDatabaseReader, GenericMutationCtx } from "convex/server";
+import {
+  formatTaskIdentifier,
+  type RestorableTaskStatus,
+  type TaskStatus,
+} from "@church-task/domain/Task";
+import { deriveTeamIdentifierBase } from "@church-task/domain/Team";
+import type { GenericDatabaseReader, GenericMutationCtx, GenericQueryCtx } from "convex/server";
 
 import { buildCycleForLocalDate } from "./churchCycleCalendar";
+import { components } from "./convex/_generated/api";
 import type { DataModel, Id } from "./convex/_generated/dataModel";
 import { writeActivity } from "./activityRegistry";
 
 type MutationCtx = GenericMutationCtx<DataModel>;
+
+type TaskReadCtx = {
+  readonly db: GenericDatabaseReader<DataModel>;
+  readonly runQuery: GenericQueryCtx<DataModel>["runQuery"];
+};
+
+type TeamIdentifierSourceTeam = {
+  readonly _id: string;
+  readonly name: string;
+  readonly identifier?: string | null;
+  readonly nextTaskNumber?: number | null;
+};
+
+// Teams created outside the app's create paths may lack a stored identifier;
+// fall back to the same name-derived base the create path would have used
+// (mirrors `currentTeamIdentifier` in confect/app.impl.ts).
+const teamIdentifierOf = (team: TeamIdentifierSourceTeam) =>
+  team.identifier ?? deriveTeamIdentifierBase(team.name);
+
+/**
+ * Current Team Identifier per team id for a Church, used to compute Task
+ * Identifiers (`team identifier + task number`, ADR 0013) at read time.
+ */
+async function readTeamIdentifiers(ctx: TaskReadCtx, churchId: string) {
+  const teams = (await ctx.runQuery(components.betterAuth.adapter.findMany, {
+    model: "team",
+    where: [{ field: "organizationId", value: churchId }],
+    paginationOpts: { cursor: null, numItems: 100 },
+  })) as { readonly page: ReadonlyArray<TeamIdentifierSourceTeam> };
+
+  return Object.fromEntries(teams.page.map((team) => [team._id, teamIdentifierOf(team)]));
+}
+
+/**
+ * Draws per-Team Task numbers (ADR 0013) from the `nextTaskNumber` counter on
+ * the team document. Caches the counter per team so batch creates only read
+ * each team once; every draw persists the bumped counter, and Convex
+ * serializable transactions keep concurrent draws safe.
+ */
+export function makeTaskNumberDrawer(ctx: MutationCtx) {
+  const nextNumberByTeam = new Map<string, number>();
+
+  return async (teamId: string): Promise<number> => {
+    let nextNumber = nextNumberByTeam.get(teamId);
+    if (nextNumber === undefined) {
+      const team = (await ctx.runQuery(components.betterAuth.adapter.findOne, {
+        model: "team",
+        where: [{ field: "_id", value: teamId }],
+      })) as TeamIdentifierSourceTeam | null;
+      nextNumber = team?.nextTaskNumber ?? 1;
+    }
+
+    nextNumberByTeam.set(teamId, nextNumber + 1);
+    await ctx.runMutation(components.betterAuth.adapter.updateOne, {
+      input: {
+        model: "team",
+        where: [{ field: "_id", value: teamId }],
+        update: { nextTaskNumber: nextNumber + 1 },
+      },
+    });
+
+    return nextNumber;
+  };
+}
 
 /**
  * Appends Board Order keys (ADR 0012) to the end of a Workflow Status column.
@@ -101,7 +171,7 @@ function daysBetween(startDate: string, endDate: string) {
 }
 
 export async function readTaskModel(
-  ctx: { readonly db: GenericDatabaseReader<DataModel> },
+  ctx: TaskReadCtx,
   churchId: string,
   filters: {
     readonly surface?: "my_work" | "our_work";
@@ -163,8 +233,9 @@ export async function readTaskModel(
             left.dueDate.localeCompare(right.dueDate) || left._creationTime - right._creationTime,
         )
       : tasks;
+  const teamIdentifierById = await readTeamIdentifiers(ctx, churchId);
 
-  return { cycles, tasks: orderedTasks };
+  return { cycles, tasks: orderedTasks, teamIdentifierById };
 }
 
 export const serializeTaskModel = (data: Awaited<ReturnType<typeof readTaskModel>>) => ({
@@ -182,6 +253,10 @@ export const serializeTaskModel = (data: Awaited<ReturnType<typeof readTaskModel
     churchId: task.churchId,
     title: task.title,
     teamId: task.teamId,
+    number: task.number,
+    // Computed at read time so a Team Identifier change re-renders every
+    // Task Identifier in that Team (ADR 0013).
+    identifier: formatTaskIdentifier(data.teamIdentifierById[task.teamId] ?? "TEAM", task.number),
     assignedUserId: task.assignedUserId ?? null,
     cycleId: task.cycleId,
     dueDate: task.dueDate,
@@ -271,6 +346,7 @@ export async function createTasks(
   }
 
   const appendBoardOrder = makeBoardOrderAppender(ctx);
+  const drawTaskNumber = makeTaskNumberDrawer(ctx);
 
   for (const { task, workflowId, workflowStatusId, taskState } of validatedTasks) {
     const cycleId = await ensureCycleForDueDate(ctx, {
@@ -283,6 +359,7 @@ export async function createTasks(
       churchId: args.churchId,
       title: task.title,
       teamId: task.teamId,
+      number: await drawTaskNumber(task.teamId),
       assignedUserId: task.assignedUserId ?? null,
       createdByUserId: task.createdByUserId ?? null,
       cycleId,

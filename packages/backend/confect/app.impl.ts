@@ -1,3 +1,4 @@
+import { formatTaskIdentifier } from "@church-task/domain/Task";
 import {
   deriveTeamIdentifierBase,
   generateTeamIdentifier,
@@ -452,6 +453,10 @@ const serializeTaskModel = (data: Awaited<ReturnType<typeof readTaskModel>>) => 
     churchId: task.churchId,
     title: task.title,
     teamId: task.teamId,
+    number: task.number,
+    // Computed at read time so a Team Identifier change re-renders every
+    // Task Identifier in that Team (ADR 0013).
+    identifier: formatTaskIdentifier(data.teamIdentifierById[task.teamId] ?? "TEAM", task.number),
     assignedUserId: task.assignedUserId ?? null,
     cycleId: task.cycleId,
     dueDate: task.dueDate,

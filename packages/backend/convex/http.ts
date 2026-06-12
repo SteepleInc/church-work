@@ -85,6 +85,7 @@ type McpTaskOperationResult = {
     }>;
     readonly tasks: ReadonlyArray<{
       readonly id: string;
+      readonly identifier: string;
       readonly title: string;
       readonly teamId: string;
       readonly assignedUserId: string | null;
@@ -101,6 +102,8 @@ type McpTaskOperationResult = {
 
 const compactTask = (task: NonNullable<McpTaskOperationResult["data"]>["tasks"][number]) => ({
   id: task.id,
+  // The Task Identifier (e.g. "PRD-48") — the user-facing reference (ADR 0013).
+  identifier: task.identifier,
   title: task.title,
   taskState: task.taskState,
   workflowStatusId: task.workflowStatusId,

@@ -2693,6 +2693,8 @@ describe("agent operation boundary", () => {
               churchId: church.id!,
               title: "Inconsistent Task",
               teamId: taskTeamId,
+              // Test fixture bypassing createTasks; a fixed number is fine here.
+              number: 9999,
               assignedUserId: null,
               cycleId: cancelMe.cycleId,
               dueDate: "2026-06-03",
@@ -3987,6 +3989,8 @@ describe("agent operation boundary", () => {
               churchId: church.id!,
               title: "Workflow reference task",
               teamId: team.id!,
+              // Test fixture bypassing createTasks; a fixed number is fine here.
+              number: 9999,
               assignedUserId: null,
               cycleId: "cycle-workflow-in-use",
               dueDate: "2026-06-03",
@@ -4333,6 +4337,8 @@ describe("agent operation boundary", () => {
               churchId: church.id!,
               title: "Task using To Do",
               teamId: taskTeamId,
+              // Test fixture bypassing createTasks; a fixed number is fine here.
+              number: 9999,
               assignedUserId: null,
               cycleId: "cycle-status-in-use",
               dueDate: "2026-06-03",
@@ -4416,6 +4422,8 @@ describe("agent operation boundary", () => {
               churchId: church.id!,
               title: "Canceled task using Ready",
               teamId: taskTeamId,
+              // Test fixture bypassing createTasks; a fixed number is fine here.
+              number: 9999,
               assignedUserId: null,
               cycleId: "cycle-status-canceled-history",
               dueDate: "2026-06-03",
@@ -4532,6 +4540,8 @@ describe("agent operation boundary", () => {
               churchId: church.id!,
               title: "Remapped Task",
               teamId: sourceTeamId,
+              // Test fixture bypassing createTasks; a fixed number is fine here.
+              number: 9999,
               assignedUserId: null,
               cycleId: "cycle-remap",
               dueDate: "2026-06-03",
@@ -4574,6 +4584,8 @@ describe("agent operation boundary", () => {
               churchId: church.id!,
               title: "Fallback Remapped Task",
               teamId: sourceTeamId,
+              // Test fixture bypassing createTasks; a fixed number is fine here.
+              number: 9999,
               assignedUserId: null,
               cycleId: "cycle-remap",
               dueDate: "2026-06-03",
@@ -4670,6 +4682,8 @@ describe("agent operation boundary", () => {
               churchId: church.id!,
               title: "Default Fallback Remapped Task",
               teamId: sourceTeamId,
+              // Test fixture bypassing createTasks; a fixed number is fine here.
+              number: 9999,
               assignedUserId: null,
               cycleId: "cycle-remap-default-fallback",
               dueDate: "2026-06-03",
@@ -5282,6 +5296,173 @@ describe("agent operation boundary", () => {
         .pipe(Effect.flip);
 
       expect(error).toBeDefined();
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+});
+
+describe("Task numbering and Task Identifiers", () => {
+  it.effect("creation draws dense per-Team numbers and computes Task Identifiers", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const ownerResponse = yield* signUpWithEmail(
+        c,
+        `task-numbering-owner-${crypto.randomUUID()}@example.com`,
+      );
+      const owner = (yield* Effect.promise(() => ownerResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: owner.token!,
+        name: "Task Numbering Church",
+        slug: `task-numbering-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: owner.user!.id!,
+        sessionToken: owner.token!,
+      });
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
+        churchId: church.id!,
+      });
+      const todoStatus = defaults.data.workflowStatuses.find(
+        (status) => status.taskState === "todo",
+      )!;
+      const teams = yield* authenticated.query(refs.public.teams.listForChurch, {
+        churchId: church.id!,
+      });
+      const teamA = teams.data.teams[0]!;
+      const teamB = teams.data.teams[1]!;
+
+      const firstBatch = yield* authenticated.mutation(refs.public.tasks.createBatch, {
+        churchId: church.id!,
+        tasks: [
+          {
+            title: "Numbered A1",
+            teamId: teamA.id,
+            workflowStatusId: todoStatus.id,
+            dueDate: "2026-06-03",
+            parentTaskId: null,
+          },
+          {
+            title: "Numbered A2",
+            teamId: teamA.id,
+            workflowStatusId: todoStatus.id,
+            dueDate: "2026-06-03",
+            parentTaskId: null,
+          },
+        ],
+      });
+      const secondBatch = yield* authenticated.mutation(refs.public.tasks.createBatch, {
+        churchId: church.id!,
+        tasks: [
+          {
+            title: "Numbered A3",
+            teamId: teamA.id,
+            workflowStatusId: todoStatus.id,
+            dueDate: "2026-06-03",
+            parentTaskId: null,
+          },
+          {
+            title: "Numbered B1",
+            teamId: teamB.id,
+            workflowStatusId: todoStatus.id,
+            dueDate: "2026-06-03",
+            parentTaskId: null,
+          },
+        ],
+      });
+
+      const byTitle = (title: string) =>
+        [...firstBatch.data.tasks, ...secondBatch.data.tasks].find((task) => task.title === title)!;
+
+      // Numbers are dense within each Team (ADR 0013): Team A draws 1, 2, 3
+      // across batches while Team B independently draws 1.
+      expect(byTitle("Numbered A1")).toMatchObject({
+        number: 1,
+        identifier: `${teamA.identifier}-1`,
+      });
+      expect(byTitle("Numbered A2")).toMatchObject({
+        number: 2,
+        identifier: `${teamA.identifier}-2`,
+      });
+      expect(byTitle("Numbered A3")).toMatchObject({
+        number: 3,
+        identifier: `${teamA.identifier}-3`,
+      });
+      expect(byTitle("Numbered B1")).toMatchObject({
+        number: 1,
+        identifier: `${teamB.identifier}-1`,
+      });
+
+      // Read-side payloads carry the computed identifier too.
+      const listed = yield* authenticated.query(refs.public.tasks.listForChurch, {
+        churchId: church.id!,
+      });
+      const listedA1 = listed.data.tasks.find((task) => task.title === "Numbered A1")!;
+      expect(listedA1.identifier).toBe(`${teamA.identifier}-1`);
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("concurrent creation draws unique, dense numbers within a Team", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const ownerResponse = yield* signUpWithEmail(
+        c,
+        `task-numbering-concurrent-${crypto.randomUUID()}@example.com`,
+      );
+      const owner = (yield* Effect.promise(() => ownerResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: owner.token!,
+        name: "Task Numbering Concurrent Church",
+        slug: `task-numbering-concurrent-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: owner.user!.id!,
+        sessionToken: owner.token!,
+      });
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
+        churchId: church.id!,
+      });
+      const todoStatus = defaults.data.workflowStatuses.find(
+        (status) => status.taskState === "todo",
+      )!;
+      const teamId = yield* firstTeamId(authenticated, church.id!);
+
+      const createOne = (title: string) =>
+        authenticated.mutation(refs.public.tasks.createBatch, {
+          churchId: church.id!,
+          tasks: [
+            {
+              title,
+              teamId,
+              workflowStatusId: todoStatus.id,
+              dueDate: "2026-06-03",
+              parentTaskId: null,
+            },
+          ],
+        });
+
+      yield* Effect.all(
+        [createOne("Concurrent 1"), createOne("Concurrent 2"), createOne("Concurrent 3")],
+        { concurrency: "unbounded" },
+      );
+
+      const listed = yield* authenticated.query(refs.public.tasks.listForChurch, {
+        churchId: church.id!,
+      });
+      const numbers = listed.data.tasks
+        .filter((task) => task.teamId === teamId)
+        .map((task) => task.number)
+        .sort((left, right) => left - right);
+
+      // Concurrent draws never duplicate or skip: the per-Team sequence stays
+      // dense (Convex serializable transactions).
+      expect(numbers).toEqual([1, 2, 3]);
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 });

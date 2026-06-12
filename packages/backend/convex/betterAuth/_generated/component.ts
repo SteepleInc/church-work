@@ -210,6 +210,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                   defaultWorkflowId?: null | string;
                   identifier?: null | string;
                   name: string;
+                  nextTaskNumber?: null | number;
                   organizationId: string;
                   previousIdentifiers?: null | Array<string>;
                   sortOrder?: null | number;
@@ -745,6 +746,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "color"
                     | "identifier"
                     | "previousIdentifiers"
+                    | "nextTaskNumber"
                     | "_id";
                   mode?: "sensitive" | "insensitive";
                   operator?:
@@ -1349,6 +1351,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "color"
                     | "identifier"
                     | "previousIdentifiers"
+                    | "nextTaskNumber"
                     | "_id";
                   mode?: "sensitive" | "insensitive";
                   operator?:
@@ -2186,6 +2189,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                   defaultWorkflowId?: null | string;
                   identifier?: null | string;
                   name?: string;
+                  nextTaskNumber?: null | number;
                   organizationId?: string;
                   previousIdentifiers?: null | Array<string>;
                   sortOrder?: null | number;
@@ -2204,6 +2208,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "color"
                     | "identifier"
                     | "previousIdentifiers"
+                    | "nextTaskNumber"
                     | "_id";
                   mode?: "sensitive" | "insensitive";
                   operator?:
@@ -2964,6 +2969,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                   defaultWorkflowId?: null | string;
                   identifier?: null | string;
                   name?: string;
+                  nextTaskNumber?: null | number;
                   organizationId?: string;
                   previousIdentifiers?: null | Array<string>;
                   sortOrder?: null | number;
@@ -2982,6 +2988,7 @@ export type ComponentApi<Name extends string | undefined = string | undefined> =
                     | "color"
                     | "identifier"
                     | "previousIdentifiers"
+                    | "nextTaskNumber"
                     | "_id";
                   mode?: "sensitive" | "insensitive";
                   operator?:

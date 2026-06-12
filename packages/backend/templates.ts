@@ -5,7 +5,7 @@ import { buildCycleForLocalDate, cycleStartDateForLocalDate } from "./churchCycl
 import { components } from "./convex/_generated/api";
 import type { DataModel, Id } from "./convex/_generated/dataModel";
 import { resolveKeyDateOccurrences } from "./keyDateScheduling";
-import { makeBoardOrderAppender } from "./tasks";
+import { makeBoardOrderAppender, makeTaskNumberDrawer } from "./tasks";
 import {
   type CycleAdjustmentOverride,
   mergeTemplateTaskProjection,
@@ -402,6 +402,9 @@ export async function materializeProjectedTasks(
   const taskIds: Array<Id<"tasks">> = [];
   const createdTaskIds: Array<Id<"tasks">> = [];
   const appendBoardOrder = makeBoardOrderAppender(ctx);
+  // Projected Tasks draw numbers from the owning Team's sequence at
+  // projection time (ADR 0013).
+  const drawTaskNumber = makeTaskNumberDrawer(ctx);
 
   for (const schedule of schedules) {
     const templateTask = await ctx.db.get(schedule.templateTaskId as Id<"templateTasks">);
@@ -464,6 +467,7 @@ export async function materializeProjectedTasks(
         churchId: args.churchId,
         title: merged.effectiveTask.title,
         teamId: projectionTeam._id,
+        number: await drawTaskNumber(projectionTeam._id),
         assignedUserId: null,
         // Template projection is system-created work, not user-created.
         createdByUserId: null,

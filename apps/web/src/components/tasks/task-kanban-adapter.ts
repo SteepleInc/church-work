@@ -10,6 +10,9 @@ export type TaskBoardWorkflowStatus = {
 
 export type TaskBoardTask = {
   readonly id: string;
+  // The Task Identifier (e.g. "PRD-48"): the Team Identifier plus the Task's
+  // per-Team sequence number, computed by the backend at read time (ADR 0013).
+  readonly identifier: string;
   readonly title: string;
   readonly workflowStatusId: string;
   readonly taskState: TaskBoardTaskState;

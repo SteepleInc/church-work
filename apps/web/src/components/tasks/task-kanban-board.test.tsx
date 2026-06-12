@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { matchPickerHotkey, statusOptions, toTaskIdentifier } from "./task-kanban-board-utils";
+import { matchPickerHotkey, statusOptions } from "./task-kanban-board-utils";
 import type { TaskBoardWorkflowStatus } from "./task-kanban-adapter";
 
 type HotkeyEvent = Parameters<typeof matchPickerHotkey>[0];
@@ -15,17 +15,6 @@ function keyEvent(overrides: Partial<HotkeyEvent>): HotkeyEvent {
     ...overrides,
   };
 }
-
-describe("Task card identifier stub", () => {
-  test("derives a short Linear-style identifier from the Task id", () => {
-    expect(toTaskIdentifier("task_abcd1234")).toBe("TASK-1234");
-    expect(toTaskIdentifier("k57-9f3b")).toBe("TASK-9F3B");
-  });
-
-  test("uppercases and pads from short ids without separators", () => {
-    expect(toTaskIdentifier("ab")).toBe("TASK-AB");
-  });
-});
 
 describe("Task card status selector options", () => {
   const statuses: readonly TaskBoardWorkflowStatus[] = [

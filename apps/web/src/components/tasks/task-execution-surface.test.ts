@@ -212,6 +212,7 @@ describe("Task execution surface", () => {
   test("resolves visible Subtask parent context for board cards", () => {
     const parentTask = {
       id: "parent-task",
+      identifier: "PRO-1",
       title: "Prepare service",
       teamId: "team-1",
       assignedUserId: null,
@@ -224,6 +225,7 @@ describe("Task execution surface", () => {
     };
     const childTask = {
       id: "child-task",
+      identifier: "PRO-2",
       title: "Print handouts",
       teamId: "team-1",
       assignedUserId: "user-1",

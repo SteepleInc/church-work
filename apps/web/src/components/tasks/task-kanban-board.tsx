@@ -64,12 +64,7 @@ import {
   type TaskBoardWorkflowStatus,
 } from "./task-kanban-adapter";
 import { DEFAULT_TASK_VIEW_OPTIONS, type TaskDisplayProperty } from "./task-view-options";
-import {
-  matchPickerHotkey,
-  statusOptions,
-  toTaskIdentifier,
-  type PickerHotkey,
-} from "./task-kanban-board-utils";
+import { matchPickerHotkey, statusOptions, type PickerHotkey } from "./task-kanban-board-utils";
 
 export type TaskCardAssignChange = {
   readonly taskId: string;
@@ -704,7 +699,7 @@ function TaskKanbanCard({
           ) : null}
           {showProperty("id") ? (
             <span className="truncate font-medium text-muted-foreground text-xs">
-              {toTaskIdentifier(task.id)}
+              {task.identifier}
             </span>
           ) : null}
         </div>

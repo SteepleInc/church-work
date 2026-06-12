@@ -12,6 +12,9 @@ export type TaskState = "todo" | "in_progress" | "done" | "canceled";
 
 export type TaskSummary = {
   readonly id: string;
+  // The Task Identifier (e.g. "PRD-48") computed by the backend at read time
+  // from the Team Identifier and the Task's per-Team number (ADR 0013).
+  readonly identifier: string;
   readonly title: string;
   readonly teamId: string;
   readonly assignedUserId: string | null;

@@ -37,9 +37,11 @@ export function TaskDetailsPane({ taskId }: { readonly taskId: string }) {
           <h2 className="font-semibold text-lg">{task?.title ?? "Task"}</h2>
           {loading ? (
             <Skeleton className="h-4 w-40" />
-          ) : (
-            <p className="text-sm text-muted-foreground">{taskId}</p>
-          )}
+          ) : task ? (
+            // The Task Identifier (e.g. "PRD-48") is the user-facing
+            // reference, not the database id (ADR 0013).
+            <p className="text-sm text-muted-foreground">{task.identifier}</p>
+          ) : null}
         </>
       }
       content={

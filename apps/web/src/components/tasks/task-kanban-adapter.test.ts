@@ -14,6 +14,7 @@ import {
 function boardTask(overrides: Partial<TaskBoardTask> & { readonly id: string }): TaskBoardTask {
   return {
     title: `Task ${overrides.id}`,
+    identifier: `TST-${overrides.id}`,
     workflowStatusId: "todo",
     taskState: "todo",
     teamId: "team-1",
@@ -182,6 +183,7 @@ describe("Board Column grouping", () => {
   const tasks: readonly TaskBoardTask[] = [
     {
       id: "task-1",
+      identifier: "PRO-1",
       title: "Call volunteer",
       workflowStatusId: "todo",
       taskState: "todo",
@@ -190,6 +192,7 @@ describe("Board Column grouping", () => {
     },
     {
       id: "task-2",
+      identifier: "KID-1",
       title: "Prepare slides",
       workflowStatusId: "doing",
       taskState: "in_progress",
@@ -275,6 +278,7 @@ describe("Board Column grouping", () => {
         "user-1": [
           {
             id: "task-1",
+            identifier: "PRO-1",
             title: "Call volunteer",
             workflowStatusId: "todo",
             taskState: "todo",
@@ -295,6 +299,7 @@ describe("Board Column grouping", () => {
     expect(persistedMoves).toEqual([{ taskId: "task-1", columnId: "unassigned" }]);
     expect(nextColumns.unassigned[0]).toEqual({
       id: "task-1",
+      identifier: "PRO-1",
       title: "Call volunteer",
       workflowStatusId: "todo",
       taskState: "todo",
