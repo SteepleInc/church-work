@@ -6,7 +6,7 @@ import {
   useUpdateTaskMutation,
   type TaskCollectionFilters,
 } from "@/data/tasks/tasksData.app";
-import { useChurchUsersCollection } from "@/data/users/usersData.app";
+import { getUserDisplayName, useChurchUsersCollection } from "@/data/users/usersData.app";
 import {
   useWorkflowStatusesCollection,
   useWorkflowsCollection,
@@ -117,7 +117,7 @@ export function TaskExecutionSurface({
           tasks={tasks.map((task) => toBoardTask(task, tasks))}
           assigneeOptions={usersCollection.usersCollection.map((user) => ({
             id: user.id,
-            label: user.name ?? user.email ?? user.id,
+            label: getUserDisplayName(user),
           }))}
           currentUserId={currentUserId}
           teamMemberIdsByTeamId={teamMemberIdsByTeamId}

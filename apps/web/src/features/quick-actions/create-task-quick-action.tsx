@@ -18,7 +18,7 @@ import { Kbd } from "@/components/ui/kbd";
 import { useCyclesCollection } from "@/data/cycles/cyclesData.app";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { useCreateTaskMutation } from "@/data/tasks/tasksData.app";
-import { useChurchUsersCollection } from "@/data/users/usersData.app";
+import { getUserDisplayName, useChurchUsersCollection } from "@/data/users/usersData.app";
 import {
   useWorkflowStatusesCollection,
   useWorkflowsCollection,
@@ -73,7 +73,7 @@ export function CreateTaskQuickAction() {
     workflowStatusesCollection.workflowStatusesCollection[0];
   const assigneeOptions = usersCollection.usersCollection.map((user) => ({
     id: user.id,
-    label: user.name ?? user.email ?? user.id,
+    label: getUserDisplayName(user),
   }));
   const isOpen = state !== null;
   const isLoading =

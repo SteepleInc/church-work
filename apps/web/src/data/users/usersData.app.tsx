@@ -20,6 +20,14 @@ export type UserCollectionItem = Pick<User, "id" | "name"> & {
   }[];
 };
 
+export function getUserDisplayName(user: Pick<UserCollectionItem, "id" | "name" | "email">) {
+  const name = user.name?.trim();
+  if (name) return name;
+
+  const email = user.email?.trim();
+  return email || user.id;
+}
+
 export function useChurchUsersCollection(params: { readonly churchId: string | null }) {
   const result = useQuery(
     api.dashboard.listMembers,
