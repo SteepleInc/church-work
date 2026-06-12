@@ -1,13 +1,14 @@
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { useCallback, useMemo } from "react";
 
-import type { FiltersState, SortingState } from "@/components/data-table-filter/core/types";
+import type {
+  FilterStateValue,
+  FiltersState,
+  SortingState,
+} from "@/components/data-table-filter/core/types";
 import type { FilterKeys } from "@/shared/global-state";
 
-export type FilterStateValue = {
-  readonly filters?: FiltersState;
-  readonly sorting?: SortingState;
-};
+export type { FilterStateValue };
 
 export type FilterSearch = Record<string, unknown>;
 

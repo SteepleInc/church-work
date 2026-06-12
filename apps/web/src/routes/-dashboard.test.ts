@@ -1,17 +1,17 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  decodeDashboardSearch,
   getDashboardSearchForExecutionFilters,
   getDashboardSearchForPanel,
   getMemberTeams,
   getUnavailableTeamBoardActions,
-  validateDashboardSearch,
 } from "./-dashboard-utils";
 
 describe("dashboard execution route search", () => {
   test("keeps page identity out of dashboard search state", () => {
     expect(
-      validateDashboardSearch({
+      decodeDashboardSearch({
         work: "team",
         teamId: "team-1",
         taskState: "todo",
@@ -25,7 +25,7 @@ describe("dashboard execution route search", () => {
 
   test("drops invalid temporary execution filters", () => {
     expect(
-      validateDashboardSearch({
+      decodeDashboardSearch({
         taskState: "blocked",
         workflowStatusId: "",
       }),

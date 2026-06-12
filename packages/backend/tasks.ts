@@ -11,6 +11,7 @@ type TaskCreateInput = {
   readonly title: string;
   readonly teamId: string | null;
   readonly assignedUserId?: string | null;
+  readonly createdByUserId?: string | null;
   readonly workflowStatusId: string;
   readonly dueDate: string;
   readonly parentTaskId: string | null;
@@ -72,8 +73,12 @@ export async function readTaskModel(
     readonly taskId?: string;
     readonly teamId?: string | null;
     readonly assignedUserId?: string | null;
+    readonly createdByUserId?: string;
     readonly workflowStatusId?: string;
     readonly taskState?: TaskState;
+    readonly taskStates?: ReadonlyArray<TaskState>;
+    readonly excludeSubtasks?: boolean;
+    readonly orderBy?: "created" | "due_date";
   } = {},
 ) {
   const cycles = await ctx.db
@@ -98,9 +103,14 @@ export async function readTaskModel(
     if ("assignedUserId" in filters && (task.assignedUserId ?? null) !== filters.assignedUserId) {
       return false;
     }
+    if (filters.createdByUserId && (task.createdByUserId ?? null) !== filters.createdByUserId) {
+      return false;
+    }
     if (filters.workflowStatusId && task.workflowStatusId !== filters.workflowStatusId)
       return false;
     if (filters.taskState && task.taskState !== filters.taskState) return false;
+    if (filters.taskStates && !filters.taskStates.includes(task.taskState)) return false;
+    if (filters.excludeSubtasks && task.parentTaskId !== null) return false;
 
     if (!executionCycle) return true;
 
@@ -109,8 +119,15 @@ export async function readTaskModel(
       (task.finishedAt === null || task.finishedAt >= executionCycle.startsAt)
     );
   });
+  const orderedTasks =
+    filters.orderBy === "due_date"
+      ? [...tasks].sort(
+          (left, right) =>
+            left.dueDate.localeCompare(right.dueDate) || left._creationTime - right._creationTime,
+        )
+      : tasks;
 
-  return { cycles, tasks };
+  return { cycles, tasks: orderedTasks };
 }
 
 export const serializeTaskModel = (data: Awaited<ReturnType<typeof readTaskModel>>) => ({
@@ -132,6 +149,7 @@ export const serializeTaskModel = (data: Awaited<ReturnType<typeof readTaskModel
     cycleId: task.cycleId,
     dueDate: task.dueDate,
     createdAt: task._creationTime,
+    createdByUserId: task.createdByUserId ?? null,
     parentTaskId: task.parentTaskId,
     workflowId: task.workflowId,
     workflowStatusId: task.workflowStatusId,
@@ -226,6 +244,7 @@ export async function createTasks(
       title: task.title,
       teamId: task.teamId,
       assignedUserId: task.assignedUserId ?? null,
+      createdByUserId: task.createdByUserId ?? null,
       cycleId,
       dueDate: task.dueDate,
       parentTaskId: task.parentTaskId,

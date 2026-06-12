@@ -1,3 +1,5 @@
+import { resolveTaskViewTab, type TaskViewTab } from "@/components/tasks/task-view-options";
+
 export type ExecutionSurface = "my_work" | "our_work" | "team_board";
 
 type ExecutionCycle = {
@@ -69,6 +71,58 @@ export function getTaskExecutionReadArgs(args: {
       ? { teamId: args.teamId ?? null }
       : { surface: args.surface }),
     cycleId: args.cycleId,
+  };
+}
+
+/**
+ * Compile the active View Tab into server-side query filters (ADR 0007). The
+ * tab is a named preset that ANDs with everything else; it never appears in
+ * the ad-hoc filters list.
+ */
+export function getTaskTabFilters(args: {
+  readonly surface: ExecutionSurface;
+  readonly tab?: TaskViewTab;
+  readonly currentUserId: string;
+}): {
+  readonly surface?: "my_work" | "our_work";
+  readonly createdByUserId?: string;
+  readonly taskStates?: readonly TaskState[];
+} {
+  const tab = resolveTaskViewTab(args.surface, args.tab);
+
+  if (args.surface === "my_work") {
+    return tab === "created" ? { createdByUserId: args.currentUserId } : { surface: "my_work" };
+  }
+
+  const taskStates: readonly TaskState[] | undefined =
+    tab === "active" ? ["todo", "in_progress"] : tab === "done" ? ["done", "canceled"] : undefined;
+
+  return {
+    ...(args.surface === "our_work" ? { surface: "our_work" as const } : {}),
+    ...(taskStates ? { taskStates } : {}),
+  };
+}
+
+/**
+ * Full server-side query filters for a task surface: tab preset + Team scope +
+ * Cycle scope + View Options that are filters/ordering (sub-task visibility,
+ * ordering). Grouping and display properties stay client-side.
+ */
+export function getTaskExecutionFilters(args: {
+  readonly surface: ExecutionSurface;
+  readonly teamId?: string | null;
+  readonly cycleId: string;
+  readonly currentUserId: string;
+  readonly tab?: TaskViewTab;
+  readonly showSubtasks: boolean;
+  readonly ordering: "created" | "due_date";
+}) {
+  return {
+    ...getTaskTabFilters(args),
+    ...(args.surface === "team_board" ? { teamId: args.teamId ?? null } : {}),
+    cycleId: args.cycleId,
+    ...(args.showSubtasks ? {} : { excludeSubtasks: true as const }),
+    ...(args.ordering === "due_date" ? { orderBy: "due_date" as const } : {}),
   };
 }
 

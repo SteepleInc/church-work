@@ -426,6 +426,8 @@ export async function materializeProjectedTasks(
         title: merged.effectiveTask.title,
         teamId: null,
         assignedUserId: null,
+        // Template projection is system-created work, not user-created.
+        createdByUserId: null,
         cycleId: taskCycleId,
         dueDate: merged.effectiveTask.dueDate,
         parentTaskId: null,

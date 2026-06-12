@@ -355,6 +355,7 @@ export const mcpCreateTask = mutation({
               title: args.title,
               teamId: args.teamId ?? null,
               assignedUserId: args.assignedUserId ?? null,
+              createdByUserId: args.actorUserId,
               workflowStatusId: args.workflowStatusId,
               dueDate: args.dueDate,
               parentTaskId: args.parentTaskId ?? null,
@@ -428,6 +429,7 @@ export const mcpListTasks = query({
     cycleId: v.optional(v.string()),
     teamId: v.optional(v.union(v.string(), v.null())),
     assignedUserId: v.optional(v.union(v.string(), v.null())),
+    createdByUserId: v.optional(v.string()),
     workflowStatusId: v.optional(v.string()),
     taskState: v.optional(
       v.union(
@@ -437,6 +439,18 @@ export const mcpListTasks = query({
         v.literal("canceled"),
       ),
     ),
+    taskStates: v.optional(
+      v.array(
+        v.union(
+          v.literal("todo"),
+          v.literal("in_progress"),
+          v.literal("done"),
+          v.literal("canceled"),
+        ),
+      ),
+    ),
+    excludeSubtasks: v.optional(v.boolean()),
+    orderBy: v.optional(v.union(v.literal("created"), v.literal("due_date"))),
     taskId: v.optional(v.string()),
   },
   handler: async (ctx, args) =>
@@ -449,8 +463,11 @@ export const mcpListTasks = query({
           args.cycleId ??
           args.teamId ??
           args.assignedUserId ??
+          args.createdByUserId ??
           args.workflowStatusId ??
           args.taskState ??
+          args.taskStates ??
+          args.excludeSubtasks ??
           args.taskId,
         ),
       },
@@ -472,16 +489,24 @@ export const mcpListTasks = query({
           taskId?: string;
           teamId?: string | null;
           assignedUserId?: string | null;
+          createdByUserId?: string;
           workflowStatusId?: string;
           taskState?: "todo" | "in_progress" | "done" | "canceled";
+          taskStates?: ReadonlyArray<"todo" | "in_progress" | "done" | "canceled">;
+          excludeSubtasks?: boolean;
+          orderBy?: "created" | "due_date";
         } = { currentUserId: args.actorUserId };
         if (args.surface !== undefined) filters.surface = args.surface;
         if (args.cycleId !== undefined) filters.cycleId = args.cycleId;
         if (args.taskId !== undefined) filters.taskId = args.taskId;
         if (args.teamId !== undefined) filters.teamId = args.teamId;
         if (args.assignedUserId !== undefined) filters.assignedUserId = args.assignedUserId;
+        if (args.createdByUserId !== undefined) filters.createdByUserId = args.createdByUserId;
         if (args.workflowStatusId !== undefined) filters.workflowStatusId = args.workflowStatusId;
         if (args.taskState !== undefined) filters.taskState = args.taskState;
+        if (args.taskStates !== undefined) filters.taskStates = args.taskStates;
+        if (args.excludeSubtasks !== undefined) filters.excludeSubtasks = args.excludeSubtasks;
+        if (args.orderBy !== undefined) filters.orderBy = args.orderBy;
 
         const model = await readTaskModel(ctx, args.churchId, filters);
 

@@ -1,15 +1,29 @@
-import { parseDetailsPaneState } from "@/components/details-pane/details-pane-helpers";
-import type { DetailsPaneParams } from "@/components/details-pane/details-pane-types";
-import { FilterKeys } from "@/shared/global-state";
-import { getFilterStateValue, type FilterStateValue } from "@/shared/hooks/useFilters";
+import { Schema } from "effect";
 
-export type DashboardSearch = {
-  readonly taskState?: "todo" | "in_progress" | "done" | "canceled";
-  readonly workflowStatusId?: string;
-  readonly "details-pane"?: DetailsPaneParams;
-  readonly [FilterKeys.Orgs]?: FilterStateValue;
-  readonly [FilterKeys.Users]?: FilterStateValue;
-};
+import { FilterStateValueSchema } from "@/components/data-table-filter/core/types";
+import { DetailsPaneParams } from "@/components/details-pane/details-pane-types";
+import type { TaskViewSearch } from "@/components/tasks/task-view-options";
+import { FilterKeys } from "@/shared/global-state";
+import { lenientSearchField } from "@/shared/lenient-search";
+
+export const DashboardSearchSchema = Schema.Struct({
+  taskState: lenientSearchField(Schema.Literal("todo", "in_progress", "done", "canceled")),
+  workflowStatusId: lenientSearchField(Schema.NonEmptyString),
+  "details-pane": lenientSearchField(DetailsPaneParams),
+  [FilterKeys.Orgs]: lenientSearchField(FilterStateValueSchema),
+  [FilterKeys.Users]: lenientSearchField(FilterStateValueSchema),
+});
+
+/**
+ * The `_org` layout search. Task routes layer `tab`/`view` on top of this via
+ * their own route schemas (`MyWorkSearchSchema` / `ChurchWorkSearchSchema`).
+ */
+export type DashboardPanelSearch = typeof DashboardSearchSchema.Type;
+export type DashboardSearch = DashboardPanelSearch & TaskViewSearch;
+
+export const validateDashboardSearch = Schema.standardSchemaV1(DashboardSearchSchema);
+
+export const decodeDashboardSearch = Schema.decodeUnknownSync(DashboardSearchSchema);
 
 type TaskExecutionFilters = {
   readonly taskState?: DashboardSearch["taskState"];
@@ -25,35 +39,6 @@ type DashboardTeamMembershipSummary = {
   readonly userId: string;
 };
 
-function getSearchFilterState(search: Record<string, unknown>, filterKey: FilterKeys) {
-  const value = getFilterStateValue(search, filterKey);
-
-  return value.filters?.length || value.sorting?.length ? value : undefined;
-}
-
-export function validateDashboardSearch(search: Record<string, unknown>): DashboardSearch {
-  const taskState = search.taskState;
-  const workflowStatusId = search.workflowStatusId;
-  const detailsPaneState = parseDetailsPaneState(search);
-
-  return {
-    taskState:
-      taskState === "todo" ||
-      taskState === "in_progress" ||
-      taskState === "done" ||
-      taskState === "canceled"
-        ? taskState
-        : undefined,
-    workflowStatusId:
-      typeof workflowStatusId === "string" && workflowStatusId.length > 0
-        ? workflowStatusId
-        : undefined,
-    "details-pane": detailsPaneState.length > 0 ? detailsPaneState : undefined,
-    [FilterKeys.Orgs]: getSearchFilterState(search, FilterKeys.Orgs),
-    [FilterKeys.Users]: getSearchFilterState(search, FilterKeys.Users),
-  };
-}
-
 export function getUnavailableTeamBoardActions() {
   return [
     { panel: "my_work" as const, label: "Open My Work" },
@@ -61,7 +46,7 @@ export function getUnavailableTeamBoardActions() {
   ];
 }
 
-function getDashboardFilterSearch(search: DashboardSearch): DashboardSearch {
+function getDashboardFilterSearch(search: DashboardSearch): DashboardPanelSearch {
   return {
     ...(search.taskState ? { taskState: search.taskState } : {}),
     ...(search.workflowStatusId ? { workflowStatusId: search.workflowStatusId } : {}),
@@ -71,7 +56,14 @@ function getDashboardFilterSearch(search: DashboardSearch): DashboardSearch {
   };
 }
 
-export function getDashboardSearchForPanel(currentSearch: DashboardSearch = {}): DashboardSearch {
+/**
+ * The search carried when switching between task surfaces. View Tabs and View
+ * Options are intentionally dropped: they belong to the surface they were set
+ * on (the team route retains them across `$teamId` switches separately).
+ */
+export function getDashboardSearchForPanel(
+  currentSearch: DashboardSearch = {},
+): DashboardPanelSearch {
   return getDashboardFilterSearch(currentSearch);
 }
 

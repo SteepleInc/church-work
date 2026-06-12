@@ -118,6 +118,23 @@ export function sizeValues(): readonly TaskSize[] {
  * was created in a different calendar year than `now`. Returns `null` for
  * missing/invalid timestamps so callers can omit the footer entirely.
  */
+export function formatDueDate(
+  dueDate: string | null | undefined,
+  now: Date = new Date(),
+): string | null {
+  if (!dueDate) return null;
+  const [year, month, day] = dueDate.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  const due = new Date(year, month - 1, day);
+  if (Number.isNaN(due.getTime())) return null;
+  const sameYear = due.getFullYear() === now.getFullYear();
+  return due.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    ...(sameYear ? {} : { year: "numeric" }),
+  });
+}
+
 export function formatCreatedAt(
   createdAt: number | null | undefined,
   now: Date = new Date(),

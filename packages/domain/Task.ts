@@ -10,6 +10,9 @@ export const TaskTableFieldsSchema = Schema.Struct({
   assignedUserId: Schema.Union(Schema.String, Schema.Null),
   cycleId: Schema.String,
   dueDate: Schema.String,
+  // The User who created the Task. Optional because pre-existing Tasks were
+  // written before the field existed; Template projection writes null.
+  createdByUserId: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
   parentTaskId: Schema.Union(Schema.String, Schema.Null),
   workflowId: Schema.String,
   workflowStatusId: Schema.String,
@@ -32,6 +35,7 @@ export const TaskSchema = Schema.Struct({
   // Convex's built-in document creation time (epoch ms). Surfaced from
   // `_creationTime` by the task serializers so clients can show "Created …".
   createdAt: Schema.Number,
+  createdByUserId: Schema.Union(Schema.String, Schema.Null),
   parentTaskId: Schema.Union(Schema.String, Schema.Null),
   workflowId: Schema.String,
   workflowStatusId: Schema.String,

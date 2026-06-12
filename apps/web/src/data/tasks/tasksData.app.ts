@@ -21,8 +21,12 @@ export type TaskCollectionFilters = {
   readonly cycleId?: string;
   readonly teamId?: string | null;
   readonly assignedUserId?: string | null;
+  readonly createdByUserId?: string;
   readonly workflowStatusId?: string;
   readonly taskState?: TaskStatus;
+  readonly taskStates?: readonly TaskStatus[];
+  readonly excludeSubtasks?: boolean;
+  readonly orderBy?: "created" | "due_date";
   readonly taskId?: string;
 };
 
@@ -31,13 +35,16 @@ export function useTasksCollection(params: {
   readonly currentUserId: string | null;
   readonly filters?: TaskCollectionFilters;
 }) {
+  const { taskStates, ...restFilters } = params.filters ?? {};
   const result = useQuery(
     api.tasks.mcpListTasks,
     params.churchId && params.currentUserId
       ? {
           churchId: params.churchId,
           actorUserId: params.currentUserId,
-          ...params.filters,
+          ...restFilters,
+          // Convex argument validators expect mutable arrays.
+          ...(taskStates ? { taskStates: [...taskStates] } : {}),
         }
       : "skip",
   );

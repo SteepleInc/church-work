@@ -4,8 +4,10 @@ import {
   buildTeamMemberIndex,
   getTaskCreationDefaults,
   getExecutionWorkflowId,
+  getTaskExecutionFilters,
   getTaskExecutionReadArgs,
   getTaskParentContext,
+  getTaskTabFilters,
   selectCurrentExecutionCycle,
 } from "./task-execution-surface-utils";
 
@@ -161,6 +163,66 @@ describe("Task execution surface", () => {
     });
     expect(getTaskParentContext(childTask, [childTask])).toBeNull();
     expect(getTaskParentContext(parentTask, [parentTask, childTask])).toBeNull();
+  });
+
+  test("compiles View Tabs into server-side filters", () => {
+    expect(getTaskTabFilters({ surface: "my_work", tab: undefined, currentUserId: "u-1" })).toEqual(
+      { surface: "my_work" },
+    );
+    expect(
+      getTaskTabFilters({ surface: "my_work", tab: "assigned", currentUserId: "u-1" }),
+    ).toEqual({ surface: "my_work" });
+    expect(getTaskTabFilters({ surface: "my_work", tab: "created", currentUserId: "u-1" })).toEqual(
+      { createdByUserId: "u-1" },
+    );
+
+    // Active is the default Our Work / Team tab.
+    expect(
+      getTaskTabFilters({ surface: "our_work", tab: undefined, currentUserId: "u-1" }),
+    ).toEqual({ surface: "our_work", taskStates: ["todo", "in_progress"] });
+    expect(getTaskTabFilters({ surface: "our_work", tab: "all", currentUserId: "u-1" })).toEqual({
+      surface: "our_work",
+    });
+    expect(getTaskTabFilters({ surface: "team_board", tab: "done", currentUserId: "u-1" })).toEqual(
+      { taskStates: ["done", "canceled"] },
+    );
+  });
+
+  test("ignores a View Tab that belongs to a different surface", () => {
+    expect(
+      getTaskTabFilters({ surface: "team_board", tab: "created", currentUserId: "u-1" }),
+    ).toEqual({ taskStates: ["todo", "in_progress"] });
+  });
+
+  test("compiles View Options that are filters/ordering into the query args", () => {
+    expect(
+      getTaskExecutionFilters({
+        surface: "team_board",
+        teamId: "team-1",
+        cycleId: "cycle-1",
+        currentUserId: "u-1",
+        tab: "all",
+        showSubtasks: false,
+        ordering: "due_date",
+      }),
+    ).toEqual({
+      teamId: "team-1",
+      cycleId: "cycle-1",
+      excludeSubtasks: true,
+      orderBy: "due_date",
+    });
+
+    // Defaults add nothing beyond the tab and Cycle scope.
+    expect(
+      getTaskExecutionFilters({
+        surface: "my_work",
+        cycleId: "cycle-1",
+        currentUserId: "u-1",
+        tab: "assigned",
+        showSubtasks: true,
+        ordering: "created",
+      }),
+    ).toEqual({ surface: "my_work", cycleId: "cycle-1" });
   });
 
   test("indexes team members by team id for the assignee picker", () => {

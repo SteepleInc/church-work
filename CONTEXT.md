@@ -146,6 +146,14 @@ _Avoid_: Hard-coded page, special board
 A built-in Saved View created or maintained by Church Task, such as My Work, a default Team view, or Our Work for all visible Church work. A System Saved View behaves like a Saved View but is permanent in product navigation and cannot be deleted by Users.
 _Avoid_: Hard-coded view, special view
 
+**View Options**:
+The presentation settings for the active Saved View carried in the URL — such as view mode (list or board), grouping, ordering, display properties, and sub-task visibility — so a shared link reproduces exactly what its sender sees. View Options override the Saved View's defaults for that session only; writing them back as the Saved View's defaults is a separate explicit action.
+_Avoid_: Display options as the canonical name, view settings, cookie/local-storage view preferences for task surfaces
+
+**View Tab**:
+A named, built-in filter preset on a System Saved View, such as Assigned and Created on My Work, or All, Active, and Done on Our Work and Team views. A View Tab combines with the user's ad-hoc filters rather than appearing among them, and is carried in the URL separately from both filters and View Options.
+_Avoid_: Tab as a generic UI term for this concept, sub-view, encoding the active tab inside the filters list
+
 **Board Column**:
 A presentation lane on a Board derived from the Board's grouping or status mapping. A Board Column does not own Task state; it presents Tasks based on their underlying Workflow Status or other grouping field.
 _Avoid_: Task status, Workflow Status

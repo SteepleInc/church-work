@@ -2,9 +2,14 @@ import { describe, expect, test } from "bun:test";
 
 import {
   buildTaskBoardColumns,
+  buildTaskBoardGroupColumns,
   groupTasksByWorkflowStatus,
+  isTaskBoardGroupingDraggable,
   moveTaskBetweenBoardColumns,
+  moveTaskBetweenGroupColumns,
+  type TaskBoardColumnMove,
   type TaskBoardMove,
+  type TaskBoardTask,
 } from "./task-kanban-adapter";
 
 describe("Task Kanban adapter", () => {
@@ -143,6 +148,130 @@ describe("Task Kanban adapter", () => {
       doing: [
         { id: "task-1", title: "Call volunteer", workflowStatusId: "doing", taskState: "todo" },
       ],
+    });
+  });
+});
+
+describe("Board Column grouping", () => {
+  const tasks: readonly TaskBoardTask[] = [
+    {
+      id: "task-1",
+      title: "Call volunteer",
+      workflowStatusId: "todo",
+      taskState: "todo",
+      assignedUserId: "user-1",
+      teamId: "team-1",
+    },
+    {
+      id: "task-2",
+      title: "Prepare slides",
+      workflowStatusId: "doing",
+      taskState: "in_progress",
+      assignedUserId: null,
+      teamId: null,
+    },
+  ];
+  const assignees = [
+    { id: "user-1", label: "Ana" },
+    { id: "user-2", label: "Ben" },
+  ];
+  const teams = [
+    { id: "team-1", name: "Production" },
+    { id: "team-2", name: "Kids" },
+  ];
+
+  test("groups by assignee with an Unassigned lane", () => {
+    const columns = buildTaskBoardGroupColumns({
+      grouping: "assignee",
+      workflowStatuses: [],
+      assignees,
+      teams,
+      tasks,
+      showEmptyColumns: true,
+    });
+
+    expect(columns.map((column) => column.id)).toEqual(["unassigned", "user-1", "user-2"]);
+    expect(columns.map((column) => column.title)).toEqual(["Unassigned", "Ana", "Ben"]);
+  });
+
+  test("groups by team with a No Team lane", () => {
+    const columns = buildTaskBoardGroupColumns({
+      grouping: "team",
+      workflowStatuses: [],
+      assignees,
+      teams,
+      tasks,
+      showEmptyColumns: true,
+    });
+
+    expect(columns.map((column) => column.title)).toEqual(["No Team", "Production", "Kids"]);
+  });
+
+  test("groups by Task State with the canonical lanes", () => {
+    const columns = buildTaskBoardGroupColumns({
+      grouping: "task_state",
+      workflowStatuses: [],
+      assignees,
+      teams,
+      tasks,
+      showEmptyColumns: true,
+    });
+
+    expect(columns.map((column) => column.id)).toEqual(["todo", "in_progress", "done", "canceled"]);
+  });
+
+  test("hides empty Board Columns when View Options say so", () => {
+    const columns = buildTaskBoardGroupColumns({
+      grouping: "assignee",
+      workflowStatuses: [],
+      assignees,
+      teams,
+      tasks,
+      showEmptyColumns: false,
+    });
+
+    expect(columns.map((column) => column.id)).toEqual(["unassigned", "user-1"]);
+  });
+
+  test("drag is enabled only for Workflow Status and Assignee groupings", () => {
+    expect(isTaskBoardGroupingDraggable("workflow_status")).toBe(true);
+    expect(isTaskBoardGroupingDraggable("assignee")).toBe(true);
+    expect(isTaskBoardGroupingDraggable("task_state")).toBe(false);
+    expect(isTaskBoardGroupingDraggable("team")).toBe(false);
+  });
+
+  test("dragging between assignee lanes reassigns the Task", () => {
+    const persistedMoves: TaskBoardColumnMove[] = [];
+
+    const nextColumns = moveTaskBetweenGroupColumns({
+      grouping: "assignee",
+      columns: {
+        "user-1": [
+          {
+            id: "task-1",
+            title: "Call volunteer",
+            workflowStatusId: "todo",
+            taskState: "todo",
+            assignedUserId: "user-1",
+          },
+        ],
+        unassigned: [],
+      },
+      taskId: "task-1",
+      destinationColumnId: "unassigned",
+      destinationIndex: 0,
+      persistMove: (move) => {
+        persistedMoves.push(move);
+      },
+    });
+
+    expect(persistedMoves).toEqual([{ taskId: "task-1", columnId: "unassigned" }]);
+    expect(nextColumns.unassigned[0]).toEqual({
+      id: "task-1",
+      title: "Call volunteer",
+      workflowStatusId: "todo",
+      taskState: "todo",
+      assignedUserId: null,
     });
   });
 });

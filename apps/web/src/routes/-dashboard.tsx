@@ -50,6 +50,15 @@ import { useState } from "react";
 import SignInForm from "@/components/sign-in-form";
 import SignUpForm from "@/components/sign-up-form";
 import { TaskExecutionSurface } from "@/components/tasks/task-execution-surface";
+import { TaskViewTopBar } from "@/components/tasks/task-view-top-bar";
+import {
+  getDefaultTaskViewTab,
+  resolveTaskViewOptions,
+  resolveTaskViewTab,
+  toTaskViewSearchValue,
+  type ResolvedTaskViewOptions,
+  type TaskViewTab,
+} from "@/components/tasks/task-view-options";
 import { useUserInvitationsCollection } from "@/data/invitations/invitationsData.app";
 import {
   useCurrentOrgOpt,
@@ -132,20 +141,52 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
   const showCreateTask =
     activePanel !== "settings" && Boolean(activeChurch) && Boolean(currentUserId);
 
+  const surface =
+    typeof activePanel === "object"
+      ? ("team_board" as const)
+      : activePanel === "settings"
+        ? ("my_work" as const)
+        : activePanel;
+  const showTopBar = showCreateTask && (typeof activePanel !== "object" || selectedTeam !== null);
+  const activeTab = resolveTaskViewTab(surface, search.tab);
+  const activeView = resolveTaskViewOptions(search.view);
+
+  const setTab = (tab: TaskViewTab) => {
+    void navigate({
+      to: ".",
+      replace: true,
+      search: (prev: Record<string, unknown>) => ({
+        ...prev,
+        tab: tab === getDefaultTaskViewTab(surface) ? undefined : tab,
+      }),
+    });
+  };
+
+  const setView = (view: ResolvedTaskViewOptions) => {
+    void navigate({
+      to: ".",
+      replace: true,
+      search: (prev: Record<string, unknown>) => ({
+        ...prev,
+        view: toTaskViewSearchValue(view),
+      }),
+    });
+  };
+
   return (
     <MainContainer>
       <PageContainer wrapperClassName="gap-6">
-        {showCreateTask ? (
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              onClick={() =>
-                openCreateTask({ assignTo: activePanel === "my_work" ? currentUserId : null })
-              }
-            >
-              Create Task
-            </Button>
-          </div>
+        {showTopBar ? (
+          <TaskViewTopBar
+            surface={surface}
+            tab={activeTab}
+            onTabChange={setTab}
+            view={activeView}
+            onViewChange={setView}
+            onCreateTask={() =>
+              openCreateTask({ assignTo: activePanel === "my_work" ? currentUserId : null })
+            }
+          />
         ) : null}
         {activePanel === "settings" && activeChurch ? (
           <ActiveChurchSettings activeChurch={activeChurch} />
@@ -174,14 +215,11 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
           <TaskExecutionSurface
             churchId={activeChurch.id}
             currentUserId={currentUserId}
-            surface={
-              typeof activePanel === "object"
-                ? "team_board"
-                : activePanel === "settings"
-                  ? "my_work"
-                  : activePanel
-            }
+            surface={surface}
             team={selectedTeam}
+            teams={activeTeams.map((candidate) => ({ id: candidate.id, name: candidate.name }))}
+            tab={activeTab}
+            view={search.view}
           />
         ) : (
           <>

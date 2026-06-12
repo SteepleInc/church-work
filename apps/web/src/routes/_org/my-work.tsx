@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Schema } from "effect";
 
+import { MyWorkSearchSchema } from "@/components/tasks/task-view-options";
 import { DashboardPage } from "@/routes/-dashboard";
-import { validateDashboardSearch } from "@/routes/-dashboard-utils";
 
 export const Route = createFileRoute("/_org/my-work")({
-  validateSearch: validateDashboardSearch,
+  validateSearch: Schema.standardSchemaV1(MyWorkSearchSchema),
   component: RouteComponent,
 });
 
