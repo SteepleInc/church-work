@@ -30,13 +30,19 @@ import {
   QuickActionsWrapper,
 } from "@/features/quick-actions/quick-actions-components";
 
-export type CreateTaskQuickActionState = { readonly assignTo: string | null } | null;
+export type CreateTaskQuickActionState = {
+  readonly assignTo: string | null;
+  // Preset Workflow Status when created from a Board Column's "+" button.
+  readonly workflowStatusId?: string | null;
+  readonly teamId?: string | null;
+} | null;
 
 export const createTaskQuickActionStateAtom = atom<CreateTaskQuickActionState>(null);
 
 const CreateTaskSchema = Schema.Struct({
   title: Schema.String.pipe(Schema.minLength(1, { message: () => "Enter a Task title." })),
   assignedUserId: Schema.NullOr(Schema.String),
+  workflowStatusId: Schema.String,
 });
 
 export function CreateTaskQuickAction() {
@@ -63,14 +69,24 @@ export function CreateTaskQuickAction() {
     churchDefaultWorkflowId: churchDefaultWorkflow?.id,
     teamDefaultWorkflowId: null,
   });
+  const workflowStatuses = workflowStatusesCollection.workflowStatusesCollection;
+  // A preset status (from a Board Column "+") pins the dialog to that status's
+  // Workflow; otherwise the Church default Workflow's first To Do status wins.
+  const presetStatus = state?.workflowStatusId
+    ? workflowStatuses.find((status) => status.id === state.workflowStatusId)
+    : undefined;
+  const effectiveWorkflowId = presetStatus?.workflowId ?? workflowId;
   const creationStatus =
-    workflowStatusesCollection.workflowStatusesCollection.find(
-      (status) => status.workflowId === workflowId && status.taskState === "todo",
+    presetStatus ??
+    workflowStatuses.find(
+      (status) => status.workflowId === effectiveWorkflowId && status.taskState === "todo",
     ) ??
-    workflowStatusesCollection.workflowStatusesCollection.find(
-      (status) => status.taskState === "todo",
-    ) ??
-    workflowStatusesCollection.workflowStatusesCollection[0];
+    workflowStatuses.find((status) => status.taskState === "todo") ??
+    workflowStatuses[0];
+  const workflowStatusOptions = workflowStatuses
+    .filter((status) => status.workflowId === effectiveWorkflowId)
+    .sort((left, right) => left.sortOrder - right.sortOrder)
+    .map((status) => ({ value: status.id, label: status.name }));
   const assigneeOptions = usersCollection.usersCollection.map((user) => ({
     id: user.id,
     label: getUserDisplayName(user),
@@ -93,6 +109,7 @@ export function CreateTaskQuickAction() {
     defaultValues: {
       title: "",
       assignedUserId: state?.assignTo ?? (null as string | null),
+      workflowStatusId: state?.workflowStatusId ?? "",
     },
     validationLogic: revalidateLogic({
       mode: "submit",
@@ -110,7 +127,11 @@ export function CreateTaskQuickAction() {
         return;
       }
 
-      if (!creationStatus) {
+      const selectedStatus = value.workflowStatusId
+        ? workflowStatuses.find((status) => status.id === value.workflowStatusId)
+        : undefined;
+      const submitStatus = selectedStatus ?? creationStatus;
+      if (!submitStatus) {
         setError("Task could not find a To Do Workflow Status.");
         return;
       }
@@ -120,9 +141,9 @@ export function CreateTaskQuickAction() {
         churchId,
         actorUserId: currentUserId,
         title: trimmedTitle,
-        teamId: null,
+        teamId: state?.teamId ?? null,
         assignedUserId: value.assignedUserId,
-        workflowStatusId: creationStatus.id,
+        workflowStatusId: submitStatus.id,
         dueDate: currentCycle?.endDate ?? today,
         parentTaskId: null,
       });
@@ -175,6 +196,16 @@ export function CreateTaskQuickAction() {
                   label="Task Title"
                   placeholder="Add a Task"
                   required
+                />
+              )}
+            </form.AppField>
+            <form.AppField name="workflowStatusId">
+              {(field) => (
+                <field.SelectField
+                  disabled={isLoading || workflowStatusOptions.length === 0}
+                  label="Workflow Status"
+                  options={workflowStatusOptions}
+                  placeholder={creationStatus?.name ?? "Select a status"}
                 />
               )}
             </form.AppField>

@@ -54,6 +54,12 @@ export function SelectField({
       <Select
         defaultValue={defaultValue}
         disabled={disabled}
+        // Base UI's SelectValue renders the raw value unless the root knows
+        // the items; with this it renders the selected option's label.
+        items={pipe(
+          options,
+          Array.map(({ label, value }) => ({ label, value })),
+        )}
         onValueChange={(value) => {
           field.handleChange(value as string);
           field.handleBlur();

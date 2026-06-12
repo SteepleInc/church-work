@@ -150,6 +150,10 @@ _Avoid_: Hard-coded view, special view
 A presentation lane on a Board derived from the Board's grouping or status mapping. A Board Column does not own Task state; it presents Tasks based on their underlying Workflow Status or other grouping field.
 _Avoid_: Task status, Workflow Status
 
+**Board Order**:
+The manual, user-defined ordering of Tasks within a Board Column, changed by dragging a card and persisted so every viewer of the Board sees the same order. Board Order is the only card ordering concept; Tasks do not have a priority.
+_Avoid_: Priority, rank as a user-facing term, sort order of creation
+
 **Workflow**:
 The ordered set of Workflow Statuses a Task moves through. A Task assigned to a Team uses that Team's Workflow; a Task without a Team uses the Church default Workflow.
 _Avoid_: Board workflow

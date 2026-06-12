@@ -12,6 +12,7 @@ import {
   workflowStatusStateLookup,
   type OptimisticTask,
   type TaskTransition,
+  type TaskUpdateFields,
   type WorkflowStatusStateLookup,
   type WorkflowStatusStateSource,
 } from "@/data/tasks/tasksOptimistic";
@@ -85,6 +86,30 @@ export function useUpdateTaskMutation() {
         task.id === args.taskId
           ? applyTaskUpdate(task, args.fields, resolveTaskStateFromStore(store, args.churchId))
           : undefined,
+    }),
+  );
+}
+
+/**
+ * Batch variant used by group drags on the Board (e.g. "Select all in column"
+ * then drag). Optimistically applies each update so all selected cards land in
+ * the destination column with their new Board Order immediately.
+ */
+export function useUpdateTasksBatchMutation() {
+  return useMutation(api.tasks.mcpUpdateTasksBatch).withOptimisticUpdate(
+    collectionItemOptimisticUpdate({
+      query: api.tasks.mcpListTasks,
+      collectionKey: "tasks",
+      patch: (task: OptimisticTask, args, store) => {
+        const updates: ReadonlyArray<{
+          readonly taskId: string;
+          readonly fields: TaskUpdateFields;
+        }> = args.updates;
+        const update = updates.find((candidate) => candidate.taskId === task.id);
+        return update
+          ? applyTaskUpdate(task, update.fields, resolveTaskStateFromStore(store, args.churchId))
+          : undefined;
+      },
     }),
   );
 }

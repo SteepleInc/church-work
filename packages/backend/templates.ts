@@ -4,6 +4,7 @@ import { writeActivity } from "./activityRegistry";
 import { buildCycleForLocalDate, cycleStartDateForLocalDate } from "./churchCycleCalendar";
 import type { DataModel, Id } from "./convex/_generated/dataModel";
 import { resolveKeyDateOccurrences } from "./keyDateScheduling";
+import { makeBoardOrderAppender } from "./tasks";
 import {
   type CycleAdjustmentOverride,
   mergeTemplateTaskProjection,
@@ -363,6 +364,7 @@ export async function materializeProjectedTasks(
   }> = [];
   const taskIds: Array<Id<"tasks">> = [];
   const createdTaskIds: Array<Id<"tasks">> = [];
+  const appendBoardOrder = makeBoardOrderAppender(ctx);
 
   for (const schedule of schedules) {
     const templateTask = await ctx.db.get(schedule.templateTaskId as Id<"templateTasks">);
@@ -432,6 +434,7 @@ export async function materializeProjectedTasks(
         workflowId: todoStatus.workflowId,
         workflowStatusId: todoStatus._id,
         taskState: "todo",
+        boardOrder: await appendBoardOrder(todoStatus._id),
         finishedAt: null,
         sourceTemplateId: templateTask.templateId,
         sourceTemplateTaskId: templateTask._id,

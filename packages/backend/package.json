@@ -24,6 +24,7 @@
     "convex": "catalog:",
     "dotenv": "catalog:",
     "effect": "catalog:",
+    "fractional-indexing": "^3.2.0",
     "zod": "catalog:"
   },
   "devDependencies": {

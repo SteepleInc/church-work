@@ -116,13 +116,16 @@ describe("app shell route behavior", () => {
 
   test("keeps work pages scrolling inside the copied PreachX page frame", () => {
     expect(dashboardRouteSource).toContain(
-      'import { MainContainer, PageContainer } from "@/components/pageComponents";',
+      'import { MainContainer, PageContainer, PageWrapper } from "@/components/pageComponents";',
     );
     expect(dashboardRouteSource).toContain("<MainContainer>");
     expect(dashboardRouteSource).toContain('<PageContainer wrapperClassName="gap-6">');
     expect(dashboardRouteSource).not.toContain(
       '<main className="flex flex-1 flex-col gap-6 overflow-auto p-4 sm:p-6">',
     );
+    // Board panels opt out of the page ScrollArea: each Board Column scrolls
+    // its own cards, so the board fills the viewport instead of the page.
+    expect(dashboardRouteSource).toContain('<PageWrapper variant="noPageContainer"');
   });
 
   test("keeps the PreachX bottom sidebar dev menu before feedback and home", () => {

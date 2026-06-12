@@ -19,6 +19,7 @@ export type TaskSummary = {
   readonly parentTaskId: string | null;
   readonly workflowStatusId: string;
   readonly taskState: TaskState;
+  readonly boardOrder?: string;
 };
 
 export function selectCurrentExecutionCycle(

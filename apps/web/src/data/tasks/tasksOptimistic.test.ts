@@ -13,6 +13,7 @@ const baseTask: OptimisticTask = {
   teamId: null,
   workflowStatusId: "status-todo",
   taskState: "todo",
+  boardOrder: "a0",
   dueDate: "2026-01-01",
   cycleId: "cycle-1",
   parentTaskId: null,

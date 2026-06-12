@@ -14,6 +14,9 @@ export const TaskTableFieldsSchema = Schema.Struct({
   workflowId: Schema.String,
   workflowStatusId: Schema.String,
   taskState: TaskStatusSchema,
+  // Board Order: fractional-indexing key ordering Tasks within a Board Column
+  // (see docs/adr/0012-fractional-board-order.md). Compared as a plain string.
+  boardOrder: Schema.String,
   finishedAt: Schema.Union(Schema.String, Schema.Null),
   sourceTemplateId: Schema.Union(Schema.String, Schema.Null),
   sourceTemplateTaskId: Schema.Union(Schema.String, Schema.Null),
@@ -36,6 +39,7 @@ export const TaskSchema = Schema.Struct({
   workflowId: Schema.String,
   workflowStatusId: Schema.String,
   taskState: TaskStatusSchema,
+  boardOrder: Schema.String,
   finishedAt: Schema.Union(Schema.String, Schema.Null),
   sourceTemplateId: Schema.Union(Schema.String, Schema.Null),
   sourceTemplateTaskId: Schema.Union(Schema.String, Schema.Null),

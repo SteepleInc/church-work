@@ -1,5 +1,5 @@
 import refs from "@church-task/backend/confect/_generated/refs";
-import { MainContainer, PageContainer } from "@/components/pageComponents";
+import { MainContainer, PageContainer, PageWrapper } from "@/components/pageComponents";
 import { useAppForm } from "@/components/form/ts-form";
 import { Button } from "@/components/ui/button";
 import {
@@ -131,6 +131,39 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
   const { openCreateTask } = useQuickActionOpeners();
   const showCreateTask =
     activePanel !== "settings" && Boolean(activeChurch) && Boolean(currentUserId);
+  // Board panels manage their own vertical scrolling (each Board Column
+  // scrolls internally), so they render outside the page ScrollArea and fill
+  // the remaining viewport height.
+  const showBoardSurface =
+    activePanel !== "settings" &&
+    Boolean(activeChurch) &&
+    Boolean(currentUserId) &&
+    !(typeof activePanel === "object" && !selectedTeam);
+
+  if (showBoardSurface && activeChurch && currentUserId) {
+    return (
+      <MainContainer>
+        <PageWrapper variant="noPageContainer" className="gap-6">
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              onClick={() =>
+                openCreateTask({ assignTo: activePanel === "my_work" ? currentUserId : null })
+              }
+            >
+              Create Task
+            </Button>
+          </div>
+          <TaskExecutionSurface
+            churchId={activeChurch.id}
+            currentUserId={currentUserId}
+            surface={typeof activePanel === "object" ? "team_board" : activePanel}
+            team={selectedTeam}
+          />
+        </PageWrapper>
+      </MainContainer>
+    );
+  }
 
   return (
     <MainContainer>
@@ -170,19 +203,6 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
               ))}
             </div>
           </section>
-        ) : activeChurch && currentUserId ? (
-          <TaskExecutionSurface
-            churchId={activeChurch.id}
-            currentUserId={currentUserId}
-            surface={
-              typeof activePanel === "object"
-                ? "team_board"
-                : activePanel === "settings"
-                  ? "my_work"
-                  : activePanel
-            }
-            team={selectedTeam}
-          />
         ) : (
           <>
             <section className="grid gap-4 rounded-xl border bg-background p-4 shadow-xs">

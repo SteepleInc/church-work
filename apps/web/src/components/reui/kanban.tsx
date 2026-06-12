@@ -174,12 +174,11 @@ function Kanban<T>({
     setActiveId(event.active.id);
   }, []);
 
+  // Live preview: items part to open the drop slot while dragging, including
+  // across columns. When `onMove` is set the preview still mutates the
+  // controlled value; consumers persist the final layout from `onMove`.
   const handleDragOver = useCallback(
     (event: DragOverEvent) => {
-      if (onMove) {
-        return;
-      }
-
       const { active, over } = event;
       if (!over) return;
 

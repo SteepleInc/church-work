@@ -4,6 +4,7 @@ import { useTeamMembershipsCollection } from "@/data/teams/teamsData.app";
 import {
   useTasksCollection,
   useUpdateTaskMutation,
+  useUpdateTasksBatchMutation,
   type TaskCollectionFilters,
 } from "@/data/tasks/tasksData.app";
 import { getUserDisplayName, useChurchUsersCollection } from "@/data/users/usersData.app";
@@ -11,13 +12,21 @@ import {
   useWorkflowStatusesCollection,
   useWorkflowsCollection,
 } from "@/data/workflows/workflowsData.app";
+import { useQuickActionOpeners } from "@/features/quick-actions/quick-actions-state";
+import {
+  getHiddenBoardColumns,
+  hiddenBoardColumnsAtom,
+  toggleHiddenBoardColumn,
+} from "@/shared/global-state";
 import { useNavigate } from "@tanstack/react-router";
+import { useAtom } from "jotai";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { TaskKanbanBoard } from "./task-kanban-board";
 import {
   buildTeamMemberIndex,
   getExecutionWorkflowId,
+  getTaskCreationDefaults,
   getTaskExecutionReadArgs,
   getTaskParentContext,
   selectCurrentExecutionCycle,
@@ -52,6 +61,12 @@ export function TaskExecutionSurface({
   const today = new Date().toISOString().slice(0, 10);
   const navigate = useNavigate();
   const openTaskDetailsPaneUrl = useOpenTaskDetailsPaneUrl();
+  const { openCreateTask } = useQuickActionOpeners();
+
+  // Hidden Board Columns are local-device presentation state, keyed per Board.
+  const boardKey = surface === "team_board" && team ? `team_board:${team.id}` : surface;
+  const [hiddenBoardColumns, setHiddenBoardColumns] = useAtom(hiddenBoardColumnsAtom);
+  const hiddenColumnIds = getHiddenBoardColumns(hiddenBoardColumns, boardKey);
 
   const cyclesCollection = useCyclesCollection({ churchId, currentUserId });
   const workflows = useWorkflowsCollection({ churchId });
@@ -99,6 +114,7 @@ export function TaskExecutionSurface({
   });
 
   const updateTask = useUpdateTaskMutation();
+  const updateTasksBatch = useUpdateTasksBatchMutation();
 
   const tasks = tasksCollection.tasksCollection;
   const isLoading =
@@ -108,11 +124,12 @@ export function TaskExecutionSurface({
     (taskReadArgs !== null && tasksCollection.loading);
 
   return (
-    <section className="grid gap-4">
+    <section className="flex min-h-0 flex-1 flex-col gap-4">
       {isLoading && workflowStatuses.length === 0 ? <TaskBoardSkeleton /> : null}
 
       {workflowStatuses.length > 0 ? (
         <TaskKanbanBoard
+          className="min-h-0 flex-1"
           workflowStatuses={workflowStatuses.map(toBoardWorkflowStatus)}
           tasks={tasks.map((task) => toBoardTask(task, tasks))}
           assigneeOptions={usersCollection.usersCollection.map((user) => ({
@@ -121,13 +138,43 @@ export function TaskExecutionSurface({
           }))}
           currentUserId={currentUserId}
           teamMemberIdsByTeamId={teamMemberIdsByTeamId}
-          onMoveTask={(move) => {
-            void updateTask({
+          hiddenColumnIds={hiddenColumnIds}
+          onMoveTasks={(moves) => {
+            if (moves.length === 1) {
+              const move = moves[0];
+              void updateTask({
+                churchId,
+                actorUserId: currentUserId,
+                taskId: move.taskId,
+                fields: { workflowStatusId: move.workflowStatusId, boardOrder: move.boardOrder },
+              });
+              return;
+            }
+            void updateTasksBatch({
               churchId,
               actorUserId: currentUserId,
-              taskId: move.taskId,
-              fields: { workflowStatusId: move.workflowStatusId },
+              updates: moves.map((move) => ({
+                taskId: move.taskId,
+                fields: { workflowStatusId: move.workflowStatusId, boardOrder: move.boardOrder },
+              })),
             });
+          }}
+          onAddTask={(workflowStatusId) => {
+            const defaults = getTaskCreationDefaults({
+              surface,
+              currentUserId,
+              teamId: team?.id ?? null,
+            });
+            openCreateTask({
+              assignTo: defaults.assignedUserId,
+              teamId: defaults.teamId,
+              workflowStatusId,
+            });
+          }}
+          onToggleColumnHidden={(workflowStatusId) => {
+            setHiddenBoardColumns((current) =>
+              toggleHiddenBoardColumn(current, boardKey, workflowStatusId),
+            );
           }}
           onAssignTask={(change) => {
             void updateTask({
@@ -200,5 +247,6 @@ function toBoardTask(task: TaskSummary, tasks: readonly TaskSummary[]) {
     parentTask: getTaskParentContext(task, tasks),
     workflowStatusId: task.workflowStatusId,
     taskState: task.taskState,
+    boardOrder: task.boardOrder,
   };
 }

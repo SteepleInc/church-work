@@ -15,9 +15,17 @@ export function useQuickActionOpeners() {
 
   return useMemo(
     () => ({
-      openCreateTask: (options: { readonly assignTo?: string | null } = {}) =>
+      openCreateTask: (
+        options: {
+          readonly assignTo?: string | null;
+          readonly workflowStatusId?: string | null;
+          readonly teamId?: string | null;
+        } = {},
+      ) =>
         setCreateTaskQuickActionState({
           assignTo: options.assignTo ?? null,
+          workflowStatusId: options.workflowStatusId ?? null,
+          teamId: options.teamId ?? null,
         }),
       openCreateTeam: (options: { readonly churchId: string }) =>
         setTeamQuickActionState({ mode: "create", churchId: options.churchId }),

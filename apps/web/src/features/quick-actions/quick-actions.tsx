@@ -29,6 +29,14 @@ import {
 } from "@/features/quick-actions/quick-actions-utils";
 import type { QuickActionDefinition } from "@/features/quick-actions/quick-actions-types";
 
+// Avoid hijacking the shortcut while the user is typing in a field.
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  const tag = target.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+}
+
 export function QuickActions() {
   const [quickActionsIsOpen, setQuickActionsIsOpen] = useAtom(quickActionsIsOpenAtom);
   const disableQuickActions = useAtomValue(disableQuickActionsAtom);
@@ -51,6 +59,23 @@ export function QuickActions() {
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [disableQuickActions, setQuickActionsIsOpen]);
+
+  // Linear-style "C" opens Create Task from anywhere, unless the user is
+  // typing in a field (inputs, textareas, content-editable).
+  useEffect(() => {
+    if (disableQuickActions) return;
+
+    const handler = (event: KeyboardEvent) => {
+      if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+      if (event.key.toLowerCase() !== "c") return;
+      if (isEditableTarget(event.target)) return;
+      event.preventDefault();
+      openCreateTask();
+    };
+
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [disableQuickActions, openCreateTask]);
 
   const activeChurchId = activeChurch?.id ?? null;
   const actions = useMemo(

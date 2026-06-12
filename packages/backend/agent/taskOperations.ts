@@ -23,6 +23,7 @@ const TaskUpdateFields = Schema.Struct({
   dueDate: Schema.optional(Schema.String),
   cycleId: Schema.optional(Schema.String),
   parentTaskId: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
+  boardOrder: Schema.optional(Schema.String),
 });
 
 export const TaskUpdateBatchArgs = Schema.Struct({
