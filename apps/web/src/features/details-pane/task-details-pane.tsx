@@ -50,7 +50,8 @@ export function TaskDetailsPane({ taskId }: { readonly taskId: string }) {
               label="Workflow Status"
               value={workflowStatus?.name ?? task.workflowStatusId}
             />
-            <DetailItem label="Due Date" value={task.dueDate} />
+            <DetailItem label="Due Date" value={task.dueDate ?? "No due date"} />
+            {task.description ? <DetailItem label="Description" value={task.description} /> : null}
             <DetailItem label="Team" value={team?.name ?? "No Team"} />
             <DetailItem
               label="Assignee"

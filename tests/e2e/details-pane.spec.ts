@@ -23,8 +23,8 @@ test("opens a Task details pane from URL state and supports reload/deep-link", a
   await completeOnboarding(page, churchName);
 
   await page.getByRole("main").getByRole("button", { name: "Create Task" }).click();
-  const createTaskDialog = page.getByRole("dialog", { name: "Create Task" });
-  await createTaskDialog.getByPlaceholder("Add a Task").fill(taskTitle);
+  const createTaskDialog = page.getByRole("dialog", { name: /New Task/ });
+  await createTaskDialog.getByPlaceholder("Task title").fill(taskTitle);
   await createTaskDialog.getByRole("button", { name: "Create Task" }).click();
   const taskCard = page.getByLabel(`Task card ${taskTitle}`);
   await expect(taskCard).toBeVisible();

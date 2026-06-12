@@ -560,8 +560,10 @@ export async function updateTemplateTasksAndSyncFutureProjectedTasks(
       if (merged.skipped || !merged.effectiveTask) continue;
 
       const adjustedFields = overrideFields(merged.appliedOverrides);
+      // Template-projected Tasks always carry a Due Date; fall back to the
+      // effective Template Task date if the Task's was somehow cleared.
       const nextDueDate = adjustedFields.has("dueDate")
-        ? task.dueDate
+        ? (task.dueDate ?? merged.effectiveTask.dueDate)
         : merged.effectiveTask.dueDate;
       const nextCycleId = await ensureCycleForProjection(ctx, {
         churchId: args.churchId,

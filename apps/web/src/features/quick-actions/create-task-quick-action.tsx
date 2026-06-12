@@ -2,22 +2,44 @@ import { useNavigate } from "@tanstack/react-router";
 import { revalidateLogic } from "@tanstack/react-form";
 import { Schema } from "effect";
 import { atom, useAtom } from "jotai";
-import { ClipboardPlusIcon } from "lucide-react";
-import { useState } from "react";
+import { atomWithStorage } from "jotai/utils";
+import { CalendarIcon, ChevronRight, Maximize2, Minimize2, Tag, Triangle, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import {
-  getExecutionWorkflowId,
-  selectCurrentExecutionCycle,
-} from "@/components/tasks/task-execution-surface-utils";
+import { TeamAvatar } from "@/components/avatars/teamAvatar";
 import { useOpenTaskDetailsPaneUrl } from "@/components/details-pane/details-pane-helpers";
 import { useAppForm } from "@/components/form/ts-form";
+import {
+  AssigneeAvatar,
+  AssigneeComboboxSelector,
+  DueDateSelector,
+  EstimateComboboxSelector,
+  formatDueDate,
+  getEstimateMeta,
+  getPriorityMeta,
+  getTaskLabelMeta,
+  LabelsComboboxSelector,
+  PriorityComboboxSelector,
+  StatusComboboxSelector,
+  TeamComboboxSelector,
+  WorkflowStatusIcon,
+  type TaskEstimate,
+  type TaskPriority,
+} from "@/components/tasks/task-card-fields";
+import {
+  isEditableTarget,
+  matchPickerHotkey,
+  statusOptions,
+  type PickerHotkey,
+} from "@/components/tasks/task-kanban-board-utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
-import { useCyclesCollection } from "@/data/cycles/cyclesData.app";
+import { Switch } from "@/components/ui/switch";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { useCreateTaskMutation } from "@/data/tasks/tasksData.app";
+import { useTeamMembershipsCollection, useTeamsCollection } from "@/data/teams/teamsData.app";
 import { getUserDisplayName, useChurchUsersCollection } from "@/data/users/usersData.app";
 import {
   useWorkflowStatusesCollection,
@@ -29,6 +51,7 @@ import {
   QuickActionsTitle,
   QuickActionsWrapper,
 } from "@/features/quick-actions/quick-actions-components";
+import { cn } from "@/lib/utils";
 
 export type CreateTaskQuickActionState = {
   readonly assignTo: string | null;
@@ -39,14 +62,56 @@ export type CreateTaskQuickActionState = {
 
 export const createTaskQuickActionStateAtom = atom<CreateTaskQuickActionState>(null);
 
+// Linear-style dialog chrome preferences, remembered across opens.
+const createTaskDialogExpandedAtom = atomWithStorage<boolean>(
+  "church-task:create-task-expanded",
+  false,
+);
+const createTaskCreateMoreAtom = atomWithStorage<boolean>(
+  "church-task:create-task-create-more",
+  false,
+);
+
 const CreateTaskSchema = Schema.Struct({
   title: Schema.String.pipe(Schema.minLength(1, { message: () => "Enter a Task title." })),
+  description: Schema.String,
   assignedUserId: Schema.NullOr(Schema.String),
   workflowStatusId: Schema.String,
+  teamId: Schema.NullOr(Schema.String),
+  dueDate: Schema.NullOr(Schema.String),
+  // UI-only fields (no backend persistence yet); validated for shape only.
+  priority: Schema.Literal("no_priority", "urgent", "high", "medium", "low"),
+  estimate: Schema.Literal("no_estimate", "xs", "s", "m", "l", "xl"),
+  labels: Schema.Array(Schema.String),
 });
+
+/** The Linear-style property pill used along the bottom of the dialog body. */
+function FieldPill({
+  children,
+  muted = false,
+  className,
+}: {
+  readonly children: React.ReactNode;
+  readonly muted?: boolean;
+  readonly className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-7 items-center gap-1.5 rounded-md border bg-background px-2 font-medium text-xs transition-colors hover:bg-accent",
+        muted && "text-muted-foreground",
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
 
 export function CreateTaskQuickAction() {
   const [state, setState] = useAtom(createTaskQuickActionStateAtom);
+  const [expanded, setExpanded] = useAtom(createTaskDialogExpandedAtom);
+  const [createMore, setCreateMore] = useAtom(createTaskCreateMoreAtom);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const openTaskDetailsPaneUrl = useOpenTaskDetailsPaneUrl();
@@ -55,61 +120,91 @@ export function CreateTaskQuickAction() {
 
   const churchId = activeChurch?.id ?? null;
   const currentUserId = activeChurch?.currentUserId ?? null;
-  const cyclesCollection = useCyclesCollection({ churchId, currentUserId });
   const workflows = useWorkflowsCollection({ churchId });
   const workflowStatusesCollection = useWorkflowStatusesCollection({ churchId });
   const usersCollection = useChurchUsersCollection({ churchId });
-  const today = new Date().toISOString().slice(0, 10);
-  const currentCycle = selectCurrentExecutionCycle(cyclesCollection.cyclesCollection, today);
+  const teamsCollection = useTeamsCollection({ churchId });
+  const teamMemberships = useTeamMembershipsCollection({ churchId });
+
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
+  // "open" = save and open the created Task (Cmd+Alt+Enter).
+  const submitModeRef = useRef<"default" | "open">("default");
+
+  // Picker openers for dialog-level keyboard shortcuts (T/S/A/P/⇧E/L/D).
+  const teamOpenRef = useRef<(() => void) | null>(null);
+  const statusOpenRef = useRef<(() => void) | null>(null);
+  const assigneeOpenRef = useRef<(() => void) | null>(null);
+  const priorityOpenRef = useRef<(() => void) | null>(null);
+  const estimateOpenRef = useRef<(() => void) | null>(null);
+  const labelsOpenRef = useRef<(() => void) | null>(null);
+  const dueDateOpenRef = useRef<(() => void) | null>(null);
+
+  const pickerHotkeys = useMemo<readonly PickerHotkey[]>(
+    () => [
+      { key: "t", openRef: teamOpenRef },
+      { key: "s", openRef: statusOpenRef },
+      { key: "a", openRef: assigneeOpenRef },
+      { key: "p", openRef: priorityOpenRef },
+      { key: "e", shift: true, openRef: estimateOpenRef },
+      { key: "l", openRef: labelsOpenRef },
+      { key: "d", openRef: dueDateOpenRef },
+    ],
+    [],
+  );
+
+  const teams = teamsCollection.teamsCollection;
+  const memberTeamIds = useMemo(
+    () =>
+      new Set(
+        teamMemberships.teamMembershipsCollection
+          .filter((membership) => membership.userId === currentUserId)
+          .map((membership) => membership.teamId),
+      ),
+    [teamMemberships.teamMembershipsCollection, currentUserId],
+  );
+  const teamPickerOptions = useMemo(
+    () =>
+      teams.map((team) => ({
+        id: team.id,
+        name: team.name,
+        color: (team.color ?? null) as string | null,
+      })),
+    [teams],
+  );
+
   const churchDefaultWorkflow = workflows.workflowsCollection.find(
     (workflow) => workflow.isDefault,
   );
-  const workflowId = getExecutionWorkflowId({
-    surface: "our_work",
-    churchDefaultWorkflowId: churchDefaultWorkflow?.id,
-    teamDefaultWorkflowId: null,
-  });
   const workflowStatuses = workflowStatusesCollection.workflowStatusesCollection;
-  // A preset status (from a Board Column "+") pins the dialog to that status's
-  // Workflow; otherwise the Church default Workflow's first To Do status wins.
-  const presetStatus = state?.workflowStatusId
-    ? workflowStatuses.find((status) => status.id === state.workflowStatusId)
-    : undefined;
-  const effectiveWorkflowId = presetStatus?.workflowId ?? workflowId;
-  const creationStatus =
-    presetStatus ??
-    workflowStatuses.find(
-      (status) => status.workflowId === effectiveWorkflowId && status.taskState === "todo",
-    ) ??
-    workflowStatuses.find((status) => status.taskState === "todo") ??
-    workflowStatuses[0];
-  const workflowStatusOptions = workflowStatuses
-    .filter((status) => status.workflowId === effectiveWorkflowId)
-    .sort((left, right) => left.sortOrder - right.sortOrder)
-    .map((status) => ({ value: status.id, label: status.name }));
   const assigneeOptions = usersCollection.usersCollection.map((user) => ({
     id: user.id,
     label: getUserDisplayName(user),
   }));
+
   const isOpen = state !== null;
   const isLoading =
-    cyclesCollection.loading ||
     workflows.loading ||
     workflowStatusesCollection.loading ||
     usersCollection.loading ||
+    teamsCollection.loading ||
     !activeChurch;
-
-  const close = () => {
-    setState(null);
-    setError(null);
-    form.reset();
-  };
 
   const form = useAppForm({
     defaultValues: {
       title: "",
+      description: "",
       assignedUserId: state?.assignTo ?? (null as string | null),
+      // Empty string means "use the effective Workflow's default status".
       workflowStatusId: state?.workflowStatusId ?? "",
+      // Null means "use the default Team" (preset → first of your teams →
+      // first team). There is no "No team" choice in the picker.
+      teamId: null as string | null,
+      priority: "no_priority" as TaskPriority,
+      estimate: "no_estimate" as TaskEstimate,
+      labels: [] as readonly string[],
+      // Due Date is never auto-set; it stays empty until picked.
+      dueDate: null as string | null,
     },
     validationLogic: revalidateLogic({
       mode: "submit",
@@ -127,24 +222,25 @@ export function CreateTaskQuickAction() {
         return;
       }
 
-      const selectedStatus = value.workflowStatusId
-        ? workflowStatuses.find((status) => status.id === value.workflowStatusId)
-        : undefined;
-      const submitStatus = selectedStatus ?? creationStatus;
+      const submitTeamId = resolveTeamId(value.teamId);
+      const submitWorkflowId = resolveWorkflowId(submitTeamId);
+      const submitStatus = resolveStatus(value.workflowStatusId, submitWorkflowId);
       if (!submitStatus) {
         setError("Task could not find a To Do Workflow Status.");
         return;
       }
 
+      const trimmedDescription = value.description.trim();
       setError(null);
       const result = await createTask({
         churchId,
         actorUserId: currentUserId,
         title: trimmedTitle,
-        teamId: state?.teamId ?? null,
+        description: trimmedDescription === "" ? null : trimmedDescription,
+        teamId: submitTeamId,
         assignedUserId: value.assignedUserId,
         workflowStatusId: submitStatus.id,
-        dueDate: currentCycle?.endDate ?? today,
+        dueDate: value.dueDate,
         parentTaskId: null,
       });
 
@@ -154,9 +250,27 @@ export function CreateTaskQuickAction() {
       }
 
       const createdTaskId = result.data.tasks[0]?.id;
-      formApi.reset();
-      setState(null);
-      setError(null);
+      const mode = submitModeRef.current;
+      submitModeRef.current = "default";
+
+      if (mode === "open" && createdTaskId) {
+        formApi.reset();
+        setState(null);
+        const url = openTaskDetailsPaneUrl({ id: createdTaskId });
+        void navigate({ to: url.to, search: url.search });
+        return;
+      }
+
+      if (createMore) {
+        // Keep the dialog open with every property as-is; only the text
+        // resets, ready for the next Task in the batch.
+        formApi.setFieldValue("title", "");
+        formApi.setFieldValue("description", "");
+        titleInputRef.current?.focus();
+      } else {
+        formApi.reset();
+        setState(null);
+      }
 
       if (createdTaskId) {
         toast.success("Task created.", {
@@ -174,66 +288,402 @@ export function CreateTaskQuickAction() {
     },
   });
 
+  // --- Effective Team / Workflow / Status resolution -------------------------
+  // Pills hold "user-set" values; the effective value falls back through the
+  // preset and the default Team so the dialog is valid the moment it opens.
+
+  const resolveTeamId = (chosenTeamId: string | null): string | null => {
+    if (chosenTeamId && teams.some((team) => team.id === chosenTeamId)) return chosenTeamId;
+    if (state?.teamId && teams.some((team) => team.id === state.teamId)) return state.teamId;
+    const yourTeam = teams.find((team) => memberTeamIds.has(team.id));
+    return yourTeam?.id ?? teams[0]?.id ?? null;
+  };
+
+  const resolveWorkflowId = (teamId: string | null): string | null => {
+    const team = teamId ? teams.find((candidate) => candidate.id === teamId) : undefined;
+    return team?.defaultWorkflowId ?? churchDefaultWorkflow?.id ?? null;
+  };
+
+  const resolveStatus = (chosenStatusId: string, workflowId: string | null) => {
+    const inWorkflow = workflowStatuses.filter((status) => status.workflowId === workflowId);
+    return (
+      inWorkflow.find((status) => status.id === chosenStatusId) ??
+      [...inWorkflow]
+        .sort((left, right) => left.sortOrder - right.sortOrder)
+        .find((status) => status.taskState === "todo") ??
+      inWorkflow[0]
+    );
+  };
+
+  const close = () => {
+    setState(null);
+    setError(null);
+    form.reset();
+  };
+
+  const submit = (mode: "default" | "open") => {
+    submitModeRef.current = mode;
+    void form.handleSubmit();
+  };
+
+  // Cmd+Enter creates; Cmd+Alt+Enter creates and opens. Picker shortcuts
+  // (T/S/A/P/⇧E/L/D) fire whenever focus is anywhere in the open dialog except
+  // the title/description inputs — listening on the document means they work
+  // even when nothing inside the dialog body is focused.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        event.preventDefault();
+        submitModeRef.current = event.altKey ? "open" : "default";
+        void form.handleSubmit();
+        return;
+      }
+      if (isEditableTarget(event.target)) return;
+      const match = matchPickerHotkey(event, pickerHotkeys);
+      const opener = match?.openRef.current;
+      if (!opener) return;
+      event.preventDefault();
+      opener();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [isOpen, pickerHotkeys, form]);
+
   return (
-    <QuickActionsWrapper open={isOpen} onOpenChange={(open) => (open ? undefined : close())}>
+    <QuickActionsWrapper
+      // Expand grows the dialog to its full available height (same width):
+      // the wrapper already caps height via the viewport clamp, so expanding
+      // just fills that cap instead of sizing to content.
+      dialogContentClassName={
+        expanded ? "h-[calc(100vh-clamp(16px,calc((100vh-512px)/2),192px)*2)]" : undefined
+      }
+      open={isOpen}
+      onOpenChange={(open) => (open ? undefined : close())}
+    >
       <QuickActionsHeader className="p-4">
-        <QuickActionsTitle>
-          <span className="inline-flex flex-row items-center">
-            <ClipboardPlusIcon className="mr-2 size-4" />
-            Create Task
-          </span>
-        </QuickActionsTitle>
+        <div className="flex items-center justify-between gap-2">
+          <QuickActionsTitle>
+            <span className="flex items-center gap-1.5 font-normal text-sm">
+              <form.Subscribe selector={(formState) => formState.values.teamId}>
+                {(teamId) => {
+                  const effectiveTeamId = resolveTeamId(teamId);
+                  const effectiveTeam = teams.find((team) => team.id === effectiveTeamId);
+                  return effectiveTeam ? (
+                    <TeamComboboxSelector
+                      disabled={isLoading}
+                      memberTeamIds={memberTeamIds}
+                      openRef={teamOpenRef}
+                      onValueChange={(next) => {
+                        form.setFieldValue("teamId", next);
+                        // The new Team's Workflow takes over: the status pill
+                        // resets to that Workflow's default.
+                        form.setFieldValue("workflowStatusId", "");
+                      }}
+                      options={teamPickerOptions}
+                      trigger={
+                        <FieldPill className="gap-2">
+                          <TeamAvatar
+                            color={effectiveTeam.color}
+                            name={effectiveTeam.name}
+                            size={18}
+                          />
+                          <span className="max-w-32 truncate">{effectiveTeam.name}</span>
+                        </FieldPill>
+                      }
+                      value={effectiveTeamId}
+                    />
+                  ) : null;
+                }}
+              </form.Subscribe>
+              <ChevronRight className="size-3.5 text-muted-foreground" />
+              <span>New Task</span>
+            </span>
+          </QuickActionsTitle>
+          <div className="flex items-center gap-1">
+            <Button
+              aria-label={expanded ? "Collapse" : "Expand"}
+              className="hidden text-muted-foreground md:inline-flex"
+              onClick={() => setExpanded(!expanded)}
+              size="icon-sm"
+              type="button"
+              variant="ghost"
+            >
+              {expanded ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+            </Button>
+            <Button
+              aria-label="Close"
+              className="text-muted-foreground"
+              onClick={close}
+              size="icon-sm"
+              type="button"
+              variant="ghost"
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
+        </div>
       </QuickActionsHeader>
       <QuickActionForm
         form={form}
-        Primary={
-          <>
-            <form.AppField name="title">
+        Body={
+          // The body never scrolls: the title is always visible and the
+          // description textarea grows with its content, then scrolls
+          // internally once it runs out of room.
+          <div className="flex min-h-0 flex-col gap-2 overflow-hidden p-4">
+            <form.Field name="title">
               {(field) => (
-                <field.InputField
+                <input
+                  aria-label="Task title"
                   autoFocus
+                  className="w-full shrink-0 bg-transparent font-medium text-lg outline-none placeholder:text-muted-foreground"
                   disabled={isLoading}
-                  label="Task Title"
-                  placeholder="Add a Task"
-                  required
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  onKeyDown={(event) => {
+                    // Enter moves on to the description (Cmd+Enter submits).
+                    if (event.key === "Enter" && !event.metaKey && !event.ctrlKey) {
+                      event.preventDefault();
+                      descriptionInputRef.current?.focus();
+                    }
+                  }}
+                  placeholder="Task title"
+                  ref={titleInputRef}
+                  value={field.state.value}
                 />
               )}
-            </form.AppField>
-            <form.AppField name="workflowStatusId">
+            </form.Field>
+            <form.Field name="description">
               {(field) => (
-                <field.SelectField
-                  disabled={isLoading || workflowStatusOptions.length === 0}
-                  label="Workflow Status"
-                  options={workflowStatusOptions}
-                  placeholder={creationStatus?.name ?? "Select a status"}
-                />
-              )}
-            </form.AppField>
-            <form.AppField name="assignedUserId">
-              {(field) => (
-                <field.OrgUserSelectField
+                <textarea
+                  aria-label="Add description"
+                  // field-sizing-content grows the textarea with what's typed;
+                  // flex-1 caps it at the available dialog height (the whole
+                  // height when expanded), after which it scrolls internally.
+                  className="field-sizing-content min-h-20 w-full flex-1 resize-none overflow-y-auto bg-transparent text-sm outline-none placeholder:text-muted-foreground"
                   disabled={isLoading}
-                  label="Assignee"
-                  options={assigneeOptions}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  placeholder="Add description..."
+                  ref={descriptionInputRef}
+                  rows={4}
+                  value={field.state.value}
                 />
               )}
-            </form.AppField>
+            </form.Field>
+          </div>
+        }
+        Pinned={
+          // The property pill row stays visible above the footer while the
+          // title/description body scrolls (Linear behavior).
+          <div className="flex flex-col gap-3 px-4 pb-3">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <form.Subscribe
+                selector={(formState) =>
+                  [formState.values.teamId, formState.values.workflowStatusId] as const
+                }
+              >
+                {([teamId, workflowStatusId]) => {
+                  const effectiveWorkflowId = resolveWorkflowId(resolveTeamId(teamId));
+                  const options = statusOptions(
+                    workflowStatuses.filter((status) => status.workflowId === effectiveWorkflowId),
+                  );
+                  const effectiveStatus = resolveStatus(workflowStatusId, effectiveWorkflowId);
+                  return (
+                    <StatusComboboxSelector
+                      disabled={isLoading || options.length === 0}
+                      emptyText="No statuses."
+                      onValueChange={(next) => {
+                        if (next) form.setFieldValue("workflowStatusId", next);
+                      }}
+                      openRef={statusOpenRef}
+                      options={options}
+                      trigger={
+                        <FieldPill>
+                          {effectiveStatus ? (
+                            <>
+                              <WorkflowStatusIcon
+                                className="size-3.5"
+                                taskState={effectiveStatus.taskState}
+                              />
+                              {effectiveStatus.name}
+                            </>
+                          ) : (
+                            "Status"
+                          )}
+                        </FieldPill>
+                      }
+                      value={effectiveStatus?.id ?? null}
+                    />
+                  );
+                }}
+              </form.Subscribe>
+              <form.Field name="priority">
+                {(field) => {
+                  const meta = getPriorityMeta(field.state.value);
+                  const Icon = meta.icon;
+                  return (
+                    <PriorityComboboxSelector
+                      disabled={isLoading}
+                      onValueChange={(next) => field.handleChange(next)}
+                      openRef={priorityOpenRef}
+                      trigger={
+                        <FieldPill muted={field.state.value === "no_priority"}>
+                          <Icon className={cn("size-3.5", meta.className)} />
+                          {field.state.value === "no_priority" ? "Priority" : meta.label}
+                        </FieldPill>
+                      }
+                      value={field.state.value}
+                    />
+                  );
+                }}
+              </form.Field>
+              <form.Subscribe
+                selector={(formState) =>
+                  [formState.values.teamId, formState.values.assignedUserId] as const
+                }
+              >
+                {([teamId, assignedUserId]) => {
+                  const selectedAssignee =
+                    assigneeOptions.find((option) => option.id === assignedUserId) ?? null;
+                  const effectiveTeamId = resolveTeamId(teamId);
+                  // Members of the effective Team feed the picker's
+                  // "Team members" section.
+                  const teamMemberUserIds = new Set(
+                    teamMemberships.teamMembershipsCollection
+                      .filter((membership) => membership.teamId === effectiveTeamId)
+                      .map((membership) => membership.userId),
+                  );
+                  return (
+                    <AssigneeComboboxSelector
+                      align="start"
+                      currentUserId={currentUserId}
+                      disabled={isLoading}
+                      onValueChange={(next) => form.setFieldValue("assignedUserId", next)}
+                      openRef={assigneeOpenRef}
+                      options={assigneeOptions}
+                      teamMemberIds={teamMemberUserIds}
+                      trigger={
+                        <FieldPill muted={selectedAssignee === null}>
+                          <AssigneeAvatar assignee={selectedAssignee} size={14} />
+                          {selectedAssignee?.label ?? "Assignee"}
+                        </FieldPill>
+                      }
+                      value={assignedUserId}
+                    />
+                  );
+                }}
+              </form.Subscribe>
+              <form.Field name="estimate">
+                {(field) => {
+                  const meta = getEstimateMeta(field.state.value);
+                  return (
+                    <EstimateComboboxSelector
+                      disabled={isLoading}
+                      onValueChange={(next) => field.handleChange(next)}
+                      openRef={estimateOpenRef}
+                      trigger={
+                        <FieldPill muted={field.state.value === "no_estimate"}>
+                          <Triangle className="size-3.5" />
+                          {field.state.value === "no_estimate" ? "Estimate" : meta.label}
+                        </FieldPill>
+                      }
+                      value={field.state.value}
+                    />
+                  );
+                }}
+              </form.Field>
+              <form.Field name="labels">
+                {(field) => {
+                  const selected = field.state.value
+                    .map((value) => getTaskLabelMeta(value))
+                    .filter((meta) => meta !== null);
+                  return (
+                    <LabelsComboboxSelector
+                      disabled={isLoading}
+                      onValueChange={(next) => field.handleChange(next)}
+                      openRef={labelsOpenRef}
+                      trigger={
+                        <FieldPill muted={selected.length === 0}>
+                          {selected.length === 0 ? (
+                            <>
+                              <Tag className="size-3.5" />
+                              Labels
+                            </>
+                          ) : (
+                            <>
+                              <span className="flex items-center -space-x-1">
+                                {selected.map((meta) => (
+                                  <span
+                                    className={cn(
+                                      "size-2.5 rounded-full ring-2 ring-background",
+                                      meta.dotClassName,
+                                    )}
+                                    key={meta.value}
+                                  />
+                                ))}
+                              </span>
+                              {selected.length === 1
+                                ? selected[0]?.label
+                                : `${selected.length} labels`}
+                            </>
+                          )}
+                        </FieldPill>
+                      }
+                      value={field.state.value}
+                    />
+                  );
+                }}
+              </form.Field>
+              <form.Field name="dueDate">
+                {(field) => {
+                  const dueDateLabel = formatDueDate(field.state.value);
+                  return (
+                    <DueDateSelector
+                      disabled={isLoading}
+                      onValueChange={(next) => field.handleChange(next)}
+                      openRef={dueDateOpenRef}
+                      trigger={
+                        <FieldPill muted={dueDateLabel === null}>
+                          <CalendarIcon className="size-3.5" />
+                          {dueDateLabel ?? "Due date"}
+                        </FieldPill>
+                      }
+                      value={field.state.value}
+                    />
+                  );
+                }}
+              </form.Field>
+            </div>
             {error ? (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             ) : null}
-          </>
+          </div>
         }
         Actions={
-          <form.Subscribe selector={(formState) => formState.isSubmitting}>
-            {(isSubmitting) => (
-              <Button className="ml-auto" disabled={isLoading} loading={isSubmitting} type="submit">
-                Create Task
-                <Kbd>enter</Kbd>
-              </Button>
-            )}
-          </form.Subscribe>
+          <>
+            <label className="flex cursor-pointer items-center gap-2 ps-2 text-muted-foreground text-sm">
+              <Switch checked={createMore} onCheckedChange={setCreateMore} size="sm" />
+              Create more
+            </label>
+            <form.Subscribe selector={(formState) => formState.isSubmitting}>
+              {(isSubmitting) => (
+                <Button
+                  className="ml-auto"
+                  disabled={isLoading}
+                  loading={isSubmitting}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    submit("default");
+                  }}
+                  type="submit"
+                >
+                  Create Task
+                  <Kbd>mod enter</Kbd>
+                </Button>
+              )}
+            </form.Subscribe>
+          </>
         }
       />
     </QuickActionsWrapper>

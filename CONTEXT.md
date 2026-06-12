@@ -77,7 +77,7 @@ A Task that belongs to a parent Task. A Subtask may belong to a different Cycle 
 _Avoid_: Checklist item
 
 **Due Date**:
-The date by which a Task should be completed. Due Date is the only task date concept until the domain proves it needs separate scheduling and deadline language.
+The date by which a Task should be completed, when one is set. A Task may have no Due Date; it is never assigned one automatically. A Task created without a Due Date belongs to the Cycle containing its creation date. Due Date is the only task date concept until the domain proves it needs separate scheduling and deadline language.
 _Avoid_: Scheduled date, deadline
 
 **Team**:
@@ -159,8 +159,16 @@ A presentation lane on a Board derived from the Board's grouping or status mappi
 _Avoid_: Task status, Workflow Status
 
 **Board Order**:
-The manual, user-defined ordering of Tasks within a Board Column, changed by dragging a card and persisted so every viewer of the Board sees the same order. Board Order is the only card ordering concept; Tasks do not have a priority.
-_Avoid_: Priority, rank as a user-facing term, sort order of creation
+The manual, user-defined ordering of Tasks within a Board Column, changed by dragging a card and persisted so every viewer of the Board sees the same order. Board Order is the only card ordering concept; Priority is a descriptive attribute and does not affect ordering.
+_Avoid_: Rank as a user-facing term, sort order of creation
+
+**Priority**:
+A per-Task importance attribute: No priority, Urgent, High, Medium, or Low. Priority describes a Task; it does not order the Board — Board Order does. Priority is currently UI-only and not yet persisted in the data model.
+_Avoid_: Rank, severity, using priority to mean Board position
+
+**Estimate**:
+A per-Task effort size: No estimate, XS, S, M, L, or XL. Estimate is currently UI-only and not yet persisted in the data model.
+_Avoid_: Size, points, story points
 
 **Workflow**:
 The ordered set of Workflow Statuses a Task moves through. A Task assigned to a Team uses that Team's Workflow; a Task without a Team uses the Church default Workflow.

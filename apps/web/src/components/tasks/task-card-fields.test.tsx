@@ -5,18 +5,18 @@ import {
   AssigneeAvatar,
   formatCreatedAt,
   getPriorityMeta,
-  getSizeMeta,
+  getEstimateMeta,
   partitionAssignees,
   priorityRows,
-  sizeValues,
+  estimateValues,
   statusRows,
   PRIORITY_OPTIONS,
-  SIZE_OPTIONS,
+  ESTIMATE_OPTIONS,
   WorkflowStatusIcon,
   type AssigneeOption,
   type CardSelectOption,
   type TaskPriority,
-  type TaskSize,
+  type TaskEstimate,
 } from "./task-card-fields";
 import type { TaskBoardTaskState } from "./task-kanban-adapter";
 
@@ -62,7 +62,7 @@ describe("Task card priority field (stub)", () => {
 
 describe("Task card size field (stub)", () => {
   test("offers the Linear estimate sizes in display order", () => {
-    expect(SIZE_OPTIONS.map((option) => option.value)).toEqual([
+    expect(ESTIMATE_OPTIONS.map((option) => option.value)).toEqual([
       "no_estimate",
       "xs",
       "s",
@@ -73,14 +73,14 @@ describe("Task card size field (stub)", () => {
   });
 
   test("resolves a short badge label for sized estimates and none for no estimate", () => {
-    expect(getSizeMeta("m").short).toBe("M");
-    expect(getSizeMeta("xl").short).toBe("XL");
-    expect(getSizeMeta("no_estimate").short).toBeNull();
-    expect(getSizeMeta("nonsense" as TaskSize).value).toBe("no_estimate");
+    expect(getEstimateMeta("m").short).toBe("M");
+    expect(getEstimateMeta("xl").short).toBe("XL");
+    expect(getEstimateMeta("no_estimate").short).toBeNull();
+    expect(getEstimateMeta("nonsense" as TaskEstimate).value).toBe("no_estimate");
   });
 
   test("lists the estimate values in display order for the picker", () => {
-    expect(sizeValues()).toEqual(["no_estimate", "xs", "s", "m", "l", "xl"]);
+    expect(estimateValues()).toEqual(["no_estimate", "xs", "s", "m", "l", "xl"]);
   });
 });
 

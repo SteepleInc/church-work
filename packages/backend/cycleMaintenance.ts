@@ -145,10 +145,11 @@ export async function maintainCyclesForChurch(
       if (!unfinishedTaskStates.has(task.taskState)) continue;
 
       const previousStatus = await ctx.db.get(task.workflowStatusId as Id<"workflowStatuses">);
-      const nextDueDate = addDays(
-        toCycle.cycle.startDate,
-        dayOffsetWithinCycle(cycle.startDate, task.dueDate),
-      );
+      // Tasks without a Due Date roll over without gaining one.
+      const nextDueDate =
+        task.dueDate === null
+          ? null
+          : addDays(toCycle.cycle.startDate, dayOffsetWithinCycle(cycle.startDate, task.dueDate));
 
       await ctx.db.patch(task._id, {
         cycleId: toCycle.cycle._id,

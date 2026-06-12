@@ -1,7 +1,7 @@
 import type { RestorableTaskStatus, TaskStatus } from "@church-task/domain/Task";
 import type { GenericDatabaseReader, GenericMutationCtx } from "convex/server";
 
-import { buildCycleForLocalDate } from "./churchCycleCalendar";
+import { buildCycleForLocalDate, localDateForInstant } from "./churchCycleCalendar";
 import type { DataModel, Id } from "./convex/_generated/dataModel";
 import { writeActivity } from "./activityRegistry";
 
@@ -45,11 +45,14 @@ function generateAppendBoardOrderKey(lastKey: string | null): string {
 
 type TaskCreateInput = {
   readonly title: string;
+  readonly description?: string | null;
   readonly teamId: string | null;
   readonly assignedUserId?: string | null;
   readonly createdByUserId?: string | null;
   readonly workflowStatusId: string;
-  readonly dueDate: string;
+  // Null means "no Due Date": the Task joins the Cycle containing its
+  // creation date and keeps dueDate null.
+  readonly dueDate: string | null;
   readonly parentTaskId: string | null;
 };
 
@@ -60,7 +63,7 @@ type TaskUpdateInput = {
     readonly assignedUserId?: string | null;
     readonly teamId?: string | null;
     readonly workflowStatusId?: string;
-    readonly dueDate?: string;
+    readonly dueDate?: string | null;
     readonly cycleId?: string;
     readonly parentTaskId?: string | null;
     readonly boardOrder?: string;
@@ -151,16 +154,25 @@ export async function readTaskModel(
 
     if (!executionCycle) return true;
 
+    // A Task with no Due Date surfaces from its own Cycle forward (like an
+    // overdue Task) until it is finished.
+    const effectiveDate =
+      task.dueDate ?? cycles.find((cycle) => cycle._id === task.cycleId)?.startDate;
+
     return (
-      task.dueDate <= executionCycle.endDate &&
+      effectiveDate !== undefined &&
+      effectiveDate <= executionCycle.endDate &&
       (task.finishedAt === null || task.finishedAt >= executionCycle.startsAt)
     );
   });
+  // Tasks without a Due Date sort after all dated Tasks.
+  const dueDateSortKey = (dueDate: string | null) => dueDate ?? "9999-12-31";
   const orderedTasks =
     filters.orderBy === "due_date"
       ? [...tasks].sort(
           (left, right) =>
-            left.dueDate.localeCompare(right.dueDate) || left._creationTime - right._creationTime,
+            dueDateSortKey(left.dueDate).localeCompare(dueDateSortKey(right.dueDate)) ||
+            left._creationTime - right._creationTime,
         )
       : tasks;
 
@@ -181,6 +193,7 @@ export const serializeTaskModel = (data: Awaited<ReturnType<typeof readTaskModel
     id: task._id,
     churchId: task.churchId,
     title: task.title,
+    description: task.description ?? null,
     teamId: task.teamId,
     assignedUserId: task.assignedUserId ?? null,
     cycleId: task.cycleId,
@@ -256,10 +269,12 @@ export async function createTasks(
       }
     }
 
-    try {
-      buildCycleForLocalDate({ localDate: task.dueDate, churchTimeZone: args.churchTimeZone });
-    } catch {
-      return { ok: false as const, code: "invalidDueDate" };
+    if (task.dueDate !== null) {
+      try {
+        buildCycleForLocalDate({ localDate: task.dueDate, churchTimeZone: args.churchTimeZone });
+      } catch {
+        return { ok: false as const, code: "invalidDueDate" };
+      }
     }
 
     validatedTasks.push({
@@ -273,15 +288,23 @@ export async function createTasks(
   const appendBoardOrder = makeBoardOrderAppender(ctx);
 
   for (const { task, workflowId, workflowStatusId, taskState } of validatedTasks) {
+    // No Due Date: the Task joins the Cycle containing its creation date.
+    const cycleAnchorDate =
+      task.dueDate ??
+      localDateForInstant({
+        instant: new Date().toISOString(),
+        churchTimeZone: args.churchTimeZone,
+      });
     const cycleId = await ensureCycleForDueDate(ctx, {
       churchId: args.churchId,
-      dueDate: task.dueDate,
+      dueDate: cycleAnchorDate,
       churchTimeZone: args.churchTimeZone,
     });
 
     const taskId = await ctx.db.insert("tasks", {
       churchId: args.churchId,
       title: task.title,
+      description: task.description ?? null,
       teamId: task.teamId,
       assignedUserId: task.assignedUserId ?? null,
       createdByUserId: task.createdByUserId ?? null,
@@ -348,44 +371,56 @@ export async function updateTasks(
     }
 
     let movedDueDate: {
-      readonly previousDueDate: string;
-      readonly dueDate: string;
+      readonly previousDueDate: string | null;
+      readonly dueDate: string | null;
       readonly previousCycleId: string;
-      readonly cycleId: Id<"cycles">;
+      readonly cycleId: Id<"cycles"> | string;
     } | null = null;
     let movedCycle: {
       readonly previousCycleId: string;
       readonly cycleId: Id<"cycles">;
-      readonly previousDueDate: string;
-      readonly dueDate: string;
+      readonly previousDueDate: string | null;
+      readonly dueDate: string | null;
     } | null = null;
 
     const requestedDueDate = update.fields.dueDate;
     if (requestedDueDate !== undefined && requestedDueDate !== task.dueDate) {
-      try {
-        buildCycleForLocalDate({
-          localDate: requestedDueDate,
+      if (requestedDueDate === null) {
+        // Clearing the Due Date keeps the Task in its current Cycle.
+        patch.dueDate = null;
+        updatedFields.push("dueDate");
+        movedDueDate = {
+          previousDueDate: task.dueDate,
+          dueDate: null,
+          previousCycleId: task.cycleId,
+          cycleId: task.cycleId,
+        };
+      } else {
+        try {
+          buildCycleForLocalDate({
+            localDate: requestedDueDate,
+            churchTimeZone: args.churchTimeZone,
+          });
+        } catch {
+          return { ok: false as const, code: "invalidDueDate" as const };
+        }
+
+        const cycleId = await ensureCycleForDueDate(ctx, {
+          churchId: args.churchId,
+          dueDate: requestedDueDate,
           churchTimeZone: args.churchTimeZone,
         });
-      } catch {
-        return { ok: false as const, code: "invalidDueDate" as const };
+
+        patch.dueDate = requestedDueDate;
+        patch.cycleId = cycleId;
+        updatedFields.push("dueDate");
+        movedDueDate = {
+          previousDueDate: task.dueDate,
+          dueDate: requestedDueDate,
+          previousCycleId: task.cycleId,
+          cycleId,
+        };
       }
-
-      const cycleId = await ensureCycleForDueDate(ctx, {
-        churchId: args.churchId,
-        dueDate: requestedDueDate,
-        churchTimeZone: args.churchTimeZone,
-      });
-
-      patch.dueDate = requestedDueDate;
-      patch.cycleId = cycleId;
-      updatedFields.push("dueDate");
-      movedDueDate = {
-        previousDueDate: task.dueDate,
-        dueDate: requestedDueDate,
-        previousCycleId: task.cycleId,
-        cycleId,
-      };
     }
 
     if (!movedDueDate && "cycleId" in update.fields && update.fields.cycleId !== task.cycleId) {
@@ -403,8 +438,12 @@ export async function updateTasks(
         return { ok: false as const, code: "cycleNotFound" as const };
       }
 
-      const weekdayOffset = daysBetween(previousCycle.startDate, task.dueDate);
-      const dueDate = addDays(targetCycle.startDate, weekdayOffset);
+      // A Task with no Due Date moves Cycles without gaining one; dated Tasks
+      // keep their weekday offset within the new Cycle.
+      const dueDate =
+        task.dueDate === null
+          ? null
+          : addDays(targetCycle.startDate, daysBetween(previousCycle.startDate, task.dueDate));
       patch.dueDate = dueDate;
       patch.cycleId = targetCycle._id;
       updatedFields.push("cycleId");

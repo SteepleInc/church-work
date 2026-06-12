@@ -30,11 +30,16 @@ export const TeamAvatar: FC<TeamAvatarProps> = (props) => {
   // Teams created before colors were stored fall back to the same
   // name-derived color the create path would have assigned.
   const resolvedColor = isTeamColor(color) ? color : getTeamColorForName(name);
+  // Squircle: corner radius and initials scale with the avatar size so small
+  // avatars (e.g. the 18px dialog pill) stay legible instead of overflowing.
+  const borderRadius = Math.round(size * 0.28);
+  const fontSize = Math.max(8, Math.round(size * 0.4));
 
   return (
-    <Avatar className={cn("rounded-md", className)} style={{ height: size, width: size }}>
+    <Avatar className={className} style={{ borderRadius, height: size, width: size }}>
       <AvatarFallback
-        className={cn("rounded-md font-semibold text-sm", TEAM_COLOR_CLASSES[resolvedColor])}
+        className={cn("font-semibold", TEAM_COLOR_CLASSES[resolvedColor])}
+        style={{ borderRadius, fontSize }}
       >
         {getAvatarInitials(name)}
       </AvatarFallback>

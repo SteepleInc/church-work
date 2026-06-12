@@ -127,7 +127,7 @@ const taskUpdateFieldsValidator = v.object({
   assignedUserId: v.optional(v.union(v.string(), v.null())),
   teamId: v.optional(v.union(v.string(), v.null())),
   workflowStatusId: v.optional(v.string()),
-  dueDate: v.optional(v.string()),
+  dueDate: v.optional(v.union(v.string(), v.null())),
   cycleId: v.optional(v.string()),
   parentTaskId: v.optional(v.union(v.string(), v.null())),
   boardOrder: v.optional(v.string()),
@@ -138,7 +138,7 @@ type McpTaskUpdateFields = {
   readonly assignedUserId?: string | null;
   readonly teamId?: string | null;
   readonly workflowStatusId?: string;
-  readonly dueDate?: string;
+  readonly dueDate?: string | null;
   readonly cycleId?: string;
   readonly parentTaskId?: string | null;
   readonly boardOrder?: string;
@@ -359,10 +359,11 @@ export const mcpCreateTask = mutation({
     churchId: v.string(),
     actorUserId: v.string(),
     title: v.string(),
+    description: v.optional(v.union(v.string(), v.null())),
     teamId: v.optional(v.union(v.string(), v.null())),
     assignedUserId: v.optional(v.union(v.string(), v.null())),
     workflowStatusId: v.string(),
-    dueDate: v.string(),
+    dueDate: v.optional(v.union(v.string(), v.null())),
     parentTaskId: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) =>
@@ -408,11 +409,12 @@ export const mcpCreateTask = mutation({
           tasks: [
             {
               title: args.title,
+              description: args.description ?? null,
               teamId: args.teamId ?? null,
               assignedUserId: args.assignedUserId ?? null,
               createdByUserId: args.actorUserId,
               workflowStatusId: args.workflowStatusId,
-              dueDate: args.dueDate,
+              dueDate: args.dueDate ?? null,
               parentTaskId: args.parentTaskId ?? null,
             },
           ],

@@ -67,9 +67,9 @@ test("opens Quick Actions and completes a copied create-task action", async ({
   await expect(page.getByText("Big Actions", { exact: true })).not.toBeVisible();
   await page.getByRole("option", { name: "Create Task" }).click();
 
-  const createTaskDialog = page.getByRole("dialog", { name: "Create Task" });
+  const createTaskDialog = page.getByRole("dialog", { name: /New Task/ });
   await expect(createTaskDialog).toBeVisible();
-  await createTaskDialog.getByPlaceholder("Add a Task").fill(taskTitle);
+  await createTaskDialog.getByPlaceholder("Task title").fill(taskTitle);
   await createTaskDialog.getByRole("button", { name: "Create Task" }).click();
   await expect(page).toHaveURL(/\/my-work$/);
   await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Our Work" }).click();

@@ -9,8 +9,8 @@ test.skip(
 
 async function createTask(page: import("@playwright/test").Page, title: string) {
   await page.getByRole("main").getByRole("button", { name: "Create Task" }).click();
-  const dialog = page.getByRole("dialog", { name: "Create Task" });
-  await dialog.getByPlaceholder("Add a Task").fill(title);
+  const dialog = page.getByRole("dialog", { name: /New Task/ });
+  await dialog.getByPlaceholder("Task title").fill(title);
   await dialog.getByRole("button", { name: "Create Task" }).click();
 }
 

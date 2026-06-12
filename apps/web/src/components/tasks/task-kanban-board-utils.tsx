@@ -9,6 +9,15 @@ export type PickerHotkey = {
   readonly openRef: MutableRefObject<(() => void) | null>;
 };
 
+// Avoid hijacking shortcut keys while the user is typing in a field (e.g.
+// another open combobox/search box, or the dialog title/description inputs).
+export function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  const tag = target.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+}
+
 export function matchPickerHotkey(
   event: Pick<KeyboardEvent, "key" | "shiftKey" | "metaKey" | "ctrlKey" | "altKey">,
   hotkeys: readonly PickerHotkey[],

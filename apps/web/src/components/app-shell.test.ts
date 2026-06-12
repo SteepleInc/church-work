@@ -314,6 +314,35 @@ describe("quick action route behavior", () => {
     expect(bigActionsSource).not.toContain("BigActionWrapper");
   });
 
+  test("lays out the create task dialog Linear-style with property pills", () => {
+    // Header: team picker breadcrumb plus expand/close chrome.
+    expect(createTaskQuickActionSource).toContain("<TeamComboboxSelector");
+    expect(createTaskQuickActionSource).toContain("New Task");
+    expect(createTaskQuickActionSource).toContain("createTaskDialogExpandedAtom");
+    // Borderless title and description inputs (no labeled form fields).
+    expect(createTaskQuickActionSource).toContain('placeholder="Task title"');
+    expect(createTaskQuickActionSource).toContain('placeholder="Add description..."');
+    // The property pill row: Status, Priority, Assignee, Estimate, Labels,
+    // Due date — no Projects, no Cycle pill.
+    expect(createTaskQuickActionSource).toContain("<StatusComboboxSelector");
+    expect(createTaskQuickActionSource).toContain("<PriorityComboboxSelector");
+    expect(createTaskQuickActionSource).toContain("<AssigneeComboboxSelector");
+    expect(createTaskQuickActionSource).toContain("<EstimateComboboxSelector");
+    expect(createTaskQuickActionSource).toContain("<LabelsComboboxSelector");
+    expect(createTaskQuickActionSource).toContain("<DueDateSelector");
+    // Footer: Create more toggle; Cmd+Enter submits.
+    expect(createTaskQuickActionSource).toContain("Create more");
+    expect(createTaskQuickActionSource).toContain("<Kbd>mod enter</Kbd>");
+  });
+
+  test("never auto-sets a Due Date when creating a Task", () => {
+    // The Due Date pill starts empty and the submit payload passes the picked
+    // value (or null) straight through — no Cycle-end fallback.
+    expect(createTaskQuickActionSource).not.toContain("currentCycle");
+    expect(createTaskQuickActionSource).not.toContain("endDate");
+    expect(createTaskQuickActionSource).toContain("dueDate: value.dueDate");
+  });
+
   test("keeps the copied PreachX BigAction chrome available for future big actions", async () => {
     const bigActionComponentsSource = await Bun.file(
       new URL("../features/big-actions/big-action-components.tsx", import.meta.url),

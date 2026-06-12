@@ -3,10 +3,13 @@ import { Schema } from "effect";
 
 const TaskCreateInput = Schema.Struct({
   title: Schema.String,
+  description: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
   teamId: Schema.Union(Schema.String, Schema.Null),
   assignedUserId: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
   workflowStatusId: Schema.String,
-  dueDate: Schema.String,
+  // Null means "no Due Date": the Task joins the Cycle containing its
+  // creation date.
+  dueDate: Schema.Union(Schema.String, Schema.Null),
   parentTaskId: Schema.Union(Schema.String, Schema.Null),
 });
 
@@ -20,7 +23,7 @@ const TaskUpdateFields = Schema.Struct({
   assignedUserId: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
   teamId: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
   workflowStatusId: Schema.optional(Schema.String),
-  dueDate: Schema.optional(Schema.String),
+  dueDate: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
   cycleId: Schema.optional(Schema.String),
   parentTaskId: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
   boardOrder: Schema.optional(Schema.String),

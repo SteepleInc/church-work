@@ -114,14 +114,23 @@ export function QuickActionFormSkeleton({ fields = 2 }: { readonly fields?: numb
 const formColumnClassName = "flex flex-col gap-3 flex-1";
 
 type QuickActionFormProps = Omit<ComponentProps<typeof Form>, "children"> & {
-  Primary: ReactNode;
+  Primary?: ReactNode;
   Secondary?: ReactNode;
+  // Replaces the default scrolling Primary/Secondary body entirely: content
+  // that manages its own overflow (e.g. the create task dialog, whose
+  // description scrolls internally so the title can never scroll away).
+  Body?: ReactNode;
+  // Rendered between the body and the ActionRow, outside any scroll: content
+  // that must stay visible (e.g. the create task dialog's property pill row).
+  Pinned?: ReactNode;
   Actions?: ReactNode;
 };
 
 export function QuickActionForm({
   Primary,
   Secondary,
+  Body,
+  Pinned,
   Actions,
   form,
   className,
@@ -143,12 +152,21 @@ export function QuickActionForm({
     <>
       <Separator />
       <Form
-        className={cn("min-h-0 gap-0 overflow-hidden rounded-[inherit]", className)}
+        // `grow` (not flex-1: basis stays auto) lets the form fill a
+        // fixed-height dialog (e.g. the expanded create task dialog) while
+        // content-height dialogs keep sizing naturally.
+        className={cn("min-h-0 grow gap-0 overflow-hidden rounded-[inherit]", className)}
         form={form}
         {...domProps}
       >
-        <div className="grid size-full min-h-0 grid-rows-[1fr_auto]">
-          <ScrollArea className="min-h-0">{formContent}</ScrollArea>
+        <div
+          className={cn(
+            "grid size-full min-h-0",
+            Pinned ? "grid-rows-[1fr_auto_auto]" : "grid-rows-[1fr_auto]",
+          )}
+        >
+          {Body ?? <ScrollArea className="min-h-0">{formContent}</ScrollArea>}
+          {Pinned}
           <ActionRow>{Actions}</ActionRow>
         </div>
       </Form>

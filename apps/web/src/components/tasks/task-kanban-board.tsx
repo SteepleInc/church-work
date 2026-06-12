@@ -38,14 +38,14 @@ import {
   formatCreatedAt,
   formatDueDate,
   getPriorityMeta,
-  getSizeMeta,
+  getEstimateMeta,
   PriorityComboboxSelector,
-  SizeComboboxSelector,
+  EstimateComboboxSelector,
   StatusComboboxSelector,
   WorkflowStatusIcon,
   type AssigneeOption,
   type TaskPriority,
-  type TaskSize,
+  type TaskEstimate,
 } from "./task-card-fields";
 import {
   buildTaskBoardGroupColumns,
@@ -65,6 +65,7 @@ import {
 } from "./task-kanban-adapter";
 import { DEFAULT_TASK_VIEW_OPTIONS, type TaskDisplayProperty } from "./task-view-options";
 import {
+  isEditableTarget,
   matchPickerHotkey,
   statusOptions,
   toTaskIdentifier,
@@ -140,15 +141,6 @@ const EMPTY_TEAM_MEMBERS: ReadonlyMap<string, ReadonlySet<string>> = new Map();
 const EMPTY_USER_ID_SET: ReadonlySet<string> = new Set();
 const EMPTY_HIDDEN_COLUMNS: readonly string[] = [];
 const EMPTY_SELECTION: ReadonlySet<string> = new Set();
-
-// Avoid hijacking shortcut keys while the user is typing in a field (e.g.
-// another open combobox/search box on the page).
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  if (target.isContentEditable) return true;
-  const tag = target.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
-}
 
 // Opens a card's field picker when its shortcut is pressed while the card is
 // hovered. Listens on the document so the key works without the trigger being
@@ -626,7 +618,7 @@ function TaskKanbanCard({
   const statusOpenRef = useRef<(() => void) | null>(null);
   const assigneeOpenRef = useRef<(() => void) | null>(null);
   const priorityOpenRef = useRef<(() => void) | null>(null);
-  const sizeOpenRef = useRef<(() => void) | null>(null);
+  const estimateOpenRef = useRef<(() => void) | null>(null);
   const [isHovered, setIsHovered] = useState(false);
 
   const pickerHotkeys = useMemo<readonly PickerHotkey[]>(
@@ -634,7 +626,7 @@ function TaskKanbanCard({
       { key: "s", openRef: statusOpenRef },
       { key: "a", openRef: assigneeOpenRef },
       { key: "p", openRef: priorityOpenRef },
-      { key: "e", shift: true, openRef: sizeOpenRef },
+      { key: "e", shift: true, openRef: estimateOpenRef },
     ],
     [],
   );
@@ -643,7 +635,7 @@ function TaskKanbanCard({
   const form = useAppForm({
     defaultValues: {
       priority: "no_priority" as TaskPriority,
-      size: "no_estimate" as TaskSize,
+      estimate: "no_estimate" as TaskEstimate,
       assignedUserId: task.assignedUserId ?? null,
       workflowStatusId: task.workflowStatusId,
     },
@@ -769,13 +761,13 @@ function TaskKanbanCard({
           </form.Field>
         ) : null}
         {showProperty("estimate") ? (
-          <form.Field name="size">
+          <form.Field name="estimate">
             {(field) => {
-              const meta = getSizeMeta(field.state.value);
+              const meta = getEstimateMeta(field.state.value);
               return (
-                <SizeComboboxSelector
+                <EstimateComboboxSelector
                   onValueChange={(next) => field.handleChange(next)}
-                  openRef={sizeOpenRef}
+                  openRef={estimateOpenRef}
                   trigger={
                     <span
                       aria-label={`Estimate: ${meta.label}`}

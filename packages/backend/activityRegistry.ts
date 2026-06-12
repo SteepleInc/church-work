@@ -74,16 +74,16 @@ export const ActivityMetadataByEventType = {
     workflowStatusName: Schema.Union(Schema.String, Schema.Null),
   }),
   "task.due_date_changed": Schema.Struct({
-    previousDueDate: Schema.String,
-    dueDate: Schema.String,
+    previousDueDate: Schema.Union(Schema.String, Schema.Null),
+    dueDate: Schema.Union(Schema.String, Schema.Null),
     previousCycleId: Schema.String,
     cycleId: Schema.String,
   }),
   "task.cycle_changed": Schema.Struct({
     previousCycleId: Schema.String,
     cycleId: Schema.String,
-    previousDueDate: Schema.String,
-    dueDate: Schema.String,
+    previousDueDate: Schema.Union(Schema.String, Schema.Null),
+    dueDate: Schema.Union(Schema.String, Schema.Null),
   }),
   "task.completed": Schema.Struct({
     previousTaskState: RestorableTaskStatusSchema,
