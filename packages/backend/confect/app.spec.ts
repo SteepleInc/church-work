@@ -48,6 +48,7 @@ import {
   TeamRenameArgs,
   TeamReorderArgs,
   TeamReadResponse,
+  TeamSetIdentifierArgs,
   TeamWriteResponse,
 } from "../agent/teamOperations";
 import {
@@ -258,6 +259,13 @@ export const teams = GroupSpec.make("teams")
     FunctionSpec.publicMutation({
       name: "renameForChurch",
       args: TeamRenameArgs,
+      returns: TeamWriteResponse,
+    }),
+  )
+  .addFunction(
+    FunctionSpec.publicMutation({
+      name: "setIdentifierForChurch",
+      args: TeamSetIdentifierArgs,
       returns: TeamWriteResponse,
     }),
   )

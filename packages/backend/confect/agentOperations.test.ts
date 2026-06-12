@@ -2897,6 +2897,10 @@ describe("agent operation boundary", () => {
         churchId: church.id,
         archivedAt: null,
         color: "pink",
+        // Raw Better Auth team creation stores no identifier; reads fall
+        // back to the name-derived base.
+        identifier: "WOR",
+        previousIdentifiers: [],
         sortOrder: 0,
         defaultWorkflowId: null,
       });
@@ -2927,6 +2931,8 @@ describe("agent operation boundary", () => {
         churchId: church.id,
         archivedAt: "2026-06-01T00:00:00.000Z",
         color: "pink",
+        identifier: "WOR",
+        previousIdentifiers: [],
         sortOrder: 7,
         defaultWorkflowId: defaultWorkflow.id,
       });
@@ -3113,6 +3119,163 @@ describe("agent operation boundary", () => {
         "team.renamed",
         "team.reordered",
         "team.archived",
+      ]);
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("Teams get unique generated Team Identifiers, bumped on collision", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-team-identifier-gen-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Identifier Gen Church",
+        slug: `identifier-gen-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
+
+      // Starter Teams seeded at Church creation each get a generated
+      // identifier, unique within the Church.
+      const starters = yield* authenticated.query(refs.public.teams.listForChurch, {
+        churchId: church.id!,
+      });
+      const starterIdentifiers = starters.data.teams.map((team) => team.identifier);
+      expect(starterIdentifiers.length).toBeGreaterThan(0);
+      for (const identifier of starterIdentifiers) {
+        expect(identifier).toMatch(/^[A-Z0-9]{1,7}$/);
+      }
+      expect(new Set(starterIdentifiers).size).toBe(starterIdentifiers.length);
+      expect(starters.data.teams.find((team) => team.name === "Kids")?.identifier).toBe("KID");
+
+      // A new Team whose name collides with a Starter Team's identifier
+      // bumps deterministically.
+      const created = yield* authenticated.mutation(refs.public.teams.createForChurch, {
+        churchId: church.id!,
+        name: "Kidmin",
+      });
+      expect(created.data.teams.find((team) => team.name === "Kidmin")).toMatchObject({
+        identifier: "KID2",
+        previousIdentifiers: [],
+      });
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("owners edit Team Identifiers with validation, uniqueness, and alias history", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-team-identifier-edit-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Identifier Edit Church",
+        slug: `identifier-edit-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
+
+      const created = yield* authenticated.mutation(refs.public.teams.createForChurch, {
+        churchId: church.id!,
+        name: "Care",
+      });
+      const care = created.data.teams.find((team) => team.name === "Care")!;
+      expect(care.identifier).toBe("CAR");
+
+      const invalid = yield* authenticated.mutation(refs.public.teams.setIdentifierForChurch, {
+        churchId: church.id!,
+        teamId: care.id,
+        identifier: "TOOLONG8",
+      });
+      expect(invalid).toMatchObject({
+        ok: false,
+        operation: "setTeamIdentifier",
+        error: { code: "invalid_team_identifier" },
+      });
+
+      // Uniqueness within the Church is case-insensitive: "kid" collides
+      // with the Kids Starter Team's "KID".
+      const taken = yield* authenticated.mutation(refs.public.teams.setIdentifierForChurch, {
+        churchId: church.id!,
+        teamId: care.id,
+        identifier: "kid",
+      });
+      expect(taken).toMatchObject({
+        ok: false,
+        operation: "setTeamIdentifier",
+        error: { code: "team_identifier_taken" },
+      });
+
+      // Lowercase input normalizes to the uppercase canonical form; the
+      // previous identifier is remembered as an alias.
+      const renamedOnce = yield* authenticated.mutation(refs.public.teams.setIdentifierForChurch, {
+        churchId: church.id!,
+        teamId: care.id,
+        identifier: "pastoral",
+      });
+      expect(renamedOnce).toMatchObject({
+        ok: false,
+        operation: "setTeamIdentifier",
+        error: { code: "invalid_team_identifier" },
+      });
+
+      const first = yield* authenticated.mutation(refs.public.teams.setIdentifierForChurch, {
+        churchId: church.id!,
+        teamId: care.id,
+        identifier: "pastor",
+      });
+      expect(first.data.teams.find((team) => team.id === care.id)).toMatchObject({
+        identifier: "PASTOR",
+        previousIdentifiers: ["CAR"],
+      });
+
+      const second = yield* authenticated.mutation(refs.public.teams.setIdentifierForChurch, {
+        churchId: church.id!,
+        teamId: care.id,
+        identifier: "CARE",
+      });
+      expect(second.data.teams.find((team) => team.id === care.id)).toMatchObject({
+        identifier: "CARE",
+        previousIdentifiers: ["CAR", "PASTOR"],
+      });
+
+      // Setting the same identifier again is a no-op: no duplicate alias,
+      // no extra activity entry.
+      const noop = yield* authenticated.mutation(refs.public.teams.setIdentifierForChurch, {
+        churchId: church.id!,
+        teamId: care.id,
+        identifier: " care ",
+      });
+      expect(noop.data.teams.find((team) => team.id === care.id)).toMatchObject({
+        identifier: "CARE",
+        previousIdentifiers: ["CAR", "PASTOR"],
+      });
+
+      const activities = yield* authenticated.query(refs.public.activities.listForEntity, {
+        churchId: church.id!,
+        entityType: "team",
+        entityId: care.id,
+      });
+      const identifierChanges = activities.data.activities.filter(
+        (activity) => activity.eventType === "team.identifier_changed",
+      );
+      expect(identifierChanges.map((activity) => activity.metadata)).toEqual([
+        { previousIdentifier: "CAR", identifier: "PASTOR" },
+        { previousIdentifier: "PASTOR", identifier: "CARE" },
       ]);
     }).pipe(Effect.provide(TestConfect.layer())),
   );

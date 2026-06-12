@@ -225,6 +225,10 @@ export const ActivityMetadataByEventType = {
     previousName: Schema.String,
     name: Schema.String,
   }),
+  "team.identifier_changed": Schema.Struct({
+    previousIdentifier: Schema.String,
+    identifier: Schema.String,
+  }),
   "team.archived": Schema.Struct({
     name: Schema.String,
   }),
@@ -287,6 +291,7 @@ export const ActivityEventType = Schema.Literal(
   "church.invitation.canceled",
   "team.created",
   "team.renamed",
+  "team.identifier_changed",
   "team.archived",
   "team.deleted",
   "team.reordered",
@@ -336,6 +341,7 @@ export const ActivityMetadata = Schema.Union(
   ActivityMetadataByEventType["church.invitation.canceled"],
   ActivityMetadataByEventType["team.created"],
   ActivityMetadataByEventType["team.renamed"],
+  ActivityMetadataByEventType["team.identifier_changed"],
   ActivityMetadataByEventType["team.archived"],
   ActivityMetadataByEventType["team.deleted"],
   ActivityMetadataByEventType["team.reordered"],

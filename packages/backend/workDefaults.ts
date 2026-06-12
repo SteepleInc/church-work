@@ -1,4 +1,8 @@
-import { getTeamColorForName } from "@church-task/domain/Team";
+import {
+  deriveTeamIdentifierBase,
+  generateTeamIdentifier,
+  getTeamColorForName,
+} from "@church-task/domain/Team";
 import type { GenericDatabaseReader, GenericMutationCtx } from "convex/server";
 
 import { components } from "./convex/_generated/api";
@@ -8,6 +12,7 @@ type MutationCtx = GenericMutationCtx<DataModel>;
 
 type BetterAuthTeam = {
   readonly name: string;
+  readonly identifier?: string | null;
 };
 
 const DEFAULT_WORKFLOW_KEY = "church-default";
@@ -118,9 +123,15 @@ export async function seedDefaultWorkModel(ctx: MutationCtx, churchId: string) {
     paginationOpts: { cursor: null, numItems: 100 },
   })) as { readonly page: ReadonlyArray<BetterAuthTeam> };
   const existingTeamNames = new Set(existingTeams.page.map((team) => team.name));
+  // Teams created before identifiers were stored count their name-derived
+  // base as taken, matching the read-path fallback.
+  const takenIdentifiers = existingTeams.page.map(
+    (team) => team.identifier ?? deriveTeamIdentifierBase(team.name),
+  );
 
   for (const [sortOrder, name] of STARTER_TEAMS.entries()) {
     if (!existingTeamNames.has(name)) {
+      const identifier = generateTeamIdentifier(name, takenIdentifiers);
       await ctx.runMutation(components.betterAuth.adapter.create, {
         input: {
           model: "team",
@@ -133,10 +144,13 @@ export async function seedDefaultWorkModel(ctx: MutationCtx, churchId: string) {
             sortOrder,
             defaultWorkflowId: null,
             color: getTeamColorForName(name),
+            identifier,
+            previousIdentifiers: [],
           },
         },
       });
       existingTeamNames.add(name);
+      takenIdentifiers.push(identifier);
     }
   }
 

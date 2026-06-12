@@ -393,6 +393,7 @@ function InitialTeamsStepCard(props: {
 
                   <div className="flex min-w-0 flex-1 flex-col items-start">
                     <p className="font-semibold">{team.name}</p>
+                    <p className="text-sm text-muted-foreground">{team.identifier}</p>
                   </div>
 
                   <div className="ml-auto flex gap-1">

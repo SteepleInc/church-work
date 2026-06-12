@@ -520,6 +520,14 @@ export function createAuthOptions(ctx: GenericCtx<DataModel>) {
                 type: "string",
                 required: false,
               },
+              identifier: {
+                type: "string",
+                required: false,
+              },
+              previousIdentifiers: {
+                type: "string[]",
+                required: false,
+              },
             },
           },
         },

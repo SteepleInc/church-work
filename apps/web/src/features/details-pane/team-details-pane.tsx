@@ -28,7 +28,7 @@ export function TeamDetailsPane({ teamId }: { readonly teamId: string }) {
           {loading ? (
             <Skeleton className="h-4 w-40" />
           ) : (
-            <p className="text-sm text-muted-foreground">{teamId}</p>
+            <p className="text-sm text-muted-foreground">{team?.identifier ?? teamId}</p>
           )}
         </>
       }
@@ -36,6 +36,7 @@ export function TeamDetailsPane({ teamId }: { readonly teamId: string }) {
         team ? (
           <DetailSection title="Overview">
             <DetailItem label="Name" value={team.name} />
+            <DetailItem label="Identifier" value={team.identifier} />
             <DetailItem
               label="Default Workflow"
               value={defaultWorkflow?.name ?? "Church default"}

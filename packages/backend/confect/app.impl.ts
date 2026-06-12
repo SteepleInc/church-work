@@ -1,4 +1,12 @@
-import { getTeamColorForName, isTeamColor } from "@church-task/domain/Team";
+import {
+  deriveTeamIdentifierBase,
+  generateTeamIdentifier,
+  getTeamColorForName,
+  isTeamColor,
+  isValidTeamIdentifier,
+  normalizeTeamIdentifier,
+  TEAM_IDENTIFIER_MAX_LENGTH,
+} from "@church-task/domain/Team";
 import { FunctionImpl, GroupImpl, MutationCtx, QueryCtx } from "@confect/server";
 import { Effect, Layer } from "effect";
 
@@ -112,6 +120,8 @@ type BetterAuthTeam = {
   readonly sortOrder?: number | null;
   readonly defaultWorkflowId?: string | null;
   readonly color?: string | null;
+  readonly identifier?: string | null;
+  readonly previousIdentifiers?: ReadonlyArray<string> | null;
 };
 
 type BetterAuthTeamMember = {
@@ -174,10 +184,18 @@ const findBetterAuthDocs = <T>(args: {
     return result.page;
   });
 
+// Teams created outside the app's create paths (e.g. raw Better Auth
+// endpoints) may lack a stored identifier; fall back to the same name-derived
+// base the create path would have used, mirroring the Team Color fallback.
+const currentTeamIdentifier = (team: BetterAuthTeam) =>
+  team.identifier ?? deriveTeamIdentifierBase(team.name);
+
 const serializeTeam = (team: BetterAuthTeam) => ({
   id: team._id,
   name: team.name,
   churchId: team.organizationId,
+  identifier: currentTeamIdentifier(team),
+  previousIdentifiers: team.previousIdentifiers ?? [],
   // Teams created before colors were stored fall back to the same
   // name-derived color the create path would have assigned.
   color: isTeamColor(team.color) ? team.color : getTeamColorForName(team.name),
@@ -1656,6 +1674,9 @@ const teamCreateForChurch = FunctionImpl.make(api, "teams", "createForChurch", (
       Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
     );
     const sortOrder = teams.reduce((max, team) => Math.max(max, team.sortOrder ?? -1), -1) + 1;
+    // Retired identifiers are not reserved: only current identifiers block
+    // generation.
+    const identifier = generateTeamIdentifier(args.name, teams.map(currentTeamIdentifier));
     yield* Effect.promise(() =>
       ctx.runMutation(components.betterAuth.adapter.create, {
         input: {
@@ -1669,6 +1690,8 @@ const teamCreateForChurch = FunctionImpl.make(api, "teams", "createForChurch", (
             sortOrder,
             defaultWorkflowId: null,
             color: getTeamColorForName(args.name),
+            identifier,
+            previousIdentifiers: [],
           },
         },
       }),
@@ -1763,6 +1786,107 @@ const teamRenameForChurch = FunctionImpl.make(api, "teams", "renameForChurch", (
     );
     return teamsResponse("renameTeam", teams.map(serializeTeam));
   }),
+);
+
+const teamSetIdentifierForChurch = FunctionImpl.make(
+  api,
+  "teams",
+  "setIdentifierForChurch",
+  (args) =>
+    Effect.gen(function* () {
+      const ctx = yield* MutationCtx.MutationCtx<DataModel>();
+      const auth = yield* getAuthenticatedChurchMember(args.churchId).pipe(
+        Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
+      );
+
+      if (auth.status === "notAuthenticated") {
+        return teamErrorResponse(
+          "setTeamIdentifier",
+          "not_authenticated",
+          "Authentication is required.",
+        );
+      }
+      if (auth.status === "notChurchMember") {
+        return teamErrorResponse(
+          "setTeamIdentifier",
+          "not_church_member",
+          "Church membership is required.",
+        );
+      }
+      const authError = teamManageAuthError("setTeamIdentifier", auth.membership.role);
+      if (authError) return authError;
+
+      const identifier = normalizeTeamIdentifier(args.identifier);
+      if (!isValidTeamIdentifier(identifier)) {
+        return teamErrorResponse(
+          "setTeamIdentifier",
+          "invalid_team_identifier",
+          `Team Identifier must be 1-${TEAM_IDENTIFIER_MAX_LENGTH} letters or numbers.`,
+        );
+      }
+
+      const teams = yield* listTeamsForChurch(args.churchId).pipe(
+        Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
+      );
+      const team = teams.find((candidate) => candidate._id === args.teamId);
+
+      if (!team) {
+        return teamErrorResponse(
+          "setTeamIdentifier",
+          "team_not_found",
+          "Team was not found in the active Church.",
+        );
+      }
+
+      const previousIdentifier = currentTeamIdentifier(team);
+      const isTaken = teams.some(
+        (candidate) =>
+          candidate._id !== args.teamId && currentTeamIdentifier(candidate) === identifier,
+      );
+      if (isTaken) {
+        return teamErrorResponse(
+          "setTeamIdentifier",
+          "team_identifier_taken",
+          "Another Team in this Church already uses that identifier.",
+        );
+      }
+
+      if (identifier !== previousIdentifier) {
+        // Remember the old identifier so existing links keep resolving; drop
+        // re-claimed values so the list never shadows the current identifier.
+        const previousIdentifiers = [
+          ...(team.previousIdentifiers ?? []).filter((value) => value !== identifier),
+          previousIdentifier,
+        ];
+        yield* Effect.promise(() =>
+          ctx.runMutation(components.betterAuth.adapter.updateOne, {
+            input: {
+              model: "team",
+              where: [{ field: "_id", value: args.teamId }],
+              update: { identifier, previousIdentifiers, updatedAt: Date.now() },
+            },
+          }),
+        ).pipe(Effect.orDie);
+        yield* Effect.promise(() =>
+          writeActivity(ctx, {
+            churchId: args.churchId,
+            entityType: "team",
+            entityId: args.teamId,
+            eventType: "team.identifier_changed",
+            actorType: "user",
+            actorId: auth.authUser._id,
+            occurredAt: new Date().toISOString(),
+            cycleId: null,
+            metadata: { previousIdentifier, identifier },
+          }),
+        ).pipe(Effect.orDie);
+      }
+
+      const updatedTeams = yield* activeTeamsForChurch(args.churchId).pipe(
+        Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
+      );
+      return teamsResponse("setTeamIdentifier", updatedTeams.map(serializeTeam));
+    }),
 );
 
 const teamArchiveForChurch = FunctionImpl.make(api, "teams", "archiveForChurch", (args) =>
@@ -3848,6 +3972,7 @@ export const teams = GroupImpl.make(api, "teams").pipe(
   Layer.provide(teamListMembershipsForChurch),
   Layer.provide(teamCreateForChurch),
   Layer.provide(teamRenameForChurch),
+  Layer.provide(teamSetIdentifierForChurch),
   Layer.provide(teamArchiveForChurch),
   Layer.provide(teamDeleteForChurch),
   Layer.provide(teamReorderForChurch),

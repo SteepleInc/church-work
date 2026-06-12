@@ -1,3 +1,8 @@
+import {
+  isValidTeamIdentifier,
+  normalizeTeamIdentifier,
+  TEAM_IDENTIFIER_MAX_LENGTH,
+} from "@church-task/domain";
 import { revalidateLogic } from "@tanstack/react-form";
 import { Schema } from "effect";
 import { atom, useAtom } from "jotai";
@@ -12,6 +17,7 @@ import { Kbd } from "@/components/ui/kbd";
 import {
   useCreateTeamMutation,
   useRenameTeamMutation,
+  useSetTeamIdentifierMutation,
   useTeamsCollection,
   type TeamCollectionItem,
 } from "@/data/teams/teamsData.app";
@@ -30,8 +36,24 @@ export type TeamQuickActionState =
 
 export const teamQuickActionStateAtom = atom<TeamQuickActionState | null>(null);
 
-const TeamFormSchema = Schema.Struct({
-  name: Schema.String.pipe(Schema.minLength(1, { message: () => "Team name is required." })),
+const TeamNameSchema = Schema.String.pipe(
+  Schema.minLength(1, { message: () => "Team name is required." }),
+);
+
+const CreateTeamFormSchema = Schema.Struct({
+  name: TeamNameSchema,
+  identifier: Schema.String,
+});
+
+// Identifiers are normalized to uppercase before validation so lowercase
+// input is accepted; the canonical form is uppercase.
+const EditTeamFormSchema = Schema.Struct({
+  name: TeamNameSchema,
+  identifier: Schema.String.pipe(
+    Schema.filter((value) => isValidTeamIdentifier(normalizeTeamIdentifier(value)), {
+      message: () => `Team Identifier must be 1-${TEAM_IDENTIFIER_MAX_LENGTH} letters or numbers.`,
+    }),
+  ),
 });
 
 export function TeamQuickAction() {
@@ -49,7 +71,9 @@ export function TeamQuickAction() {
           </span>
         </QuickActionsTitle>
         <QuickActionsDescription>
-          {isEdit ? "Update this Team's name." : "Create a Team to organize your Church's work."}
+          {isEdit
+            ? "Update this Team's name and identifier."
+            : "Create a Team to organize your Church's work."}
         </QuickActionsDescription>
       </QuickActionsHeader>
       {state ? <TeamQuickActionBody state={state} onDone={() => setState(null)} /> : null}
@@ -93,32 +117,52 @@ function TeamForm(props: {
   const { churchId, team, onDone } = props;
   const createTeam = useCreateTeamMutation();
   const renameTeam = useRenameTeamMutation();
+  const setTeamIdentifier = useSetTeamIdentifierMutation();
   const [formError, setFormError] = useState<string | null>(null);
   const isEdit = team !== null;
 
   const form = useAppForm({
-    defaultValues: { name: team?.name ?? "" },
+    defaultValues: { name: team?.name ?? "", identifier: team?.identifier ?? "" },
     validationLogic: revalidateLogic({
       mode: "submit",
       modeAfterSubmission: "blur",
     }),
     validators: {
-      onSubmit: Schema.standardSchemaV1(TeamFormSchema),
+      onSubmit: Schema.standardSchemaV1(isEdit ? EditTeamFormSchema : CreateTeamFormSchema),
     },
     onSubmit: async ({ value }) => {
       setFormError(null);
       const name = value.name.trim();
 
-      const result = isEdit
-        ? await renameTeam({ churchId, name, teamId: team.id })
-        : await createTeam({ churchId, name });
-
-      if ("error" in result) {
-        setFormError(result.error.message);
+      if (!isEdit) {
+        const result = await createTeam({ churchId, name });
+        if ("error" in result) {
+          setFormError(result.error.message);
+          return;
+        }
+        toast.success("Team created.");
+        onDone();
         return;
       }
 
-      toast.success(isEdit ? "Team updated." : "Team created.");
+      if (name !== team.name) {
+        const result = await renameTeam({ churchId, name, teamId: team.id });
+        if ("error" in result) {
+          setFormError(result.error.message);
+          return;
+        }
+      }
+
+      const identifier = normalizeTeamIdentifier(value.identifier);
+      if (identifier !== team.identifier) {
+        const result = await setTeamIdentifier({ churchId, identifier, teamId: team.id });
+        if ("error" in result) {
+          setFormError(result.error.message);
+          return;
+        }
+      }
+
+      toast.success("Team updated.");
       onDone();
     },
   });
@@ -131,6 +175,18 @@ function TeamForm(props: {
           <form.AppField name="name">
             {(field) => <field.InputField label="Team Name" required />}
           </form.AppField>
+          {isEdit ? (
+            <form.AppField name="identifier">
+              {(field) => (
+                <field.InputField
+                  label="Team Identifier"
+                  maxLength={TEAM_IDENTIFIER_MAX_LENGTH}
+                  placeholder="PRD"
+                  required
+                />
+              )}
+            </form.AppField>
+          ) : null}
           {formError ? (
             <Alert variant="destructive">
               <AlertDescription>{formError}</AlertDescription>

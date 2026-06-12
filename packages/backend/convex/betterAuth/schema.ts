@@ -190,9 +190,12 @@ export const tables = {
     sortOrder: v.optional(v.union(v.null(), v.number())),
     defaultWorkflowId: v.optional(v.union(v.null(), v.string())),
     color: v.optional(v.union(v.null(), v.string())),
+    identifier: v.optional(v.union(v.null(), v.string())),
+    previousIdentifiers: v.optional(v.union(v.null(), v.array(v.string()))),
   })
     .index("organizationId", ["organizationId"])
-    .index("organizationId_name", ["organizationId", "name"]),
+    .index("organizationId_name", ["organizationId", "name"])
+    .index("organizationId_identifier", ["organizationId", "identifier"]),
   teamMember: defineTable({
     teamId: v.string(),
     userId: v.string(),

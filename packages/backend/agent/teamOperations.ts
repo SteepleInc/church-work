@@ -33,6 +33,12 @@ export const TeamRenameArgs = Schema.Struct({
   name: Schema.String,
 });
 
+export const TeamSetIdentifierArgs = Schema.Struct({
+  churchId: Schema.String,
+  teamId: Schema.String,
+  identifier: Schema.String,
+});
+
 export const TeamArchiveArgs = Schema.Struct({
   churchId: Schema.String,
   teamId: Schema.String,
@@ -62,6 +68,7 @@ export const TeamOperationResponse = Schema.Struct({
     Schema.Literal("listTeams"),
     Schema.Literal("createTeam"),
     Schema.Literal("renameTeam"),
+    Schema.Literal("setTeamIdentifier"),
     Schema.Literal("archiveTeam"),
     Schema.Literal("deleteTeam"),
     Schema.Literal("reorderTeams"),
@@ -92,6 +99,7 @@ export const TeamOperationErrorResponse = Schema.Struct({
     Schema.Literal("listTeams"),
     Schema.Literal("createTeam"),
     Schema.Literal("renameTeam"),
+    Schema.Literal("setTeamIdentifier"),
     Schema.Literal("archiveTeam"),
     Schema.Literal("deleteTeam"),
     Schema.Literal("reorderTeams"),
@@ -106,6 +114,8 @@ export const TeamOperationErrorResponse = Schema.Struct({
       Schema.Literal("team_has_tasks"),
       Schema.Literal("workflow_not_found"),
       Schema.Literal("invalid_team_reorder"),
+      Schema.Literal("invalid_team_identifier"),
+      Schema.Literal("team_identifier_taken"),
     ),
     message: Schema.String,
   }),
