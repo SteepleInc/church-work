@@ -73,6 +73,6 @@ describe("onboarding PreachX fidelity guards", () => {
     expect(onboardingSource).toContain("<CardAdornment");
     expect(onboardingSource).toContain("<CardAction");
     expect(onboardingSource).toContain("<ActionRow");
-    expect(onboardingSource).toContain("Initial Church Task Team");
+    expect(onboardingSource).toContain('aria-label="Initial Teams"');
   });
 });
