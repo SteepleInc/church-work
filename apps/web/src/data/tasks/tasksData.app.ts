@@ -1,7 +1,8 @@
 import { api } from "@church-task/backend/convex/_generated/api";
 import type { TaskStatus } from "@church-task/domain";
 import type { OptimisticLocalStore } from "convex/browser";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
+import { useConvexQuery as useQuery } from "@/data/query-hooks";
 
 import { successfulResponseCollection } from "@/data/convex-query-adapter";
 import { collectionItemOptimisticUpdate } from "@/data/optimistic-collection";

@@ -25,6 +25,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSkeleton,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
@@ -107,11 +108,14 @@ function AppNavigationBody() {
         <SidebarGroupLabel>Team Work</SidebarGroupLabel>
         <SidebarMenu>
           {teamMemberships.loading || teams.loading ? (
-            <SidebarMenuItem>
-              <SidebarMenuButton disabled type="button">
-                <span>Loading Teams...</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            <>
+              <SidebarMenuItem>
+                <SidebarMenuSkeleton showIcon />
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuSkeleton showIcon />
+              </SidebarMenuItem>
+            </>
           ) : memberTeams.length > 0 ? (
             memberTeams.map((team) => (
               <SideBarItem

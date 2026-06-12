@@ -96,8 +96,13 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
               })}
             >
               {({ canSubmit, isSubmitting }) => (
-                <Button type="submit" className="w-full" disabled={!canSubmit || isSubmitting}>
-                  {isSubmitting ? "Submitting..." : "Sign Up"}
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={!canSubmit}
+                  loading={isSubmitting}
+                >
+                  Sign Up
                 </Button>
               )}
             </form.Subscribe>

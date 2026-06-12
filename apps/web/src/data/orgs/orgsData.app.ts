@@ -1,6 +1,6 @@
 import { api } from "@church-task/backend/convex/_generated/api";
 import type { Org } from "@church-task/domain";
-import { useQuery } from "convex/react";
+import { useConvexQuery as useQuery } from "@/data/query-hooks";
 
 import { collectionFromQueryResult } from "@/data/convex-query-adapter";
 import { FilterKeys } from "@/shared/global-state";

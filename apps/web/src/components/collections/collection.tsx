@@ -17,6 +17,7 @@ import {
 import { useCreateTable } from "@/components/collections/useCreateTable";
 import { Divider } from "@/components/ui/divider";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   collectionViewMatch,
   collectionViewsAtom,
@@ -161,6 +162,9 @@ export const Collection = <TData,>(props: CollectionProps<TData>): ReactNode => 
   };
 
   const emptyContent = getEmptyContent();
+  // Skeleton rows while data has not yet arrived (ADR 0010): every Collection
+  // inherits this; loading also suppresses the Empty State above.
+  const showLoadingSkeleton = Boolean(loading) && data.length === 0;
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -177,7 +181,10 @@ export const Collection = <TData,>(props: CollectionProps<TData>): ReactNode => 
         table={table}
       />
 
-      {emptyContent ??
+      {showLoadingSkeleton ? (
+        <CollectionSkeleton />
+      ) : (
+        (emptyContent ??
         pipe(
           collectionView,
           collectionViewMatch({
@@ -203,7 +210,25 @@ export const Collection = <TData,>(props: CollectionProps<TData>): ReactNode => 
               />
             ),
           }),
-        )}
+        ))
+      )}
     </div>
   );
 };
+
+function CollectionSkeleton() {
+  return (
+    <div aria-busy="true" className="flex flex-col gap-2 md:mr-4">
+      <Divider variant="page" />
+      {Array.makeBy(6, (index) => (
+        <div className="flex items-center gap-3 rounded-lg border px-4 py-3" key={index}>
+          <Skeleton className="size-8 rounded-full" />
+          <div className="flex flex-1 flex-col gap-1.5">
+            <Skeleton className="h-4 w-1/3" />
+            <Skeleton className="h-3 w-1/5" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}

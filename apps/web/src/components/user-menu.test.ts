@@ -7,7 +7,9 @@ describe("UserMenu sign out", () => {
     expect(userMenuSource).toContain("markIntentionalSignOut();");
     expect(userMenuSource).toContain("await authClient.signOut();");
     expect(userMenuSource).toContain('await navigate({ to: "/" });');
-    expect(userMenuSource).toContain("<DropdownMenuItemWithLoading loading={isSigningOut} onClick={signOut}>");
+    expect(userMenuSource).toContain(
+      "<DropdownMenuItemWithLoading loading={isSigningOut} onClick={signOut}>",
+    );
     expect(userMenuSource).not.toContain("disabled={isSigningOut}");
     expect(userMenuSource).not.toContain("onSuccess");
   });

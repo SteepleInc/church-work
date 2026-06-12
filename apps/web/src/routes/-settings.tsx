@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrentOrgOpt, type CurrentOrg } from "@/data/orgs/orgData.app";
 import { authClient } from "@/lib/auth-client";
 import { TeamInvitationsSettingsPanel, TeamMembersSettingsPanel } from "@/routes/-dashboard";
@@ -97,10 +98,27 @@ export function SettingsProfilePanel() {
   const user = data?.user;
 
   if (!user) {
-    return <p className="text-sm text-muted-foreground">Loading profile settings...</p>;
+    return <SettingsFormSkeleton />;
   }
 
   return <SettingsProfileForm refetchSession={refetchSession} user={user} />;
+}
+
+/**
+ * Form-shaped Skeleton for settings panels while session or Active Church
+ * data has not yet arrived (ADR 0010 — no "Loading X..." text).
+ */
+function SettingsFormSkeleton({ fields = 2 }: { readonly fields?: number }) {
+  return (
+    <div className="flex flex-col gap-4">
+      {Array.from({ length: fields }, (_, index) => (
+        <div className="flex flex-col gap-1.5" key={index}>
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-9 w-full max-w-md" />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function SettingsProfileForm({
@@ -212,7 +230,7 @@ export function SettingsChurchPanel() {
   const { refetch: refetchSession } = authClient.useSession();
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Loading Church settings...</p>;
+    return <SettingsFormSkeleton fields={4} />;
   }
 
   if (!activeChurch) {

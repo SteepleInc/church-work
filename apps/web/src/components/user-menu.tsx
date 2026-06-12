@@ -4,7 +4,7 @@ import { type ComponentProps, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/avatars/userAvatar";
-import { QueryResult, useQuery } from "@confect/react";
+import { QueryResult, useQuery } from "@/data/query-hooks";
 import {
   DropdownMenu,
   DropdownMenuContent,

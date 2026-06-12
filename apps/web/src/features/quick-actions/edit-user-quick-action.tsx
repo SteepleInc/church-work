@@ -1,6 +1,7 @@
 import { api } from "@church-task/backend/convex/_generated/api";
 import { revalidateLogic } from "@tanstack/react-form";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
+import { useConvexQuery as useQuery } from "@/data/query-hooks";
 import { Schema } from "effect";
 import { PencilIcon, UserRoundIcon } from "lucide-react";
 import { atom, useAtom } from "jotai";
@@ -14,6 +15,7 @@ import { Kbd } from "@/components/ui/kbd";
 import type { UserCollectionItem } from "@/data/users/usersData.app";
 import {
   QuickActionForm,
+  QuickActionFormSkeleton,
   QuickActionsDescription,
   QuickActionsHeader,
   QuickActionsTitle,
@@ -61,7 +63,7 @@ export function EditUserQuickAction() {
         <QuickActionsDescription>Update account name and email fields.</QuickActionsDescription>
       </QuickActionsHeader>
       {user === undefined ? (
-        <p className="px-4 pb-4 text-muted-foreground text-sm">Loading User...</p>
+        <QuickActionFormSkeleton />
       ) : user === null ? (
         <Alert className="m-4 mt-0">
           <AlertDescription>User details are unavailable.</AlertDescription>

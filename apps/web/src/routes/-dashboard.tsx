@@ -24,6 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -39,10 +40,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { QueryResult, useQuery as useConfectQuery } from "@confect/react";
+import { QueryResult, useQuery as useConfectQuery } from "@/data/query-hooks";
 import { revalidateLogic } from "@tanstack/react-form";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
+import { Authenticated, Unauthenticated } from "convex/react";
 import { Schema } from "effect";
 import { useState } from "react";
 
@@ -151,23 +152,23 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
         ) : typeof activePanel === "object" && !selectedTeam ? (
           <section className="grid gap-4 rounded-xl border bg-background p-4 shadow-xs">
             <h2 className="text-base font-semibold">Team board</h2>
-            <p className="text-sm text-muted-foreground">
-              {teams === undefined ? "Loading Team board..." : "Team board is unavailable."}
-            </p>
-            {teams !== undefined ? (
-              <div className="flex flex-wrap gap-2">
-                {unavailableTeamBoardActions.map((action) => (
-                  <Button
-                    key={action.panel}
-                    type="button"
-                    variant={action.panel === "my_work" ? "default" : "outline"}
-                    onClick={() => setActivePanel(action.panel)}
-                  >
-                    {action.label}
-                  </Button>
-                ))}
-              </div>
-            ) : null}
+            {teams.loading ? (
+              <Skeleton className="h-4 w-44" />
+            ) : (
+              <p className="text-sm text-muted-foreground">Team board is unavailable.</p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {unavailableTeamBoardActions.map((action) => (
+                <Button
+                  key={action.panel}
+                  type="button"
+                  variant={action.panel === "my_work" ? "default" : "outline"}
+                  onClick={() => setActivePanel(action.panel)}
+                >
+                  {action.label}
+                </Button>
+              ))}
+            </div>
           </section>
         ) : activeChurch && currentUserId ? (
           <TaskExecutionSurface
@@ -185,12 +186,15 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
         ) : (
           <>
             <section className="grid gap-4 rounded-xl border bg-background p-4 shadow-xs">
-              <div>
+              <div className="grid gap-1">
                 <h2 className="text-base font-semibold">Church Home</h2>
-                <p className="text-sm text-muted-foreground">
-                  privateData:{" "}
-                  {QueryResult.isSuccess(privateData) ? privateData.value.message : "Loading..."}
-                </p>
+                {QueryResult.isSuccess(privateData) ? (
+                  <p className="text-sm text-muted-foreground">
+                    privateData: {privateData.value.message}
+                  </p>
+                ) : (
+                  <Skeleton className="h-4 w-48" />
+                )}
               </div>
             </section>
             <ActiveChurchInvitationPrompt />
@@ -263,7 +267,24 @@ export function ChurchSettingsPanel() {
   const churchTimeZone = activeChurch?.churchTimeZone ?? "Not set";
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Loading Church settings...</p>;
+    return (
+      <section className="grid gap-4 md:grid-cols-2">
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <Skeleton className="h-5 w-36" />
+            <Skeleton className="h-4 w-64" />
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2">
+            {Array.from({ length: 8 }, (_, index) => (
+              <div className="grid gap-1" key={index}>
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-4 w-40" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </section>
+    );
   }
 
   if (!activeChurch) {
@@ -309,7 +330,21 @@ export function TeamMembersSettingsPanel() {
   const members = useChurchUsersCollection({ churchId: activeChurch?.id ?? null });
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Loading member settings...</p>;
+    return (
+      <section className="grid gap-4">
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-4 w-72" />
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            {[0, 1, 2].map((index) => (
+              <Skeleton className="h-16 w-full rounded-lg" key={index} />
+            ))}
+          </CardContent>
+        </Card>
+      </section>
+    );
   }
 
   if (!activeChurch) {
@@ -343,7 +378,21 @@ export function TeamInvitationsSettingsPanel() {
     activeChurch?.invitations.filter((invitation) => invitation.status === "pending") ?? [];
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Loading invitation settings...</p>;
+    return (
+      <section className="grid gap-4">
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-5 w-44" />
+            <Skeleton className="h-4 w-80 max-w-full" />
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            {[0, 1].map((index) => (
+              <Skeleton className="h-12 w-full rounded-lg" key={index} />
+            ))}
+          </CardContent>
+        </Card>
+      </section>
+    );
   }
 
   if (!activeChurch) {
@@ -468,9 +517,11 @@ function TeamSettingsCard({
         <CardDescription>Active work areas for this Church.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
-        <p className="text-sm text-muted-foreground">
-          {isLoading ? "Loading Teams..." : `${teams.length} active Teams`}
-        </p>
+        {isLoading ? (
+          <Skeleton className="h-4 w-32" />
+        ) : (
+          <p className="text-sm text-muted-foreground">{teams.length} active Teams</p>
+        )}
         {error ? (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
@@ -676,11 +727,13 @@ function TeamMembershipSettingsCard({
         <CardDescription>Church Members connected to their relevant Teams.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
-        <p className="text-sm text-muted-foreground">
-          {isLoading
-            ? "Loading Team Memberships..."
-            : `${visibleMemberships.length} Team Memberships`}
-        </p>
+        {isLoading ? (
+          <Skeleton className="h-4 w-40" />
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {visibleMemberships.length} Team Memberships
+          </p>
+        )}
         {error ? (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
@@ -872,9 +925,11 @@ function WorkflowSettingsCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
-        <p className="text-sm text-muted-foreground">
-          {isLoading ? "Loading Workflows..." : `${activeWorkflows.length} active Workflows`}
-        </p>
+        {isLoading ? (
+          <Skeleton className="h-4 w-36" />
+        ) : (
+          <p className="text-sm text-muted-foreground">{activeWorkflows.length} active Workflows</p>
+        )}
         {error ? (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
@@ -1215,11 +1270,13 @@ function WorkflowStatusSettingsCard({
         <CardDescription>Visible process steps mapped to Task States.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
-        <p className="text-sm text-muted-foreground">
-          {isLoading
-            ? "Loading Workflow Statuses..."
-            : `${activeStatuses.length} active Workflow Statuses`}
-        </p>
+        {isLoading ? (
+          <Skeleton className="h-4 w-44" />
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {activeStatuses.length} active Workflow Statuses
+          </p>
+        )}
         {error ? (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
@@ -1687,7 +1744,11 @@ function ChurchMembersPanel({ activeChurchId }: { activeChurchId: string }) {
       </CardHeader>
       <CardContent className="grid gap-3">
         {members.loading ? (
-          <p className="text-sm text-muted-foreground">Loading Church Members...</p>
+          <>
+            {[0, 1, 2].map((index) => (
+              <Skeleton className="h-16 w-full rounded-lg" key={index} />
+            ))}
+          </>
         ) : null}
         {error ? (
           <Alert variant="destructive">
@@ -1901,7 +1962,20 @@ function ChurchOnboardingGate({ activePanel }: { activePanel: ActiveDashboardPan
   });
 
   if (activeChurchLoading) {
-    return <div>Loading Church...</div>;
+    return (
+      <MainContainer>
+        <PageContainer wrapperClassName="gap-6">
+          <div className="flex justify-end">
+            <Skeleton className="h-9 w-28" />
+          </div>
+          <section className="grid gap-4 rounded-xl border bg-background p-4 shadow-xs">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-4 w-full max-w-md" />
+            <Skeleton className="h-4 w-full max-w-sm" />
+          </section>
+        </PageContainer>
+      </MainContainer>
+    );
   }
 
   if (hasActiveChurch) {
@@ -1909,7 +1983,19 @@ function ChurchOnboardingGate({ activePanel }: { activePanel: ActiveDashboardPan
   }
 
   if (pendingInvitations.loading) {
-    return <div>Loading Church Invitations...</div>;
+    return (
+      <main className="mx-auto flex w-full max-w-2xl flex-col justify-center p-6">
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-5 w-56" />
+            <Skeleton className="h-4 w-full max-w-md" />
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <Skeleton className="h-16 w-full rounded-lg" />
+          </CardContent>
+        </Card>
+      </main>
+    );
   }
 
   if (pendingInvitations.invitationsCollection.length > 0) {
@@ -2043,9 +2129,6 @@ export function DashboardPage({ activePanel }: { activePanel: ActiveDashboardPan
       <Unauthenticated>
         {showSignIn ? <SignInForm /> : <SignUpForm onSwitchToSignIn={() => setShowSignIn(true)} />}
       </Unauthenticated>
-      <AuthLoading>
-        <div>Loading...</div>
-      </AuthLoading>
     </>
   );
 }

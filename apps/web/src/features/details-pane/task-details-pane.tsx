@@ -3,8 +3,13 @@ import { useTasksCollection } from "@/data/tasks/tasksData.app";
 import { useTeamsCollection } from "@/data/teams/teamsData.app";
 import { useChurchUsersCollection } from "@/data/users/usersData.app";
 import { useWorkflowStatusesCollection } from "@/data/workflows/workflowsData.app";
-import { DetailItem, DetailSection } from "@/components/details-pane/details-components";
+import {
+  DetailItem,
+  DetailSection,
+  DetailSectionSkeleton,
+} from "@/components/details-pane/details-components";
 import { DetailsShell } from "@/components/details-pane/details-shell";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function TaskDetailsPane({ taskId }: { readonly taskId: string }) {
   const { currentOrgOpt: activeChurch, loading: orgLoading } = useCurrentOrgOpt();
@@ -30,7 +35,11 @@ export function TaskDetailsPane({ taskId }: { readonly taskId: string }) {
       header={
         <>
           <h2 className="font-semibold text-lg">{task?.title ?? "Task"}</h2>
-          <p className="text-sm text-muted-foreground">{loading ? "Loading..." : taskId}</p>
+          {loading ? (
+            <Skeleton className="h-4 w-40" />
+          ) : (
+            <p className="text-sm text-muted-foreground">{taskId}</p>
+          )}
         </>
       }
       content={
@@ -48,10 +57,10 @@ export function TaskDetailsPane({ taskId }: { readonly taskId: string }) {
               value={assignee?.name ?? assignee?.email ?? "Unassigned"}
             />
           </DetailSection>
+        ) : loading ? (
+          <DetailSectionSkeleton rows={5} />
         ) : (
-          <p className="text-sm text-muted-foreground">
-            {loading ? "Loading Task details..." : "Task details are unavailable."}
-          </p>
+          <p className="text-sm text-muted-foreground">Task details are unavailable.</p>
         )
       }
     />

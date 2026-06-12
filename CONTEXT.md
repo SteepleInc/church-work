@@ -182,6 +182,26 @@ _Avoid_: Data table as the canonical name, grid, list view
 The side panel that opens when a record in a Collection is selected, showing that record's header, tabs, actions, and detail sections without leaving the list. A Details Pane keeps a history stack so navigating between related records can be reversed.
 _Avoid_: Drawer, sidebar, inspector
 
+**Action Loading**:
+The sanctioned loading treatment for an in-flight async action the user just triggered: an overlay spinner on the triggering control (Button, menu item) with dimmed content and no layout shift. Action Loading is the only place a spinner may appear.
+_Avoid_: Page spinner, full-screen loader, "Loading..." text
+
+**Skeleton**:
+A shaped, non-animated-spinner placeholder rendered in a data region while its data has not yet arrived, matching the layout the real content will occupy. Skeletons are the only acceptable placeholder for absent data; they never block surrounding chrome from rendering.
+_Avoid_: Spinner, loader, "Loading X..." text placeholders
+
+**Render Gate**:
+A forbidden pattern where rendering of a route, layout, or shell is blocked until async state (auth, session, Active Church, data) resolves. Chrome must render immediately; absent data is handled by Skeletons or omission, and redirects happen after the fact.
+_Avoid_: Full-screen loader, AuthLoading gate, route pending component
+
+**Optimistic Shell**:
+Rendering the app chrome (sidebar, header, page structure) immediately on load, before auth or Active Church state has resolved, trusting the session cookie for the fast path. If the optimism proves wrong, the user is redirected after the fact rather than gated up front.
+_Avoid_: Auth gate, loading screen
+
+**Empty State**:
+The content a Collection or surface shows when its data has finished loading and is genuinely empty. Loading suppresses the Empty State; it must never flash while data is still arriving.
+_Avoid_: "No results" flash, "Loading X..." text
+
 ## Example Dialogue
 
 **Pastor**: We need the Easter graphics work to show up every year in the Cycle that contains Easter.

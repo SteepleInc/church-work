@@ -19,7 +19,10 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
       tanstackRouter({
         target: "react",
-        autoCodeSplitting: true,
+        // Deliberately not code-split: one bundle means a navigation can never
+        // await a JS chunk, so route pending states are unrepresentable
+        // (docs/adr/0010-no-render-gates.md).
+        autoCodeSplitting: false,
       }),
       react(),
     ],

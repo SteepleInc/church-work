@@ -1,10 +1,8 @@
 import { Outlet, useLocation } from "@tanstack/react-router";
-import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
 
 import { getBreadcrumbLabel } from "@/components/app-shell-utils";
 import { ModeToggle } from "@/components/mode-toggle";
 import { AppNavigation } from "@/components/navigation/app-navigation";
-import SignInForm from "@/components/sign-in-form";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -20,36 +18,14 @@ import { QuickActions } from "@/features/quick-actions/quick-actions";
 import { DetailsPane } from "@/components/details-pane/details-pane";
 import { BigActions } from "@/features/big-actions/big-actions";
 
+/**
+ * Optimistic Shell (ADR 0010): the chrome renders immediately, before auth or
+ * the Active Church resolve. Routing decisions come from session fields via
+ * useAuthGuard, which redirects after the fact; data slots inside the shell
+ * handle their own absent data with Skeletons or omission. No Render Gates.
+ */
 export function AppShell() {
-  return (
-    <>
-      <Authenticated>
-        <AuthenticatedAppShell />
-      </Authenticated>
-      <Unauthenticated>
-        <UnauthenticatedAppEntry />
-      </Unauthenticated>
-      <AuthLoading>
-        <div className="flex h-svh items-center justify-center text-sm text-muted-foreground">
-          Loading...
-        </div>
-      </AuthLoading>
-    </>
-  );
-}
-
-function AuthenticatedAppShell() {
-  const { activeChurch, loading, hasCompletedOnboarding } = useAuthGuard({
-    requireOnboarding: true,
-  });
-
-  if (loading || !activeChurch || !hasCompletedOnboarding) {
-    return (
-      <div className="flex h-svh items-center justify-center text-sm text-muted-foreground">
-        Loading Church...
-      </div>
-    );
-  }
+  useAuthGuard({ requireAuth: true, requireOnboarding: true });
 
   return (
     <SidebarProvider defaultOpen id="app-sidebar-provider">
@@ -87,13 +63,5 @@ function AppBreadcrumbs() {
         </BreadcrumbItem>
       </BreadcrumbList>
     </Breadcrumb>
-  );
-}
-
-function UnauthenticatedAppEntry() {
-  return (
-    <main className="flex min-h-svh items-center justify-center bg-muted/30 p-4">
-      <SignInForm />
-    </main>
   );
 }

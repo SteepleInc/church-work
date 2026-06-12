@@ -17,6 +17,7 @@ import {
 } from "@/data/teams/teamsData.app";
 import {
   QuickActionForm,
+  QuickActionFormSkeleton,
   QuickActionsDescription,
   QuickActionsHeader,
   QuickActionsTitle,
@@ -70,7 +71,7 @@ function TeamQuickActionBody(props: {
   const team = teamsCollection.find((candidate) => candidate.id === state.teamId) ?? null;
 
   if (loading) {
-    return <p className="px-4 pb-4 text-muted-foreground text-sm">Loading Team...</p>;
+    return <QuickActionFormSkeleton />;
   }
 
   if (!team) {

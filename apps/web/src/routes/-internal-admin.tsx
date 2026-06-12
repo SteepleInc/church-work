@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import { canAccessInternalNavigation } from "@/components/navigation/internal-navigation";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { useUserOrgsCollection } from "@/data/orgs/orgsData.app";
@@ -46,6 +47,7 @@ export function DevSessionPanel() {
 function DevSessionContent() {
   const session = authClient.useSession();
   const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
+  const sessionUser = session.data?.user;
 
   return (
     <InternalPageFrame
@@ -56,17 +58,20 @@ function DevSessionContent() {
       <div className="grid gap-4 md:grid-cols-2">
         <InternalDetailsCard
           details={[
-            ["User Id", session.data?.user.id ?? "Loading..."],
-            ["Email", session.data?.user.email ?? "Loading..."],
-            ["Name", session.data?.user.name ?? "Not set"],
+            ["User Id", sessionUser ? sessionUser.id : <Skeleton className="h-4 w-48" />],
+            ["Email", sessionUser ? sessionUser.email : <Skeleton className="h-4 w-40" />],
+            [
+              "Name",
+              sessionUser ? (sessionUser.name ?? "Not set") : <Skeleton className="h-4 w-32" />,
+            ],
           ]}
           title="User"
         />
         <InternalDetailsCard
           details={[
-            ["Church Id", activeChurch?.id ?? "Loading..."],
-            ["Church", activeChurch?.name ?? "Loading..."],
-            ["Role", activeChurch?.role ?? "Loading..."],
+            ["Church Id", activeChurch ? activeChurch.id : <Skeleton className="h-4 w-48" />],
+            ["Church", activeChurch ? activeChurch.name : <Skeleton className="h-4 w-32" />],
+            ["Role", activeChurch ? activeChurch.role : <Skeleton className="h-4 w-24" />],
           ]}
           title="Active Church"
         />
@@ -95,14 +100,21 @@ function DevDataContent() {
       title="Data Adapters"
     >
       <div className="grid gap-4 md:grid-cols-3">
-        <InternalMetricCard label="Active Church" value={activeChurch?.name ?? "Loading..."} />
+        <InternalMetricCard
+          label="Active Church"
+          value={activeChurch ? activeChurch.name : <Skeleton className="h-5 w-32" />}
+        />
         <InternalMetricCard
           label="Users"
-          value={users.loading ? "Loading..." : String(users.usersCollection.length)}
+          value={
+            users.loading ? <Skeleton className="h-5 w-10" /> : String(users.usersCollection.length)
+          }
         />
         <InternalMetricCard
           label="Teams"
-          value={teams.loading ? "Loading..." : String(teams.teamsCollection.length)}
+          value={
+            teams.loading ? <Skeleton className="h-5 w-10" /> : String(teams.teamsCollection.length)
+          }
         />
       </div>
     </InternalPageFrame>
@@ -135,7 +147,14 @@ function AppAdminChurchesContent() {
         </CardHeader>
         <CardContent className="grid gap-3 text-sm">
           {orgs.loading ? (
-            <p className="text-muted-foreground">Loading Churches...</p>
+            <>
+              {[0, 1, 2].map((index) => (
+                <div className="grid gap-2 rounded-lg border p-3" key={index}>
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-3 w-64" />
+                </div>
+              ))}
+            </>
           ) : orgs.orgsCollection.length > 0 ? (
             orgs.orgsCollection.map((org) => (
               <div
@@ -183,7 +202,15 @@ function AppAdminUsersContent() {
         </CardHeader>
         <CardContent className="grid gap-3 text-sm">
           {users.loading ? (
-            <p className="text-muted-foreground">Loading Users...</p>
+            <>
+              {[0, 1, 2].map((index) => (
+                <div className="grid gap-2 rounded-lg border p-3" key={index}>
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-3 w-56" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+              ))}
+            </>
           ) : users.usersCollection.length > 0 ? (
             users.usersCollection.map((user) => (
               <div
@@ -211,13 +238,21 @@ export function InternalAccessGate({ children }: { readonly children: ReactNode 
 
   if (session.isPending) {
     return (
-      <InternalPageFrame
-        description="Checking your App Administrator role before showing internal tools."
-        eyebrow="Internal"
-        title="Loading Internal Access"
-      >
-        <p className="text-muted-foreground text-sm">Loading...</p>
-      </InternalPageFrame>
+      <ScrollArea className="min-h-0 flex-1" viewportClassName="p-6">
+        <main className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+          <header className="grid gap-2">
+            <Skeleton className="h-4 w-16" />
+            <Skeleton className="h-9 w-64" />
+            <Skeleton className="h-5 w-full max-w-2xl" />
+          </header>
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-5 w-56" />
+              <Skeleton className="h-4 w-full max-w-md" />
+            </CardHeader>
+          </Card>
+        </main>
+      </ScrollArea>
     );
   }
 
@@ -243,7 +278,13 @@ export function InternalAccessGate({ children }: { readonly children: ReactNode 
   return children;
 }
 
-function InternalMetricCard({ label, value }: { readonly label: string; readonly value: string }) {
+function InternalMetricCard({
+  label,
+  value,
+}: {
+  readonly label: string;
+  readonly value: ReactNode;
+}) {
   return (
     <Card>
       <CardHeader>
@@ -259,7 +300,7 @@ function InternalDetailsCard({
   details,
 }: {
   readonly title: string;
-  readonly details: readonly (readonly [label: string, value: string])[];
+  readonly details: readonly (readonly [label: string, value: ReactNode])[];
 }) {
   return (
     <Card>

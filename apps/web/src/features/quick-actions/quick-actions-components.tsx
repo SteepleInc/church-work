@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 function useIsMdScreen() {
@@ -91,6 +92,23 @@ export function QuickActionsDescription(props: HTMLAttributes<HTMLDivElement>) {
   const isMdScreen = useIsMdScreen();
 
   return isMdScreen ? <DialogDescription {...props} /> : <DrawerDescription {...props} />;
+}
+
+/**
+ * Skeleton matching the QuickActionForm field layout, shown while a quick
+ * action's record has not yet arrived (ADR 0010 — no "Loading X..." text).
+ */
+export function QuickActionFormSkeleton({ fields = 2 }: { readonly fields?: number }) {
+  return (
+    <div className="m-4 flex flex-col gap-3">
+      {Array.from({ length: fields }, (_, index) => (
+        <div className="flex flex-col gap-1.5" key={index}>
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-9 w-full" />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 const formColumnClassName = "flex flex-col gap-3 flex-1";

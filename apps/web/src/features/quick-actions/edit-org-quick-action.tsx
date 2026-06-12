@@ -1,6 +1,7 @@
 import { api } from "@church-task/backend/convex/_generated/api";
 import { revalidateLogic } from "@tanstack/react-form";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
+import { useConvexQuery as useQuery } from "@/data/query-hooks";
 import { Schema } from "effect";
 import { Building2Icon, PencilIcon } from "lucide-react";
 import { atom, useAtom } from "jotai";
@@ -14,6 +15,7 @@ import { Kbd } from "@/components/ui/kbd";
 import type { OrgCollectionItem } from "@/data/orgs/orgsData.app";
 import {
   QuickActionForm,
+  QuickActionFormSkeleton,
   QuickActionsDescription,
   QuickActionsHeader,
   QuickActionsTitle,
@@ -105,7 +107,7 @@ export function EditOrgQuickAction() {
         </QuickActionsDescription>
       </QuickActionsHeader>
       {org === undefined ? (
-        <p className="px-4 pb-4 text-muted-foreground text-sm">Loading Church...</p>
+        <QuickActionFormSkeleton fields={4} />
       ) : org === null ? (
         <Alert className="m-4 mt-0">
           <AlertDescription>Church details are unavailable.</AlertDescription>

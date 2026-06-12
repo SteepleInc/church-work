@@ -1,8 +1,13 @@
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { useTeamsCollection } from "@/data/teams/teamsData.app";
 import { useWorkflowsCollection } from "@/data/workflows/workflowsData.app";
-import { DetailItem, DetailSection } from "@/components/details-pane/details-components";
+import {
+  DetailItem,
+  DetailSection,
+  DetailSectionSkeleton,
+} from "@/components/details-pane/details-components";
 import { DetailsShell } from "@/components/details-pane/details-shell";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function TeamDetailsPane({ teamId }: { readonly teamId: string }) {
   const { currentOrgOpt: activeChurch, loading: orgLoading } = useCurrentOrgOpt();
@@ -20,7 +25,11 @@ export function TeamDetailsPane({ teamId }: { readonly teamId: string }) {
       header={
         <>
           <h2 className="font-semibold text-lg">{team?.name ?? "Team"}</h2>
-          <p className="text-sm text-muted-foreground">{loading ? "Loading..." : teamId}</p>
+          {loading ? (
+            <Skeleton className="h-4 w-40" />
+          ) : (
+            <p className="text-sm text-muted-foreground">{teamId}</p>
+          )}
         </>
       }
       content={
@@ -33,10 +42,10 @@ export function TeamDetailsPane({ teamId }: { readonly teamId: string }) {
             />
             <DetailItem label="Sort Order" value={team.sortOrder} />
           </DetailSection>
+        ) : loading ? (
+          <DetailSectionSkeleton rows={3} />
         ) : (
-          <p className="text-sm text-muted-foreground">
-            {loading ? "Loading Team details..." : "Team details are unavailable."}
-          </p>
+          <p className="text-sm text-muted-foreground">Team details are unavailable.</p>
         )
       }
     />

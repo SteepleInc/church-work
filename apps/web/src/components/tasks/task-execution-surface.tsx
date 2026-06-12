@@ -13,6 +13,7 @@ import {
 } from "@/data/workflows/workflowsData.app";
 import { useNavigate } from "@tanstack/react-router";
 
+import { Skeleton } from "@/components/ui/skeleton";
 import { TaskKanbanBoard } from "./task-kanban-board";
 import {
   buildTeamMemberIndex,
@@ -108,7 +109,7 @@ export function TaskExecutionSurface({
 
   return (
     <section className="grid gap-4">
-      {isLoading ? <p className="text-sm text-muted-foreground">Loading Tasks...</p> : null}
+      {isLoading && workflowStatuses.length === 0 ? <TaskBoardSkeleton /> : null}
 
       {workflowStatuses.length > 0 ? (
         <TaskKanbanBoard
@@ -156,6 +157,25 @@ export function TaskExecutionSurface({
         </p>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * Board-shaped Skeleton shown while Workflow Statuses and Tasks have not yet
+ * arrived (ADR 0010 — no "Loading Tasks..." text, no spinners).
+ */
+function TaskBoardSkeleton() {
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      {Array.from({ length: 3 }, (_, columnIndex) => (
+        <div className="flex flex-col gap-2" key={columnIndex}>
+          <Skeleton className="h-5 w-28" />
+          {Array.from({ length: 3 - columnIndex }, (_, cardIndex) => (
+            <Skeleton className="h-20 w-full rounded-lg" key={cardIndex} />
+          ))}
+        </div>
+      ))}
+    </div>
   );
 }
 

@@ -1,7 +1,12 @@
 import { useOrgData } from "@/data/orgs/orgData.app";
 import type { DetailsPaneOrg } from "@/components/details-pane/details-pane-types";
-import { DetailItem, DetailSection } from "@/components/details-pane/details-components";
+import {
+  DetailItem,
+  DetailSection,
+  DetailSectionSkeleton,
+} from "@/components/details-pane/details-components";
 import { DetailsShell } from "@/components/details-pane/details-shell";
+import { Skeleton } from "@/components/ui/skeleton";
 import { BaseAvatar } from "@/components/avatars/baseAvatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,9 +34,11 @@ export function OrgDetailsPane({
             <h2 className="line-clamp-2 font-semibold text-lg leading-6">
               {org?.name ?? "Church"}
             </h2>
-            <p className="text-muted-foreground text-sm">
-              {loading ? "Loading..." : (org?.slug ?? orgId)}
-            </p>
+            {loading ? (
+              <Skeleton className="h-4 w-40" />
+            ) : (
+              <p className="text-muted-foreground text-sm">{org?.slug ?? orgId}</p>
+            )}
           </div>
         </div>
       }
@@ -39,10 +46,10 @@ export function OrgDetailsPane({
       content={
         org ? (
           <OrgDetailsContent org={org} />
+        ) : loading ? (
+          <DetailSectionSkeleton />
         ) : (
-          <p className="text-sm text-muted-foreground">
-            {loading ? "Loading Church details..." : "Church details are unavailable."}
-          </p>
+          <p className="text-sm text-muted-foreground">Church details are unavailable.</p>
         )
       }
     />

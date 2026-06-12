@@ -1,6 +1,11 @@
 import { BaseAvatar } from "@/components/avatars/baseAvatar";
-import { DetailItem, DetailSection } from "@/components/details-pane/details-components";
+import {
+  DetailItem,
+  DetailSection,
+  DetailSectionSkeleton,
+} from "@/components/details-pane/details-components";
 import { DetailsShell } from "@/components/details-pane/details-shell";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { DetailsPaneUser } from "@/components/details-pane/details-pane-types";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,9 +31,11 @@ export function UserDetailsPane({
           <BaseAvatar avatar={user?.image} name={user?.name ?? "User"} size={48} />
           <div className="flex min-w-0 flex-col gap-0.5">
             <h2 className="line-clamp-2 font-semibold text-lg leading-6">{user?.name || "User"}</h2>
-            <p className="text-muted-foreground text-sm">
-              {loading ? "Loading..." : (user?.email ?? userId)}
-            </p>
+            {loading ? (
+              <Skeleton className="h-4 w-40" />
+            ) : (
+              <p className="text-muted-foreground text-sm">{user?.email ?? userId}</p>
+            )}
           </div>
         </div>
       }
@@ -36,10 +43,10 @@ export function UserDetailsPane({
       content={
         user ? (
           <UserDetailsContent user={user} />
+        ) : loading ? (
+          <DetailSectionSkeleton />
         ) : (
-          <p className="text-sm text-muted-foreground">
-            {loading ? "Loading User details..." : "User details are unavailable."}
-          </p>
+          <p className="text-sm text-muted-foreground">User details are unavailable.</p>
         )
       }
     />
