@@ -735,6 +735,32 @@ function TaskKanbanCard({
 
   const createdAtLabel = formatCreatedAt(task.createdAt);
   const dueDateLabel = formatDueDate(task.dueDate);
+
+  // The status picker renders inline next to the Task title (Linear-style
+  // card), so it is shared between that slot and the keyboard-hotkey binding.
+  const statusSelector = (
+    <form.Field name="workflowStatusId">
+      {(field) => (
+        <StatusComboboxSelector
+          disabled={statusItems.length === 0}
+          emptyText="No statuses."
+          onValueChange={(next) => {
+            if (!next) return;
+            field.handleChange(next);
+            void onChangeTaskStatus?.({ taskId: task.id, workflowStatusId: next });
+          }}
+          openRef={statusOpenRef}
+          options={statusItems}
+          trigger={
+            <span className="flex size-5 items-center justify-center">
+              <WorkflowStatusIcon taskState={cardState} />
+            </span>
+          }
+          value={field.state.value}
+        />
+      )}
+    </form.Field>
+  );
   const teamName = teamsById.get(task.teamId)?.name ?? null;
   const showProperty = (property: TaskDisplayProperty) => displayProperties.has(property);
 
@@ -774,29 +800,6 @@ function TaskKanbanCard({
     >
       <CardHeader className="flex flex-row items-center justify-between gap-2 px-3 pt-3 pb-0">
         <div className="flex min-w-0 items-center gap-1.5">
-          {showProperty("status") ? (
-            <form.Field name="workflowStatusId">
-              {(field) => (
-                <StatusComboboxSelector
-                  disabled={statusItems.length === 0}
-                  emptyText="No statuses."
-                  onValueChange={(next) => {
-                    if (!next) return;
-                    field.handleChange(next);
-                    void onChangeTaskStatus?.({ taskId: task.id, workflowStatusId: next });
-                  }}
-                  openRef={statusOpenRef}
-                  options={statusItems}
-                  trigger={
-                    <span className="flex size-5 items-center justify-center">
-                      <WorkflowStatusIcon taskState={cardState} />
-                    </span>
-                  }
-                  value={field.state.value}
-                />
-              )}
-            </form.Field>
-          ) : null}
           {showProperty("id") ? (
             <span className="truncate font-medium text-muted-foreground text-xs">
               {task.identifier}
@@ -828,9 +831,14 @@ function TaskKanbanCard({
       </CardHeader>
 
       <CardContent className="px-3 py-2">
-        <CardTitle className="line-clamp-2 font-semibold text-sm leading-snug">
-          {task.title}
-        </CardTitle>
+        <div className="flex items-start gap-1.5">
+          {showProperty("status") ? (
+            <span className="flex shrink-0 items-center pt-px">{statusSelector}</span>
+          ) : null}
+          <CardTitle className="line-clamp-2 font-semibold text-sm leading-snug">
+            {task.title}
+          </CardTitle>
+        </div>
         {showProperty("parent") && task.parentTask ? (
           <p className="mt-1 line-clamp-1 text-muted-foreground text-xs">
             Parent: {task.parentTask.title}
@@ -879,9 +887,14 @@ function TaskKanbanCard({
                   trigger={
                     <span
                       aria-label={`Estimate: ${meta.label}`}
-                      className="flex size-6 items-center justify-center rounded-md border bg-background hover:bg-accent"
+                      className="flex h-6 items-center justify-center gap-1 rounded-md border bg-background px-1.5 hover:bg-accent"
                     >
                       <Triangle className="size-3.5" />
+                      {meta.short ? (
+                        <span className="font-medium text-muted-foreground text-xs">
+                          {meta.short}
+                        </span>
+                      ) : null}
                     </span>
                   }
                   value={field.state.value}
