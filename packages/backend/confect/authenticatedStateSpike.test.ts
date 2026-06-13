@@ -43,6 +43,17 @@ const authenticatedConfect = function* (
   });
 };
 
+// Every Task belongs to exactly one Team (ADR 0013): creation tests draw the
+// Church's first seeded Starter Team.
+const firstTeamId = (
+  authenticated: ReturnType<(typeof TestConfect.TestConfect.Service)["withIdentity"]>,
+  churchId: string,
+) =>
+  Effect.gen(function* () {
+    const teams = yield* authenticated.query(refs.public.teams.listForChurch, { churchId });
+    return teams.data.teams[0]!.id;
+  });
+
 const createChurch = (
   c: typeof TestConfect.TestConfect.Service,
   args: { readonly token: string; readonly name: string; readonly slug: string },
@@ -514,12 +525,13 @@ describe("Better Auth authenticated state spike", () => {
       const todoStatus = defaults.data.workflowStatuses.find(
         (status) => status.taskState === "todo",
       )!;
+      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
       const created = yield* authenticated.mutation(refs.public.tasks.createBatch, {
         churchId: church.id!,
         tasks: [
           {
             title: "Assign from MCP",
-            teamId: null,
+            teamId: taskTeamId,
             workflowStatusId: todoStatus.id,
             dueDate: "2026-06-03",
             parentTaskId: null,
@@ -536,7 +548,7 @@ describe("Better Auth authenticated state spike", () => {
         },
         body: JSON.stringify({
           churchId: church.id!,
-          taskId: task.id,
+          taskIdentifier: task.identifier.toLowerCase(),
           assignedUserId: owner.user!.id!,
         }),
       });
@@ -551,7 +563,11 @@ describe("Better Auth authenticated state spike", () => {
       expect(body).toMatchObject({
         ok: true,
         tool: "update_task",
-        task: expect.objectContaining({ id: task.id, assignedUserId: owner.user!.id! }),
+        task: expect.objectContaining({
+          id: task.id,
+          identifier: task.identifier,
+          assignedUserId: owner.user!.id!,
+        }),
       });
       expect(activities.data.activities.map((activity) => activity.eventType)).toEqual([
         "task.created",
@@ -594,19 +610,20 @@ describe("Better Auth authenticated state spike", () => {
         const todoStatus = defaults.data.workflowStatuses.find(
           (status) => status.taskState === "todo",
         )!;
+        const taskTeamId = yield* firstTeamId(authenticated, church.id!);
         const created = yield* authenticated.mutation(refs.public.tasks.createBatch, {
           churchId: church.id!,
           tasks: [
             {
               title: "Parent from MCP",
-              teamId: null,
+              teamId: taskTeamId,
               workflowStatusId: todoStatus.id,
               dueDate: "2026-06-03",
               parentTaskId: null,
             },
             {
               title: "Child from MCP",
-              teamId: null,
+              teamId: taskTeamId,
               workflowStatusId: todoStatus.id,
               dueDate: "2026-06-03",
               parentTaskId: null,
@@ -687,19 +704,20 @@ describe("Better Auth authenticated state spike", () => {
         const todoStatus = defaults.data.workflowStatuses.find(
           (status) => status.taskState === "todo",
         )!;
+        const taskTeamId = yield* firstTeamId(authenticated, church.id!);
         const created = yield* authenticated.mutation(refs.public.tasks.createBatch, {
           churchId: church.id!,
           tasks: [
             {
               title: "Complete from MCP",
-              teamId: null,
+              teamId: taskTeamId,
               workflowStatusId: todoStatus.id,
               dueDate: "2026-06-03",
               parentTaskId: null,
             },
             {
               title: "Cancel from MCP",
-              teamId: null,
+              teamId: taskTeamId,
               workflowStatusId: todoStatus.id,
               dueDate: "2026-06-04",
               parentTaskId: null,
@@ -800,12 +818,17 @@ describe("Better Auth authenticated state spike", () => {
       const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
         churchId: church.id!,
       });
-      const defaultWorkflow = defaults.data.workflows.find((candidate) => candidate.isDefault)!;
+      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
+      // Every Team owns its Workflow (ADR 0013): statuses come from the Task
+      // Team's own Workflow, not a Church default.
+      const teamWorkflow = defaults.data.workflows.find(
+        (candidate) => candidate.teamId === taskTeamId,
+      )!;
       const todoStatus = defaults.data.workflowStatuses.find(
-        (status) => status.workflowId === defaultWorkflow.id && status.taskState === "todo",
+        (status) => status.workflowId === teamWorkflow.id && status.taskState === "todo",
       )!;
       const doingStatus = defaults.data.workflowStatuses.find(
-        (status) => status.workflowId === defaultWorkflow.id && status.taskState === "in_progress",
+        (status) => status.workflowId === teamWorkflow.id && status.taskState === "in_progress",
       )!;
       const postTool = (toolPath: string, body: Record<string, unknown>) =>
         c.fetch(`/api/mcp/tools/${toolPath}`, {
@@ -820,6 +843,7 @@ describe("Better Auth authenticated state spike", () => {
       const createAssignedResponse = yield* postTool("create-task", {
         churchId: church.id!,
         title: "Cross-surface assigned Task",
+        teamId: taskTeamId,
         assignedUserId: owner.user!.id!,
         workflowStatusId: todoStatus.id,
         dueDate: "2026-06-03",
@@ -831,6 +855,7 @@ describe("Better Auth authenticated state spike", () => {
       const createCancelableResponse = yield* postTool("create-task", {
         churchId: church.id!,
         title: "Cross-surface cancelable Task",
+        teamId: taskTeamId,
         workflowStatusId: todoStatus.id,
         dueDate: "2026-06-04",
       });
@@ -1016,15 +1041,31 @@ describe("Better Auth authenticated state spike", () => {
           body: JSON.stringify(body),
         });
 
+      // Task creation without a Team is rejected (ADR 0013).
+      const teamlessResponse = yield* postTool("create-task", {
+        churchId: church.id!,
+        title: "Create from MCP without a Team",
+        workflowStatusId: todoStatus.id,
+        dueDate: "2026-06-03",
+      });
+      const teamlessBody = (yield* Effect.promise(() => teamlessResponse.json())) as {
+        ok?: boolean;
+        error?: { code?: string };
+      };
+      expect(teamlessBody.ok).toBe(false);
+      expect(teamlessBody.error?.code).toBe("team_required");
+
+      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
       const createResponse = yield* postTool("create-task", {
         churchId: church.id!,
         title: "Create from MCP",
+        teamId: taskTeamId,
         assignedUserId: owner.user!.id!,
         workflowStatusId: todoStatus.id,
         dueDate: "2026-06-03",
       });
       const createBody = (yield* Effect.promise(() => createResponse.json())) as {
-        task?: { id: string; title: string; assignedUserId: string };
+        task?: { id: string; identifier: string; title: string; assignedUserId: string };
       };
       const createdTask = createBody.task!;
       const listResponse = yield* postTool("list-tasks", {
@@ -1037,14 +1078,19 @@ describe("Better Auth authenticated state spike", () => {
       const listBody = (yield* Effect.promise(() => listResponse.json())) as unknown;
       const getResponse = yield* postTool("get-task", {
         churchId: church.id!,
-        taskId: createdTask.id,
+        taskIdentifier: createdTask.identifier.toLowerCase(),
       });
       const getBody = (yield* Effect.promise(() => getResponse.json())) as unknown;
+      const missingGetResponse = yield* postTool("get-task", {
+        churchId: church.id!,
+        taskIdentifier: "NOPE-999",
+      });
+      const missingGetBody = (yield* Effect.promise(() => missingGetResponse.json())) as unknown;
       const usersResponse = yield* postTool("list-users", { churchId: church.id! });
       const usersBody = (yield* Effect.promise(() => usersResponse.json())) as unknown;
       const teamsResponse = yield* postTool("list-teams", { churchId: church.id! });
       const teamsBody = (yield* Effect.promise(() => teamsResponse.json())) as {
-        teams?: Array<{ name: string }>;
+        teams?: Array<{ name: string; identifier: string }>;
       };
       const cyclesResponse = yield* postTool("list-cycles", { churchId: church.id! });
       const cyclesBody = (yield* Effect.promise(() => cyclesResponse.json())) as unknown;
@@ -1059,6 +1105,7 @@ describe("Better Auth authenticated state spike", () => {
         tool: "create_task",
         task: expect.objectContaining({
           id: createdTask.id,
+          identifier: expect.stringMatching(/^[A-Z0-9]{3,7}-\d+$/),
           title: "Create from MCP",
           assignedUserId: owner.user!.id!,
         }),
@@ -1075,7 +1122,13 @@ describe("Better Auth authenticated state spike", () => {
       expect(getBody).toMatchObject({
         ok: true,
         tool: "get_task",
-        task: expect.objectContaining({ id: createdTask.id }),
+        task: expect.objectContaining({ id: createdTask.id, identifier: createdTask.identifier }),
+      });
+      expect(missingGetResponse.status).toBe(200);
+      expect(missingGetBody).toMatchObject({
+        ok: false,
+        tool: "get_task",
+        error: { code: "task_not_found" },
       });
       expect(usersResponse.status).toBe(200);
       expect(usersBody).toMatchObject({
@@ -1089,7 +1142,9 @@ describe("Better Auth authenticated state spike", () => {
         tool: "list_teams",
       });
       expect(teamsBody.teams).toEqual(
-        expect.arrayContaining([expect.objectContaining({ name: "Worship" })]),
+        expect.arrayContaining([
+          expect.objectContaining({ name: "Worship", identifier: expect.any(String) }),
+        ]),
       );
       expect(cyclesResponse.status).toBe(200);
       expect(cyclesBody).toMatchObject({

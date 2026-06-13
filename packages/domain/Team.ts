@@ -33,10 +33,52 @@ export const getTeamColorForName = (name: string): TeamColor => {
   return TEAM_COLORS[hash % TEAM_COLORS.length] ?? TEAM_COLORS[0];
 };
 
+// Team Identifier: the short uppercase code that prefixes Task Identifiers
+// (e.g. "PRD" in "PRD-48") and references a Team in URLs. Generated as three
+// characters from the Team name at creation (mirroring the derive-from-name
+// Team Color pattern), user-editable up to 7 characters, unique within the
+// Church. Pure functions only — no I/O.
+export const TEAM_IDENTIFIER_MAX_LENGTH = 7;
+
+const TEAM_IDENTIFIER_PATTERN = /^[A-Z0-9]{1,7}$/;
+
+// Canonical form is uppercase; matching elsewhere is case-insensitive.
+export const normalizeTeamIdentifier = (value: string): string => value.trim().toUpperCase();
+
+export const isValidTeamIdentifier = (value: string): boolean =>
+  TEAM_IDENTIFIER_PATTERN.test(value);
+
+// The base candidate before collision bumping: the first three alphanumeric
+// characters of the name, uppercased. Short names yield shorter candidates
+// ("Go" -> "GO"); names with no alphanumeric characters fall back to "TEAM".
+export const deriveTeamIdentifierBase = (name: string): string => {
+  const letters = name.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return letters.slice(0, 3) || "TEAM";
+};
+
+// Derive a Team Identifier from a Team name that does not collide with any
+// already-taken identifier (case-insensitive). Collisions bump
+// deterministically by appending a counter: KID, KID2, KID3, ... The base is
+// truncated when needed so bumped candidates never exceed the max length.
+export const generateTeamIdentifier = (
+  name: string,
+  takenIdentifiers: ReadonlyArray<string>,
+): string => {
+  const taken = new Set(takenIdentifiers.map(normalizeTeamIdentifier));
+  const base = deriveTeamIdentifierBase(name);
+
+  if (!taken.has(base)) return base;
+
+  for (let bump = 2; ; bump += 1) {
+    const suffix = String(bump);
+    const candidate = base.slice(0, TEAM_IDENTIFIER_MAX_LENGTH - suffix.length) + suffix;
+    if (!taken.has(candidate)) return candidate;
+  }
+};
+
 export const TeamProductFieldsSchema = Schema.Struct({
   archivedAt: Schema.Union(Schema.String, Schema.Null),
   sortOrder: Schema.Number,
-  defaultWorkflowId: Schema.Union(Schema.String, Schema.Null),
 });
 
 export const TeamTableFieldsSchema = Schema.Struct({
@@ -44,17 +86,17 @@ export const TeamTableFieldsSchema = Schema.Struct({
   name: Schema.String,
   archivedAt: Schema.Union(Schema.String, Schema.Null),
   sortOrder: Schema.Number,
-  defaultWorkflowId: Schema.Union(Schema.String, Schema.Null),
 });
 
 export const TeamSchema = Schema.Struct({
   id: Schema.String,
   churchId: Schema.String,
   name: Schema.String,
+  identifier: Schema.String,
+  previousIdentifiers: Schema.Array(Schema.String),
   color: TeamColorSchema,
   archivedAt: Schema.Union(Schema.String, Schema.Null),
   sortOrder: Schema.Number,
-  defaultWorkflowId: Schema.Union(Schema.String, Schema.Null),
 });
 
 export const TeamMembershipSchema = Schema.Struct({

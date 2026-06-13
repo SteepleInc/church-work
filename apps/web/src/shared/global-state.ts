@@ -61,6 +61,31 @@ export function toggleHiddenBoardColumn(
   return { ...hiddenBoardColumns, [boardKey]: nextHidden };
 }
 
+/**
+ * Last Team used to create a Task, per Church (ADR 0013). Feeds the
+ * create-task picker's default chain: surface preset → last-used Team →
+ * first Team Membership → first Church Team. Local-device state only.
+ */
+export const lastUsedTeamIdsAtom = atomWithStorage<Record<string, string>>(
+  "last-used-team-ids",
+  {},
+);
+
+export function getLastUsedTeamId(
+  lastUsedTeamIds: Record<string, string>,
+  churchId: string,
+): string | null {
+  return lastUsedTeamIds[churchId] ?? null;
+}
+
+export function setLastUsedTeamId(
+  lastUsedTeamIds: Record<string, string>,
+  churchId: string,
+  teamId: string,
+): Record<string, string> {
+  return { ...lastUsedTeamIds, [churchId]: teamId };
+}
+
 export const collectionViewMatch = <T>(match: {
   readonly table: () => T;
   readonly cards: () => T;

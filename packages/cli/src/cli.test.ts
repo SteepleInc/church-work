@@ -438,6 +438,12 @@ describe("church-task task execution", () => {
       const doingStatus = defaults.data.workflowStatuses.find(
         (status: { readonly taskState: string }) => status.taskState === "in_progress",
       )!;
+      // Every Task belongs to exactly one Team (ADR 0013): draw the Church's
+      // first seeded Starter Team for the create call.
+      const teams = yield* authenticated.query(refs.public.teams.listForChurch, {
+        churchId: church.id!,
+      });
+      const taskTeamId = (teams.data.teams[0] as { readonly id: string }).id;
       const env = { CHURCH_TASK_AUTH_TOKEN: owner.token! };
       const backendLayer = fakeBackend({
         taskTool: ({ token, tool, body }) =>
@@ -475,6 +481,8 @@ describe("church-task task execution", () => {
             church.id!,
             "--title",
             "Complete from CLI",
+            "--team-id",
+            taskTeamId,
             "--workflow-status-id",
             todoStatus.id,
             "--due-date",
@@ -503,6 +511,8 @@ describe("church-task task execution", () => {
             church.id!,
             "--title",
             "Cancel from CLI",
+            "--team-id",
+            taskTeamId,
             "--workflow-status-id",
             todoStatus.id,
             "--due-date",
@@ -763,8 +773,8 @@ describe("church-task task execution", () => {
         },
       ],
       [
-        ["task", "get", "--church-id", "church_123", "--task-id", "task_123"],
-        { tool: "get-task", body: { churchId: "church_123", taskId: "task_123" } },
+        ["task", "get", "--church-id", "church_123", "--task-identifier", "PRD-48"],
+        { tool: "get-task", body: { churchId: "church_123", taskIdentifier: "PRD-48" } },
       ],
       [
         [
@@ -804,8 +814,8 @@ describe("church-task task execution", () => {
           "update",
           "--church-id",
           "church_123",
-          "--task-id",
-          "task_123",
+          "--task-identifier",
+          "PRD-48",
           "--title",
           "Updated title",
           "--workflow-status-id",
@@ -815,35 +825,36 @@ describe("church-task task execution", () => {
           "--cycle-id",
           "cycle_next",
           "--unassign-user",
-          "--unassign-team",
+          "--team-id",
+          "team_456",
           "--clear-parent",
         ],
         {
           tool: "update-task",
           body: {
             churchId: "church_123",
-            taskId: "task_123",
+            taskIdentifier: "PRD-48",
             title: "Updated title",
             workflowStatusId: "status_doing",
             dueDate: "2026-06-04",
             cycleId: "cycle_next",
             assignedUserId: null,
-            teamId: null,
+            teamId: "team_456",
             parentTaskId: null,
           },
         },
       ],
       [
-        ["task", "complete", "--church-id", "church_123", "--task-id", "task_123"],
-        { tool: "complete-task", body: { churchId: "church_123", taskId: "task_123" } },
+        ["task", "complete", "--church-id", "church_123", "--task-identifier", "PRD-48"],
+        { tool: "complete-task", body: { churchId: "church_123", taskIdentifier: "PRD-48" } },
       ],
       [
-        ["task", "cancel", "--church-id", "church_123", "--task-id", "task_123"],
-        { tool: "cancel-task", body: { churchId: "church_123", taskId: "task_123" } },
+        ["task", "cancel", "--church-id", "church_123", "--task-identifier", "PRD-48"],
+        { tool: "cancel-task", body: { churchId: "church_123", taskIdentifier: "PRD-48" } },
       ],
       [
-        ["task", "reopen", "--church-id", "church_123", "--task-id", "task_123"],
-        { tool: "reopen-task", body: { churchId: "church_123", taskId: "task_123" } },
+        ["task", "reopen", "--church-id", "church_123", "--task-identifier", "PRD-48"],
+        { tool: "reopen-task", body: { churchId: "church_123", taskIdentifier: "PRD-48" } },
       ],
       [
         ["lookup", "users", "--church-id", "church_123"],

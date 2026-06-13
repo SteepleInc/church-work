@@ -6,6 +6,7 @@ import {
   CycleAdjustmentTableFieldsSchema,
   FocusWindowTableFieldsSchema,
   TemplateTableFieldsSchema,
+  TemplateTeamTableFieldsSchema,
   TemplateTaskTableFieldsSchema,
 } from "@church-task/domain/Template";
 import {
@@ -23,7 +24,10 @@ import {
 
 export const Workflows = Table.make("workflows", WorkflowTableFieldsSchema)
   .index("by_churchId_and_key", ["churchId", "key"])
-  .index("by_churchId", ["churchId"]);
+  .index("by_churchId", ["churchId"])
+  // Every Team owns its Workflow (ADR 0013): a Task's Workflow is looked up
+  // by its Team, never through a Church-level default.
+  .index("by_churchId_and_teamId", ["churchId", "teamId"]);
 
 export const WorkflowStatuses = Table.make("workflowStatuses", WorkflowStatusTableFieldsSchema)
   .index("by_workflowId_and_key", ["workflowId", "key"])
@@ -32,6 +36,10 @@ export const WorkflowStatuses = Table.make("workflowStatuses", WorkflowStatusTab
 
 export const Tasks = Table.make("tasks", TaskTableFieldsSchema)
   .index("by_churchId", ["churchId"])
+  .index("by_churchId_and_teamId", ["churchId", "teamId"])
+  // Task Identifier resolution: a parsed "PRD-48" looks up the Task by its
+  // Team plus per-Team number (ADR 0013).
+  .index("by_churchId_and_teamId_and_number", ["churchId", "teamId", "number"])
   .index("by_churchId_and_cycleId", ["churchId", "cycleId"])
   .index("by_churchId_and_sourceTemplateTaskId_and_sourceTemplateCycleId", [
     "churchId",
@@ -106,6 +114,12 @@ export const Templates = Table.make("templates", TemplateTableFieldsSchema)
   .index("by_churchId_and_key", ["churchId", "key"])
   .index("by_churchId", ["churchId"]);
 
+export const TemplateTeams = Table.make("templateTeams", TemplateTeamTableFieldsSchema)
+  .index("by_churchId", ["churchId"])
+  .index("by_templateId", ["templateId"])
+  .index("by_templateId_and_key", ["templateId", "key"])
+  .index("by_churchId_and_mappedTeamId", ["churchId", "mappedTeamId"]);
+
 export const FocusWindows = Table.make("focusWindows", FocusWindowTableFieldsSchema)
   .index("by_churchId", ["churchId"])
   .index("by_templateId", ["templateId"])
@@ -113,6 +127,7 @@ export const FocusWindows = Table.make("focusWindows", FocusWindowTableFieldsSch
 
 export const TemplateTasks = Table.make("templateTasks", TemplateTaskTableFieldsSchema)
   .index("by_churchId", ["churchId"])
+  .index("by_templateTeamId", ["templateTeamId"])
   .index("by_templateId", ["templateId"])
   .index("by_templateId_and_key", ["templateId", "key"]);
 
@@ -147,6 +162,7 @@ export default DatabaseSchema.make()
   .addTable(KeyDates)
   .addTable(KeyDateOccurrences)
   .addTable(Templates)
+  .addTable(TemplateTeams)
   .addTable(FocusWindows)
   .addTable(TemplateTasks)
   .addTable(CycleAdjustments)

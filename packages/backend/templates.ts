@@ -2,9 +2,11 @@ import type { GenericDatabaseReader, GenericMutationCtx } from "convex/server";
 
 import { writeActivity } from "./activityRegistry";
 import { buildCycleForLocalDate, cycleStartDateForLocalDate } from "./churchCycleCalendar";
+import { components } from "./convex/_generated/api";
 import type { DataModel, Id } from "./convex/_generated/dataModel";
 import { resolveKeyDateOccurrences } from "./keyDateScheduling";
-import { makeBoardOrderAppender } from "./tasks";
+import { makeBoardOrderAppender, makeTaskNumberDrawer } from "./tasks";
+import { getTeamWorkflow } from "./workflows";
 import {
   type CycleAdjustmentOverride,
   mergeTemplateTaskProjection,
@@ -55,14 +57,30 @@ type FocusWindowInput = {
 type TemplateTaskInput = {
   readonly key: string;
   readonly title: string;
+  readonly templateTeamKey: string | null;
   readonly parentTemplateTaskKey: string | null;
   readonly schedulingRule: SchedulingRule;
 };
+
+type TemplateTeamInput = {
+  readonly key: string;
+  readonly name: string;
+  readonly mappedTeamId: string;
+};
+
+type TemplateTeamRemovalRepair =
+  | {
+      readonly templateTeamId: string;
+      readonly action: "remap";
+      readonly mappedTeamId: string;
+    }
+  | { readonly templateTeamId: string; readonly action: "abandon" };
 
 type TemplateInput = {
   readonly key: string;
   readonly name: string;
   readonly recurrence: TemplateRecurrence;
+  readonly templateTeams: ReadonlyArray<TemplateTeamInput>;
   readonly focusWindows: ReadonlyArray<FocusWindowInput>;
   readonly templateTasks: ReadonlyArray<TemplateTaskInput>;
 };
@@ -135,9 +153,15 @@ function assertUniqueKeys(items: ReadonlyArray<{ readonly key: string }>) {
 }
 
 function validateTemplateInput(template: TemplateInput) {
+  assertUniqueKeys(template.templateTeams);
   assertUniqueKeys(template.focusWindows);
   assertUniqueKeys(template.templateTasks);
 
+  if (template.templateTeams.length === 0) {
+    throw new Error("Template must define at least one Template Team.");
+  }
+
+  const templateTeamKeys = new Set(template.templateTeams.map((templateTeam) => templateTeam.key));
   const focusWindowKeys = new Set(template.focusWindows.map((focusWindow) => focusWindow.key));
   const templateTaskKeys = new Set(template.templateTasks.map((templateTask) => templateTask.key));
 
@@ -148,6 +172,12 @@ function validateTemplateInput(template: TemplateInput) {
   }
 
   for (const templateTask of template.templateTasks) {
+    if (templateTask.templateTeamKey && !templateTeamKeys.has(templateTask.templateTeamKey)) {
+      throw new Error("Template Team key must exist in the same Template.");
+    }
+    if (!templateTask.templateTeamKey && template.templateTeams.length !== 1) {
+      throw new Error("Template Task must reference a Template Team when multiple slots exist.");
+    }
     if (
       templateTask.parentTemplateTaskKey &&
       !templateTaskKeys.has(templateTask.parentTemplateTaskKey)
@@ -174,6 +204,10 @@ export async function readTemplateModel(ctx: ReaderCtx, churchId: string) {
     .query("focusWindows")
     .withIndex("by_churchId", (q) => q.eq("churchId", churchId))
     .collect();
+  const templateTeams = await ctx.db
+    .query("templateTeams")
+    .withIndex("by_churchId", (q) => q.eq("churchId", churchId))
+    .collect();
   const templateTasks = await ctx.db
     .query("templateTasks")
     .withIndex("by_churchId", (q) => q.eq("churchId", churchId))
@@ -183,7 +217,7 @@ export async function readTemplateModel(ctx: ReaderCtx, churchId: string) {
     .withIndex("by_churchId", (q) => q.eq("churchId", churchId))
     .collect();
 
-  return { templates, focusWindows, templateTasks, cycleAdjustments };
+  return { templates, templateTeams, focusWindows, templateTasks, cycleAdjustments };
 }
 
 export async function setCycleAdjustments(
@@ -318,23 +352,10 @@ async function ensureCycleForProjection(
   });
 }
 
-async function findDefaultTodoWorkflowStatus(ctx: MutationCtx, churchId: string) {
-  const workflows = await ctx.db
-    .query("workflows")
-    .withIndex("by_churchId", (q) => q.eq("churchId", churchId))
-    .collect();
-  const defaultWorkflow = [...workflows]
-    .filter((workflow) => workflow.archivedAt === null)
-    .sort((left, right) => {
-      if (left.isDefault !== right.isDefault) return left.isDefault ? -1 : 1;
-      return left.sortOrder - right.sortOrder;
-    })[0];
-
-  if (!defaultWorkflow) return null;
-
+async function findTodoWorkflowStatus(ctx: MutationCtx, workflowId: string) {
   const statuses = await ctx.db
     .query("workflowStatuses")
-    .withIndex("by_workflowId", (q) => q.eq("workflowId", defaultWorkflow._id))
+    .withIndex("by_workflowId", (q) => q.eq("workflowId", workflowId))
     .collect();
 
   return (
@@ -342,6 +363,24 @@ async function findDefaultTodoWorkflowStatus(ctx: MutationCtx, churchId: string)
       .filter((status) => status.archivedAt === null && status.taskState === "todo")
       .sort((left, right) => left.sortOrder - right.sortOrder)[0] ?? null
   );
+}
+
+type BetterAuthTemplateTeam = {
+  readonly _id: string;
+  readonly organizationId?: string | null;
+  readonly archivedAt?: string | null;
+};
+
+async function findMappedTeam(ctx: MutationCtx, teamId: string) {
+  return (await ctx.runQuery(components.betterAuth.adapter.findOne, {
+    model: "team",
+    where: [{ field: "_id", value: teamId }],
+  })) as BetterAuthTemplateTeam | null;
+}
+
+async function ensureMappedTeam(ctx: MutationCtx, churchId: string, teamId: string) {
+  const team = await findMappedTeam(ctx, teamId);
+  return team?.organizationId === churchId && (team.archivedAt ?? null) === null ? team : null;
 }
 
 export async function materializeProjectedTasks(
@@ -352,9 +391,6 @@ export async function materializeProjectedTasks(
     readonly occurrenceCycleIds: ReadonlyArray<string>;
   },
 ) {
-  const todoStatus = await findDefaultTodoWorkflowStatus(ctx, args.churchId);
-  if (!todoStatus) return { ok: false as const, code: "workflowStatusNotFound" as const };
-
   const schedules = await resolveTemplateTaskSchedules(ctx, args);
   const requestedCycleIds = new Set(args.occurrenceCycleIds);
   const materializedByTemplateTaskId = new Map<string, Id<"tasks">>();
@@ -365,6 +401,16 @@ export async function materializeProjectedTasks(
   const taskIds: Array<Id<"tasks">> = [];
   const createdTaskIds: Array<Id<"tasks">> = [];
   const appendBoardOrder = makeBoardOrderAppender(ctx);
+  // Projected Tasks draw numbers from the owning Team's sequence at
+  // projection time (ADR 0013).
+  const drawTaskNumber = makeTaskNumberDrawer(ctx);
+  const projectionDestinations = new Map<
+    string,
+    {
+      readonly teamId: string;
+      readonly todoStatus: DataModel["workflowStatuses"]["document"];
+    }
+  >();
 
   for (const schedule of schedules) {
     const templateTask = await ctx.db.get(schedule.templateTaskId as Id<"templateTasks">);
@@ -374,6 +420,28 @@ export async function materializeProjectedTasks(
       templateTask.archivedAt !== null
     ) {
       return { ok: false as const, code: "templateTaskNotFound" as const };
+    }
+    const templateTeam = await ctx.db.get(templateTask.templateTeamId as Id<"templateTeams">);
+    if (
+      !templateTeam ||
+      templateTeam.churchId !== args.churchId ||
+      templateTeam.archivedAt !== null
+    ) {
+      return { ok: false as const, code: "teamNotFound" as const };
+    }
+
+    let destination = projectionDestinations.get(templateTeam._id);
+    if (!destination) {
+      const mappedTeam = await ensureMappedTeam(ctx, args.churchId, templateTeam.mappedTeamId);
+      if (!mappedTeam) return { ok: false as const, code: "teamNotFound" as const };
+      const workflow = await getTeamWorkflow(ctx, {
+        churchId: args.churchId,
+        teamId: mappedTeam._id,
+      });
+      const todoStatus = workflow ? await findTodoWorkflowStatus(ctx, workflow._id) : null;
+      if (!todoStatus) return { ok: false as const, code: "workflowStatusNotFound" as const };
+      destination = { teamId: mappedTeam._id, todoStatus };
+      projectionDestinations.set(templateTeam._id, destination);
     }
 
     const occurrenceCycleId = await ensureCycleForProjection(ctx, {
@@ -426,17 +494,19 @@ export async function materializeProjectedTasks(
       (await ctx.db.insert("tasks", {
         churchId: args.churchId,
         title: merged.effectiveTask.title,
-        teamId: null,
+        teamId: destination.teamId,
+        number: await drawTaskNumber(destination.teamId),
+        previousIdentifiers: [],
         assignedUserId: null,
         // Template projection is system-created work, not user-created.
         createdByUserId: null,
         cycleId: taskCycleId,
         dueDate: merged.effectiveTask.dueDate,
         parentTaskId: null,
-        workflowId: todoStatus.workflowId,
-        workflowStatusId: todoStatus._id,
+        workflowId: destination.todoStatus.workflowId,
+        workflowStatusId: destination.todoStatus._id,
         taskState: "todo",
-        boardOrder: await appendBoardOrder(todoStatus._id),
+        boardOrder: await appendBoardOrder(destination.todoStatus._id),
         finishedAt: null,
         sourceTemplateId: templateTask.templateId,
         sourceTemplateTaskId: templateTask._id,
@@ -462,6 +532,69 @@ export async function materializeProjectedTasks(
   }
 
   return { ok: true as const, taskIds, createdTaskIds };
+}
+
+export async function repairTemplateTeamsForTeamRemoval(
+  ctx: MutationCtx,
+  args: {
+    readonly churchId: string;
+    readonly teamId: string;
+    readonly repairs: ReadonlyArray<TemplateTeamRemovalRepair>;
+    readonly now: string;
+  },
+) {
+  const affectedTemplateTeams = await ctx.db
+    .query("templateTeams")
+    .withIndex("by_churchId_and_mappedTeamId", (q) =>
+      q.eq("churchId", args.churchId).eq("mappedTeamId", args.teamId),
+    )
+    .filter((q) => q.eq(q.field("archivedAt"), null))
+    .collect();
+
+  if (affectedTemplateTeams.length === 0) {
+    return { ok: true as const, repairedTemplateTeamIds: [] as Array<Id<"templateTeams">> };
+  }
+
+  const affectedIds = new Set(affectedTemplateTeams.map((templateTeam) => templateTeam._id));
+  const repairIds = new Set(args.repairs.map((repair) => repair.templateTeamId));
+  if (repairIds.size !== args.repairs.length || repairIds.size !== affectedIds.size) {
+    return { ok: false as const, code: "templateTeamRepairRequired" as const };
+  }
+
+  for (const repair of args.repairs) {
+    if (!affectedIds.has(repair.templateTeamId as Id<"templateTeams">)) {
+      return { ok: false as const, code: "templateTeamRepairRequired" as const };
+    }
+    if (repair.action === "remap") {
+      if (repair.mappedTeamId === args.teamId) {
+        return { ok: false as const, code: "teamNotFound" as const };
+      }
+      const mappedTeam = await ensureMappedTeam(ctx, args.churchId, repair.mappedTeamId);
+      if (!mappedTeam) return { ok: false as const, code: "teamNotFound" as const };
+    }
+  }
+
+  const repairedTemplateTeamIds: Array<Id<"templateTeams">> = [];
+  for (const repair of args.repairs) {
+    const templateTeamId = repair.templateTeamId as Id<"templateTeams">;
+    if (repair.action === "remap") {
+      await ctx.db.patch(templateTeamId, { mappedTeamId: repair.mappedTeamId });
+    } else {
+      await ctx.db.patch(templateTeamId, { archivedAt: args.now });
+      const templateTasks = await ctx.db
+        .query("templateTasks")
+        .withIndex("by_templateTeamId", (q) => q.eq("templateTeamId", templateTeamId))
+        .collect();
+      for (const templateTask of templateTasks) {
+        if (templateTask.archivedAt === null) {
+          await ctx.db.patch(templateTask._id, { archivedAt: args.now });
+        }
+      }
+    }
+    repairedTemplateTeamIds.push(templateTeamId);
+  }
+
+  return { ok: true as const, repairedTemplateTeamIds };
 }
 
 function overrideFields(overrides: ReadonlyArray<CycleAdjustmentOverride>) {
@@ -627,6 +760,10 @@ export async function createTemplates(
 ) {
   for (const template of args.templates) {
     validateTemplateInput(template);
+    for (const templateTeam of template.templateTeams) {
+      const mappedTeam = await ensureMappedTeam(ctx, args.churchId, templateTeam.mappedTeamId);
+      if (!mappedTeam) return { ok: false as const, code: "teamNotFound" as const };
+    }
     const existing = await ctx.db
       .query("templates")
       .withIndex("by_churchId_and_key", (q) =>
@@ -646,7 +783,22 @@ export async function createTemplates(
     });
 
     const focusWindowIdsByKey = new Map<string, Id<"focusWindows">>();
+    const templateTeamIdsByKey = new Map<string, Id<"templateTeams">>();
     const templateTaskIdsByKey = new Map<string, Id<"templateTasks">>();
+
+    for (const templateTeam of template.templateTeams) {
+      const mappedTeam = await ensureMappedTeam(ctx, args.churchId, templateTeam.mappedTeamId);
+      if (!mappedTeam) return { ok: false as const, code: "teamNotFound" as const };
+      const templateTeamId = await ctx.db.insert("templateTeams", {
+        churchId: args.churchId,
+        templateId,
+        key: templateTeam.key,
+        name: templateTeam.name,
+        mappedTeamId: mappedTeam._id,
+        archivedAt: null,
+      });
+      templateTeamIdsByKey.set(templateTeam.key, templateTeamId);
+    }
 
     for (const focusWindow of template.focusWindows) {
       const focusWindowId = await ctx.db.insert("focusWindows", {
@@ -681,6 +833,9 @@ export async function createTemplates(
       const templateTaskId = await ctx.db.insert("templateTasks", {
         churchId: args.churchId,
         templateId,
+        templateTeamId: templateTeamIdsByKey.get(
+          templateTask.templateTeamKey ?? template.templateTeams[0]!.key,
+        )!,
         key: templateTask.key,
         title: templateTask.title,
         parentTemplateTaskId: null,

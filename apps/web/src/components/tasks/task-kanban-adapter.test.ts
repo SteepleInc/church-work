@@ -14,8 +14,11 @@ import {
 function boardTask(overrides: Partial<TaskBoardTask> & { readonly id: string }): TaskBoardTask {
   return {
     title: `Task ${overrides.id}`,
+    identifier: `TST-${overrides.id}`,
+    workflowId: "workflow-1",
     workflowStatusId: "todo",
     taskState: "todo",
+    teamId: "team-1",
     ...overrides,
   };
 }
@@ -181,7 +184,9 @@ describe("Board Column grouping", () => {
   const tasks: readonly TaskBoardTask[] = [
     {
       id: "task-1",
+      identifier: "PRO-1",
       title: "Call volunteer",
+      workflowId: "workflow-1",
       workflowStatusId: "todo",
       taskState: "todo",
       assignedUserId: "user-1",
@@ -189,11 +194,13 @@ describe("Board Column grouping", () => {
     },
     {
       id: "task-2",
+      identifier: "KID-1",
       title: "Prepare slides",
+      workflowId: "workflow-2",
       workflowStatusId: "doing",
       taskState: "in_progress",
       assignedUserId: null,
-      teamId: null,
+      teamId: "team-2",
     },
   ];
   const assignees = [
@@ -219,7 +226,7 @@ describe("Board Column grouping", () => {
     expect(columns.map((column) => column.title)).toEqual(["Unassigned", "Ana", "Ben"]);
   });
 
-  test("groups by team with a No Team lane", () => {
+  test("groups by team with one lane per Team", () => {
     const columns = buildTaskBoardGroupColumns({
       grouping: "team",
       workflowStatuses: [],
@@ -229,7 +236,7 @@ describe("Board Column grouping", () => {
       showEmptyColumns: true,
     });
 
-    expect(columns.map((column) => column.title)).toEqual(["No Team", "Production", "Kids"]);
+    expect(columns.map((column) => column.title)).toEqual(["Production", "Kids"]);
   });
 
   test("groups by Task State with the canonical lanes", () => {
@@ -258,10 +265,10 @@ describe("Board Column grouping", () => {
     expect(columns.map((column) => column.id)).toEqual(["unassigned", "user-1"]);
   });
 
-  test("drag is enabled only for Workflow Status and Assignee groupings", () => {
+  test("drag is enabled for Workflow Status, Assignee, and Task State groupings", () => {
     expect(isTaskBoardGroupingDraggable("workflow_status")).toBe(true);
     expect(isTaskBoardGroupingDraggable("assignee")).toBe(true);
-    expect(isTaskBoardGroupingDraggable("task_state")).toBe(false);
+    expect(isTaskBoardGroupingDraggable("task_state")).toBe(true);
     expect(isTaskBoardGroupingDraggable("team")).toBe(false);
   });
 
@@ -274,10 +281,13 @@ describe("Board Column grouping", () => {
         "user-1": [
           {
             id: "task-1",
+            identifier: "PRO-1",
             title: "Call volunteer",
+            workflowId: "workflow-1",
             workflowStatusId: "todo",
             taskState: "todo",
             assignedUserId: "user-1",
+            teamId: "team-1",
           },
         ],
         unassigned: [],
@@ -293,10 +303,13 @@ describe("Board Column grouping", () => {
     expect(persistedMoves).toEqual([{ taskId: "task-1", columnId: "unassigned" }]);
     expect(nextColumns.unassigned[0]).toEqual({
       id: "task-1",
+      identifier: "PRO-1",
       title: "Call volunteer",
+      workflowId: "workflow-1",
       workflowStatusId: "todo",
       taskState: "todo",
       assignedUserId: null,
+      teamId: "team-1",
     });
   });
 });

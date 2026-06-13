@@ -121,9 +121,9 @@ function AppNavigationBody() {
               <SideBarItem
                 icon={<HugeiconsIcon className="size-4" icon={Message01Icon} strokeWidth={2} />}
                 key={team.id}
-                matchPath={`/team/${team.id}`}
+                matchPath={`/team/${team.identifier}`}
                 title={team.name}
-                to={`/team/${team.id}`}
+                to={`/team/${team.identifier}`}
               />
             ))
           ) : (

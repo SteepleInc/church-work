@@ -12,13 +12,17 @@ export type TaskState = "todo" | "in_progress" | "done" | "canceled";
 
 export type TaskSummary = {
   readonly id: string;
+  // The Task Identifier (e.g. "PRD-48") computed by the backend at read time
+  // from the Team Identifier and the Task's per-Team number (ADR 0013).
+  readonly identifier: string;
   readonly title: string;
-  readonly teamId: string | null;
+  readonly teamId: string;
   readonly assignedUserId: string | null;
   readonly cycleId: string;
   readonly dueDate: string | null;
   readonly createdAt: number;
   readonly parentTaskId: string | null;
+  readonly workflowId: string;
   readonly workflowStatusId: string;
   readonly taskState: TaskState;
   readonly estimate?: "xs" | "s" | "m" | "l" | "xl" | null;
@@ -48,12 +52,47 @@ export function getTaskCreationDefaults(args: {
   };
 }
 
-export function getExecutionWorkflowId(args: {
-  readonly surface: ExecutionSurface;
-  readonly churchDefaultWorkflowId?: string | null;
-  readonly teamDefaultWorkflowId?: string | null;
-}) {
-  return args.surface === "team_board" ? args.teamDefaultWorkflowId : args.churchDefaultWorkflowId;
+/**
+ * Default Team for the create-task picker (ADR 0013). The surface preset
+ * (Team Board column, subtask parent) wins, then the last-used Team, then
+ * the user's first Team Membership, then the Church's first Team — never
+ * empty while the Church has Teams. Returns null only when no Teams exist.
+ */
+export function getDefaultCreateTaskTeamId(args: {
+  readonly presetTeamId?: string | null;
+  readonly lastUsedTeamId?: string | null;
+  readonly currentUserId: string;
+  readonly teams: readonly { readonly id: string; readonly sortOrder: number }[];
+  readonly memberships: readonly { readonly teamId: string; readonly userId: string }[];
+}): string | null {
+  const orderedTeams = [...args.teams].sort((left, right) => left.sortOrder - right.sortOrder);
+  const teamIds = new Set(orderedTeams.map((team) => team.id));
+
+  if (args.presetTeamId && teamIds.has(args.presetTeamId)) return args.presetTeamId;
+  if (args.lastUsedTeamId && teamIds.has(args.lastUsedTeamId)) return args.lastUsedTeamId;
+
+  const membershipTeamIds = new Set(
+    args.memberships
+      .filter((membership) => membership.userId === args.currentUserId)
+      .map((membership) => membership.teamId),
+  );
+  const membershipTeam = orderedTeams.find((team) => membershipTeamIds.has(team.id));
+  if (membershipTeam) return membershipTeam.id;
+
+  return orderedTeams[0]?.id ?? null;
+}
+
+/**
+ * Board grouping per surface (ADR 0013: every Team owns its Workflow). A Team
+ * Board groups by that Team's Workflow Statuses; cross-team surfaces (My
+ * Work, Our Work) have no single Workflow, so Workflow Status grouping
+ * becomes Task State grouping there.
+ */
+export function getExecutionBoardGrouping<Grouping extends string>(
+  surface: ExecutionSurface,
+  grouping: Grouping,
+): Grouping | "task_state" {
+  return surface !== "team_board" && grouping === "workflow_status" ? "task_state" : grouping;
 }
 
 export function getTaskExecutionReadArgs(args: {
@@ -71,7 +110,9 @@ export function getTaskExecutionReadArgs(args: {
     churchId: args.churchId,
     actorUserId: args.currentUserId,
     ...(args.surface === "team_board"
-      ? { teamId: args.teamId ?? null }
+      ? args.teamId
+        ? { teamId: args.teamId }
+        : {}
       : { surface: args.surface }),
     cycleId: args.cycleId,
   };
@@ -122,7 +163,7 @@ export function getTaskExecutionFilters(args: {
 }) {
   return {
     ...getTaskTabFilters(args),
-    ...(args.surface === "team_board" ? { teamId: args.teamId ?? null } : {}),
+    ...(args.surface === "team_board" && args.teamId ? { teamId: args.teamId } : {}),
     cycleId: args.cycleId,
     ...(args.showSubtasks ? {} : { excludeSubtasks: true as const }),
     ...(args.ordering === "due_date" ? { orderBy: "due_date" as const } : {}),

@@ -205,9 +205,19 @@ describe("labels", () => {
           churchId,
         });
         if (!workDefaults.ok) throw new Error("work defaults unavailable");
-        const todoStatus = workDefaults.data.workflowStatuses.find(
-          (status) => status.taskState === "todo",
-        )!;
+        const todoStatusForTeam = (teamId: string) => {
+          const workflow = workDefaults.data.workflows.find(
+            (candidate) => candidate.teamId === teamId,
+          );
+          if (!workflow) throw new Error(`Workflow unavailable for Team ${teamId}`);
+          const status = workDefaults.data.workflowStatuses.find(
+            (candidate) => candidate.workflowId === workflow.id && candidate.taskState === "todo",
+          );
+          if (!status) throw new Error(`To Do status unavailable for Team ${teamId}`);
+          return status;
+        };
+        const firstTeamTodoStatus = todoStatusForTeam(firstTeam.id!);
+        const secondTeamTodoStatus = todoStatusForTeam(secondTeam.id!);
 
         // Team Label on a Task in another Team is rejected server-side.
         const wrongScope = yield* authenticated.mutation(refs.public.tasks.createBatch, {
@@ -216,7 +226,7 @@ describe("labels", () => {
             {
               title: "Mismatched scope Task",
               teamId: secondTeam.id!,
-              workflowStatusId: todoStatus.id,
+              workflowStatusId: secondTeamTodoStatus.id,
               dueDate: null,
               parentTaskId: null,
               labelIds: [teamLabel.id],
@@ -234,7 +244,7 @@ describe("labels", () => {
             {
               title: "Labeled Task",
               teamId: firstTeam.id!,
-              workflowStatusId: todoStatus.id,
+              workflowStatusId: firstTeamTodoStatus.id,
               dueDate: null,
               parentTaskId: null,
               labelIds: [teamLabel.id, churchLabel.id, teamLabel.id],

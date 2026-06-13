@@ -71,6 +71,9 @@ export function SelectField({
           aria-invalid={Boolean(processedError)}
           className={cn("w-full", className)}
           disabled={disabled}
+          // Associates the InputWrapper label (htmlFor={field.name}) with the
+          // trigger for accessibility and label-based queries.
+          id={field.name}
           data-has-value={pipe(
             field.state.value,
             Option.fromNullable,

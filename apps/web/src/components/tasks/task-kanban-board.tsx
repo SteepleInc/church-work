@@ -72,7 +72,6 @@ import {
   isEditableTarget,
   matchPickerHotkey,
   statusOptions,
-  toTaskIdentifier,
   type PickerHotkey,
 } from "./task-kanban-board-utils";
 
@@ -134,7 +133,7 @@ type TaskKanbanBoardProps = {
   readonly onChangeTaskStatus?: (change: TaskCardStatusChange) => void | Promise<void>;
   readonly onChangeTaskLabels?: (change: TaskCardLabelsChange) => void | Promise<void>;
   readonly onChangeTaskEstimate?: (change: TaskCardEstimateChange) => void | Promise<void>;
-  readonly onOpenTask?: (taskId: string) => void;
+  readonly onOpenTask?: (taskIdentifier: string) => void;
   readonly onAddTask?: (workflowStatusId: string) => void;
   readonly onToggleColumnHidden?: (workflowStatusId: string) => void;
   readonly className?: string;
@@ -514,7 +513,7 @@ interface TaskKanbanColumnProps extends Omit<
   readonly onChangeTaskStatus?: TaskKanbanBoardProps["onChangeTaskStatus"];
   readonly onChangeTaskLabels?: TaskKanbanBoardProps["onChangeTaskLabels"];
   readonly onChangeTaskEstimate?: TaskKanbanBoardProps["onChangeTaskEstimate"];
-  readonly onOpenTask?: (taskId: string) => void;
+  readonly onOpenTask?: (taskIdentifier: string) => void;
   readonly onAddTask?: (workflowStatusId: string) => void;
   readonly onHideColumn?: (workflowStatusId: string) => void;
   readonly onSelectAllInColumn?: (workflowStatusId: string) => void;
@@ -667,7 +666,7 @@ interface TaskKanbanCardProps extends Omit<
   readonly onChangeTaskStatus?: TaskKanbanBoardProps["onChangeTaskStatus"];
   readonly onChangeTaskLabels?: TaskKanbanBoardProps["onChangeTaskLabels"];
   readonly onChangeTaskEstimate?: TaskKanbanBoardProps["onChangeTaskEstimate"];
-  readonly onOpenTask?: (taskId: string) => void;
+  readonly onOpenTask?: (taskIdentifier: string) => void;
   readonly onToggleTaskSelected?: (taskId: string) => void;
 }
 
@@ -697,9 +696,14 @@ function TaskKanbanCard({
   const cardState: TaskBoardTaskState = currentStatus?.taskState ?? task.taskState;
   const selectedAssignee =
     assigneeOptions.find((option) => option.id === task.assignedUserId) ?? null;
-  const teamMemberIds =
-    (task.teamId ? teamMemberIdsByTeamId.get(task.teamId) : undefined) ?? EMPTY_USER_ID_SET;
-  const statusItems = statusOptions(workflowStatuses);
+  const teamMemberIds = teamMemberIdsByTeamId.get(task.teamId) ?? EMPTY_USER_ID_SET;
+  // The status picker offers only the Task's own Team Workflow's statuses
+  // (ADR 0013) — relevant on cross-team boards fed every Team's statuses.
+  const statusItems = statusOptions(
+    workflowStatuses.filter(
+      (status) => status.workflowId === undefined || status.workflowId === task.workflowId,
+    ),
+  );
   const isSelected = selectedTaskIds.has(task.id);
   const isSelectable = cardState !== "canceled" && onToggleTaskSelected !== undefined;
 
@@ -736,7 +740,7 @@ function TaskKanbanCard({
 
   const createdAtLabel = formatCreatedAt(task.createdAt);
   const dueDateLabel = formatDueDate(task.dueDate);
-  const teamName = task.teamId ? (teamsById.get(task.teamId)?.name ?? null) : null;
+  const teamName = teamsById.get(task.teamId)?.name ?? null;
   const showProperty = (property: TaskDisplayProperty) => displayProperties.has(property);
 
   // Church Labels plus the Task's Team's Labels are applicable in the picker
@@ -755,7 +759,8 @@ function TaskKanbanCard({
       onToggleTaskSelected(task.id);
       return;
     }
-    onOpenTask?.(task.id);
+    // Task links carry the Task Identifier, not the database id (ADR 0013).
+    onOpenTask?.(task.identifier);
   };
 
   const cardContent = (
@@ -799,7 +804,7 @@ function TaskKanbanCard({
           ) : null}
           {showProperty("id") ? (
             <span className="truncate font-medium text-muted-foreground text-xs">
-              {toTaskIdentifier(task.id)}
+              {task.identifier}
             </span>
           ) : null}
         </div>

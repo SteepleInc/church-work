@@ -71,7 +71,8 @@ export function DetailsPane({ className }: { readonly className?: string }) {
               Match.tag("org", (orgData) => (
                 <OrgDetailsPane orgId={orgData.id} tab={orgData.tab} />
               )),
-              Match.tag("task", (taskData) => <TaskDetailsPane taskId={taskData.id} />),
+              // The pane URL param carries the Task Identifier (ADR 0013).
+              Match.tag("task", (taskData) => <TaskDetailsPane identifier={taskData.id} />),
               Match.tag("team", (teamData) => <TeamDetailsPane teamId={teamData.id} />),
               Match.tag("user", (userData) => (
                 <UserDetailsPane tab={userData.tab} userId={userData.id} />

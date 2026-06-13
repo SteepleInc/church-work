@@ -393,6 +393,7 @@ function InitialTeamsStepCard(props: {
 
                   <div className="flex min-w-0 flex-1 flex-col items-start">
                     <p className="font-semibold">{team.name}</p>
+                    <p className="text-sm text-muted-foreground">{team.identifier}</p>
                   </div>
 
                   <div className="ml-auto flex gap-1">
@@ -407,6 +408,7 @@ function InitialTeamsStepCard(props: {
                     </Button>
                     <Button
                       aria-label={`Remove ${team.name || `Team ${index + 1}`}`}
+                      disabled={teams.length <= 1}
                       onClick={() => removeTeam(team)}
                       size="icon"
                       type="button"
@@ -419,24 +421,23 @@ function InitialTeamsStepCard(props: {
               ))}
             </div>
           </ScrollArea>
-        ) : null}
+        ) : (
+          <div className="px-4 pb-4 text-sm text-muted-foreground">
+            Add at least one Team to continue onboarding.
+          </div>
+        )}
       </Card>
 
       <ActionRow className="-mx-4 -mb-4 w-[calc(100%+2rem)]">
         <Button
           className="ml-auto"
+          disabled={!hasTeams}
           onClick={() => void props.onComplete()}
           type="button"
-          variant={hasTeams ? "default" : "ghost"}
+          variant="default"
         >
-          {hasTeams ? (
-            <>
-              Next
-              <ArrowRight />
-            </>
-          ) : (
-            "Skip"
-          )}
+          Next
+          <ArrowRight />
         </Button>
       </ActionRow>
     </div>

@@ -20,12 +20,16 @@ export function useQuickActionOpeners() {
           readonly assignTo?: string | null;
           readonly workflowStatusId?: string | null;
           readonly teamId?: string | null;
+          // Subtask openers pass the parent Task and preset its Team
+          // (ADR 0013: subtasks inherit the parent's Team by default).
+          readonly parentTaskId?: string | null;
         } = {},
       ) =>
         setCreateTaskQuickActionState({
           assignTo: options.assignTo ?? null,
           workflowStatusId: options.workflowStatusId ?? null,
           teamId: options.teamId ?? null,
+          parentTaskId: options.parentTaskId ?? null,
         }),
       openCreateTeam: (options: { readonly churchId: string }) =>
         setTeamQuickActionState({ mode: "create", churchId: options.churchId }),

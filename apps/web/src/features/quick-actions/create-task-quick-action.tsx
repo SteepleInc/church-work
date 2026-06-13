@@ -58,7 +58,11 @@ export type CreateTaskQuickActionState = {
   readonly assignTo: string | null;
   // Preset Workflow Status when created from a Board Column's "+" button.
   readonly workflowStatusId?: string | null;
+  // Preset Team: a Team Board presets its Team; subtask openers preset the
+  // parent Task's Team (ADR 0013).
   readonly teamId?: string | null;
+  // Creating a subtask: openers pass the parent Task plus its Team preset.
+  readonly parentTaskId?: string | null;
 } | null;
 
 export const createTaskQuickActionStateAtom = atom<CreateTaskQuickActionState>(null);
@@ -178,9 +182,6 @@ export function CreateTaskQuickAction() {
     [teams],
   );
 
-  const churchDefaultWorkflow = workflows.workflowsCollection.find(
-    (workflow) => workflow.isDefault,
-  );
   const workflowStatuses = workflowStatusesCollection.workflowStatusesCollection;
   const assigneeOptions = usersCollection.usersCollection.map((user) => ({
     id: user.id,
@@ -193,6 +194,7 @@ export function CreateTaskQuickAction() {
     workflowStatusesCollection.loading ||
     usersCollection.loading ||
     teamsCollection.loading ||
+    teamMemberships.loading ||
     !activeChurch;
 
   const form = useAppForm({
@@ -204,7 +206,7 @@ export function CreateTaskQuickAction() {
       workflowStatusId: state?.workflowStatusId ?? "",
       // Null means "use the default Team" (preset → first of your teams →
       // first team). There is no "No team" choice in the picker.
-      teamId: null as string | null,
+      teamId: state?.teamId ?? (null as string | null),
       priority: "no_priority" as TaskPriority,
       estimate: "no_estimate" as TaskEstimate,
       labels: [] as readonly string[],
@@ -228,6 +230,11 @@ export function CreateTaskQuickAction() {
       }
 
       const submitTeamId = resolveTeamId(value.teamId);
+      if (!submitTeamId) {
+        setError("Select a Team.");
+        return;
+      }
+
       const submitWorkflowId = resolveWorkflowId(submitTeamId);
       const submitStatus = resolveStatus(value.workflowStatusId, submitWorkflowId);
       if (!submitStatus) {
@@ -246,7 +253,7 @@ export function CreateTaskQuickAction() {
         assignedUserId: value.assignedUserId,
         workflowStatusId: submitStatus.id,
         dueDate: value.dueDate,
-        parentTaskId: null,
+        parentTaskId: state?.parentTaskId ?? null,
         labelIds: [...value.labels],
         estimate: value.estimate === "no_estimate" ? null : value.estimate,
       });
@@ -256,14 +263,15 @@ export function CreateTaskQuickAction() {
         return;
       }
 
-      const createdTaskId = result.data.tasks[0]?.id;
+      // Task links carry the Task Identifier, not the database id (ADR 0013).
+      const createdTaskIdentifier = result.data.tasks[0]?.identifier;
       const mode = submitModeRef.current;
       submitModeRef.current = "default";
 
-      if (mode === "open" && createdTaskId) {
+      if (mode === "open" && createdTaskIdentifier) {
         formApi.reset();
         setState(null);
-        const url = openTaskDetailsPaneUrl({ id: createdTaskId });
+        const url = openTaskDetailsPaneUrl({ id: createdTaskIdentifier });
         void navigate({ to: url.to, search: url.search });
         return;
       }
@@ -279,12 +287,12 @@ export function CreateTaskQuickAction() {
         setState(null);
       }
 
-      if (createdTaskId) {
+      if (createdTaskIdentifier) {
         toast.success("Task created.", {
           action: {
             label: "Open Task",
             onClick: () => {
-              const url = openTaskDetailsPaneUrl({ id: createdTaskId });
+              const url = openTaskDetailsPaneUrl({ id: createdTaskIdentifier });
               void navigate({ to: url.to, search: url.search });
             },
           },
@@ -307,8 +315,11 @@ export function CreateTaskQuickAction() {
   };
 
   const resolveWorkflowId = (teamId: string | null): string | null => {
-    const team = teamId ? teams.find((candidate) => candidate.id === teamId) : undefined;
-    return team?.defaultWorkflowId ?? churchDefaultWorkflow?.id ?? null;
+    return (
+      workflows.workflowsCollection.find(
+        (workflow) => workflow.teamId === teamId && workflow.archivedAt === null,
+      )?.id ?? null
+    );
   };
 
   const resolveStatus = (chosenStatusId: string, workflowId: string | null) => {

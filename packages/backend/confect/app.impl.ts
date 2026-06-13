@@ -1,4 +1,13 @@
-import { getTeamColorForName, isTeamColor } from "@church-task/domain/Team";
+import { formatTaskIdentifier } from "@church-task/domain/Task";
+import {
+  deriveTeamIdentifierBase,
+  generateTeamIdentifier,
+  getTeamColorForName,
+  isTeamColor,
+  isValidTeamIdentifier,
+  normalizeTeamIdentifier,
+  TEAM_IDENTIFIER_MAX_LENGTH,
+} from "@church-task/domain/Team";
 import { FunctionImpl, GroupImpl, MutationCtx, QueryCtx } from "@confect/server";
 import { Effect, Layer } from "effect";
 
@@ -52,6 +61,7 @@ import {
   readKeyDateModel,
   resolveKeyDateOccurrences,
 } from "../keyDateScheduling";
+import { resolveTaskByIdentifier } from "../identifierResolution";
 import {
   createLabelForChurch,
   deleteLabelForChurch,
@@ -59,7 +69,7 @@ import {
   serializeLabel,
   updateLabelForChurch,
 } from "../labels";
-import { readDefaultWorkModel, seedDefaultWorkModel } from "../workDefaults";
+import { readDefaultWorkModel, seedDefaultWorkModel, seedTeamWorkflow } from "../workDefaults";
 import {
   cancelTasks,
   completeTasks,
@@ -73,6 +83,7 @@ import {
   materializeProjectedTasks,
   previewCycleAdjustmentMerge,
   readTemplateModel,
+  repairTemplateTeamsForTeamRemoval,
   resolveTemplateTaskSchedules,
   setCycleAdjustments,
   updateTemplateTasksAndSyncFutureProjectedTasks,
@@ -81,14 +92,13 @@ import {
   addWorkflowStatus,
   archiveWorkflow,
   archiveWorkflowStatus,
-  createWorkflow,
+  getTeamWorkflow,
   readWorkflowModel,
   renameWorkflow,
   renameWorkflowStatus,
   remapWorkflowStatusForTaskTeam,
   reorderWorkflowStatuses,
   reorderWorkflows,
-  setDefaultWorkflow,
 } from "../workflows";
 import api from "./_generated/api";
 
@@ -118,8 +128,9 @@ type BetterAuthTeam = {
   readonly organizationId: string;
   readonly archivedAt?: string | null;
   readonly sortOrder?: number | null;
-  readonly defaultWorkflowId?: string | null;
   readonly color?: string | null;
+  readonly identifier?: string | null;
+  readonly previousIdentifiers?: ReadonlyArray<string> | null;
 };
 
 type BetterAuthTeamMember = {
@@ -182,16 +193,23 @@ const findBetterAuthDocs = <T>(args: {
     return result.page;
   });
 
+// Teams created outside the app's create paths (e.g. raw Better Auth
+// endpoints) may lack a stored identifier; fall back to the same name-derived
+// base the create path would have used, mirroring the Team Color fallback.
+const currentTeamIdentifier = (team: BetterAuthTeam) =>
+  team.identifier ?? deriveTeamIdentifierBase(team.name);
+
 const serializeTeam = (team: BetterAuthTeam) => ({
   id: team._id,
   name: team.name,
   churchId: team.organizationId,
+  identifier: currentTeamIdentifier(team),
+  previousIdentifiers: team.previousIdentifiers ?? [],
   // Teams created before colors were stored fall back to the same
   // name-derived color the create path would have assigned.
   color: isTeamColor(team.color) ? team.color : getTeamColorForName(team.name),
   archivedAt: team.archivedAt ?? null,
   sortOrder: team.sortOrder ?? 0,
-  defaultWorkflowId: team.defaultWorkflowId ?? null,
 });
 
 const serializeTeamMembership = (churchId: string, membership: BetterAuthTeamMember) => ({
@@ -240,6 +258,14 @@ const activeTeamsForChurch = (churchId: string) =>
   listTeamsForChurch(churchId).pipe(
     Effect.map((teams) => teams.filter((team) => (team.archivedAt ?? null) === null)),
   );
+
+const isLastActiveTeam = (churchId: string, team: BetterAuthTeam) =>
+  Effect.gen(function* () {
+    if ((team.archivedAt ?? null) !== null) return false;
+
+    const activeTeams = yield* activeTeamsForChurch(churchId);
+    return activeTeams.length <= 1;
+  });
 
 const listTeamMembershipsForChurch = (churchId: string) =>
   Effect.gen(function* () {
@@ -337,9 +363,9 @@ const getActiveChurch = (churchId: string | null) =>
 const serializeWorkDefaults = (data: Awaited<ReturnType<typeof readDefaultWorkModel>>) => ({
   workflows: data.workflows.map((workflow) => ({
     id: workflow._id,
+    teamId: workflow.teamId,
     key: workflow.key,
     name: workflow.name,
-    isDefault: workflow.isDefault,
     sortOrder: workflow.sortOrder,
     archivedAt: workflow.archivedAt,
   })),
@@ -388,9 +414,9 @@ const serializeWorkflowModel = (data: Awaited<ReturnType<typeof readWorkflowMode
     .sort((left, right) => left.sortOrder - right.sortOrder)
     .map((workflow) => ({
       id: workflow._id,
+      teamId: workflow.teamId,
       key: workflow.key,
       name: workflow.name,
-      isDefault: workflow.isDefault,
       sortOrder: workflow.sortOrder,
       archivedAt: workflow.archivedAt,
     })),
@@ -446,6 +472,10 @@ const serializeTaskModel = (data: Awaited<ReturnType<typeof readTaskModel>>) => 
     title: task.title,
     description: task.description ?? null,
     teamId: task.teamId,
+    number: task.number,
+    // Computed at read time so a Team Identifier change re-renders every
+    // Task Identifier in that Team (ADR 0013).
+    identifier: formatTaskIdentifier(data.teamIdentifierById[task.teamId] ?? "TEAM", task.number),
     assignedUserId: task.assignedUserId ?? null,
     cycleId: task.cycleId,
     dueDate: task.dueDate,
@@ -494,6 +524,14 @@ const serializeTemplateModel = (
     recurrence: template.recurrence,
     archivedAt: template.archivedAt,
   })),
+  templateTeams: data.templateTeams.map((templateTeam) => ({
+    id: templateTeam._id,
+    templateId: templateTeam.templateId,
+    key: templateTeam.key,
+    name: templateTeam.name,
+    mappedTeamId: templateTeam.mappedTeamId,
+    archivedAt: templateTeam.archivedAt,
+  })),
   focusWindows: data.focusWindows.map((focusWindow) => ({
     id: focusWindow._id,
     templateId: focusWindow.templateId,
@@ -509,6 +547,7 @@ const serializeTemplateModel = (
   templateTasks: data.templateTasks.map((templateTask) => ({
     id: templateTask._id,
     templateId: templateTask.templateId,
+    templateTeamId: templateTask.templateTeamId,
     key: templateTask.key,
     title: templateTask.title,
     parentTemplateTaskId: templateTask.parentTemplateTaskId,
@@ -955,15 +994,6 @@ const coreWorkBatchWrite = FunctionImpl.make(
               ).pipe(Effect.orDie),
             });
             break;
-          case "createWorkflow":
-            results.push({
-              id: operation.id,
-              operation: operation.operation,
-              result: yield* Effect.promise(() =>
-                ctx.runMutation(convexFunctionRefs.workflows.createForChurch, operation.input),
-              ).pipe(Effect.orDie),
-            });
-            break;
           case "renameWorkflow":
             results.push({
               id: operation.id,
@@ -988,15 +1018,6 @@ const coreWorkBatchWrite = FunctionImpl.make(
               operation: operation.operation,
               result: yield* Effect.promise(() =>
                 ctx.runMutation(convexFunctionRefs.workflows.archiveForChurch, operation.input),
-              ).pipe(Effect.orDie),
-            });
-            break;
-          case "setDefaultWorkflow":
-            results.push({
-              id: operation.id,
-              operation: operation.operation,
-              result: yield* Effect.promise(() =>
-                ctx.runMutation(convexFunctionRefs.workflows.setDefaultForChurch, operation.input),
               ).pipe(Effect.orDie),
             });
             break;
@@ -1139,6 +1160,12 @@ const cycleMaintenanceRunForChurch = FunctionImpl.make(
         return cycleMaintenanceErrorResponse(
           "workflow_status_not_found",
           "A default To Do Workflow Status is required before Template Tasks can materialize.",
+        );
+      }
+      if (!maintained.ok && maintained.code === "teamNotFound") {
+        return cycleMaintenanceErrorResponse(
+          "team_not_found",
+          "A Team is required before Template Tasks can materialize.",
         );
       }
       if (!maintained.ok && maintained.code === "templateTaskNotFound") {
@@ -1853,6 +1880,9 @@ const teamCreateForChurch = FunctionImpl.make(api, "teams", "createForChurch", (
       Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
     );
     const sortOrder = teams.reduce((max, team) => Math.max(max, team.sortOrder ?? -1), -1) + 1;
+    // Retired identifiers are not reserved: only current identifiers block
+    // generation.
+    const identifier = generateTeamIdentifier(args.name, teams.map(currentTeamIdentifier));
     yield* Effect.promise(() =>
       ctx.runMutation(components.betterAuth.adapter.create, {
         input: {
@@ -1864,8 +1894,9 @@ const teamCreateForChurch = FunctionImpl.make(api, "teams", "createForChurch", (
             updatedAt: null,
             archivedAt: null,
             sortOrder,
-            defaultWorkflowId: null,
             color: getTeamColorForName(args.name),
+            identifier,
+            previousIdentifiers: [],
           },
         },
       }),
@@ -1879,6 +1910,16 @@ const teamCreateForChurch = FunctionImpl.make(api, "teams", "createForChurch", (
       .find((team) => team.name === args.name && (team.sortOrder ?? 0) === sortOrder);
 
     if (createdTeam) {
+      // Every Team owns its Workflow (ADR 0013): seed To Do / In Progress /
+      // Done for the new Team.
+      yield* Effect.promise(() =>
+        seedTeamWorkflow(ctx, {
+          churchId: args.churchId,
+          teamId: createdTeam._id,
+          name: args.name,
+        }),
+      ).pipe(Effect.orDie);
+
       yield* Effect.promise(() =>
         writeActivity(ctx, {
           churchId: args.churchId,
@@ -1962,6 +2003,107 @@ const teamRenameForChurch = FunctionImpl.make(api, "teams", "renameForChurch", (
   }),
 );
 
+const teamSetIdentifierForChurch = FunctionImpl.make(
+  api,
+  "teams",
+  "setIdentifierForChurch",
+  (args) =>
+    Effect.gen(function* () {
+      const ctx = yield* MutationCtx.MutationCtx<DataModel>();
+      const auth = yield* getAuthenticatedChurchMember(args.churchId).pipe(
+        Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
+      );
+
+      if (auth.status === "notAuthenticated") {
+        return teamErrorResponse(
+          "setTeamIdentifier",
+          "not_authenticated",
+          "Authentication is required.",
+        );
+      }
+      if (auth.status === "notChurchMember") {
+        return teamErrorResponse(
+          "setTeamIdentifier",
+          "not_church_member",
+          "Church membership is required.",
+        );
+      }
+      const authError = teamManageAuthError("setTeamIdentifier", auth.membership.role);
+      if (authError) return authError;
+
+      const identifier = normalizeTeamIdentifier(args.identifier);
+      if (!isValidTeamIdentifier(identifier)) {
+        return teamErrorResponse(
+          "setTeamIdentifier",
+          "invalid_team_identifier",
+          `Team Identifier must be 1-${TEAM_IDENTIFIER_MAX_LENGTH} letters or numbers.`,
+        );
+      }
+
+      const teams = yield* listTeamsForChurch(args.churchId).pipe(
+        Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
+      );
+      const team = teams.find((candidate) => candidate._id === args.teamId);
+
+      if (!team) {
+        return teamErrorResponse(
+          "setTeamIdentifier",
+          "team_not_found",
+          "Team was not found in the active Church.",
+        );
+      }
+
+      const previousIdentifier = currentTeamIdentifier(team);
+      const isTaken = teams.some(
+        (candidate) =>
+          candidate._id !== args.teamId && currentTeamIdentifier(candidate) === identifier,
+      );
+      if (isTaken) {
+        return teamErrorResponse(
+          "setTeamIdentifier",
+          "team_identifier_taken",
+          "Another Team in this Church already uses that identifier.",
+        );
+      }
+
+      if (identifier !== previousIdentifier) {
+        // Remember the old identifier so existing links keep resolving; drop
+        // re-claimed values so the list never shadows the current identifier.
+        const previousIdentifiers = [
+          ...(team.previousIdentifiers ?? []).filter((value) => value !== identifier),
+          previousIdentifier,
+        ];
+        yield* Effect.promise(() =>
+          ctx.runMutation(components.betterAuth.adapter.updateOne, {
+            input: {
+              model: "team",
+              where: [{ field: "_id", value: args.teamId }],
+              update: { identifier, previousIdentifiers, updatedAt: Date.now() },
+            },
+          }),
+        ).pipe(Effect.orDie);
+        yield* Effect.promise(() =>
+          writeActivity(ctx, {
+            churchId: args.churchId,
+            entityType: "team",
+            entityId: args.teamId,
+            eventType: "team.identifier_changed",
+            actorType: "user",
+            actorId: auth.authUser._id,
+            occurredAt: new Date().toISOString(),
+            cycleId: null,
+            metadata: { previousIdentifier, identifier },
+          }),
+        ).pipe(Effect.orDie);
+      }
+
+      const updatedTeams = yield* activeTeamsForChurch(args.churchId).pipe(
+        Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
+      );
+      return teamsResponse("setTeamIdentifier", updatedTeams.map(serializeTeam));
+    }),
+);
+
 const teamArchiveForChurch = FunctionImpl.make(api, "teams", "archiveForChurch", (args) =>
   Effect.gen(function* () {
     const ctx = yield* MutationCtx.MutationCtx<DataModel>();
@@ -2000,7 +2142,41 @@ const teamArchiveForChurch = FunctionImpl.make(api, "teams", "archiveForChurch",
       );
     }
 
+    const isLastTeam = yield* isLastActiveTeam(args.churchId, team).pipe(
+      Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
+    );
+    if (isLastTeam) {
+      return teamErrorResponse(
+        "archiveTeam",
+        "last_team_required",
+        "A Church must keep at least one active Team.",
+      );
+    }
+
     const archivedAt = new Date().toISOString();
+    const repairedTemplateTeams = yield* Effect.promise(() =>
+      repairTemplateTeamsForTeamRemoval(ctx, {
+        churchId: args.churchId,
+        teamId: args.teamId,
+        repairs: args.templateTeamRepairs ?? [],
+        now: archivedAt,
+      }),
+    ).pipe(Effect.orDie);
+    if (!repairedTemplateTeams.ok) {
+      if (repairedTemplateTeams.code === "teamNotFound") {
+        return teamErrorResponse(
+          "archiveTeam",
+          "team_not_found",
+          "Template Team remap target was not found in the active Church.",
+        );
+      }
+      return teamErrorResponse(
+        "archiveTeam",
+        "template_team_repair_required",
+        "Template Teams mapped to this Team must be remapped or abandoned before archiving.",
+      );
+    }
+
     yield* Effect.promise(() =>
       ctx.runMutation(components.betterAuth.adapter.updateOne, {
         input: {
@@ -2065,6 +2241,17 @@ const teamDeleteForChurch = FunctionImpl.make(api, "teams", "deleteForChurch", (
       );
     }
 
+    const isLastTeam = yield* isLastActiveTeam(args.churchId, team).pipe(
+      Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
+    );
+    if (isLastTeam) {
+      return teamErrorResponse(
+        "deleteTeam",
+        "last_team_required",
+        "A Church must keep at least one active Team.",
+      );
+    }
+
     const taskUsingTeam = yield* Effect.promise(() =>
       ctx.db
         .query("tasks")
@@ -2078,6 +2265,30 @@ const teamDeleteForChurch = FunctionImpl.make(api, "teams", "deleteForChurch", (
         "deleteTeam",
         "team_has_tasks",
         "Teams with Tasks can be archived but not deleted.",
+      );
+    }
+
+    const deletedAt = new Date().toISOString();
+    const repairedTemplateTeams = yield* Effect.promise(() =>
+      repairTemplateTeamsForTeamRemoval(ctx, {
+        churchId: args.churchId,
+        teamId: args.teamId,
+        repairs: args.templateTeamRepairs ?? [],
+        now: deletedAt,
+      }),
+    ).pipe(Effect.orDie);
+    if (!repairedTemplateTeams.ok) {
+      if (repairedTemplateTeams.code === "teamNotFound") {
+        return teamErrorResponse(
+          "deleteTeam",
+          "team_not_found",
+          "Template Team remap target was not found in the active Church.",
+        );
+      }
+      return teamErrorResponse(
+        "deleteTeam",
+        "template_team_repair_required",
+        "Template Teams mapped to this Team must be remapped or abandoned before deleting.",
       );
     }
 
@@ -2113,7 +2324,7 @@ const teamDeleteForChurch = FunctionImpl.make(api, "teams", "deleteForChurch", (
         eventType: "team.deleted",
         actorType: "user",
         actorId: auth.authUser._id,
-        occurredAt: new Date().toISOString(),
+        occurredAt: deletedAt,
         cycleId: null,
         metadata: { name: team.name },
       }),
@@ -2246,20 +2457,6 @@ const teamUpdateProductFields = FunctionImpl.make(api, "teams", "updateProductFi
         );
       }
 
-      if ("defaultWorkflowId" in update.fields && update.fields.defaultWorkflowId !== null) {
-        const workflow = yield* Effect.promise(() =>
-          ctx.db.get(update.fields.defaultWorkflowId as Id<"workflows">),
-        ).pipe(Effect.orDie);
-
-        if (!workflow || workflow.churchId !== args.churchId || workflow.archivedAt !== null) {
-          return teamErrorResponse(
-            "updateTeamProductFields",
-            "workflow_not_found",
-            "Workflow was not found in the active Church.",
-          );
-        }
-      }
-
       yield* Effect.promise(() =>
         ctx.runMutation(components.betterAuth.adapter.updateOne, {
           input: {
@@ -2269,28 +2466,6 @@ const teamUpdateProductFields = FunctionImpl.make(api, "teams", "updateProductFi
           },
         }),
       ).pipe(Effect.orDie);
-
-      if (
-        "defaultWorkflowId" in update.fields &&
-        (team.defaultWorkflowId ?? null) !== update.fields.defaultWorkflowId
-      ) {
-        yield* Effect.promise(() =>
-          writeActivity(ctx, {
-            churchId: args.churchId,
-            entityType: "team",
-            entityId: update.teamId,
-            eventType: "team.default_workflow_changed",
-            actorType: "user",
-            actorId: auth.authUser._id,
-            occurredAt: new Date().toISOString(),
-            cycleId: null,
-            metadata: {
-              previousWorkflowId: team.defaultWorkflowId ?? null,
-              workflowId: update.fields.defaultWorkflowId,
-            },
-          }),
-        ).pipe(Effect.orDie);
-      }
     }
 
     const teams = yield* listTeamsForChurch(args.churchId).pipe(
@@ -2332,22 +2507,6 @@ const tasksCreateBatch = FunctionImpl.make(api, "tasks", "createBatch", (args) =
       );
     }
 
-    const churchDefaultWorkflow = yield* Effect.promise(() =>
-      ctx.db
-        .query("workflows")
-        .withIndex("by_churchId", (q) => q.eq("churchId", args.churchId))
-        .filter((q) => q.eq(q.field("isDefault"), true))
-        .first(),
-    ).pipe(Effect.orDie);
-
-    if (!churchDefaultWorkflow) {
-      return taskErrorResponse(
-        "createTasks",
-        "team_workflow_not_configured",
-        "The Church default Workflow is missing.",
-      );
-    }
-
     const assignedUserIds = [
       ...new Set(
         args.tasks
@@ -2373,13 +2532,7 @@ const tasksCreateBatch = FunctionImpl.make(api, "tasks", "createBatch", (args) =
       }
     }
 
-    const teamIds = [
-      ...new Set(
-        args.tasks
-          .map((task) => task.teamId ?? null)
-          .filter((teamId): teamId is string => teamId !== null),
-      ),
-    ];
+    const teamIds = [...new Set(args.tasks.map((task) => task.teamId))];
     const teamWorkflowIds: Record<string, string> = {};
     for (const teamId of teamIds) {
       const team = (yield* Effect.promise(() =>
@@ -2400,7 +2553,21 @@ const tasksCreateBatch = FunctionImpl.make(api, "tasks", "createBatch", (args) =
         );
       }
 
-      teamWorkflowIds[teamId] = team.defaultWorkflowId ?? churchDefaultWorkflow._id;
+      // Every Team owns its Workflow (ADR 0013); there is no Church default
+      // Workflow to fall back to.
+      const teamWorkflow = yield* Effect.promise(() =>
+        getTeamWorkflow(ctx, { churchId: args.churchId, teamId }),
+      ).pipe(Effect.orDie);
+
+      if (!teamWorkflow) {
+        return taskErrorResponse(
+          "createTasks",
+          "team_workflow_not_configured",
+          "The Team's Workflow is missing.",
+        );
+      }
+
+      teamWorkflowIds[teamId] = teamWorkflow._id;
     }
 
     for (const task of args.tasks) {
@@ -2419,9 +2586,7 @@ const tasksCreateBatch = FunctionImpl.make(api, "tasks", "createBatch", (args) =
         );
       }
 
-      const effectiveWorkflowId = task.teamId
-        ? teamWorkflowIds[task.teamId]
-        : churchDefaultWorkflow._id;
+      const effectiveWorkflowId = teamWorkflowIds[task.teamId];
       if (workflowStatus.workflowId !== effectiveWorkflowId) {
         return taskErrorResponse(
           "createTasks",
@@ -2553,27 +2718,10 @@ const tasksUpdateBatch = FunctionImpl.make(api, "tasks", "updateBatch", (args) =
     const teamIds = [
       ...new Set(
         args.updates
-          .filter((update) => "teamId" in update.fields)
-          .map((update) => update.fields.teamId ?? null)
-          .filter((teamId): teamId is string => teamId !== null),
+          .map((update) => update.fields.teamId)
+          .filter((teamId): teamId is string => teamId !== undefined),
       ),
     ];
-    const churchDefaultWorkflow = yield* Effect.promise(() =>
-      ctx.db
-        .query("workflows")
-        .withIndex("by_churchId", (q) => q.eq("churchId", args.churchId))
-        .filter((q) => q.eq(q.field("isDefault"), true))
-        .first(),
-    ).pipe(Effect.orDie);
-
-    if (!churchDefaultWorkflow) {
-      return taskErrorResponse(
-        "updateTasks",
-        "team_workflow_not_configured",
-        "The Church default Workflow is missing.",
-      );
-    }
-
     const church = yield* findBetterAuthDoc<BetterAuthOrganization>({
       model: "organization",
       where: [{ field: "_id", value: args.churchId }],
@@ -2608,7 +2756,21 @@ const tasksUpdateBatch = FunctionImpl.make(api, "tasks", "updateBatch", (args) =
         );
       }
 
-      teamWorkflowIds[teamId] = team.defaultWorkflowId ?? churchDefaultWorkflow._id;
+      // Every Team owns its Workflow (ADR 0013); there is no Church default
+      // Workflow to fall back to.
+      const teamWorkflow = yield* Effect.promise(() =>
+        getTeamWorkflow(ctx, { churchId: args.churchId, teamId }),
+      ).pipe(Effect.orDie);
+
+      if (!teamWorkflow) {
+        return taskErrorResponse(
+          "updateTasks",
+          "team_workflow_not_configured",
+          "The Team's Workflow is missing.",
+        );
+      }
+
+      teamWorkflowIds[teamId] = teamWorkflow._id;
     }
 
     const updated = yield* Effect.promise(() =>
@@ -2618,10 +2780,7 @@ const tasksUpdateBatch = FunctionImpl.make(api, "tasks", "updateBatch", (args) =
         actorId: auth.authUser._id,
         occurredAt: new Date().toISOString(),
         churchTimeZone,
-        teamWorkflowResolution: {
-          defaultWorkflowId: churchDefaultWorkflow._id,
-          teamWorkflowIds,
-        },
+        teamWorkflowResolution: { teamWorkflowIds },
       }),
     ).pipe(Effect.orDie);
 
@@ -2733,6 +2892,45 @@ const tasksListForChurch = FunctionImpl.make(api, "tasks", "listForChurch", (arg
     ).pipe(Effect.orDie);
 
     return taskResponse("listTasks", serializeTaskModel(model));
+  }),
+);
+
+// Identifier resolution (ADR 0013): church + Task Identifier string in, Task
+// out. Case-insensitive, current-first with alias fallback; shared by the
+// URL layer, the details pane, and the MCP surface.
+const tasksResolveByIdentifier = FunctionImpl.make(api, "tasks", "resolveByIdentifier", (args) =>
+  Effect.gen(function* () {
+    const ctx = yield* QueryCtx.QueryCtx<DataModel>();
+    const auth = yield* getAuthenticatedChurchMember(args.churchId);
+
+    if (auth.status === "notAuthenticated") {
+      return taskErrorResponse("resolveTask", "not_authenticated", "Authentication is required.");
+    }
+    if (auth.status === "notChurchMember") {
+      return taskErrorResponse(
+        "resolveTask",
+        "not_church_member",
+        "Church membership is required.",
+      );
+    }
+
+    const task = yield* Effect.promise(() =>
+      resolveTaskByIdentifier(ctx, args.churchId, args.identifier),
+    ).pipe(Effect.orDie);
+
+    if (!task) {
+      return taskErrorResponse(
+        "resolveTask",
+        "task_not_found",
+        "No Task matches that Task Identifier in the active Church.",
+      );
+    }
+
+    const model = yield* Effect.promise(() =>
+      readTaskModel(ctx, args.churchId, { taskId: task._id }),
+    ).pipe(Effect.orDie);
+
+    return taskResponse("resolveTask", serializeTaskModel(model));
   }),
 );
 
@@ -2876,6 +3074,13 @@ const templatesCreateForChurch = FunctionImpl.make(api, "templates", "createForC
         Effect.succeed({ ok: false as const, code: "invalidTemplate" as const }),
       ),
     );
+    if (!created.ok && created.code === "teamNotFound") {
+      return templateErrorResponse(
+        "createTemplates",
+        "team_not_found",
+        "Template Team mapping must reference an active Team in the Church.",
+      );
+    }
     if (!created.ok) {
       return templateErrorResponse(
         "createTemplates",
@@ -3133,6 +3338,13 @@ const templatesMaterializeProjectedTasks = FunctionImpl.make(
           "A default To Do Workflow Status is required before Template Tasks can materialize.",
         );
       }
+      if (!materialized.ok && materialized.code === "teamNotFound") {
+        return templateErrorResponse(
+          "materializeProjectedTasks",
+          "team_not_found",
+          "A Team is required before Template Tasks can materialize.",
+        );
+      }
       if (!materialized.ok && materialized.code === "templateTaskNotFound") {
         return templateErrorResponse(
           "materializeProjectedTasks",
@@ -3261,85 +3473,6 @@ const templatesUpdateTemplateTasks = FunctionImpl.make(
 
       return templateResponse("updateTemplateTasks", serializeTemplateModel(model));
     }),
-);
-
-const workflowsCreateForChurch = FunctionImpl.make(api, "workflows", "createForChurch", (args) =>
-  Effect.gen(function* () {
-    const ctx = yield* MutationCtx.MutationCtx<DataModel>();
-    const auth = yield* getAuthenticatedChurchMember(args.churchId).pipe(
-      Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
-    );
-
-    if (auth.status === "notAuthenticated") {
-      return workflowErrorResponse(
-        "createWorkflow",
-        "not_authenticated",
-        "Authentication is required.",
-      );
-    }
-    if (auth.status === "notChurchMember") {
-      return workflowErrorResponse(
-        "createWorkflow",
-        "not_church_member",
-        "Church membership is required.",
-      );
-    }
-    if (auth.membership.role !== "owner" && auth.membership.role !== "admin") {
-      return workflowErrorResponse(
-        "createWorkflow",
-        "not_authorized",
-        "Only Church owners and admins can manage Workflows.",
-      );
-    }
-
-    const created = yield* Effect.promise(() => createWorkflow(ctx, args)).pipe(Effect.orDie);
-
-    if (!created.ok) {
-      return workflowErrorResponse("createWorkflow", "invalid_workflow", created.error);
-    }
-
-    const occurredAt = new Date().toISOString();
-    yield* Effect.promise(() =>
-      writeActivity(ctx, {
-        churchId: args.churchId,
-        entityType: "workflow",
-        entityId: created.workflowId,
-        eventType: "workflow.created",
-        actorType: "user",
-        actorId: auth.authUser._id,
-        occurredAt,
-        cycleId: null,
-        metadata: { name: args.name, isDefault: args.isDefault },
-      }),
-    ).pipe(Effect.orDie);
-
-    const model = yield* Effect.promise(() => readWorkflowModel(ctx, args.churchId)).pipe(
-      Effect.orDie,
-    );
-    for (const status of model.workflowStatuses.filter(
-      (candidate) => candidate.workflowId === created.workflowId,
-    )) {
-      yield* Effect.promise(() =>
-        writeActivity(ctx, {
-          churchId: args.churchId,
-          entityType: "workflow",
-          entityId: status._id,
-          eventType: "workflow.status.created",
-          actorType: "user",
-          actorId: auth.authUser._id,
-          occurredAt,
-          cycleId: null,
-          metadata: {
-            workflowId: created.workflowId,
-            name: status.name,
-            taskState: status.taskState,
-          },
-        }),
-      ).pipe(Effect.orDie);
-    }
-
-    return workflowResponse("createWorkflow", serializeWorkflowModel(model));
-  }),
 );
 
 const workflowsRenameForChurch = FunctionImpl.make(api, "workflows", "renameForChurch", (args) =>
@@ -3510,7 +3643,7 @@ const workflowsArchiveForChurch = FunctionImpl.make(api, "workflows", "archiveFo
       return workflowErrorResponse(
         "archiveWorkflow",
         "workflow_in_use",
-        "Workflows referenced by the Church default, Teams, or Tasks cannot be archived before reassignment.",
+        "Workflows owned by an active Team or referenced by Tasks cannot be archived.",
       );
     }
     if (!archived.ok) return yield* Effect.dieMessage("Unexpected Workflow archive result.");
@@ -3534,76 +3667,6 @@ const workflowsArchiveForChurch = FunctionImpl.make(api, "workflows", "archiveFo
     );
     return workflowResponse("archiveWorkflow", serializeWorkflowModel(model));
   }),
-);
-
-const workflowsSetDefaultForChurch = FunctionImpl.make(
-  api,
-  "workflows",
-  "setDefaultForChurch",
-  (args) =>
-    Effect.gen(function* () {
-      const ctx = yield* MutationCtx.MutationCtx<DataModel>();
-      const auth = yield* getAuthenticatedChurchMember(args.churchId).pipe(
-        Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
-      );
-
-      if (auth.status === "notAuthenticated") {
-        return workflowErrorResponse(
-          "setDefaultWorkflow",
-          "not_authenticated",
-          "Authentication is required.",
-        );
-      }
-      if (auth.status === "notChurchMember") {
-        return workflowErrorResponse(
-          "setDefaultWorkflow",
-          "not_church_member",
-          "Church membership is required.",
-        );
-      }
-      if (auth.membership.role !== "owner" && auth.membership.role !== "admin") {
-        return workflowErrorResponse(
-          "setDefaultWorkflow",
-          "not_authorized",
-          "Only Church owners and admins can manage Workflows.",
-        );
-      }
-
-      const defaulted = yield* Effect.promise(() => setDefaultWorkflow(ctx, args)).pipe(
-        Effect.orDie,
-      );
-      if (!defaulted.ok) {
-        return workflowErrorResponse(
-          "setDefaultWorkflow",
-          "workflow_not_found",
-          "Workflow was not found in the active Church.",
-        );
-      }
-
-      if (defaulted.previousDefault?._id !== defaulted.workflow._id) {
-        yield* Effect.promise(() =>
-          writeActivity(ctx, {
-            churchId: args.churchId,
-            entityType: "workflow",
-            entityId: args.workflowId,
-            eventType: "workflow.default_changed",
-            actorType: "user",
-            actorId: auth.authUser._id,
-            occurredAt: new Date().toISOString(),
-            cycleId: null,
-            metadata: {
-              previousWorkflowId: defaulted.previousDefault?._id ?? null,
-              workflowId: defaulted.workflow._id,
-            },
-          }),
-        ).pipe(Effect.orDie);
-      }
-
-      const model = yield* Effect.promise(() => readWorkflowModel(ctx, args.churchId)).pipe(
-        Effect.orDie,
-      );
-      return workflowResponse("setDefaultWorkflow", serializeWorkflowModel(model));
-    }),
 );
 
 const workflowsAddStatus = FunctionImpl.make(api, "workflows", "addStatus", (args) =>
@@ -3952,24 +4015,21 @@ const workflowsRemapTaskTeam = FunctionImpl.make(api, "workflows", "remapTaskTea
         "Destination Team was not found in the active Church.",
       );
     }
-    const churchDefaultWorkflow = destinationTeam.defaultWorkflowId
-      ? null
-      : yield* Effect.promise(() =>
-          ctx.db
-            .query("workflows")
-            .withIndex("by_churchId", (q) => q.eq("churchId", args.churchId))
-            .filter((q) => q.eq(q.field("isDefault"), true))
-            .first(),
-        ).pipe(Effect.orDie);
-    const destinationWorkflowId = destinationTeam.defaultWorkflowId ?? churchDefaultWorkflow?._id;
 
-    if (!destinationWorkflowId) {
+    // Every Team owns its Workflow (ADR 0013); there is no Church default
+    // Workflow to fall back to.
+    const destinationWorkflow = yield* Effect.promise(() =>
+      getTeamWorkflow(ctx, { churchId: args.churchId, teamId: args.destinationTeamId }),
+    ).pipe(Effect.orDie);
+
+    if (!destinationWorkflow) {
       return workflowErrorResponse(
         "remapTaskTeamWorkflow",
         "team_workflow_not_configured",
-        "Destination Team does not have a default Workflow and the Church default Workflow is missing.",
+        "The destination Team's Workflow is missing.",
       );
     }
+    const destinationWorkflowId = destinationWorkflow._id;
 
     const remapped = yield* Effect.promise(() =>
       remapWorkflowStatusForTaskTeam(ctx, {
@@ -4079,6 +4139,7 @@ export const teams = GroupImpl.make(api, "teams").pipe(
   Layer.provide(teamListMembershipsForChurch),
   Layer.provide(teamCreateForChurch),
   Layer.provide(teamRenameForChurch),
+  Layer.provide(teamSetIdentifierForChurch),
   Layer.provide(teamArchiveForChurch),
   Layer.provide(teamDeleteForChurch),
   Layer.provide(teamReorderForChurch),
@@ -4093,6 +4154,7 @@ export const tasks = GroupImpl.make(api, "tasks").pipe(
   Layer.provide(tasksCancelBatch),
   Layer.provide(tasksReopenBatch),
   Layer.provide(tasksListForChurch),
+  Layer.provide(tasksResolveByIdentifier),
 );
 export const templates = GroupImpl.make(api, "templates").pipe(
   Layer.provide(templatesCreateForChurch),
@@ -4103,11 +4165,9 @@ export const templates = GroupImpl.make(api, "templates").pipe(
   Layer.provide(templatesUpdateTemplateTasks),
 );
 export const workflows = GroupImpl.make(api, "workflows").pipe(
-  Layer.provide(workflowsCreateForChurch),
   Layer.provide(workflowsRenameForChurch),
   Layer.provide(workflowsReorderForChurch),
   Layer.provide(workflowsArchiveForChurch),
-  Layer.provide(workflowsSetDefaultForChurch),
   Layer.provide(workflowsAddStatus),
   Layer.provide(workflowsRenameStatus),
   Layer.provide(workflowsReorderStatuses),

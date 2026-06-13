@@ -10,7 +10,7 @@ import {
 const baseTask: OptimisticTask = {
   id: "task-1",
   assignedUserId: null,
-  teamId: null,
+  teamId: "team-1",
   workflowStatusId: "status-todo",
   taskState: "todo",
   boardOrder: "a0",

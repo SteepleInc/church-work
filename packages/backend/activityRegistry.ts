@@ -42,14 +42,6 @@ export const ActivityMetadataByEventType = {
   "task.user_unassigned": Schema.Struct({
     previousAssignedUserId: Schema.String,
   }),
-  "task.team_assigned": Schema.Struct({
-    previousTeamId: Schema.Null,
-    teamId: Schema.String,
-    previousWorkflowId: Schema.String,
-    workflowId: Schema.String,
-    previousWorkflowStatusId: Schema.String,
-    workflowStatusId: Schema.String,
-  }),
   "task.team_changed": Schema.Struct({
     previousTeamId: Schema.String,
     teamId: Schema.String,
@@ -58,12 +50,13 @@ export const ActivityMetadataByEventType = {
     previousWorkflowStatusId: Schema.String,
     workflowStatusId: Schema.String,
   }),
-  "task.team_unassigned": Schema.Struct({
+  "task.renumbered": Schema.Struct({
+    previousIdentifier: Schema.String,
+    identifier: Schema.String,
+    previousNumber: Schema.Number,
+    number: Schema.Number,
     previousTeamId: Schema.String,
-    previousWorkflowId: Schema.String,
-    workflowId: Schema.String,
-    previousWorkflowStatusId: Schema.String,
-    workflowStatusId: Schema.String,
+    teamId: Schema.String,
   }),
   // Label add/remove on a Task. Names are denormalized so history reads
   // sensibly after a Label is hard-deleted (ADR 0013).
@@ -134,7 +127,6 @@ export const ActivityMetadataByEventType = {
   }),
   "workflow.created": Schema.Struct({
     name: Schema.String,
-    isDefault: Schema.Boolean,
   }),
   "workflow.renamed": Schema.Struct({
     previousName: Schema.String,
@@ -146,10 +138,6 @@ export const ActivityMetadataByEventType = {
   }),
   "workflow.archived": Schema.Struct({
     name: Schema.String,
-  }),
-  "workflow.default_changed": Schema.Struct({
-    previousWorkflowId: Schema.Union(Schema.String, Schema.Null),
-    workflowId: Schema.String,
   }),
   "workflow.status.created": Schema.Struct({
     workflowId: Schema.String,
@@ -172,7 +160,7 @@ export const ActivityMetadataByEventType = {
     taskState: TaskState,
   }),
   "task.team.changed": Schema.Struct({
-    fromTeamId: Schema.Union(Schema.String, Schema.Null),
+    fromTeamId: Schema.String,
     toTeamId: Schema.String,
     fromWorkflowId: Schema.String,
     toWorkflowId: Schema.String,
@@ -233,6 +221,10 @@ export const ActivityMetadataByEventType = {
     previousName: Schema.String,
     name: Schema.String,
   }),
+  "team.identifier_changed": Schema.Struct({
+    previousIdentifier: Schema.String,
+    identifier: Schema.String,
+  }),
   "team.archived": Schema.Struct({
     name: Schema.String,
   }),
@@ -242,10 +234,6 @@ export const ActivityMetadataByEventType = {
   "team.reordered": Schema.Struct({
     previousSortOrder: Schema.Number,
     sortOrder: Schema.Number,
-  }),
-  "team.default_workflow_changed": Schema.Struct({
-    previousWorkflowId: Schema.Union(Schema.String, Schema.Null),
-    workflowId: Schema.Union(Schema.String, Schema.Null),
   }),
   "team.member.added": Schema.Struct({
     memberUserId: Schema.String,
@@ -260,9 +248,8 @@ export const ActivityEventType = Schema.Literal(
   "task.updated",
   "task.user_assigned",
   "task.user_unassigned",
-  "task.team_assigned",
   "task.team_changed",
-  "task.team_unassigned",
+  "task.renumbered",
   "task.labels_changed",
   "task.status_moved",
   "task.due_date_changed",
@@ -278,7 +265,6 @@ export const ActivityEventType = Schema.Literal(
   "workflow.renamed",
   "workflow.reordered",
   "workflow.archived",
-  "workflow.default_changed",
   "workflow.status.created",
   "workflow.status.renamed",
   "workflow.status.reordered",
@@ -296,10 +282,10 @@ export const ActivityEventType = Schema.Literal(
   "church.invitation.canceled",
   "team.created",
   "team.renamed",
+  "team.identifier_changed",
   "team.archived",
   "team.deleted",
   "team.reordered",
-  "team.default_workflow_changed",
   "team.member.added",
   "team.member.removed",
 );
@@ -310,9 +296,8 @@ export const ActivityMetadata = Schema.Union(
   ActivityMetadataByEventType["task.updated"],
   ActivityMetadataByEventType["task.user_assigned"],
   ActivityMetadataByEventType["task.user_unassigned"],
-  ActivityMetadataByEventType["task.team_assigned"],
   ActivityMetadataByEventType["task.team_changed"],
-  ActivityMetadataByEventType["task.team_unassigned"],
+  ActivityMetadataByEventType["task.renumbered"],
   ActivityMetadataByEventType["task.labels_changed"],
   ActivityMetadataByEventType["task.status_moved"],
   ActivityMetadataByEventType["task.due_date_changed"],
@@ -328,7 +313,6 @@ export const ActivityMetadata = Schema.Union(
   ActivityMetadataByEventType["workflow.renamed"],
   ActivityMetadataByEventType["workflow.reordered"],
   ActivityMetadataByEventType["workflow.archived"],
-  ActivityMetadataByEventType["workflow.default_changed"],
   ActivityMetadataByEventType["workflow.status.created"],
   ActivityMetadataByEventType["workflow.status.renamed"],
   ActivityMetadataByEventType["workflow.status.reordered"],
@@ -346,10 +330,10 @@ export const ActivityMetadata = Schema.Union(
   ActivityMetadataByEventType["church.invitation.canceled"],
   ActivityMetadataByEventType["team.created"],
   ActivityMetadataByEventType["team.renamed"],
+  ActivityMetadataByEventType["team.identifier_changed"],
   ActivityMetadataByEventType["team.archived"],
   ActivityMetadataByEventType["team.deleted"],
   ActivityMetadataByEventType["team.reordered"],
-  ActivityMetadataByEventType["team.default_workflow_changed"],
   ActivityMetadataByEventType["team.member.added"],
   ActivityMetadataByEventType["team.member.removed"],
 );

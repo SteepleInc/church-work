@@ -56,6 +56,7 @@ import {
   TeamRenameArgs,
   TeamReorderArgs,
   TeamReadResponse,
+  TeamSetIdentifierArgs,
   TeamWriteResponse,
 } from "../agent/teamOperations";
 import {
@@ -72,6 +73,7 @@ import {
   TaskCreateBatchArgs,
   TaskListArgs,
   TaskReadResponse,
+  TaskResolveArgs,
   TaskTransitionBatchArgs,
   TaskUpdateBatchArgs,
   TaskWriteResponse,
@@ -81,13 +83,11 @@ import {
   WorkflowArchiveArgs,
   WorkflowArchiveStatusArgs,
   WorkflowAddStatusArgs,
-  WorkflowCreateArgs,
   WorkflowRenameArgs,
   WorkflowRenameStatusArgs,
   WorkflowRemapTaskTeamArgs,
   WorkflowReorderArgs,
   WorkflowReorderStatusesArgs,
-  WorkflowSetDefaultArgs,
   WorkflowWriteResponse,
 } from "../agent/workflowOperations";
 
@@ -303,6 +303,13 @@ export const teams = GroupSpec.make("teams")
   )
   .addFunction(
     FunctionSpec.publicMutation({
+      name: "setIdentifierForChurch",
+      args: TeamSetIdentifierArgs,
+      returns: TeamWriteResponse,
+    }),
+  )
+  .addFunction(
+    FunctionSpec.publicMutation({
       name: "archiveForChurch",
       args: TeamArchiveArgs,
       returns: TeamWriteResponse,
@@ -386,16 +393,16 @@ export const tasks = GroupSpec.make("tasks")
       args: TaskListArgs,
       returns: TaskReadResponse,
     }),
+  )
+  .addFunction(
+    FunctionSpec.publicQuery({
+      name: "resolveByIdentifier",
+      args: TaskResolveArgs,
+      returns: TaskReadResponse,
+    }),
   );
 
 export const workflows = GroupSpec.make("workflows")
-  .addFunction(
-    FunctionSpec.publicMutation({
-      name: "createForChurch",
-      args: WorkflowCreateArgs,
-      returns: WorkflowWriteResponse,
-    }),
-  )
   .addFunction(
     FunctionSpec.publicMutation({
       name: "renameForChurch",
@@ -414,13 +421,6 @@ export const workflows = GroupSpec.make("workflows")
     FunctionSpec.publicMutation({
       name: "archiveForChurch",
       args: WorkflowArchiveArgs,
-      returns: WorkflowWriteResponse,
-    }),
-  )
-  .addFunction(
-    FunctionSpec.publicMutation({
-      name: "setDefaultForChurch",
-      args: WorkflowSetDefaultArgs,
       returns: WorkflowWriteResponse,
     }),
   )

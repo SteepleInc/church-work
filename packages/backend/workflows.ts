@@ -70,58 +70,23 @@ export async function readWorkflowModel(
   return { workflows, workflowStatuses, tasks };
 }
 
-export async function createWorkflow(
-  ctx: MutationCtx,
-  args: {
-    readonly churchId: string;
-    readonly key: string;
-    readonly name: string;
-    readonly isDefault: boolean;
-    readonly sortOrder: number;
-    readonly statuses: ReadonlyArray<WorkflowStatusInput>;
-  },
+/**
+ * The Workflow owned by a Team (ADR 0013: every Team owns its Workflow).
+ * Returns null only when the invariant is violated — there is no Church
+ * default Workflow to fall back to.
+ */
+export async function getTeamWorkflow(
+  ctx: { readonly db: GenericDatabaseReader<DataModel> },
+  args: { readonly churchId: string; readonly teamId: string },
 ) {
-  const validationError = validateWorkflowStatuses(args.statuses);
-  if (validationError) return { ok: false as const, error: validationError };
-
-  const existingWorkflow = await ctx.db
+  const workflow = await ctx.db
     .query("workflows")
-    .withIndex("by_churchId_and_key", (q) => q.eq("churchId", args.churchId).eq("key", args.key))
-    .unique();
+    .withIndex("by_churchId_and_teamId", (q) =>
+      q.eq("churchId", args.churchId).eq("teamId", args.teamId),
+    )
+    .first();
 
-  if (existingWorkflow) return { ok: false as const, error: "Workflow keys must be unique." };
-
-  const workflowId = await ctx.db.insert("workflows", {
-    churchId: args.churchId,
-    key: args.key,
-    name: args.name,
-    isDefault: args.isDefault,
-    sortOrder: args.sortOrder,
-    archivedAt: null,
-  });
-
-  if (args.isDefault) {
-    const workflows = await ctx.db
-      .query("workflows")
-      .withIndex("by_churchId", (q) => q.eq("churchId", args.churchId))
-      .collect();
-    for (const workflow of workflows) {
-      if (workflow._id !== workflowId && workflow.isDefault) {
-        await ctx.db.patch(workflow._id, { isDefault: false });
-      }
-    }
-  }
-
-  for (const status of args.statuses) {
-    await ctx.db.insert("workflowStatuses", {
-      churchId: args.churchId,
-      workflowId,
-      ...status,
-      archivedAt: null,
-    });
-  }
-
-  return { ok: true as const, workflowId };
+  return workflow && workflow.archivedAt === null ? workflow : null;
 }
 
 export async function renameWorkflow(
@@ -165,30 +130,6 @@ export async function reorderWorkflows(
   }
 
   return { ok: true as const, workflowsById };
-}
-
-export async function setDefaultWorkflow(
-  ctx: MutationCtx,
-  args: { readonly churchId: string; readonly workflowId: string },
-) {
-  const workflow = await ctx.db.get(args.workflowId as Id<"workflows">);
-  if (!workflow || workflow.churchId !== args.churchId || workflow.archivedAt !== null) {
-    return { ok: false as const, code: "notFound" };
-  }
-
-  const workflows = await ctx.db
-    .query("workflows")
-    .withIndex("by_churchId", (q) => q.eq("churchId", args.churchId))
-    .collect();
-  const previousDefault = workflows.find((candidate) => candidate.isDefault);
-
-  for (const candidate of workflows) {
-    if (candidate.isDefault !== (candidate._id === workflow._id)) {
-      await ctx.db.patch(candidate._id, { isDefault: candidate._id === workflow._id });
-    }
-  }
-
-  return { ok: true as const, workflow, previousDefault };
 }
 
 export async function addWorkflowStatus(
@@ -308,22 +249,17 @@ export async function archiveWorkflow(
   if (!workflow || workflow.churchId !== args.churchId) {
     return { ok: false as const, code: "notFound" };
   }
-  if (workflow.isDefault) return { ok: false as const, code: "inUse", workflow };
 
-  const teams = (await ctx.runQuery(components.betterAuth.adapter.findMany, {
+  // Every Team owns its Workflow (ADR 0013): a Workflow stays in use while
+  // its owning Team is active.
+  const owningTeam = (await ctx.runQuery(components.betterAuth.adapter.findOne, {
     model: "team",
-    where: [{ field: "organizationId", value: args.churchId }],
-    paginationOpts: { cursor: null, numItems: 100 },
-  })) as { readonly page: ReadonlyArray<unknown> };
-  if (
-    teams.page.some(
-      (team) =>
-        typeof team === "object" &&
-        team !== null &&
-        "defaultWorkflowId" in team &&
-        team.defaultWorkflowId === args.workflowId,
-    )
-  ) {
+    where: [
+      { field: "_id", value: workflow.teamId },
+      { field: "organizationId", value: args.churchId },
+    ],
+  })) as { readonly archivedAt?: string | null } | null;
+  if (owningTeam && (owningTeam.archivedAt ?? null) === null) {
     return { ok: false as const, code: "inUse", workflow };
   }
 

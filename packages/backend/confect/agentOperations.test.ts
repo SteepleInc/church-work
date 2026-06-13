@@ -46,6 +46,45 @@ const authenticatedConfect = function* (
   });
 };
 
+type AuthenticatedTestConfect = ReturnType<
+  (typeof TestConfect.TestConfect.Service)["withIdentity"]
+>;
+
+// Every Task belongs to exactly one Team (ADR 0013): creation tests draw the
+// Worship Starter Team (falling back to the first listed Team) unless they
+// need a specific Team.
+const firstTeamId = (authenticated: AuthenticatedTestConfect, churchId: string) =>
+  Effect.gen(function* () {
+    const teams = yield* authenticated.query(refs.public.teams.listForChurch, { churchId });
+    return (teams.data.teams.find((team) => team.name === "Worship") ?? teams.data.teams[0]!).id;
+  });
+
+// Every Team owns exactly one Workflow (ADR 0013): tests resolve Workflows
+// and Workflow Statuses through the owning Team rather than a Church default.
+const workflowForTeam = <Workflow extends { readonly teamId: string }>(
+  defaults: { readonly data: { readonly workflows: ReadonlyArray<Workflow> } },
+  teamId: string,
+) => defaults.data.workflows.find((workflow) => workflow.teamId === teamId)!;
+
+const statusForTeam = <
+  Workflow extends { readonly id: string; readonly teamId: string },
+  Status extends { readonly workflowId: string; readonly taskState: string },
+>(
+  defaults: {
+    readonly data: {
+      readonly workflows: ReadonlyArray<Workflow>;
+      readonly workflowStatuses: ReadonlyArray<Status>;
+    };
+  },
+  teamId: string,
+  taskState: string,
+) => {
+  const workflow = workflowForTeam(defaults, teamId);
+  return defaults.data.workflowStatuses.find(
+    (status) => status.workflowId === workflow.id && status.taskState === taskState,
+  )!;
+};
+
 const createChurch = (
   c: typeof TestConfect.TestConfect.Service,
   args: {
@@ -375,12 +414,13 @@ describe("agent operation boundary", () => {
         (status) => status.taskState === "todo",
       )!;
 
+      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
       yield* authenticated.mutation(refs.public.tasks.createBatch, {
         churchId: church.id!,
         tasks: [
           {
             title: "Preserve existing cycle boundary",
-            teamId: null,
+            teamId: taskTeamId,
             workflowStatusId: todoStatus.id,
             dueDate: "2026-06-03",
             parentTaskId: null,
@@ -570,22 +610,34 @@ describe("agent operation boundary", () => {
       const result = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
         churchId: church.id!,
       });
+      const teams = yield* authenticated.query(refs.public.teams.listForChurch, {
+        churchId: church.id!,
+      });
 
       expect(result.ok).toBe(true);
-      expect(result.data.workflows).toMatchObject([
-        {
-          key: "church-default",
-          name: "Default Workflow",
-          isDefault: true,
+      // Every Team owns its Workflow (ADR 0013): church creation seeds each
+      // Starter Team its own To Do / In Progress / Done Workflow. There is no
+      // Church default Workflow.
+      expect(teams.data.teams).toHaveLength(6);
+      expect(result.data.workflows).toHaveLength(6);
+      for (const team of teams.data.teams) {
+        const workflow = result.data.workflows.find((candidate) => candidate.teamId === team.id)!;
+        expect(workflow).toMatchObject({
+          key: `team-${team.id}`,
+          name: team.name,
           sortOrder: 0,
           archivedAt: null,
-        },
-      ]);
-      expect(result.data.workflowStatuses.map((status) => [status.key, status.taskState])).toEqual([
-        ["to-do", "todo"],
-        ["in-progress", "in_progress"],
-        ["done", "done"],
-      ]);
+        });
+        expect(
+          result.data.workflowStatuses
+            .filter((status) => status.workflowId === workflow.id)
+            .map((status) => [status.key, status.taskState]),
+        ).toEqual([
+          ["to-do", "todo"],
+          ["in-progress", "in_progress"],
+          ["done", "done"],
+        ]);
+      }
       expect(result.data.keyDates.map((keyDate) => keyDate.key)).toEqual([
         "christmas",
         "easter",
@@ -598,67 +650,69 @@ describe("agent operation boundary", () => {
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 
-  it.effect(
-    "Church creation seeds editable starter Teams that use the default Workflow fallback",
-    () =>
-      Effect.gen(function* () {
-        const c = yield* TestConfect.TestConfect;
-        const email = `agent-starter-teams-${crypto.randomUUID()}@example.com`;
-        const signUpResponse = yield* signUpWithEmail(c, email);
-        const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
-          user?: { id?: string };
-          token?: string;
-        };
-        const churchResponse = yield* createChurch(c, {
-          token: signUpBody.token!,
-          name: "Starter Teams Church",
-          slug: `starter-teams-${crypto.randomUUID()}`,
-        });
-        const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
-        const authenticated = yield* authenticatedConfect(c, {
-          userId: signUpBody.user!.id!,
-          sessionToken: signUpBody.token!,
-        });
+  it.effect("Church creation seeds editable starter Teams that each own a Workflow", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-starter-teams-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Starter Teams Church",
+        slug: `starter-teams-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
 
-        const teams = yield* authenticated.query(refs.public.teams.listForChurch, {
-          churchId: church.id!,
-        });
-        const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
-          churchId: church.id!,
-        });
+      const teams = yield* authenticated.query(refs.public.teams.listForChurch, {
+        churchId: church.id!,
+      });
 
-        expect(teams.ok).toBe(true);
-        expect(teams.data.teams.map((team) => team.name)).toEqual([
-          "Worship",
-          "Production",
-          "Kids",
-          "Experience",
-          "Facilities",
-          "Social Media",
-        ]);
-        expect(teams.data.teams.map((team) => team.sortOrder)).toEqual([0, 1, 2, 3, 4, 5]);
-        expect(teams.data.teams.every((team) => team.archivedAt === null)).toBe(true);
-        expect(teams.data.teams.every((team) => team.defaultWorkflowId === null)).toBe(true);
-        expect(defaults.data.workflows).toMatchObject([
-          { key: "church-default", name: "Default Workflow", isDefault: true },
-        ]);
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
+        churchId: church.id!,
+      });
 
-        yield* authenticated.mutation(refs.public.workDefaults.seedForChurch, {
-          churchId: church.id!,
-        });
-        const teamsAfterReseed = yield* authenticated.query(refs.public.teams.listForChurch, {
-          churchId: church.id!,
-        });
+      expect(teams.ok).toBe(true);
+      expect(teams.data.teams.map((team) => team.name)).toEqual([
+        "Worship",
+        "Production",
+        "Kids",
+        "Experience",
+        "Facilities",
+        "Social Media",
+      ]);
+      expect(teams.data.teams.map((team) => team.sortOrder)).toEqual([0, 1, 2, 3, 4, 5]);
+      expect(teams.data.teams.every((team) => team.archivedAt === null)).toBe(true);
+      // Every starter Team owns its own seeded Workflow named after the
+      // Team (ADR 0013).
+      for (const team of teams.data.teams) {
+        expect(
+          defaults.data.workflows.find((workflow) => workflow.teamId === team.id),
+        ).toMatchObject({ name: team.name });
+      }
 
-        expect(teamsAfterReseed.data.teams.map((team) => team.name)).toEqual([
-          "Worship",
-          "Production",
-          "Kids",
-          "Experience",
-          "Facilities",
-          "Social Media",
-        ]);
-      }).pipe(Effect.provide(TestConfect.layer())),
+      yield* authenticated.mutation(refs.public.workDefaults.seedForChurch, {
+        churchId: church.id!,
+      });
+      const teamsAfterReseed = yield* authenticated.query(refs.public.teams.listForChurch, {
+        churchId: church.id!,
+      });
+
+      expect(teamsAfterReseed.data.teams.map((team) => team.name)).toEqual([
+        "Worship",
+        "Production",
+        "Kids",
+        "Experience",
+        "Facilities",
+        "Social Media",
+      ]);
+    }).pipe(Effect.provide(TestConfect.layer())),
   );
 
   it.effect("default work model seeding is idempotent", () =>
@@ -687,9 +741,15 @@ describe("agent operation boundary", () => {
       const result = yield* authenticated.mutation(refs.public.workDefaults.seedForChurch, {
         churchId: church.id!,
       });
+      const teams = yield* authenticated.query(refs.public.teams.listForChurch, {
+        churchId: church.id!,
+      });
 
-      expect(result.data.workflows).toHaveLength(1);
-      expect(result.data.workflowStatuses).toHaveLength(3);
+      // Re-seeding never duplicates the 6 starter Teams, their per-Team
+      // Workflows, the 3 statuses each, or the starter Key Dates (ADR 0013).
+      expect(teams.data.teams).toHaveLength(6);
+      expect(result.data.workflows).toHaveLength(6);
+      expect(result.data.workflowStatuses).toHaveLength(18);
       expect(result.data.keyDates).toHaveLength(6);
     }).pipe(Effect.provide(TestConfect.layer())),
   );
@@ -801,6 +861,7 @@ describe("agent operation boundary", () => {
         churchId: church.id!,
       });
       const easter = keyDates.data.keyDates.find((keyDate) => keyDate.key === "easter")!;
+      const templateTeamId = yield* firstTeamId(authenticated, church.id!);
 
       const created = yield* authenticated.mutation(refs.public.templates.createForChurch, {
         churchId: church.id!,
@@ -809,6 +870,7 @@ describe("agent operation boundary", () => {
             key: "easter-prep",
             name: "Easter Prep",
             recurrence: "yearly",
+            templateTeams: [{ key: "owner", name: "Owner", mappedTeamId: templateTeamId }],
             focusWindows: [
               {
                 key: "holy-week",
@@ -824,12 +886,14 @@ describe("agent operation boundary", () => {
               {
                 key: "fixed",
                 title: "Fixed date work",
+                templateTeamKey: null,
                 parentTemplateTaskKey: null,
                 schedulingRule: { kind: "fixedDate", localDate: "2026-03-28" },
               },
               {
                 key: "window-start",
                 title: "Focus window work",
+                templateTeamKey: null,
                 parentTemplateTaskKey: "fixed",
                 schedulingRule: {
                   kind: "relativeToFocusWindow",
@@ -841,6 +905,7 @@ describe("agent operation boundary", () => {
               {
                 key: "anchor",
                 title: "Anchor date work",
+                templateTeamKey: null,
                 parentTemplateTaskKey: null,
                 schedulingRule: {
                   kind: "relativeToAnchorDate",
@@ -851,6 +916,7 @@ describe("agent operation boundary", () => {
               {
                 key: "key-date",
                 title: "Key Date work",
+                templateTeamKey: null,
                 parentTemplateTaskKey: null,
                 schedulingRule: {
                   kind: "relativeToKeyDate",
@@ -862,6 +928,7 @@ describe("agent operation boundary", () => {
               {
                 key: "cycle-offset",
                 title: "Cycle offset work",
+                templateTeamKey: null,
                 parentTemplateTaskKey: null,
                 schedulingRule: {
                   kind: "cycleOffset",
@@ -923,6 +990,7 @@ describe("agent operation boundary", () => {
         userId: signUpBody.user!.id!,
         sessionToken: signUpBody.token!,
       });
+      const templateTeamId = yield* firstTeamId(authenticated, church.id!);
 
       const created = yield* authenticated.mutation(refs.public.templates.createForChurch, {
         churchId: church.id!,
@@ -930,11 +998,13 @@ describe("agent operation boundary", () => {
           key: `template-${recurrence}`,
           name: `Template ${recurrence}`,
           recurrence,
+          templateTeams: [{ key: "owner", name: "Owner", mappedTeamId: templateTeamId }],
           focusWindows: [],
           templateTasks: [
             {
               key: "task",
               title: `Task ${recurrence}`,
+              templateTeamKey: null,
               parentTemplateTaskKey: null,
               schedulingRule: { kind: "fixedDate", localDate: "2026-06-01" },
             },
@@ -978,12 +1048,13 @@ describe("agent operation boundary", () => {
       const todoStatus = defaults.data.workflowStatuses.find(
         (status) => status.taskState === "todo",
       )!;
+      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
       const cycleSeed = yield* authenticated.mutation(refs.public.tasks.createBatch, {
         churchId: church.id!,
         tasks: [
           {
             title: "Seed cycle",
-            teamId: null,
+            teamId: taskTeamId,
             workflowStatusId: todoStatus.id,
             dueDate: "2026-06-03",
             parentTaskId: null,
@@ -998,23 +1069,27 @@ describe("agent operation boundary", () => {
             key: "weekly-prep",
             name: "Weekly Prep",
             recurrence: "weekly",
+            templateTeams: [{ key: "owner", name: "Owner", mappedTeamId: taskTeamId }],
             focusWindows: [],
             templateTasks: [
               {
                 key: "parent",
                 title: "Prepare worship plan",
+                templateTeamKey: null,
                 parentTemplateTaskKey: null,
                 schedulingRule: { kind: "fixedDate", localDate: "2026-06-03" },
               },
               {
                 key: "child",
                 title: "Confirm musicians",
+                templateTeamKey: null,
                 parentTemplateTaskKey: "parent",
                 schedulingRule: { kind: "fixedDate", localDate: "2026-06-03" },
               },
               {
                 key: "skip-me",
                 title: "Print handouts",
+                templateTeamKey: null,
                 parentTemplateTaskKey: null,
                 schedulingRule: { kind: "fixedDate", localDate: "2026-06-03" },
               },
@@ -1109,6 +1184,7 @@ describe("agent operation boundary", () => {
           userId: signUpBody.user!.id!,
           sessionToken: signUpBody.token!,
         });
+        const templateTeamId = yield* firstTeamId(authenticated, church.id!);
 
         const created = yield* authenticated.mutation(refs.public.templates.createForChurch, {
           churchId: church.id!,
@@ -1117,17 +1193,20 @@ describe("agent operation boundary", () => {
               key: "weekly-service",
               name: "Weekly Service",
               recurrence: "weekly",
+              templateTeams: [{ key: "owner", name: "Owner", mappedTeamId: templateTeamId }],
               focusWindows: [],
               templateTasks: [
                 {
                   key: "parent",
                   title: "Prepare service plan",
+                  templateTeamKey: null,
                   parentTemplateTaskKey: null,
                   schedulingRule: { kind: "fixedDate", localDate: "2026-06-03" },
                 },
                 {
                   key: "child-next-week",
                   title: "Prepare follow-up email",
+                  templateTeamKey: null,
                   parentTemplateTaskKey: "parent",
                   schedulingRule: { kind: "fixedDate", localDate: "2026-06-10" },
                 },
@@ -1181,6 +1260,306 @@ describe("agent operation boundary", () => {
       }).pipe(Effect.provide(TestConfect.layer())),
   );
 
+  it.effect("Template Teams map projected Tasks to each slot's Team sequence", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-template-teams-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Template Teams Church",
+        slug: `template-teams-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
+      const firstTeamIdValue = yield* firstTeamId(authenticated, church.id!);
+      const createdTeams = yield* authenticated.mutation(refs.public.teams.createForChurch, {
+        churchId: church.id!,
+        name: "Production",
+      });
+      const productionTeam = createdTeams.data.teams.find((team) => team.name === "Production")!;
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
+        churchId: church.id!,
+      });
+      const firstTeamTodo = statusForTeam(defaults, firstTeamIdValue, "todo");
+
+      yield* authenticated.mutation(refs.public.tasks.createBatch, {
+        churchId: church.id!,
+        tasks: [
+          {
+            title: "Seed first team number",
+            teamId: firstTeamIdValue,
+            workflowStatusId: firstTeamTodo.id,
+            dueDate: "2026-06-01",
+            parentTaskId: null,
+          },
+        ],
+      });
+      const created = yield* authenticated.mutation(refs.public.templates.createForChurch, {
+        churchId: church.id!,
+        templates: [
+          {
+            key: "multi-team-service",
+            name: "Multi-team Service",
+            recurrence: "weekly",
+            templateTeams: [
+              { key: "worship", name: "Worship Slot", mappedTeamId: firstTeamIdValue },
+              { key: "production", name: "Production Slot", mappedTeamId: productionTeam.id },
+            ],
+            focusWindows: [],
+            templateTasks: [
+              {
+                key: "plan-songs",
+                title: "Plan songs",
+                templateTeamKey: "worship",
+                parentTemplateTaskKey: null,
+                schedulingRule: { kind: "fixedDate", localDate: "2026-06-03" },
+              },
+              {
+                key: "prep-slides",
+                title: "Prep slides",
+                templateTeamKey: "production",
+                parentTemplateTaskKey: null,
+                schedulingRule: { kind: "fixedDate", localDate: "2026-06-03" },
+              },
+            ],
+          },
+        ],
+      });
+      const materialized = yield* authenticated.mutation(
+        refs.public.templates.materializeProjectedTasks,
+        { churchId: church.id!, occurrenceCycleIds: [] },
+      );
+      const listed = yield* authenticated.query(refs.public.tasks.listForChurch, {
+        churchId: church.id!,
+      });
+      const worshipTask = listed.data.tasks.find((task) => task.title === "Plan songs")!;
+      const productionTask = listed.data.tasks.find((task) => task.title === "Prep slides")!;
+      const worshipSlot = created.data.templateTeams.find((slot) => slot.key === "worship")!;
+      const worshipTemplateTask = created.data.templateTasks.find(
+        (task) => task.key === "plan-songs",
+      )!;
+
+      expect(created.ok).toBe(true);
+      expect(worshipTemplateTask.templateTeamId).toBe(worshipSlot.id);
+      expect(materialized.ok).toBe(true);
+      expect(worshipTask).toMatchObject({ teamId: firstTeamIdValue, number: 2 });
+      expect(productionTask).toMatchObject({ teamId: productionTeam.id, number: 1 });
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("Team deletion remaps or abandons mapped Template Teams before removal", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-template-team-delete-repair-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Template Team Delete Repair Church",
+        slug: `template-team-delete-repair-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
+      const createdTeams = yield* authenticated.mutation(refs.public.teams.createForChurch, {
+        churchId: church.id!,
+        name: "Disposable",
+      });
+      const disposable = createdTeams.data.teams.find((team) => team.name === "Disposable")!;
+      const target = createdTeams.data.teams.find((team) => team.name === "Worship")!;
+
+      const created = yield* authenticated.mutation(refs.public.templates.createForChurch, {
+        churchId: church.id!,
+        templates: [
+          {
+            key: "repair-delete-template",
+            name: "Repair Delete Template",
+            recurrence: "weekly",
+            templateTeams: [
+              { key: "remap", name: "Remap Slot", mappedTeamId: disposable.id },
+              { key: "abandon", name: "Abandon Slot", mappedTeamId: disposable.id },
+            ],
+            focusWindows: [],
+            templateTasks: [
+              {
+                key: "remapped-task",
+                title: "Remapped task",
+                templateTeamKey: "remap",
+                parentTemplateTaskKey: null,
+                schedulingRule: { kind: "fixedDate", localDate: "2026-06-03" },
+              },
+              {
+                key: "abandoned-task",
+                title: "Abandoned task",
+                templateTeamKey: "abandon",
+                parentTemplateTaskKey: null,
+                schedulingRule: { kind: "fixedDate", localDate: "2026-06-03" },
+              },
+            ],
+          },
+        ],
+      });
+      const remapSlot = created.data.templateTeams.find((slot) => slot.key === "remap")!;
+      const abandonSlot = created.data.templateTeams.find((slot) => slot.key === "abandon")!;
+      const abandonedTemplateTask = created.data.templateTasks.find(
+        (task) => task.key === "abandoned-task",
+      )!;
+
+      const blocked = yield* authenticated.mutation(refs.public.teams.deleteForChurch, {
+        churchId: church.id!,
+        teamId: disposable.id,
+      });
+      const deleted = yield* authenticated.mutation(refs.public.teams.deleteForChurch, {
+        churchId: church.id!,
+        teamId: disposable.id,
+        templateTeamRepairs: [
+          { templateTeamId: remapSlot.id, action: "remap", mappedTeamId: target.id },
+          { templateTeamId: abandonSlot.id, action: "abandon" },
+        ],
+      });
+      const materialized = yield* authenticated.mutation(
+        refs.public.templates.materializeProjectedTasks,
+        { churchId: church.id!, occurrenceCycleIds: [] },
+      );
+      const listedTasks = yield* authenticated.query(refs.public.tasks.listForChurch, {
+        churchId: church.id!,
+      });
+      const templateTeamsMappedToDeleted = materialized.data.templateTeams.filter(
+        (slot) => slot.archivedAt === null && slot.mappedTeamId === disposable.id,
+      );
+
+      expect(blocked).toEqual({
+        ok: false,
+        operation: "deleteTeam",
+        error: {
+          code: "template_team_repair_required",
+          message:
+            "Template Teams mapped to this Team must be remapped or abandoned before deleting.",
+        },
+      });
+      expect(deleted.ok).toBe(true);
+      expect(materialized.ok).toBe(true);
+      expect(templateTeamsMappedToDeleted).toEqual([]);
+      expect(
+        materialized.data.templateTeams.find((slot) => slot.id === remapSlot.id),
+      ).toMatchObject({
+        mappedTeamId: target.id,
+        archivedAt: null,
+      });
+      expect(
+        materialized.data.templateTeams.find((slot) => slot.id === abandonSlot.id),
+      ).toMatchObject({ archivedAt: expect.any(String) });
+      expect(
+        materialized.data.templateTasks.find((task) => task.id === abandonedTemplateTask.id),
+      ).toMatchObject({ archivedAt: expect.any(String) });
+      expect(listedTasks.data.tasks.find((task) => task.title === "Remapped task")).toMatchObject({
+        teamId: target.id,
+      });
+      expect(listedTasks.data.tasks.some((task) => task.title === "Abandoned task")).toBe(false);
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("Team archival requires Template Team repairs before archiving", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-template-team-archive-repair-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Template Team Archive Repair Church",
+        slug: `template-team-archive-repair-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
+      const createdTeams = yield* authenticated.mutation(refs.public.teams.createForChurch, {
+        churchId: church.id!,
+        name: "Archive Source",
+      });
+      const source = createdTeams.data.teams.find((team) => team.name === "Archive Source")!;
+      const target = createdTeams.data.teams.find((team) => team.name === "Worship")!;
+      const created = yield* authenticated.mutation(refs.public.templates.createForChurch, {
+        churchId: church.id!,
+        templates: [
+          {
+            key: "repair-archive-template",
+            name: "Repair Archive Template",
+            recurrence: "weekly",
+            templateTeams: [{ key: "owner", name: "Owner", mappedTeamId: source.id }],
+            focusWindows: [],
+            templateTasks: [
+              {
+                key: "archive-remapped-task",
+                title: "Archive remapped task",
+                templateTeamKey: null,
+                parentTemplateTaskKey: null,
+                schedulingRule: { kind: "fixedDate", localDate: "2026-06-03" },
+              },
+            ],
+          },
+        ],
+      });
+      const slot = created.data.templateTeams[0]!;
+
+      const blocked = yield* authenticated.mutation(refs.public.teams.archiveForChurch, {
+        churchId: church.id!,
+        teamId: source.id,
+      });
+      const archived = yield* authenticated.mutation(refs.public.teams.archiveForChurch, {
+        churchId: church.id!,
+        teamId: source.id,
+        templateTeamRepairs: [
+          { templateTeamId: slot.id, action: "remap", mappedTeamId: target.id },
+        ],
+      });
+      const materialized = yield* authenticated.mutation(
+        refs.public.templates.materializeProjectedTasks,
+        { churchId: church.id!, occurrenceCycleIds: [] },
+      );
+      const listedTasks = yield* authenticated.query(refs.public.tasks.listForChurch, {
+        churchId: church.id!,
+      });
+
+      expect(blocked).toEqual({
+        ok: false,
+        operation: "archiveTeam",
+        error: {
+          code: "template_team_repair_required",
+          message:
+            "Template Teams mapped to this Team must be remapped or abandoned before archiving.",
+        },
+      });
+      expect(archived.ok).toBe(true);
+      expect(archived.data.teams.some((team) => team.id === source.id)).toBe(false);
+      expect(materialized.data.templateTeams.find((team) => team.id === slot.id)).toMatchObject({
+        mappedTeamId: target.id,
+        archivedAt: null,
+      });
+      expect(
+        listedTasks.data.tasks.find((task) => task.title === "Archive remapped task"),
+      ).toMatchObject({ teamId: target.id });
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
   it.effect("Template Task edits sync only future unadjusted projected Tasks", () =>
     Effect.gen(function* () {
       const c = yield* TestConfect.TestConfect;
@@ -1207,12 +1586,13 @@ describe("agent operation boundary", () => {
         (status) => status.taskState === "todo",
       )!;
 
+      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
       const cycleSeed = yield* authenticated.mutation(refs.public.tasks.createBatch, {
         churchId: church.id!,
         tasks: [
           {
             title: "Seed future adjustment cycle",
-            teamId: null,
+            teamId: taskTeamId,
             workflowStatusId: todoStatus.id,
             dueDate: "2026-06-17",
             parentTaskId: null,
@@ -1227,35 +1607,41 @@ describe("agent operation boundary", () => {
             key: "template-sync",
             name: "Template Sync",
             recurrence: "weekly",
+            templateTeams: [{ key: "owner", name: "Owner", mappedTeamId: taskTeamId }],
             focusWindows: [],
             templateTasks: [
               {
                 key: "past",
                 title: "Past projected work",
+                templateTeamKey: null,
                 parentTemplateTaskKey: null,
                 schedulingRule: { kind: "fixedDate", localDate: "2026-06-03" },
               },
               {
                 key: "current",
                 title: "Current projected work",
+                templateTeamKey: null,
                 parentTemplateTaskKey: null,
                 schedulingRule: { kind: "fixedDate", localDate: "2026-06-10" },
               },
               {
                 key: "future",
                 title: "Future projected work",
+                templateTeamKey: null,
                 parentTemplateTaskKey: null,
                 schedulingRule: { kind: "fixedDate", localDate: "2026-06-17" },
               },
               {
                 key: "adjusted",
                 title: "Adjusted projected work",
+                templateTeamKey: null,
                 parentTemplateTaskKey: null,
                 schedulingRule: { kind: "fixedDate", localDate: "2026-06-17" },
               },
               {
                 key: "rolled",
                 title: "Rolled projected work",
+                templateTeamKey: null,
                 parentTemplateTaskKey: null,
                 schedulingRule: { kind: "fixedDate", localDate: "2026-06-03" },
               },
@@ -1385,19 +1771,20 @@ describe("agent operation boundary", () => {
         (status) => status.taskState === "done",
       )!;
 
+      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
       const seededTasks = yield* authenticated.mutation(refs.public.tasks.createBatch, {
         churchId: church.id!,
         tasks: [
           {
             title: "Carry sermon outline",
-            teamId: null,
+            teamId: taskTeamId,
             workflowStatusId: todoStatus.id,
             dueDate: "2026-06-03",
             parentTaskId: null,
           },
           {
             title: "Completed slides",
-            teamId: null,
+            teamId: taskTeamId,
             workflowStatusId: doneStatus.id,
             dueDate: "2026-06-04",
             parentTaskId: null,
@@ -1411,11 +1798,13 @@ describe("agent operation boundary", () => {
             key: "next-week-service",
             name: "Next Week Service",
             recurrence: "weekly",
+            templateTeams: [{ key: "owner", name: "Owner", mappedTeamId: taskTeamId }],
             focusWindows: [],
             templateTasks: [
               {
                 key: "prepare-next-week",
                 title: "Prepare next week service plan",
+                templateTeamKey: null,
                 parentTemplateTaskKey: null,
                 schedulingRule: { kind: "fixedDate", localDate: "2026-06-10" },
               },
@@ -1513,19 +1902,20 @@ describe("agent operation boundary", () => {
         (status) => status.taskState === "done",
       )!;
 
+      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
       const createdParent = yield* authenticated.mutation(refs.public.tasks.createBatch, {
         churchId: church.id!,
         tasks: [
           {
             title: "Prepare Sunday slides",
-            teamId: null,
+            teamId: taskTeamId,
             workflowStatusId: todoStatus.id,
             dueDate: "2026-06-03",
             parentTaskId: null,
           },
           {
             title: "Plan next month volunteers",
-            teamId: null,
+            teamId: taskTeamId,
             workflowStatusId: todoStatus.id,
             dueDate: "2026-06-17",
             parentTaskId: null,
@@ -1544,7 +1934,7 @@ describe("agent operation boundary", () => {
         tasks: [
           {
             title: "Export final slide deck",
-            teamId: null,
+            teamId: taskTeamId,
             workflowStatusId: doneStatus.id,
             dueDate: "2026-06-10",
             parentTaskId: parentTask.id,
@@ -1660,12 +2050,13 @@ describe("agent operation boundary", () => {
         (status) => status.taskState === "todo",
       )!;
 
+      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
       const assigned = yield* authenticated.mutation(refs.public.tasks.createBatch, {
         churchId: church.id!,
         tasks: [
           {
             title: "Call assigned volunteer",
-            teamId: null,
+            teamId: taskTeamId,
             assignedUserId: member.user!.id!,
             workflowStatusId: todoStatus.id,
             dueDate: "2026-06-03",
@@ -1678,7 +2069,7 @@ describe("agent operation boundary", () => {
         tasks: [
           {
             title: "Call outside volunteer",
-            teamId: null,
+            teamId: taskTeamId,
             assignedUserId: outsider.user!.id!,
             workflowStatusId: todoStatus.id,
             dueDate: "2026-06-03",
@@ -1701,7 +2092,7 @@ describe("agent operation boundary", () => {
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 
-  it.effect("Task creation validates Team defaults and effective Workflow Statuses", () =>
+  it.effect("Task creation validates statuses against the Team's own Workflow", () =>
     Effect.gen(function* () {
       const c = yield* TestConfect.TestConfect;
       const ownerResponse = yield* signUpWithEmail(
@@ -1736,41 +2127,19 @@ describe("agent operation boundary", () => {
         userId: owner.user!.id!,
         sessionToken: owner.token!,
       });
+      yield* authenticated.mutation(refs.public.teams.updateProductFields, {
+        churchId: church.id!,
+        updates: [{ teamId: archivedTeam.id!, fields: { archivedAt: "2026-06-01T00:00:00.000Z" } }],
+      });
       const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
         churchId: church.id!,
       });
-      const defaultWorkflow = defaults.data.workflows.find((workflow) => workflow.isDefault)!;
-      const defaultTodo = defaults.data.workflowStatuses.find(
-        (status) => status.workflowId === defaultWorkflow.id && status.taskState === "todo",
-      )!;
-      const teamWorkflowResult = yield* authenticated.mutation(
-        refs.public.workflows.createForChurch,
-        {
-          churchId: church.id!,
-          key: "hospitality-flow",
-          name: "Hospitality Flow",
-          isDefault: false,
-          sortOrder: 1,
-          statuses: [
-            { key: "todo", name: "Ready", taskState: "todo", sortOrder: 0 },
-            { key: "doing", name: "Doing", taskState: "in_progress", sortOrder: 1 },
-            { key: "done", name: "Done", taskState: "done", sortOrder: 2 },
-          ],
-        },
-      );
-      const teamWorkflow = teamWorkflowResult.data.workflows.find(
-        (workflow) => workflow.key === "hospitality-flow",
-      )!;
-      const teamTodo = teamWorkflowResult.data.workflowStatuses.find(
-        (status) => status.workflowId === teamWorkflow.id && status.taskState === "todo",
-      )!;
-      yield* authenticated.mutation(refs.public.teams.updateProductFields, {
-        churchId: church.id!,
-        updates: [
-          { teamId: team.id!, fields: { defaultWorkflowId: teamWorkflow.id } },
-          { teamId: archivedTeam.id!, fields: { archivedAt: "2026-06-01T00:00:00.000Z" } },
-        ],
-      });
+      // Every Team owns its Workflow (ADR 0013): the new Team's Workflow was
+      // seeded through the Better Auth create-team hook.
+      const teamWorkflow = workflowForTeam(defaults, team.id!);
+      const teamTodo = statusForTeam(defaults, team.id!, "todo");
+      const starterTeamId = yield* firstTeamId(authenticated, church.id!);
+      const starterTodo = statusForTeam(defaults, starterTeamId, "todo");
 
       const created = yield* authenticated.mutation(refs.public.tasks.createBatch, {
         churchId: church.id!,
@@ -1791,7 +2160,7 @@ describe("agent operation boundary", () => {
           {
             title: "Wrong Workflow Status",
             teamId: team.id!,
-            workflowStatusId: defaultTodo.id,
+            workflowStatusId: starterTodo.id,
             dueDate: "2026-06-03",
             parentTaskId: null,
           },
@@ -1803,7 +2172,7 @@ describe("agent operation boundary", () => {
           {
             title: "Archived Team Task",
             teamId: archivedTeam.id!,
-            workflowStatusId: defaultTodo.id,
+            workflowStatusId: teamTodo.id,
             dueDate: "2026-06-03",
             parentTaskId: null,
           },
@@ -1835,6 +2204,61 @@ describe("agent operation boundary", () => {
           message: "Team was not found in the active Church.",
         },
       });
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("Task creation rejects Tasks without a Team", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const ownerResponse = yield* signUpWithEmail(
+        c,
+        `agent-task-team-required-${crypto.randomUUID()}@example.com`,
+      );
+      const owner = (yield* Effect.promise(() => ownerResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: owner.token!,
+        name: "Task Team Required Church",
+        slug: `task-team-required-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: owner.user!.id!,
+        sessionToken: owner.token!,
+      });
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
+        churchId: church.id!,
+      });
+      const todoStatus = defaults.data.workflowStatuses.find(
+        (status) => status.taskState === "todo",
+      )!;
+
+      // Every Task belongs to exactly one Team (ADR 0013): a null team no
+      // longer passes the creation args, so no code path can create a
+      // team-less Task through the centralized creation helper.
+      const teamlessExit = yield* authenticated
+        .mutation(refs.public.tasks.createBatch, {
+          churchId: church.id!,
+          tasks: [
+            {
+              title: "Teamless Task",
+              teamId: null as unknown as string,
+              workflowStatusId: todoStatus.id,
+              dueDate: "2026-06-03",
+              parentTaskId: null,
+            },
+          ],
+        })
+        .pipe(Effect.exit);
+
+      expect(teamlessExit._tag).toBe("Failure");
+
+      const listed = yield* authenticated.query(refs.public.tasks.listForChurch, {
+        churchId: church.id!,
+      });
+      expect(listed.data.tasks).toEqual([]);
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 
@@ -1898,12 +2322,13 @@ describe("agent operation boundary", () => {
       const todoStatus = defaults.data.workflowStatuses.find(
         (status) => status.taskState === "todo",
       )!;
+      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
       const created = yield* authenticated.mutation(refs.public.tasks.createBatch, {
         churchId: church.id!,
         tasks: [
           {
             title: "Assign through update",
-            teamId: null,
+            teamId: taskTeamId,
             workflowStatusId: todoStatus.id,
             dueDate: "2026-06-03",
             parentTaskId: null,
@@ -1980,6 +2405,49 @@ describe("agent operation boundary", () => {
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 
+  it.effect("Task update moves Tasks between Teams with Workflow remap Activity", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const ownerResponse = yield* signUpWithEmail(
+        c,
+        `agent-task-team-update-owner-${crypto.randomUUID()}@example.com`,
+      );
+      const owner = (yield* Effect.promise(() => ownerResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: owner.token!,
+        name: "Task Team Update Church",
+        slug: `task-team-update-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: owner.user!.id!,
+        sessionToken: owner.token!,
+      });
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
+        churchId: church.id!,
+      });
+      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
+      const todoStatus = statusForTeam(defaults, taskTeamId, "todo");
+      const created = yield* authenticated.mutation(refs.public.tasks.createBatch, {
+        churchId: church.id!,
+        tasks: [
+          {
+            title: "Team move task",
+            teamId: taskTeamId,
+            workflowStatusId: todoStatus.id,
+            dueDate: "2026-06-03",
+            parentTaskId: null,
+          },
+        ],
+      });
+
+      expect(created.data.tasks[0]?.teamId).toBe(taskTeamId);
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
   it.effect("Task estimate persists through create, update, and clear with Activity", () =>
     Effect.gen(function* () {
       const c = yield* TestConfect.TestConfect;
@@ -2004,15 +2472,14 @@ describe("agent operation boundary", () => {
       const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
         churchId: church.id!,
       });
-      const todoStatus = defaults.data.workflowStatuses.find(
-        (status) => status.taskState === "todo",
-      )!;
+      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
+      const todoStatus = statusForTeam(defaults, taskTeamId, "todo");
       const created = yield* authenticated.mutation(refs.public.tasks.createBatch, {
         churchId: church.id!,
         tasks: [
           {
             title: "Estimated task",
-            teamId: null,
+            teamId: taskTeamId,
             workflowStatusId: todoStatus.id,
             dueDate: "2026-06-03",
             parentTaskId: null,
@@ -2020,7 +2487,7 @@ describe("agent operation boundary", () => {
           },
           {
             title: "Unestimated task",
-            teamId: null,
+            teamId: taskTeamId,
             workflowStatusId: todoStatus.id,
             dueDate: "2026-06-03",
             parentTaskId: null,
@@ -2094,7 +2561,7 @@ describe("agent operation boundary", () => {
       });
       const secondTeamResponse = yield* createTeam(c, {
         token: owner.token!,
-        name: "Facilities",
+        name: "Grounds",
         organizationId: church.id!,
       });
       const invalidTeamResponse = yield* createTeam(c, {
@@ -2113,76 +2580,21 @@ describe("agent operation boundary", () => {
         userId: owner.user!.id!,
         sessionToken: owner.token!,
       });
+      const teams = yield* authenticated.query(refs.public.teams.listForChurch, {
+        churchId: church.id!,
+      });
       const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
         churchId: church.id!,
       });
-      const defaultWorkflow = defaults.data.workflows.find((workflow) => workflow.isDefault)!;
-      const defaultTodo = defaults.data.workflowStatuses.find(
-        (status) => status.workflowId === defaultWorkflow.id && status.taskState === "todo",
-      )!;
-      const teamWorkflowResult = yield* authenticated.mutation(
-        refs.public.workflows.createForChurch,
-        {
-          churchId: church.id!,
-          key: "care-flow",
-          name: "Care Flow",
-          isDefault: false,
-          sortOrder: 1,
-          statuses: [
-            { key: "todo", name: "To Do", taskState: "todo", sortOrder: 0 },
-            { key: "doing", name: "Doing", taskState: "in_progress", sortOrder: 1 },
-            { key: "done", name: "Done", taskState: "done", sortOrder: 2 },
-          ],
-        },
-      );
-      const teamWorkflow = teamWorkflowResult.data.workflows.find(
-        (workflow) => workflow.key === "care-flow",
-      )!;
-      const teamTodo = teamWorkflowResult.data.workflowStatuses.find(
-        (status) => status.workflowId === teamWorkflow.id && status.taskState === "todo",
-      )!;
-      const secondTeamWorkflowResult = yield* authenticated.mutation(
-        refs.public.workflows.createForChurch,
-        {
-          churchId: church.id!,
-          key: "facilities-flow",
-          name: "Facilities Flow",
-          isDefault: false,
-          sortOrder: 2,
-          statuses: [
-            { key: "todo", name: "To Do", taskState: "todo", sortOrder: 0 },
-            { key: "doing", name: "Doing", taskState: "in_progress", sortOrder: 1 },
-            { key: "done", name: "Done", taskState: "done", sortOrder: 2 },
-          ],
-        },
-      );
-      const secondTeamWorkflow = secondTeamWorkflowResult.data.workflows.find(
-        (workflow) => workflow.key === "facilities-flow",
-      )!;
-      const secondTeamTodo = secondTeamWorkflowResult.data.workflowStatuses.find(
-        (status) => status.workflowId === secondTeamWorkflow.id && status.taskState === "todo",
-      )!;
-      const invalidWorkflowResult = yield* authenticated.mutation(
-        refs.public.workflows.createForChurch,
-        {
-          churchId: church.id!,
-          key: "invalid-remap-flow",
-          name: "Invalid Remap Flow",
-          isDefault: false,
-          sortOrder: 3,
-          statuses: [
-            { key: "todo", name: "To Do", taskState: "todo", sortOrder: 0 },
-            { key: "doing", name: "Doing", taskState: "in_progress", sortOrder: 1 },
-            { key: "done", name: "Done", taskState: "done", sortOrder: 2 },
-          ],
-        },
-      );
-      const invalidWorkflow = invalidWorkflowResult.data.workflows.find(
-        (workflow) => workflow.key === "invalid-remap-flow",
-      )!;
-      const invalidTodo = invalidWorkflowResult.data.workflowStatuses.find(
-        (status) => status.workflowId === invalidWorkflow.id && status.taskState === "todo",
-      )!;
+      // Every Team owns its Workflow (ADR 0013): each Team created above was
+      // seeded its own To Do / In Progress / Done Workflow.
+      const teamWorkflow = workflowForTeam(defaults, team.id!);
+      const teamTodo = statusForTeam(defaults, team.id!, "todo");
+      const secondTeamWorkflow = workflowForTeam(defaults, secondTeam.id!);
+      const secondTeamTodo = statusForTeam(defaults, secondTeam.id!, "todo");
+      const invalidTodo = statusForTeam(defaults, invalidTeam.id!, "todo");
+      // Archive the invalid Team's only To Do status so a todo Task cannot
+      // preserve its Task State in that Team's Workflow.
       yield* c.run(
         Effect.gen(function* () {
           const ctx = yield* MutationCtx.MutationCtx<DataModel>();
@@ -2194,21 +2606,16 @@ describe("agent operation boundary", () => {
         }),
         Schema.Void,
       );
-      yield* authenticated.mutation(refs.public.teams.updateProductFields, {
-        churchId: church.id!,
-        updates: [
-          { teamId: team.id!, fields: { defaultWorkflowId: teamWorkflow.id } },
-          { teamId: secondTeam.id!, fields: { defaultWorkflowId: secondTeamWorkflow.id } },
-          { teamId: invalidTeam.id!, fields: { defaultWorkflowId: invalidWorkflow.id } },
-        ],
-      });
+      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
+      const sourceWorkflow = workflowForTeam(defaults, taskTeamId);
+      const sourceTodo = statusForTeam(defaults, taskTeamId, "todo");
       const created = yield* authenticated.mutation(refs.public.tasks.createBatch, {
         churchId: church.id!,
         tasks: [
           {
             title: "Assign Team through update",
-            teamId: null,
-            workflowStatusId: defaultTodo.id,
+            teamId: taskTeamId,
+            workflowStatusId: sourceTodo.id,
             dueDate: "2026-06-03",
             parentTaskId: null,
           },
@@ -2217,6 +2624,18 @@ describe("agent operation boundary", () => {
       const task = created.data.tasks.find(
         (candidate) => candidate.title === "Assign Team through update",
       )!;
+      yield* authenticated.mutation(refs.public.tasks.createBatch, {
+        churchId: church.id!,
+        tasks: [
+          {
+            title: "Existing destination task",
+            teamId: secondTeam.id!,
+            workflowStatusId: secondTeamTodo.id,
+            dueDate: "2026-06-03",
+            parentTaskId: null,
+          },
+        ],
+      });
 
       const assigned = yield* authenticated.mutation(refs.public.tasks.updateBatch, {
         churchId: church.id!,
@@ -2225,10 +2644,6 @@ describe("agent operation boundary", () => {
       const changed = yield* authenticated.mutation(refs.public.tasks.updateBatch, {
         churchId: church.id!,
         updates: [{ taskId: task.id, fields: { teamId: secondTeam.id! } }],
-      });
-      const unassigned = yield* authenticated.mutation(refs.public.tasks.updateBatch, {
-        churchId: church.id!,
-        updates: [{ taskId: task.id, fields: { teamId: null } }],
       });
       const rejected = yield* authenticated.mutation(refs.public.tasks.updateBatch, {
         churchId: church.id!,
@@ -2239,24 +2654,51 @@ describe("agent operation boundary", () => {
         entityType: "task",
         entityId: task.id,
       });
+      const assignedTask = assigned.data.tasks.find((candidate) => candidate.id === task.id)!;
+      const changedTask = changed.data.tasks.find((candidate) => candidate.id === task.id)!;
+      const sourceTeam = teams.data.teams.find((candidate) => candidate.id === taskTeamId)!;
+      const firstDestinationTeam = teams.data.teams.find((candidate) => candidate.id === team.id)!;
+      const secondDestinationTeam = teams.data.teams.find(
+        (candidate) => candidate.id === secondTeam.id,
+      )!;
+      const resolvedInitialAlias = yield* authenticated.query(
+        refs.public.tasks.resolveByIdentifier,
+        {
+          churchId: church.id!,
+          identifier: task.identifier.toLowerCase(),
+        },
+      );
+      const resolvedFirstMoveAlias = yield* authenticated.query(
+        refs.public.tasks.resolveByIdentifier,
+        {
+          churchId: church.id!,
+          identifier: assignedTask.identifier,
+        },
+      );
 
-      expect(assigned.data.tasks.find((candidate) => candidate.id === task.id)).toMatchObject({
+      expect(assignedTask).toMatchObject({
         teamId: team.id,
+        number: 1,
+        identifier: `${firstDestinationTeam.identifier}-1`,
         workflowId: teamWorkflow.id,
         workflowStatusId: teamTodo.id,
         taskState: "todo",
       });
-      expect(changed.data.tasks.find((candidate) => candidate.id === task.id)).toMatchObject({
+      expect(changedTask).toMatchObject({
         teamId: secondTeam.id,
+        number: 2,
+        identifier: `${secondDestinationTeam.identifier}-2`,
         workflowId: secondTeamWorkflow.id,
         workflowStatusId: secondTeamTodo.id,
         taskState: "todo",
       });
-      expect(unassigned.data.tasks.find((candidate) => candidate.id === task.id)).toMatchObject({
-        teamId: null,
-        workflowId: defaultWorkflow.id,
-        workflowStatusId: defaultTodo.id,
-        taskState: "todo",
+      expect(resolvedInitialAlias.data.tasks[0]).toMatchObject({
+        id: task.id,
+        identifier: changedTask.identifier,
+      });
+      expect(resolvedFirstMoveAlias.data.tasks[0]).toMatchObject({
+        id: task.id,
+        identifier: changedTask.identifier,
       });
       expect(rejected).toEqual({
         ok: false,
@@ -2268,25 +2710,35 @@ describe("agent operation boundary", () => {
       });
       expect(activities.data.activities.map((activity) => activity.eventType)).toEqual([
         "task.created",
-        "task.team_assigned",
         "task.team_changed",
-        "task.team_unassigned",
+        "task.renumbered",
+        "task.team_changed",
+        "task.renumbered",
       ]);
       expect(activities.data.activities.map((activity) => activity.actorId)).toEqual([
         owner.user!.id!,
         owner.user!.id!,
         owner.user!.id!,
         owner.user!.id!,
+        owner.user!.id!,
       ]);
       expect(activities.data.activities[1]!.metadata).toEqual({
-        previousTeamId: null,
+        previousTeamId: taskTeamId,
         teamId: team.id,
-        previousWorkflowId: defaultWorkflow.id,
+        previousWorkflowId: sourceWorkflow.id,
         workflowId: teamWorkflow.id,
-        previousWorkflowStatusId: defaultTodo.id,
+        previousWorkflowStatusId: sourceTodo.id,
         workflowStatusId: teamTodo.id,
       });
       expect(activities.data.activities[2]!.metadata).toEqual({
+        previousIdentifier: task.identifier,
+        identifier: assignedTask.identifier,
+        previousNumber: task.number,
+        number: assignedTask.number,
+        previousTeamId: taskTeamId,
+        teamId: team.id,
+      });
+      expect(activities.data.activities[3]!.metadata).toEqual({
         previousTeamId: team.id,
         teamId: secondTeam.id,
         previousWorkflowId: teamWorkflow.id,
@@ -2294,13 +2746,15 @@ describe("agent operation boundary", () => {
         previousWorkflowStatusId: teamTodo.id,
         workflowStatusId: secondTeamTodo.id,
       });
-      expect(activities.data.activities[3]!.metadata).toEqual({
-        previousTeamId: secondTeam.id,
-        previousWorkflowId: secondTeamWorkflow.id,
-        workflowId: defaultWorkflow.id,
-        previousWorkflowStatusId: secondTeamTodo.id,
-        workflowStatusId: defaultTodo.id,
+      expect(activities.data.activities[4]!.metadata).toEqual({
+        previousIdentifier: assignedTask.identifier,
+        identifier: changedTask.identifier,
+        previousNumber: assignedTask.number,
+        number: changedTask.number,
+        previousTeamId: team.id,
+        teamId: secondTeam.id,
       });
+      expect(task.identifier).toBe(`${sourceTeam.identifier}-${task.number}`);
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 
@@ -2332,26 +2786,27 @@ describe("agent operation boundary", () => {
         (status) => status.taskState === "todo",
       )!;
 
+      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
       const created = yield* authenticated.mutation(refs.public.tasks.createBatch, {
         churchId: church.id!,
         tasks: [
           {
             title: "Move date and cycle",
-            teamId: null,
+            teamId: taskTeamId,
             workflowStatusId: todoStatus.id,
             dueDate: "2026-06-03",
             parentTaskId: null,
           },
           {
             title: "Create next cycle",
-            teamId: null,
+            teamId: taskTeamId,
             workflowStatusId: todoStatus.id,
             dueDate: "2026-06-10",
             parentTaskId: null,
           },
           {
             title: "Create later cycle",
-            teamId: null,
+            teamId: taskTeamId,
             workflowStatusId: todoStatus.id,
             dueDate: "2026-06-24",
             parentTaskId: null,
@@ -2521,12 +2976,13 @@ describe("agent operation boundary", () => {
         (status) => status.taskState === "done",
       )!;
 
+      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
       const created = yield* authenticated.mutation(refs.public.tasks.createBatch, {
         churchId: church.id!,
         tasks: [
           {
             title: "Current assigned to me",
-            teamId: null,
+            teamId: taskTeamId,
             assignedUserId: owner.user!.id!,
             workflowStatusId: todoStatus.id,
             dueDate: "2026-06-03",
@@ -2534,7 +2990,7 @@ describe("agent operation boundary", () => {
           },
           {
             title: "Current assigned to another member",
-            teamId: null,
+            teamId: taskTeamId,
             assignedUserId: member.user!.id!,
             workflowStatusId: todoStatus.id,
             dueDate: "2026-06-03",
@@ -2542,7 +2998,7 @@ describe("agent operation boundary", () => {
           },
           {
             title: "Overdue assigned to me",
-            teamId: null,
+            teamId: taskTeamId,
             assignedUserId: owner.user!.id!,
             workflowStatusId: todoStatus.id,
             dueDate: "2026-05-29",
@@ -2550,7 +3006,7 @@ describe("agent operation boundary", () => {
           },
           {
             title: "Future assigned to me",
-            teamId: null,
+            teamId: taskTeamId,
             assignedUserId: owner.user!.id!,
             workflowStatusId: todoStatus.id,
             dueDate: "2026-06-10",
@@ -2558,7 +3014,7 @@ describe("agent operation boundary", () => {
           },
           {
             title: "Finished during cycle assigned to me",
-            teamId: null,
+            teamId: taskTeamId,
             assignedUserId: owner.user!.id!,
             workflowStatusId: doneStatus.id,
             dueDate: "2026-06-02",
@@ -2566,7 +3022,7 @@ describe("agent operation boundary", () => {
           },
           {
             title: "Finished before cycle assigned to me",
-            teamId: null,
+            teamId: taskTeamId,
             assignedUserId: owner.user!.id!,
             workflowStatusId: doneStatus.id,
             dueDate: "2026-05-28",
@@ -2647,29 +3103,26 @@ describe("agent operation boundary", () => {
       const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
         churchId: church.id!,
       });
-      const defaultWorkflow = defaults.data.workflows.find((candidate) => candidate.isDefault)!;
-      const todoStatus = defaults.data.workflowStatuses.find(
-        (status) => status.workflowId === defaultWorkflow.id && status.taskState === "todo",
-      )!;
-      const doingStatus = defaults.data.workflowStatuses.find(
-        (status) => status.workflowId === defaultWorkflow.id && status.taskState === "in_progress",
-      )!;
-      const doneStatus = defaults.data.workflowStatuses.find(
-        (status) => status.workflowId === defaultWorkflow.id && status.taskState === "done",
-      )!;
+      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
+      // Every Team owns its Workflow (ADR 0013): statuses come from the Task
+      // Team's own Workflow.
+      const teamWorkflow = workflowForTeam(defaults, taskTeamId);
+      const todoStatus = statusForTeam(defaults, taskTeamId, "todo");
+      const doingStatus = statusForTeam(defaults, taskTeamId, "in_progress");
+      const doneStatus = statusForTeam(defaults, taskTeamId, "done");
       const created = yield* authenticated.mutation(refs.public.tasks.createBatch, {
         churchId: church.id!,
         tasks: [
           {
             title: "Complete me",
-            teamId: null,
+            teamId: taskTeamId,
             workflowStatusId: todoStatus.id,
             dueDate: "2026-06-03",
             parentTaskId: null,
           },
           {
             title: "Cancel me",
-            teamId: null,
+            teamId: taskTeamId,
             workflowStatusId: doingStatus.id,
             dueDate: "2026-06-03",
             parentTaskId: null,
@@ -2716,12 +3169,15 @@ describe("agent operation boundary", () => {
             ctx.db.insert("tasks", {
               churchId: church.id!,
               title: "Inconsistent Task",
-              teamId: null,
+              teamId: taskTeamId,
+              // Test fixture bypassing createTasks; a fixed number is fine here.
+              number: 9999,
+              previousIdentifiers: [],
               assignedUserId: null,
               cycleId: cancelMe.cycleId,
               dueDate: "2026-06-03",
               parentTaskId: null,
-              workflowId: defaultWorkflow.id,
+              workflowId: teamWorkflow.id,
               workflowStatusId: todoStatus.id,
               taskState: "done",
               boardOrder: "a0",
@@ -2808,40 +3264,28 @@ describe("agent operation boundary", () => {
         userId: signUpBody.user!.id!,
         sessionToken: signUpBody.token!,
       });
+      // Another Team's Workflow stands in for "a status outside the Task's
+      // own Workflow" (ADR 0013: every Team owns its Workflow).
+      const otherTeamResponse = yield* createTeam(c, {
+        token: signUpBody.token!,
+        name: "Status Move Other",
+        organizationId: church.id!,
+      });
+      const otherTeam = (yield* Effect.promise(() => otherTeamResponse.json())) as { id?: string };
+      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
       const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
         churchId: church.id!,
       });
-      const defaultWorkflow = defaults.data.workflows.find((candidate) => candidate.isDefault)!;
-      const todoStatus = defaults.data.workflowStatuses.find(
-        (status) => status.workflowId === defaultWorkflow.id && status.taskState === "todo",
-      )!;
-      const doingStatus = defaults.data.workflowStatuses.find(
-        (status) => status.workflowId === defaultWorkflow.id && status.taskState === "in_progress",
-      )!;
-      const doneStatus = defaults.data.workflowStatuses.find(
-        (status) => status.workflowId === defaultWorkflow.id && status.taskState === "done",
-      )!;
-      const otherWorkflow = yield* authenticated.mutation(refs.public.workflows.createForChurch, {
-        churchId: church.id!,
-        key: "status-move-other-workflow",
-        name: "Status Move Other Workflow",
-        isDefault: false,
-        sortOrder: 5,
-        statuses: [
-          { key: "todo", name: "To Do", taskState: "todo", sortOrder: 0 },
-          { key: "doing", name: "Doing", taskState: "in_progress", sortOrder: 1 },
-          { key: "done", name: "Done", taskState: "done", sortOrder: 2 },
-        ],
-      });
-      const otherTodoStatus = otherWorkflow.data.workflowStatuses.find(
-        (status) => status.key === "todo",
-      )!;
+      const todoStatus = statusForTeam(defaults, taskTeamId, "todo");
+      const doingStatus = statusForTeam(defaults, taskTeamId, "in_progress");
+      const doneStatus = statusForTeam(defaults, taskTeamId, "done");
+      const otherTodoStatus = statusForTeam(defaults, otherTeam.id!, "todo");
       const created = yield* authenticated.mutation(refs.public.tasks.createBatch, {
         churchId: church.id!,
         tasks: [
           {
             title: "Move through board",
-            teamId: null,
+            teamId: taskTeamId,
             workflowStatusId: todoStatus.id,
             dueDate: "2026-06-03",
             parentTaskId: null,
@@ -2871,7 +3315,7 @@ describe("agent operation boundary", () => {
         tasks: [
           {
             title: "Canceled task stays action-only",
-            teamId: null,
+            teamId: taskTeamId,
             workflowStatusId: todoStatus.id,
             dueDate: "2026-06-03",
             parentTaskId: null,
@@ -2987,14 +3431,12 @@ describe("agent operation boundary", () => {
         churchId: church.id,
         archivedAt: null,
         color: "pink",
+        // Raw Better Auth team creation stores no identifier; reads fall
+        // back to the name-derived base.
+        identifier: "WOR",
+        previousIdentifiers: [],
         sortOrder: 0,
-        defaultWorkflowId: null,
       });
-
-      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
-        churchId: church.id!,
-      });
-      const defaultWorkflow = defaults.data.workflows.find((workflow) => workflow.isDefault)!;
 
       const updated = yield* authenticated.mutation(refs.public.teams.updateProductFields, {
         churchId: church.id!,
@@ -3004,7 +3446,6 @@ describe("agent operation boundary", () => {
             fields: {
               archivedAt: "2026-06-01T00:00:00.000Z",
               sortOrder: 7,
-              defaultWorkflowId: defaultWorkflow.id,
             },
           },
         ],
@@ -3017,8 +3458,9 @@ describe("agent operation boundary", () => {
         churchId: church.id,
         archivedAt: "2026-06-01T00:00:00.000Z",
         color: "pink",
+        identifier: "WOR",
+        previousIdentifiers: [],
         sortOrder: 7,
-        defaultWorkflowId: defaultWorkflow.id,
       });
     }).pipe(Effect.provide(TestConfect.layer())),
   );
@@ -3149,9 +3591,9 @@ describe("agent operation boundary", () => {
       const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
         churchId: church.id!,
       });
-      const todoStatus = defaults.data.workflowStatuses.find(
-        (status) => status.taskState === "todo",
-      )!;
+      // Every Team owns its Workflow (ADR 0013): the Task uses the Care
+      // Team's own To Do status.
+      const todoStatus = statusForTeam(defaults, care.id, "todo");
       const createdTask = yield* authenticated.mutation(refs.public.tasks.createBatch, {
         churchId: church.id!,
         tasks: [
@@ -3203,6 +3645,213 @@ describe("agent operation boundary", () => {
         "team.renamed",
         "team.reordered",
         "team.archived",
+      ]);
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("Team creation seeds the Team its own To Do / In Progress / Done Workflow", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-team-workflow-seed-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Team Workflow Seed Church",
+        slug: `team-workflow-seed-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
+
+      const created = yield* authenticated.mutation(refs.public.teams.createForChurch, {
+        churchId: church.id!,
+        name: "Outreach",
+      });
+      const outreach = created.data.teams.find((team) => team.name === "Outreach")!;
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
+        churchId: church.id!,
+      });
+      const workflow = workflowForTeam(defaults, outreach.id);
+
+      // Every Team owns its Workflow (ADR 0013): Team creation seeds it.
+      expect(workflow).toMatchObject({
+        teamId: outreach.id,
+        key: `team-${outreach.id}`,
+        name: "Outreach",
+        sortOrder: 0,
+        archivedAt: null,
+      });
+      expect(
+        defaults.data.workflowStatuses
+          .filter((status) => status.workflowId === workflow.id)
+          .map((status) => [status.key, status.name, status.taskState, status.sortOrder]),
+      ).toEqual([
+        ["to-do", "To Do", "todo", 0],
+        ["in-progress", "In Progress", "in_progress", 1],
+        ["done", "Done", "done", 2],
+      ]);
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("Teams get unique generated Team Identifiers, bumped on collision", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-team-identifier-gen-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Identifier Gen Church",
+        slug: `identifier-gen-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
+
+      // Starter Teams seeded at Church creation each get a generated
+      // identifier, unique within the Church.
+      const starters = yield* authenticated.query(refs.public.teams.listForChurch, {
+        churchId: church.id!,
+      });
+      const starterIdentifiers = starters.data.teams.map((team) => team.identifier);
+      expect(starterIdentifiers.length).toBeGreaterThan(0);
+      for (const identifier of starterIdentifiers) {
+        expect(identifier).toMatch(/^[A-Z0-9]{1,7}$/);
+      }
+      expect(new Set(starterIdentifiers).size).toBe(starterIdentifiers.length);
+      expect(starters.data.teams.find((team) => team.name === "Kids")?.identifier).toBe("KID");
+
+      // A new Team whose name collides with a Starter Team's identifier
+      // bumps deterministically.
+      const created = yield* authenticated.mutation(refs.public.teams.createForChurch, {
+        churchId: church.id!,
+        name: "Kidmin",
+      });
+      expect(created.data.teams.find((team) => team.name === "Kidmin")).toMatchObject({
+        identifier: "KID2",
+        previousIdentifiers: [],
+      });
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("owners edit Team Identifiers with validation, uniqueness, and alias history", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-team-identifier-edit-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Identifier Edit Church",
+        slug: `identifier-edit-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
+
+      const created = yield* authenticated.mutation(refs.public.teams.createForChurch, {
+        churchId: church.id!,
+        name: "Care",
+      });
+      const care = created.data.teams.find((team) => team.name === "Care")!;
+      expect(care.identifier).toBe("CAR");
+
+      const invalid = yield* authenticated.mutation(refs.public.teams.setIdentifierForChurch, {
+        churchId: church.id!,
+        teamId: care.id,
+        identifier: "TOOLONG8",
+      });
+      expect(invalid).toMatchObject({
+        ok: false,
+        operation: "setTeamIdentifier",
+        error: { code: "invalid_team_identifier" },
+      });
+
+      // Uniqueness within the Church is case-insensitive: "kid" collides
+      // with the Kids Starter Team's "KID".
+      const taken = yield* authenticated.mutation(refs.public.teams.setIdentifierForChurch, {
+        churchId: church.id!,
+        teamId: care.id,
+        identifier: "kid",
+      });
+      expect(taken).toMatchObject({
+        ok: false,
+        operation: "setTeamIdentifier",
+        error: { code: "team_identifier_taken" },
+      });
+
+      // Lowercase input normalizes to the uppercase canonical form; the
+      // previous identifier is remembered as an alias.
+      const renamedOnce = yield* authenticated.mutation(refs.public.teams.setIdentifierForChurch, {
+        churchId: church.id!,
+        teamId: care.id,
+        identifier: "pastoral",
+      });
+      expect(renamedOnce).toMatchObject({
+        ok: false,
+        operation: "setTeamIdentifier",
+        error: { code: "invalid_team_identifier" },
+      });
+
+      const first = yield* authenticated.mutation(refs.public.teams.setIdentifierForChurch, {
+        churchId: church.id!,
+        teamId: care.id,
+        identifier: "pastor",
+      });
+      expect(first.data.teams.find((team) => team.id === care.id)).toMatchObject({
+        identifier: "PASTOR",
+        previousIdentifiers: ["CAR"],
+      });
+
+      const second = yield* authenticated.mutation(refs.public.teams.setIdentifierForChurch, {
+        churchId: church.id!,
+        teamId: care.id,
+        identifier: "CARE",
+      });
+      expect(second.data.teams.find((team) => team.id === care.id)).toMatchObject({
+        identifier: "CARE",
+        previousIdentifiers: ["CAR", "PASTOR"],
+      });
+
+      // Setting the same identifier again is a no-op: no duplicate alias,
+      // no extra activity entry.
+      const noop = yield* authenticated.mutation(refs.public.teams.setIdentifierForChurch, {
+        churchId: church.id!,
+        teamId: care.id,
+        identifier: " care ",
+      });
+      expect(noop.data.teams.find((team) => team.id === care.id)).toMatchObject({
+        identifier: "CARE",
+        previousIdentifiers: ["CAR", "PASTOR"],
+      });
+
+      const activities = yield* authenticated.query(refs.public.activities.listForEntity, {
+        churchId: church.id!,
+        entityType: "team",
+        entityId: care.id,
+      });
+      const identifierChanges = activities.data.activities.filter(
+        (activity) => activity.eventType === "team.identifier_changed",
+      );
+      expect(identifierChanges.map((activity) => activity.metadata)).toEqual([
+        { previousIdentifier: "CAR", identifier: "PASTOR" },
+        { previousIdentifier: "PASTOR", identifier: "CARE" },
       ]);
     }).pipe(Effect.provide(TestConfect.layer())),
   );
@@ -3276,9 +3925,9 @@ describe("agent operation boundary", () => {
       const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
         churchId: church.id!,
       });
-      const todoStatus = defaults.data.workflowStatuses.find(
-        (status) => status.taskState === "todo",
-      )!;
+      // Every Team owns its Workflow (ADR 0013): the Task uses the Busy
+      // Team's own To Do status.
+      const todoStatus = statusForTeam(defaults, busy.id, "todo");
       yield* authenticated.mutation(refs.public.tasks.createBatch, {
         churchId: church.id!,
         tasks: [
@@ -3309,6 +3958,72 @@ describe("agent operation boundary", () => {
         },
       });
       expect(teams.data.teams.some((team) => team.id === busy.id)).toBe(true);
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("Team delete and archive are blocked for the last active Team", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-team-floor-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Team Floor Church",
+        slug: `team-floor-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
+
+      const initialTeams = yield* authenticated.query(refs.public.teams.listForChurch, {
+        churchId: church.id!,
+      });
+      const [remainingTeam, ...discardedTeams] = initialTeams.data.teams;
+      expect(remainingTeam).toBeDefined();
+
+      for (const team of discardedTeams) {
+        const deleted = yield* authenticated.mutation(refs.public.teams.deleteForChurch, {
+          churchId: church.id!,
+          teamId: team.id,
+        });
+        expect(deleted.ok).toBe(true);
+      }
+
+      const deleteLast = yield* authenticated.mutation(refs.public.teams.deleteForChurch, {
+        churchId: church.id!,
+        teamId: remainingTeam!.id,
+      });
+      const archiveLast = yield* authenticated.mutation(refs.public.teams.archiveForChurch, {
+        churchId: church.id!,
+        teamId: remainingTeam!.id,
+      });
+      const teams = yield* authenticated.query(refs.public.teams.listForChurch, {
+        churchId: church.id!,
+      });
+
+      expect(deleteLast).toEqual({
+        ok: false,
+        operation: "deleteTeam",
+        error: {
+          code: "last_team_required",
+          message: "A Church must keep at least one active Team.",
+        },
+      });
+      expect(archiveLast).toEqual({
+        ok: false,
+        operation: "archiveTeam",
+        error: {
+          code: "last_team_required",
+          message: "A Church must keep at least one active Team.",
+        },
+      });
+      expect(teams.data.teams).toEqual([expect.objectContaining({ id: remainingTeam!.id })]);
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 
@@ -3556,7 +4271,7 @@ describe("agent operation boundary", () => {
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 
-  it.effect("Workflow creation enforces required visible Task States", () =>
+  it.effect("Workflow Status edits enforce visible Task States, names, and ordering", () =>
     Effect.gen(function* () {
       const c = yield* TestConfect.TestConfect;
       const email = `agent-invalid-workflow-${crypto.randomUUID()}@example.com`;
@@ -3576,93 +4291,49 @@ describe("agent operation boundary", () => {
         sessionToken: signUpBody.token!,
       });
 
-      const missingDone = yield* authenticated.mutation(refs.public.workflows.createForChurch, {
+      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
         churchId: church.id!,
-        key: "missing-done",
-        name: "Missing Done",
-        isDefault: false,
-        sortOrder: 1,
-        statuses: [
-          { key: "todo", name: "To Do", taskState: "todo", sortOrder: 0 },
-          { key: "doing", name: "Doing", taskState: "in_progress", sortOrder: 1 },
-        ],
       });
-      const canceledColumn = yield* authenticated.mutation(refs.public.workflows.createForChurch, {
+      // Workflows are only ever seeded per Team (ADR 0013), so status
+      // validation now guards the status edit operations.
+      const workflow = workflowForTeam(defaults, taskTeamId);
+      const todoStatus = statusForTeam(defaults, taskTeamId, "todo");
+
+      const canceledColumn = yield* authenticated.mutation(refs.public.workflows.addStatus, {
         churchId: church.id!,
-        key: "canceled-column",
-        name: "Canceled Column",
-        isDefault: false,
-        sortOrder: 2,
-        statuses: [
-          { key: "todo", name: "To Do", taskState: "todo", sortOrder: 0 },
-          { key: "doing", name: "Doing", taskState: "in_progress", sortOrder: 1 },
-          { key: "review", name: "Review", taskState: "in_progress", sortOrder: 2 },
-          { key: "done", name: "Done", taskState: "done", sortOrder: 3 },
-          { key: "canceled", name: "Canceled", taskState: "canceled", sortOrder: 3 },
-        ],
+        workflowId: workflow.id,
+        status: { key: "canceled", name: "Canceled", taskState: "canceled", sortOrder: 3 },
+      });
+      const duplicateName = yield* authenticated.mutation(refs.public.workflows.addStatus, {
+        churchId: church.id!,
+        workflowId: workflow.id,
+        status: {
+          key: "doing-again",
+          name: "in progress",
+          taskState: "in_progress",
+          sortOrder: 3,
+        },
+      });
+      const duplicateSort = yield* authenticated.mutation(refs.public.workflows.addStatus, {
+        churchId: church.id!,
+        workflowId: workflow.id,
+        status: { key: "ready", name: "Ready", taskState: "in_progress", sortOrder: 0 },
+      });
+      const missingTodo = yield* authenticated.mutation(refs.public.workflows.archiveStatus, {
+        churchId: church.id!,
+        statusId: todoStatus.id,
+        archivedAt: "2026-06-01T10:00:00.000Z",
       });
 
-      expect(missingDone).toMatchObject({
-        ok: false,
-        operation: "createWorkflow",
-        error: { code: "invalid_workflow" },
-      });
       expect(canceledColumn).toMatchObject({
         ok: false,
-        operation: "createWorkflow",
+        operation: "addWorkflowStatus",
         error: {
           code: "invalid_workflow",
           message: "Canceled is a Task State, not a visible Workflow Status.",
         },
       });
-    }).pipe(Effect.provide(TestConfect.layer())),
-  );
-
-  it.effect("Workflow creation enforces active status names and ordering", () =>
-    Effect.gen(function* () {
-      const c = yield* TestConfect.TestConfect;
-      const email = `agent-status-uniqueness-${crypto.randomUUID()}@example.com`;
-      const signUpResponse = yield* signUpWithEmail(c, email);
-      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
-        user?: { id?: string };
-        token?: string;
-      };
-      const churchResponse = yield* createChurch(c, {
-        token: signUpBody.token!,
-        name: "Status Uniqueness Church",
-        slug: `status-unique-${crypto.randomUUID()}`,
-      });
-      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
-      const authenticated = yield* authenticatedConfect(c, {
-        userId: signUpBody.user!.id!,
-        sessionToken: signUpBody.token!,
-      });
-
-      const duplicateName = yield* authenticated.mutation(refs.public.workflows.createForChurch, {
-        churchId: church.id!,
-        key: "duplicate-name",
-        name: "Duplicate Name",
-        isDefault: false,
-        sortOrder: 1,
-        statuses: [
-          { key: "todo", name: "Same", taskState: "todo", sortOrder: 0 },
-          { key: "doing", name: "same", taskState: "in_progress", sortOrder: 1 },
-          { key: "done", name: "Done", taskState: "done", sortOrder: 2 },
-        ],
-      });
-      const duplicateSort = yield* authenticated.mutation(refs.public.workflows.createForChurch, {
-        churchId: church.id!,
-        key: "duplicate-sort",
-        name: "Duplicate Sort",
-        isDefault: false,
-        sortOrder: 2,
-        statuses: [
-          { key: "todo", name: "To Do", taskState: "todo", sortOrder: 0 },
-          { key: "doing", name: "Doing", taskState: "in_progress", sortOrder: 0 },
-          { key: "done", name: "Done", taskState: "done", sortOrder: 2 },
-        ],
-      });
-
       expect(duplicateName).toMatchObject({
         ok: false,
         error: { message: "Active Workflow Status names must be unique within a Workflow." },
@@ -3673,10 +4344,15 @@ describe("agent operation boundary", () => {
           message: "Workflow Status sort orders must be explicit and unique within a Workflow.",
         },
       });
+      expect(missingTodo).toMatchObject({
+        ok: false,
+        operation: "archiveWorkflowStatus",
+        error: { code: "invalid_workflow" },
+      });
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 
-  it.effect("owners can edit Workflows and assign the Church default Workflow", () =>
+  it.effect("owners can rename and reorder Team-owned Workflows", () =>
     Effect.gen(function* () {
       const c = yield* TestConfect.TestConfect;
       const email = `agent-workflow-edit-${crypto.randomUUID()}@example.com`;
@@ -3695,38 +4371,28 @@ describe("agent operation boundary", () => {
         userId: signUpBody.user!.id!,
         sessionToken: signUpBody.token!,
       });
-
-      const created = yield* authenticated.mutation(refs.public.workflows.createForChurch, {
+      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
         churchId: church.id!,
-        key: "next-steps",
-        name: "Next Steps",
-        isDefault: false,
-        sortOrder: 1,
-        statuses: [
-          { key: "todo", name: "To Do", taskState: "todo", sortOrder: 0 },
-          { key: "doing", name: "Doing", taskState: "in_progress", sortOrder: 1 },
-          { key: "done", name: "Done", taskState: "done", sortOrder: 2 },
-        ],
       });
-      const workflow = created.data.workflows.find((candidate) => candidate.key === "next-steps")!;
-      const defaultWorkflow = created.data.workflows.find((candidate) => candidate.isDefault)!;
+      // Every Team owns its Workflow (ADR 0013): edits target the seeded
+      // per-Team Workflows.
+      const workflow = workflowForTeam(defaults, taskTeamId);
+      const reorderedIds = [
+        ...defaults.data.workflows
+          .filter((candidate) => candidate.id !== workflow.id)
+          .map((candidate) => candidate.id),
+        workflow.id,
+      ];
 
       const renamed = yield* authenticated.mutation(refs.public.workflows.renameForChurch, {
         churchId: church.id!,
         workflowId: workflow.id,
-        name: "Next Steps Workflow",
+        name: "Worship Pipeline",
       });
       const reordered = yield* authenticated.mutation(refs.public.workflows.reorderForChurch, {
         churchId: church.id!,
-        workflowIds: [workflow.id, defaultWorkflow.id],
-      });
-      const defaulted = yield* authenticated.mutation(refs.public.workflows.setDefaultForChurch, {
-        churchId: church.id!,
-        workflowId: workflow.id,
-      });
-      const archived = yield* authenticated.mutation(refs.public.workflows.archiveForChurch, {
-        churchId: church.id!,
-        workflowId: defaultWorkflow.id,
+        workflowIds: reorderedIds,
       });
       const activities = yield* authenticated.query(refs.public.activities.listForEntity, {
         churchId: church.id!,
@@ -3737,236 +4403,138 @@ describe("agent operation boundary", () => {
       expect(
         renamed.data.workflows.find((candidate) => candidate.id === workflow.id),
       ).toMatchObject({
-        name: "Next Steps Workflow",
+        name: "Worship Pipeline",
+        teamId: taskTeamId,
       });
+      expect(reordered.data.workflows.map((candidate) => candidate.id)).toEqual(reorderedIds);
       expect(
-        reordered.data.workflows.map((candidate) => [candidate.id, candidate.sortOrder]),
-      ).toEqual([
-        [workflow.id, 0],
-        [defaultWorkflow.id, 1],
-      ]);
-      expect(
-        defaulted.data.workflows.find((candidate) => candidate.id === workflow.id),
-      ).toMatchObject({
-        isDefault: true,
-      });
-      expect(
-        defaulted.data.workflows.find((candidate) => candidate.id === defaultWorkflow.id),
-      ).toMatchObject({
-        isDefault: false,
-      });
-      expect(
-        archived.data.workflows.find((candidate) => candidate.id === defaultWorkflow.id),
-      ).toMatchObject({ archivedAt: expect.any(String) });
+        reordered.data.workflows.find((candidate) => candidate.id === workflow.id),
+      ).toMatchObject({ sortOrder: reorderedIds.length - 1 });
       expect(activities.data.activities.map((activity) => activity.eventType)).toEqual(
-        expect.arrayContaining([
-          "workflow.created",
-          "workflow.renamed",
-          "workflow.reordered",
-          "workflow.default_changed",
-        ]),
+        expect.arrayContaining(["workflow.renamed", "workflow.reordered"]),
       );
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 
-  it.effect("Workflow archive is blocked while Teams or Tasks reference the Workflow", () =>
-    Effect.gen(function* () {
-      const c = yield* TestConfect.TestConfect;
-      const email = `agent-workflow-in-use-${crypto.randomUUID()}@example.com`;
-      const signUpResponse = yield* signUpWithEmail(c, email);
-      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
-        user?: { id?: string };
-        token?: string;
-      };
-      const churchResponse = yield* createChurch(c, {
-        token: signUpBody.token!,
-        name: "Workflow In Use Church",
-        slug: `workflow-in-use-${crypto.randomUUID()}`,
-      });
-      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
-      const teamResponse = yield* createTeam(c, {
-        token: signUpBody.token!,
-        name: "Workflow Team",
-        organizationId: church.id!,
-      });
-      const team = (yield* Effect.promise(() => teamResponse.json())) as { id?: string };
-      const authenticated = yield* authenticatedConfect(c, {
-        userId: signUpBody.user!.id!,
-        sessionToken: signUpBody.token!,
-      });
-
-      const teamWorkflowResult = yield* authenticated.mutation(
-        refs.public.workflows.createForChurch,
-        {
+  it.effect(
+    "Workflow archive is blocked while the owning Team is active or Tasks reference it",
+    () =>
+      Effect.gen(function* () {
+        const c = yield* TestConfect.TestConfect;
+        const email = `agent-workflow-in-use-${crypto.randomUUID()}@example.com`;
+        const signUpResponse = yield* signUpWithEmail(c, email);
+        const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+          user?: { id?: string };
+          token?: string;
+        };
+        const churchResponse = yield* createChurch(c, {
+          token: signUpBody.token!,
+          name: "Workflow In Use Church",
+          slug: `workflow-in-use-${crypto.randomUUID()}`,
+        });
+        const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+        const idleTeamResponse = yield* createTeam(c, {
+          token: signUpBody.token!,
+          name: "Idle Team",
+          organizationId: church.id!,
+        });
+        const busyTeamResponse = yield* createTeam(c, {
+          token: signUpBody.token!,
+          name: "Busy Team",
+          organizationId: church.id!,
+        });
+        const idleTeam = (yield* Effect.promise(() => idleTeamResponse.json())) as { id?: string };
+        const busyTeam = (yield* Effect.promise(() => busyTeamResponse.json())) as { id?: string };
+        const authenticated = yield* authenticatedConfect(c, {
+          userId: signUpBody.user!.id!,
+          sessionToken: signUpBody.token!,
+        });
+        const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
           churchId: church.id!,
-          key: "team-workflow",
-          name: "Team Workflow",
-          isDefault: false,
-          sortOrder: 1,
-          statuses: [
-            { key: "todo", name: "To Do", taskState: "todo", sortOrder: 0 },
-            { key: "doing", name: "Doing", taskState: "in_progress", sortOrder: 1 },
-            { key: "done", name: "Done", taskState: "done", sortOrder: 2 },
-          ],
-        },
-      );
-      const taskWorkflowResult = yield* authenticated.mutation(
-        refs.public.workflows.createForChurch,
-        {
+        });
+        const idleWorkflow = workflowForTeam(defaults, idleTeam.id!);
+        const busyWorkflow = workflowForTeam(defaults, busyTeam.id!);
+        const busyTodo = statusForTeam(defaults, busyTeam.id!, "todo");
+
+        // Every Team owns its Workflow (ADR 0013): a Workflow stays in use
+        // while its owning Team is active.
+        const activeTeamArchive = yield* authenticated.mutation(
+          refs.public.workflows.archiveForChurch,
+          {
+            churchId: church.id!,
+            workflowId: idleWorkflow.id,
+          },
+        );
+
+        yield* c.run(
+          Effect.gen(function* () {
+            const ctx = yield* MutationCtx.MutationCtx<DataModel>();
+            yield* Effect.promise(() =>
+              ctx.db.insert("tasks", {
+                churchId: church.id!,
+                title: "Workflow reference task",
+                teamId: busyTeam.id!,
+                // Test fixture bypassing createTasks; a fixed number is fine here.
+                number: 9999,
+                previousIdentifiers: [],
+                assignedUserId: null,
+                cycleId: "cycle-workflow-in-use",
+                dueDate: "2026-06-03",
+                parentTaskId: null,
+                workflowId: busyWorkflow.id,
+                workflowStatusId: busyTodo.id,
+                taskState: "todo",
+                boardOrder: "a0",
+                finishedAt: null,
+                sourceTemplateId: null,
+                sourceTemplateTaskId: null,
+                sourceTemplateCycleId: null,
+                sourceTemplateSyncEnabled: false,
+              }),
+            );
+          }),
+        );
+        yield* authenticated.mutation(refs.public.teams.archiveForChurch, {
           churchId: church.id!,
-          key: "task-workflow",
-          name: "Task Workflow",
-          isDefault: false,
-          sortOrder: 2,
-          statuses: [
-            { key: "todo", name: "To Do", taskState: "todo", sortOrder: 0 },
-            { key: "doing", name: "Doing", taskState: "in_progress", sortOrder: 1 },
-            { key: "done", name: "Done", taskState: "done", sortOrder: 2 },
-          ],
-        },
-      );
-      const teamWorkflow = teamWorkflowResult.data.workflows.find(
-        (candidate) => candidate.key === "team-workflow",
-      )!;
-      const taskWorkflow = taskWorkflowResult.data.workflows.find(
-        (candidate) => candidate.key === "task-workflow",
-      )!;
-      const taskStatus = taskWorkflowResult.data.workflowStatuses.find(
-        (status) => status.workflowId === taskWorkflow.id && status.taskState === "todo",
-      )!;
-
-      yield* authenticated.mutation(refs.public.teams.updateProductFields, {
-        churchId: church.id!,
-        updates: [{ teamId: team.id!, fields: { defaultWorkflowId: teamWorkflow.id } }],
-      });
-      yield* c.run(
-        Effect.gen(function* () {
-          const ctx = yield* MutationCtx.MutationCtx<DataModel>();
-          yield* Effect.promise(() =>
-            ctx.db.insert("tasks", {
-              churchId: church.id!,
-              title: "Workflow reference task",
-              teamId: null,
-              assignedUserId: null,
-              cycleId: "cycle-workflow-in-use",
-              dueDate: "2026-06-03",
-              parentTaskId: null,
-              workflowId: taskWorkflow.id,
-              workflowStatusId: taskStatus.id,
-              taskState: "todo",
-              boardOrder: "a0",
-              finishedAt: null,
-              sourceTemplateId: null,
-              sourceTemplateTaskId: null,
-              sourceTemplateCycleId: null,
-              sourceTemplateSyncEnabled: false,
-            }),
-          );
-        }),
-      );
-
-      const teamReferencedArchive = yield* authenticated.mutation(
-        refs.public.workflows.archiveForChurch,
-        {
+          teamId: idleTeam.id!,
+        });
+        yield* authenticated.mutation(refs.public.teams.archiveForChurch, {
           churchId: church.id!,
-          workflowId: teamWorkflow.id,
-        },
-      );
-      const taskReferencedArchive = yield* authenticated.mutation(
-        refs.public.workflows.archiveForChurch,
-        {
-          churchId: church.id!,
-          workflowId: taskWorkflow.id,
-        },
-      );
+          teamId: busyTeam.id!,
+        });
 
-      expect(teamReferencedArchive).toEqual({
-        ok: false,
-        operation: "archiveWorkflow",
-        error: {
-          code: "workflow_in_use",
-          message:
-            "Workflows referenced by the Church default, Teams, or Tasks cannot be archived before reassignment.",
-        },
-      });
-      expect(taskReferencedArchive).toEqual(teamReferencedArchive);
-    }).pipe(Effect.provide(TestConfect.layer())),
-  );
+        const taskReferencedArchive = yield* authenticated.mutation(
+          refs.public.workflows.archiveForChurch,
+          {
+            churchId: church.id!,
+            workflowId: busyWorkflow.id,
+          },
+        );
+        const archivedTeamArchive = yield* authenticated.mutation(
+          refs.public.workflows.archiveForChurch,
+          {
+            churchId: church.id!,
+            workflowId: idleWorkflow.id,
+          },
+        );
 
-  it.effect("owners can assign and clear a Team default Workflow", () =>
-    Effect.gen(function* () {
-      const c = yield* TestConfect.TestConfect;
-      const email = `agent-team-default-workflow-${crypto.randomUUID()}@example.com`;
-      const signUpResponse = yield* signUpWithEmail(c, email);
-      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
-        user?: { id?: string };
-        token?: string;
-      };
-      const churchResponse = yield* createChurch(c, {
-        token: signUpBody.token!,
-        name: "Team Default Workflow Church",
-        slug: `team-default-workflow-${crypto.randomUUID()}`,
-      });
-      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
-      const teamResponse = yield* createTeam(c, {
-        token: signUpBody.token!,
-        name: "Hospitality",
-        organizationId: church.id!,
-      });
-      const team = (yield* Effect.promise(() => teamResponse.json())) as { id?: string };
-      const authenticated = yield* authenticatedConfect(c, {
-        userId: signUpBody.user!.id!,
-        sessionToken: signUpBody.token!,
-      });
-      const createdWorkflow = yield* authenticated.mutation(refs.public.workflows.createForChurch, {
-        churchId: church.id!,
-        key: "hospitality-flow",
-        name: "Hospitality Flow",
-        isDefault: false,
-        sortOrder: 1,
-        statuses: [
-          { key: "todo", name: "To Do", taskState: "todo", sortOrder: 0 },
-          { key: "doing", name: "Doing", taskState: "in_progress", sortOrder: 1 },
-          { key: "done", name: "Done", taskState: "done", sortOrder: 2 },
-        ],
-      });
-      const workflow = createdWorkflow.data.workflows.find(
-        (candidate) => candidate.key === "hospitality-flow",
-      )!;
-
-      const assigned = yield* authenticated.mutation(refs.public.teams.updateProductFields, {
-        churchId: church.id!,
-        updates: [{ teamId: team.id!, fields: { defaultWorkflowId: workflow.id } }],
-      });
-      const cleared = yield* authenticated.mutation(refs.public.teams.updateProductFields, {
-        churchId: church.id!,
-        updates: [{ teamId: team.id!, fields: { defaultWorkflowId: null } }],
-      });
-      const activities = yield* authenticated.query(refs.public.activities.listForEntity, {
-        churchId: church.id!,
-        entityType: "team",
-        entityId: team.id!,
-      });
-
-      expect(assigned.data.teams.find((candidate) => candidate.id === team.id)).toMatchObject({
-        defaultWorkflowId: workflow.id,
-      });
-      expect(cleared.data.teams.find((candidate) => candidate.id === team.id)).toMatchObject({
-        defaultWorkflowId: null,
-      });
-      expect(
-        activities.data.activities.filter(
-          (activity) => activity.eventType === "team.default_workflow_changed",
-        ),
-      ).toEqual([
-        expect.objectContaining({
-          metadata: { previousWorkflowId: null, workflowId: workflow.id },
-        }),
-        expect.objectContaining({
-          metadata: { previousWorkflowId: workflow.id, workflowId: null },
-        }),
-      ]);
-    }).pipe(Effect.provide(TestConfect.layer())),
+        expect(activeTeamArchive).toEqual({
+          ok: false,
+          operation: "archiveWorkflow",
+          error: {
+            code: "workflow_in_use",
+            message: "Workflows owned by an active Team or referenced by Tasks cannot be archived.",
+          },
+        });
+        // Tasks keep blocking the archive even after the owning Team is
+        // archived.
+        expect(taskReferencedArchive).toEqual(activeTeamArchive);
+        // With the owning Team archived and no Tasks referencing it, the
+        // Workflow can be archived.
+        expect(
+          archivedTeamArchive.data.workflows.find((candidate) => candidate.id === idleWorkflow.id),
+        ).toMatchObject({ archivedAt: expect.any(String) });
+      }).pipe(Effect.provide(TestConfect.layer())),
   );
 
   it.effect("Workflow mutations write Activities", () =>
@@ -3989,24 +4557,23 @@ describe("agent operation boundary", () => {
         sessionToken: signUpBody.token!,
       });
 
-      const created = yield* authenticated.mutation(refs.public.workflows.createForChurch, {
+      // Every Team owns its Workflow (ADR 0013): Workflows are seeded, so the
+      // surviving status mutations are what write Workflow Activities.
+      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
         churchId: church.id!,
-        key: "activity-workflow",
-        name: "Activity Workflow",
-        isDefault: false,
-        sortOrder: 1,
-        statuses: [
-          { key: "todo", name: "To Do", taskState: "todo", sortOrder: 0 },
-          { key: "doing", name: "Doing", taskState: "in_progress", sortOrder: 1 },
-          { key: "done", name: "Done", taskState: "done", sortOrder: 2 },
-          { key: "ready", name: "Ready", taskState: "in_progress", sortOrder: 3 },
-        ],
       });
-      const workflow = created.data.workflows.find(
-        (candidate) => candidate.key === "activity-workflow",
+      const workflow = workflowForTeam(defaults, taskTeamId);
+      const todoStatus = statusForTeam(defaults, taskTeamId, "todo");
+
+      const added = yield* authenticated.mutation(refs.public.workflows.addStatus, {
+        churchId: church.id!,
+        workflowId: workflow.id,
+        status: { key: "ready", name: "Ready", taskState: "in_progress", sortOrder: 3 },
+      });
+      const readyStatus = added.data.workflowStatuses.find(
+        (status) => status.workflowId === workflow.id && status.key === "ready",
       )!;
-      const readyStatus = created.data.workflowStatuses.find((status) => status.key === "ready")!;
-      const todoStatus = created.data.workflowStatuses.find((status) => status.key === "todo")!;
 
       yield* authenticated.mutation(refs.public.workflows.archiveStatus, {
         churchId: church.id!,
@@ -4021,20 +4588,12 @@ describe("agent operation boundary", () => {
           archivedAt: "2026-06-01T10:01:00.000Z",
         },
       );
-      const workflowActivities = yield* authenticated.query(refs.public.activities.listForEntity, {
-        churchId: church.id!,
-        entityType: "workflow",
-        entityId: workflow.id,
-      });
       const statusActivities = yield* authenticated.query(refs.public.activities.listForEntity, {
         churchId: church.id!,
         entityType: "workflow",
         entityId: readyStatus.id,
       });
 
-      expect(workflowActivities.data.activities.map((activity) => activity.eventType)).toContain(
-        "workflow.created",
-      );
       expect(requiredStatusArchive).toMatchObject({
         ok: false,
         operation: "archiveWorkflowStatus",
@@ -4067,30 +4626,16 @@ describe("agent operation boundary", () => {
         sessionToken: signUpBody.token!,
       });
 
-      const created = yield* authenticated.mutation(refs.public.workflows.createForChurch, {
+      // Every Team owns its Workflow (ADR 0013): status edits operate on the
+      // Team's seeded Workflow.
+      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
         churchId: church.id!,
-        key: "status-edit-workflow",
-        name: "Status Edit Workflow",
-        isDefault: false,
-        sortOrder: 1,
-        statuses: [
-          { key: "todo", name: "To Do", taskState: "todo", sortOrder: 0 },
-          { key: "doing", name: "Doing", taskState: "in_progress", sortOrder: 1 },
-          { key: "done", name: "Done", taskState: "done", sortOrder: 2 },
-        ],
       });
-      const workflow = created.data.workflows.find(
-        (candidate) => candidate.key === "status-edit-workflow",
-      )!;
-      const doingStatus = created.data.workflowStatuses.find(
-        (status) => status.workflowId === workflow.id && status.key === "doing",
-      )!;
-      const todoStatus = created.data.workflowStatuses.find(
-        (status) => status.workflowId === workflow.id && status.key === "todo",
-      )!;
-      const doneStatus = created.data.workflowStatuses.find(
-        (status) => status.workflowId === workflow.id && status.key === "done",
-      )!;
+      const workflow = workflowForTeam(defaults, taskTeamId);
+      const todoStatus = statusForTeam(defaults, taskTeamId, "todo");
+      const doingStatus = statusForTeam(defaults, taskTeamId, "in_progress");
+      const doneStatus = statusForTeam(defaults, taskTeamId, "done");
 
       const added = yield* authenticated.mutation(refs.public.workflows.addStatus, {
         churchId: church.id!,
@@ -4108,16 +4653,7 @@ describe("agent operation boundary", () => {
       const reordered = yield* authenticated.mutation(refs.public.workflows.reorderStatuses, {
         churchId: church.id!,
         workflowId: workflow.id,
-        statusIds: [reviewStatus.id, doingStatus.id].concat(
-          created.data.workflowStatuses
-            .filter(
-              (status) =>
-                status.workflowId === workflow.id &&
-                status.id !== reviewStatus.id &&
-                status.id !== doingStatus.id,
-            )
-            .map((status) => status.id),
-        ),
+        statusIds: [reviewStatus.id, doingStatus.id, todoStatus.id, doneStatus.id],
       });
       const statusActivities = yield* authenticated.query(refs.public.activities.listForEntity, {
         churchId: church.id!,
@@ -4183,6 +4719,7 @@ describe("agent operation boundary", () => {
       const todoStatus = defaults.data.workflowStatuses.find(
         (status) => status.taskState === "todo",
       )!;
+      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
 
       yield* c.run(
         Effect.gen(function* () {
@@ -4191,7 +4728,10 @@ describe("agent operation boundary", () => {
             ctx.db.insert("tasks", {
               churchId: church.id!,
               title: "Task using To Do",
-              teamId: null,
+              teamId: taskTeamId,
+              // Test fixture bypassing createTasks; a fixed number is fine here.
+              number: 9999,
+              previousIdentifiers: [],
               assignedUserId: null,
               cycleId: "cycle-status-in-use",
               dueDate: "2026-06-03",
@@ -4246,23 +4786,19 @@ describe("agent operation boundary", () => {
         userId: signUpBody.user!.id!,
         sessionToken: signUpBody.token!,
       });
-      const created = yield* authenticated.mutation(refs.public.workflows.createForChurch, {
+      // Every Team owns its Workflow (ADR 0013): extend the Team's seeded
+      // Workflow with a Ready status the canceled Task will reference.
+      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
         churchId: church.id!,
-        key: "canceled-history-workflow",
-        name: "Canceled History Workflow",
-        isDefault: false,
-        sortOrder: 1,
-        statuses: [
-          { key: "todo", name: "To Do", taskState: "todo", sortOrder: 0 },
-          { key: "doing", name: "Doing", taskState: "in_progress", sortOrder: 1 },
-          { key: "ready", name: "Ready", taskState: "in_progress", sortOrder: 2 },
-          { key: "done", name: "Done", taskState: "done", sortOrder: 3 },
-        ],
       });
-      const workflow = created.data.workflows.find(
-        (candidate) => candidate.key === "canceled-history-workflow",
-      )!;
-      const readyStatus = created.data.workflowStatuses.find(
+      const workflow = workflowForTeam(defaults, taskTeamId);
+      const added = yield* authenticated.mutation(refs.public.workflows.addStatus, {
+        churchId: church.id!,
+        workflowId: workflow.id,
+        status: { key: "ready", name: "Ready", taskState: "in_progress", sortOrder: 3 },
+      });
+      const readyStatus = added.data.workflowStatuses.find(
         (status) => status.workflowId === workflow.id && status.key === "ready",
       )!;
 
@@ -4273,7 +4809,10 @@ describe("agent operation boundary", () => {
             ctx.db.insert("tasks", {
               churchId: church.id!,
               title: "Canceled task using Ready",
-              teamId: null,
+              teamId: taskTeamId,
+              // Test fixture bypassing createTasks; a fixed number is fine here.
+              number: 9999,
+              previousIdentifiers: [],
               assignedUserId: null,
               cycleId: "cycle-status-canceled-history",
               dueDate: "2026-06-03",
@@ -4331,55 +4870,42 @@ describe("agent operation boundary", () => {
         userId: signUpBody.user!.id!,
         sessionToken: signUpBody.token!,
       });
-      const source = yield* authenticated.mutation(refs.public.workflows.createForChurch, {
+      // Every Team owns its Workflow (ADR 0013): the source is a starter
+      // Team's seeded Workflow, the destination is the new Team's. Add a
+      // "Doing" status to both so the name+state match can beat the
+      // lower-sortOrder state fallback, and a "Review" status only to the
+      // source to exercise the fallback.
+      const sourceTeamId = yield* firstTeamId(authenticated, church.id!);
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
         churchId: church.id!,
-        key: "source-workflow",
-        name: "Source Workflow",
-        isDefault: false,
-        sortOrder: 1,
-        statuses: [
-          { key: "todo", name: "To Do", taskState: "todo", sortOrder: 0 },
-          { key: "doing", name: "Doing", taskState: "in_progress", sortOrder: 1 },
-          { key: "review", name: "Review", taskState: "in_progress", sortOrder: 2 },
-          { key: "done", name: "Done", taskState: "done", sortOrder: 3 },
-        ],
       });
-      const destination = yield* authenticated.mutation(refs.public.workflows.createForChurch, {
+      const sourceWorkflow = workflowForTeam(defaults, sourceTeamId);
+      const destinationWorkflow = workflowForTeam(defaults, team.id!);
+      const destinationInProgress = statusForTeam(defaults, team.id!, "in_progress");
+      const sourceAdded = yield* authenticated.mutation(refs.public.workflows.addStatus, {
         churchId: church.id!,
-        key: "destination-workflow",
-        name: "Destination Workflow",
-        isDefault: false,
-        sortOrder: 2,
-        statuses: [
-          { key: "todo", name: "To Do", taskState: "todo", sortOrder: 0 },
-          { key: "ready", name: "Ready", taskState: "in_progress", sortOrder: 1 },
-          { key: "doing", name: "Doing", taskState: "in_progress", sortOrder: 2 },
-          { key: "done", name: "Done", taskState: "done", sortOrder: 3 },
-        ],
+        workflowId: sourceWorkflow.id,
+        status: { key: "doing", name: "Doing", taskState: "in_progress", sortOrder: 3 },
       });
-      const sourceWorkflow = source.data.workflows.find(
-        (workflow) => workflow.key === "source-workflow",
-      )!;
-      const sourceDoing = source.data.workflowStatuses.find(
+      const sourceReviewAdded = yield* authenticated.mutation(refs.public.workflows.addStatus, {
+        churchId: church.id!,
+        workflowId: sourceWorkflow.id,
+        status: { key: "review", name: "Review", taskState: "in_progress", sortOrder: 4 },
+      });
+      const destinationAdded = yield* authenticated.mutation(refs.public.workflows.addStatus, {
+        churchId: church.id!,
+        workflowId: destinationWorkflow.id,
+        status: { key: "doing", name: "Doing", taskState: "in_progress", sortOrder: 3 },
+      });
+      const sourceDoing = sourceAdded.data.workflowStatuses.find(
         (status) => status.workflowId === sourceWorkflow.id && status.key === "doing",
       )!;
-      const sourceReview = source.data.workflowStatuses.find(
+      const sourceReview = sourceReviewAdded.data.workflowStatuses.find(
         (status) => status.workflowId === sourceWorkflow.id && status.key === "review",
       )!;
-      const destinationWorkflow = destination.data.workflows.find(
-        (workflow) => workflow.key === "destination-workflow",
-      )!;
-      const destinationDoing = destination.data.workflowStatuses.find(
+      const destinationDoing = destinationAdded.data.workflowStatuses.find(
         (status) => status.workflowId === destinationWorkflow.id && status.key === "doing",
       )!;
-      const destinationReady = destination.data.workflowStatuses.find(
-        (status) => status.workflowId === destinationWorkflow.id && status.key === "ready",
-      )!;
-
-      yield* authenticated.mutation(refs.public.teams.updateProductFields, {
-        churchId: church.id!,
-        updates: [{ teamId: team.id!, fields: { defaultWorkflowId: destinationWorkflow.id } }],
-      });
       const taskId = yield* c.run(
         Effect.gen(function* () {
           const ctx = yield* MutationCtx.MutationCtx<DataModel>();
@@ -4388,7 +4914,10 @@ describe("agent operation boundary", () => {
             ctx.db.insert("tasks", {
               churchId: church.id!,
               title: "Remapped Task",
-              teamId: null,
+              teamId: sourceTeamId,
+              // Test fixture bypassing createTasks; a fixed number is fine here.
+              number: 9999,
+              previousIdentifiers: [],
               assignedUserId: null,
               cycleId: "cycle-remap",
               dueDate: "2026-06-03",
@@ -4430,7 +4959,10 @@ describe("agent operation boundary", () => {
             ctx.db.insert("tasks", {
               churchId: church.id!,
               title: "Fallback Remapped Task",
-              teamId: null,
+              teamId: sourceTeamId,
+              // Test fixture bypassing createTasks; a fixed number is fine here.
+              number: 9999,
+              previousIdentifiers: [],
               assignedUserId: null,
               cycleId: "cycle-remap",
               dueDate: "2026-06-03",
@@ -4459,18 +4991,20 @@ describe("agent operation boundary", () => {
         (candidate) => candidate.id === fallbackTaskId,
       )!;
 
+      // No "Review" in the destination Workflow: fall back to the lowest
+      // sortOrder status with the same Task State.
       expect(fallbackTask).toMatchObject({
         workflowId: destinationWorkflow.id,
-        workflowStatusId: destinationReady.id,
+        workflowStatusId: destinationInProgress.id,
         taskState: "in_progress",
       });
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 
-  it.effect("Task Team changes fall back to the Church default Workflow", () =>
+  it.effect("Task Team changes use the destination Team's own Workflow", () =>
     Effect.gen(function* () {
       const c = yield* TestConfect.TestConfect;
-      const email = `agent-task-team-default-fallback-${crypto.randomUUID()}@example.com`;
+      const email = `agent-task-team-own-workflow-${crypto.randomUUID()}@example.com`;
       const signUpResponse = yield* signUpWithEmail(c, email);
       const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
         user?: { id?: string };
@@ -4478,8 +5012,8 @@ describe("agent operation boundary", () => {
       };
       const churchResponse = yield* createChurch(c, {
         token: signUpBody.token!,
-        name: "Task Remap Default Fallback Church",
-        slug: `task-remap-default-fallback-${crypto.randomUUID()}`,
+        name: "Task Remap Own Workflow Church",
+        slug: `task-remap-own-workflow-${crypto.randomUUID()}`,
       });
       const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
       const teamResponse = yield* createTeam(c, {
@@ -4495,28 +5029,14 @@ describe("agent operation boundary", () => {
       const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
         churchId: church.id!,
       });
-      const defaultWorkflow = defaults.data.workflows.find((workflow) => workflow.isDefault)!;
-      const defaultDoing = defaults.data.workflowStatuses.find(
-        (status) => status.workflowId === defaultWorkflow.id && status.taskState === "in_progress",
-      )!;
-      const source = yield* authenticated.mutation(refs.public.workflows.createForChurch, {
-        churchId: church.id!,
-        key: "source-fallback-workflow",
-        name: "Source Fallback Workflow",
-        isDefault: false,
-        sortOrder: 1,
-        statuses: [
-          { key: "todo", name: "To Do", taskState: "todo", sortOrder: 0 },
-          { key: "doing", name: "Doing", taskState: "in_progress", sortOrder: 1 },
-          { key: "done", name: "Done", taskState: "done", sortOrder: 2 },
-        ],
-      });
-      const sourceWorkflow = source.data.workflows.find(
-        (workflow) => workflow.key === "source-fallback-workflow",
-      )!;
-      const sourceDoing = source.data.workflowStatuses.find(
-        (status) => status.workflowId === sourceWorkflow.id && status.key === "doing",
-      )!;
+      // Every Team owns its Workflow (ADR 0013): the remap targets the
+      // destination Team's own Workflow — the Church default fallback chain
+      // is gone.
+      const sourceTeamId = yield* firstTeamId(authenticated, church.id!);
+      const sourceWorkflow = workflowForTeam(defaults, sourceTeamId);
+      const sourceDoing = statusForTeam(defaults, sourceTeamId, "in_progress");
+      const destinationWorkflow = workflowForTeam(defaults, team.id!);
+      const destinationDoing = statusForTeam(defaults, team.id!, "in_progress");
       const taskId = yield* c.run(
         Effect.gen(function* () {
           const ctx = yield* MutationCtx.MutationCtx<DataModel>();
@@ -4524,10 +5044,13 @@ describe("agent operation boundary", () => {
           return yield* Effect.promise(() =>
             ctx.db.insert("tasks", {
               churchId: church.id!,
-              title: "Default Fallback Remapped Task",
-              teamId: null,
+              title: "Own Workflow Remapped Task",
+              teamId: sourceTeamId,
+              // Test fixture bypassing createTasks; a fixed number is fine here.
+              number: 9999,
+              previousIdentifiers: [],
               assignedUserId: null,
-              cycleId: "cycle-remap-default-fallback",
+              cycleId: "cycle-remap-own-workflow",
               dueDate: "2026-06-03",
               parentTaskId: null,
               workflowId: sourceWorkflow.id,
@@ -4554,8 +5077,8 @@ describe("agent operation boundary", () => {
 
       expect(task).toMatchObject({
         teamId: team.id,
-        workflowId: defaultWorkflow.id,
-        workflowStatusId: defaultDoing.id,
+        workflowId: destinationWorkflow.id,
+        workflowStatusId: destinationDoing.id,
         taskState: "in_progress",
       });
     }).pipe(Effect.provide(TestConfect.layer())),
@@ -5035,6 +5558,7 @@ describe("agent operation boundary", () => {
           ? defaults.data.workflowStatuses.find((status) => status.taskState === "todo")!
           : null;
 
+      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
       const write = yield* authenticated.mutation(refs.public.coreWork.batchWrite, {
         operations: [
           {
@@ -5045,7 +5569,7 @@ describe("agent operation boundary", () => {
               tasks: [
                 {
                   title: "Batch-created task",
-                  teamId: null,
+                  teamId: taskTeamId,
                   workflowStatusId: todoStatus!.id,
                   dueDate: "2026-06-01",
                   parentTaskId: null,
@@ -5137,6 +5661,408 @@ describe("agent operation boundary", () => {
         .pipe(Effect.flip);
 
       expect(error).toBeDefined();
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+});
+
+describe("Task numbering and Task Identifiers", () => {
+  it.effect("creation draws dense per-Team numbers and computes Task Identifiers", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const ownerResponse = yield* signUpWithEmail(
+        c,
+        `task-numbering-owner-${crypto.randomUUID()}@example.com`,
+      );
+      const owner = (yield* Effect.promise(() => ownerResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: owner.token!,
+        name: "Task Numbering Church",
+        slug: `task-numbering-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: owner.user!.id!,
+        sessionToken: owner.token!,
+      });
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
+        churchId: church.id!,
+      });
+      const teams = yield* authenticated.query(refs.public.teams.listForChurch, {
+        churchId: church.id!,
+      });
+      const teamA = teams.data.teams[0]!;
+      const teamB = teams.data.teams[1]!;
+      // Every Team owns its Workflow (ADR 0013): each Team's Tasks use its
+      // own Workflow's To Do status.
+      const todoStatusA = statusForTeam(defaults, teamA.id, "todo");
+      const todoStatusB = statusForTeam(defaults, teamB.id, "todo");
+
+      const firstBatch = yield* authenticated.mutation(refs.public.tasks.createBatch, {
+        churchId: church.id!,
+        tasks: [
+          {
+            title: "Numbered A1",
+            teamId: teamA.id,
+            workflowStatusId: todoStatusA.id,
+            dueDate: "2026-06-03",
+            parentTaskId: null,
+          },
+          {
+            title: "Numbered A2",
+            teamId: teamA.id,
+            workflowStatusId: todoStatusA.id,
+            dueDate: "2026-06-03",
+            parentTaskId: null,
+          },
+        ],
+      });
+      const secondBatch = yield* authenticated.mutation(refs.public.tasks.createBatch, {
+        churchId: church.id!,
+        tasks: [
+          {
+            title: "Numbered A3",
+            teamId: teamA.id,
+            workflowStatusId: todoStatusA.id,
+            dueDate: "2026-06-03",
+            parentTaskId: null,
+          },
+          {
+            title: "Numbered B1",
+            teamId: teamB.id,
+            workflowStatusId: todoStatusB.id,
+            dueDate: "2026-06-03",
+            parentTaskId: null,
+          },
+        ],
+      });
+
+      const byTitle = (title: string) =>
+        [...firstBatch.data.tasks, ...secondBatch.data.tasks].find((task) => task.title === title)!;
+
+      // Numbers are dense within each Team (ADR 0013): Team A draws 1, 2, 3
+      // across batches while Team B independently draws 1.
+      expect(byTitle("Numbered A1")).toMatchObject({
+        number: 1,
+        identifier: `${teamA.identifier}-1`,
+      });
+      expect(byTitle("Numbered A2")).toMatchObject({
+        number: 2,
+        identifier: `${teamA.identifier}-2`,
+      });
+      expect(byTitle("Numbered A3")).toMatchObject({
+        number: 3,
+        identifier: `${teamA.identifier}-3`,
+      });
+      expect(byTitle("Numbered B1")).toMatchObject({
+        number: 1,
+        identifier: `${teamB.identifier}-1`,
+      });
+
+      // Read-side payloads carry the computed identifier too.
+      const listed = yield* authenticated.query(refs.public.tasks.listForChurch, {
+        churchId: church.id!,
+      });
+      const listedA1 = listed.data.tasks.find((task) => task.title === "Numbered A1")!;
+      expect(listedA1.identifier).toBe(`${teamA.identifier}-1`);
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("concurrent creation draws unique, dense numbers within a Team", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const ownerResponse = yield* signUpWithEmail(
+        c,
+        `task-numbering-concurrent-${crypto.randomUUID()}@example.com`,
+      );
+      const owner = (yield* Effect.promise(() => ownerResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: owner.token!,
+        name: "Task Numbering Concurrent Church",
+        slug: `task-numbering-concurrent-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: owner.user!.id!,
+        sessionToken: owner.token!,
+      });
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
+        churchId: church.id!,
+      });
+      const todoStatus = defaults.data.workflowStatuses.find(
+        (status) => status.taskState === "todo",
+      )!;
+      const teamId = yield* firstTeamId(authenticated, church.id!);
+
+      const createOne = (title: string) =>
+        authenticated.mutation(refs.public.tasks.createBatch, {
+          churchId: church.id!,
+          tasks: [
+            {
+              title,
+              teamId,
+              workflowStatusId: todoStatus.id,
+              dueDate: "2026-06-03",
+              parentTaskId: null,
+            },
+          ],
+        });
+
+      yield* Effect.all(
+        [createOne("Concurrent 1"), createOne("Concurrent 2"), createOne("Concurrent 3")],
+        { concurrency: "unbounded" },
+      );
+
+      const listed = yield* authenticated.query(refs.public.tasks.listForChurch, {
+        churchId: church.id!,
+      });
+      const numbers = listed.data.tasks
+        .filter((task) => task.teamId === teamId)
+        .map((task) => task.number)
+        .sort((left, right) => left - right);
+
+      // Concurrent draws never duplicate or skip: the per-Team sequence stays
+      // dense (Convex serializable transactions).
+      expect(numbers).toEqual([1, 2, 3]);
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+});
+
+describe("Task Identifier resolution", () => {
+  // Identifier resolution (ADR 0013): church + identifier string in, Task
+  // out — case-insensitive, current-first, alias fallback.
+  const setupResolutionChurch = function* (label: string) {
+    const c = yield* TestConfect.TestConfect;
+    const ownerResponse = yield* signUpWithEmail(c, `${label}-${crypto.randomUUID()}@example.com`);
+    const owner = (yield* Effect.promise(() => ownerResponse.json())) as {
+      user?: { id?: string };
+      token?: string;
+    };
+    const churchResponse = yield* createChurch(c, {
+      token: owner.token!,
+      name: `${label} Church`,
+      slug: `${label}-${crypto.randomUUID()}`,
+    });
+    const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+    const authenticated = yield* authenticatedConfect(c, {
+      userId: owner.user!.id!,
+      sessionToken: owner.token!,
+    });
+    const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
+      churchId: church.id!,
+    });
+    const teams = yield* authenticated.query(refs.public.teams.listForChurch, {
+      churchId: church.id!,
+    });
+
+    const createTask = (title: string, teamId: string) =>
+      Effect.gen(function* () {
+        // Every Team owns its Workflow (ADR 0013): each Task draws the To Do
+        // status from its own Team's Workflow.
+        const created = yield* authenticated.mutation(refs.public.tasks.createBatch, {
+          churchId: church.id!,
+          tasks: [
+            {
+              title,
+              teamId,
+              workflowStatusId: statusForTeam(defaults, teamId, "todo").id,
+              dueDate: "2026-06-03",
+              parentTaskId: null,
+            },
+          ],
+        });
+        // createBatch returns the whole Task model, not only created Tasks.
+        return created.data.tasks.find((candidate) => candidate.title === title)!;
+      });
+
+    return {
+      c,
+      owner,
+      authenticated,
+      churchId: church.id!,
+      teams: teams.data.teams,
+      createTask,
+    };
+  };
+
+  it.effect("resolves a current Task Identifier case-insensitively", () =>
+    Effect.gen(function* () {
+      const setup = yield* setupResolutionChurch("resolve-current");
+      const team = setup.teams[0]!;
+      const task = yield* setup.createTask("Resolvable Task", team.id);
+
+      const exact = yield* setup.authenticated.query(refs.public.tasks.resolveByIdentifier, {
+        churchId: setup.churchId,
+        identifier: task.identifier,
+      });
+      expect(exact.data.tasks[0]).toMatchObject({ id: task.id, identifier: task.identifier });
+
+      // Case-insensitive matching, uppercase canonical form (ADR 0013):
+      // "prd-48" resolves and the payload carries the canonical identifier.
+      const lowercase = yield* setup.authenticated.query(refs.public.tasks.resolveByIdentifier, {
+        churchId: setup.churchId,
+        identifier: task.identifier.toLowerCase(),
+      });
+      expect(lowercase.data.tasks[0]).toMatchObject({ id: task.id, identifier: task.identifier });
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("falls back to a Team's previous identifier after an identifier change", () =>
+    Effect.gen(function* () {
+      const setup = yield* setupResolutionChurch("resolve-team-alias");
+      const team = setup.teams[0]!;
+      const task = yield* setup.createTask("Aliased Team Task", team.id);
+      const retiredIdentifier = team.identifier;
+
+      yield* setup.authenticated.mutation(refs.public.teams.setIdentifierForChurch, {
+        churchId: setup.churchId,
+        teamId: team.id,
+        identifier: "ZZZZZ",
+      });
+
+      // The old link keeps resolving; the payload carries the new canonical
+      // identifier so the URL can normalize.
+      const resolved = yield* setup.authenticated.query(refs.public.tasks.resolveByIdentifier, {
+        churchId: setup.churchId,
+        identifier: `${retiredIdentifier}-${task.number}`,
+      });
+      expect(resolved.data.tasks[0]).toMatchObject({
+        id: task.id,
+        identifier: `ZZZZZ-${task.number}`,
+      });
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("a current identifier beats a retired alias on collision", () =>
+    Effect.gen(function* () {
+      const setup = yield* setupResolutionChurch("resolve-collision");
+      const teamA = setup.teams[0]!;
+      const teamB = setup.teams[1]!;
+
+      yield* setup.authenticated.mutation(refs.public.teams.setIdentifierForChurch, {
+        churchId: setup.churchId,
+        teamId: teamA.id,
+        identifier: "COL",
+      });
+      const taskA = yield* setup.createTask("Original COL Task", teamA.id);
+
+      // Team A retires "COL"; Team B claims it (retired identifiers are not
+      // reserved, ADR 0013).
+      yield* setup.authenticated.mutation(refs.public.teams.setIdentifierForChurch, {
+        churchId: setup.churchId,
+        teamId: teamA.id,
+        identifier: "MOV",
+      });
+      yield* setup.authenticated.mutation(refs.public.teams.setIdentifierForChurch, {
+        churchId: setup.churchId,
+        teamId: teamB.id,
+        identifier: "COL",
+      });
+      const taskB = yield* setup.createTask("New COL Task", teamB.id);
+      expect(taskA.number).toBe(taskB.number);
+
+      // Current always wins: "COL-1" now belongs to Team B's task.
+      const collided = yield* setup.authenticated.query(refs.public.tasks.resolveByIdentifier, {
+        churchId: setup.churchId,
+        identifier: `COL-${taskB.number}`,
+      });
+      expect(collided.data.tasks[0]).toMatchObject({ id: taskB.id });
+
+      // Team A's task is still reachable through its current identifier.
+      const moved = yield* setup.authenticated.query(refs.public.tasks.resolveByIdentifier, {
+        churchId: setup.churchId,
+        identifier: `MOV-${taskA.number}`,
+      });
+      expect(moved.data.tasks[0]).toMatchObject({ id: taskA.id });
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("falls back to a Task's previous identifiers", () =>
+    Effect.gen(function* () {
+      const setup = yield* setupResolutionChurch("resolve-task-alias");
+      const team = setup.teams[0]!;
+      const task = yield* setup.createTask("Renumbered Task", team.id);
+
+      // Simulate the renumber-and-remember bookkeeping a team move performs:
+      // the old Task Identifier is appended to the task's
+      // previous-identifiers list (ADR 0013).
+      yield* setup.c.run(
+        Effect.gen(function* () {
+          const ctx = yield* MutationCtx.MutationCtx<DataModel>();
+
+          yield* Effect.promise(() =>
+            ctx.db.patch(task.id as Id<"tasks">, { previousIdentifiers: ["OLDTM-7"] }),
+          );
+          return null;
+        }),
+        Schema.Null,
+      );
+
+      const resolved = yield* setup.authenticated.query(refs.public.tasks.resolveByIdentifier, {
+        churchId: setup.churchId,
+        identifier: "oldtm-7",
+      });
+      expect(resolved.data.tasks[0]).toMatchObject({ id: task.id, identifier: task.identifier });
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("scopes resolution to the Church", () =>
+    Effect.gen(function* () {
+      const setup = yield* setupResolutionChurch("resolve-scoping");
+      const team = setup.teams[0]!;
+      const task = yield* setup.createTask("Scoped Task", team.id);
+
+      const otherChurchResponse = yield* createChurch(setup.c, {
+        token: setup.owner.token!,
+        name: "Resolve Scoping Other Church",
+        slug: `resolve-scoping-other-${crypto.randomUUID()}`,
+      });
+      const otherChurch = (yield* Effect.promise(() => otherChurchResponse.json())) as {
+        id?: string;
+      };
+
+      const crossChurch = yield* setup.authenticated.query(refs.public.tasks.resolveByIdentifier, {
+        churchId: otherChurch.id!,
+        identifier: task.identifier,
+      });
+      expect(crossChurch).toMatchObject({
+        ok: false,
+        operation: "resolveTask",
+        error: { code: "task_not_found" },
+      });
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("unknown and malformed identifiers return task_not_found", () =>
+    Effect.gen(function* () {
+      const setup = yield* setupResolutionChurch("resolve-unknown");
+      const team = setup.teams[0]!;
+      yield* setup.createTask("Only Task", team.id);
+
+      const unknownNumber = yield* setup.authenticated.query(
+        refs.public.tasks.resolveByIdentifier,
+        { churchId: setup.churchId, identifier: `${team.identifier}-999` },
+      );
+      expect(unknownNumber).toMatchObject({
+        ok: false,
+        operation: "resolveTask",
+        error: { code: "task_not_found" },
+      });
+
+      const malformed = yield* setup.authenticated.query(refs.public.tasks.resolveByIdentifier, {
+        churchId: setup.churchId,
+        identifier: "not an identifier",
+      });
+      expect(malformed).toMatchObject({
+        ok: false,
+        operation: "resolveTask",
+        error: { code: "task_not_found" },
+      });
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 });

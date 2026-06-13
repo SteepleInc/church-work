@@ -31,7 +31,7 @@ import {
 } from "./task-kanban-adapter";
 import {
   buildTeamMemberIndex,
-  getExecutionWorkflowId,
+  getExecutionBoardGrouping,
   getTaskCreationDefaults,
   getTaskExecutionFilters,
   getTaskExecutionReadArgs,
@@ -70,7 +70,6 @@ export function TaskExecutionSurface({
   readonly team?: {
     readonly id: string;
     readonly name: string;
-    readonly defaultWorkflowId: string | null;
   } | null;
   readonly teams?: readonly { readonly id: string; readonly name: string }[];
   readonly tab?: TaskViewTab;
@@ -98,20 +97,24 @@ export function TaskExecutionSurface({
 
   const cycles = cyclesCollection.cyclesCollection;
   const currentCycle = selectCurrentExecutionCycle(cycles, today);
-  const churchDefaultWorkflow = workflows.workflowsCollection.find(
-    (workflow) => workflow.isDefault,
+  // Every Team owns its Workflow (ADR 0013): a Team Board shows that
+  // Workflow's statuses. Cross-team surfaces carry every active status so
+  // per-card status pickers stay scoped to each Task's Team Workflow.
+  const teamWorkflow =
+    surface === "team_board" && team
+      ? workflows.workflowsCollection.find(
+          (workflow) => workflow.teamId === team.id && workflow.archivedAt === null,
+        )
+      : undefined;
+  const activeWorkflowStatuses = workflowStatusesCollection.workflowStatusesCollection.filter(
+    (status) => status.archivedAt === null,
   );
-  const workflowId = getExecutionWorkflowId({
-    surface,
-    churchDefaultWorkflowId: churchDefaultWorkflow?.id,
-    teamDefaultWorkflowId: team?.defaultWorkflowId,
-  });
-
-  const workflowStatuses = workflowId
-    ? workflowStatusesCollection.workflowStatusesCollection.filter(
-        (status) => status.workflowId === workflowId,
-      )
-    : [];
+  const workflowStatuses =
+    surface === "team_board"
+      ? teamWorkflow
+        ? activeWorkflowStatuses.filter((status) => status.workflowId === teamWorkflow.id)
+        : []
+      : activeWorkflowStatuses;
   const resolvedView = resolveTaskViewOptions(view);
   const taskReadArgs = getTaskExecutionReadArgs({
     churchId,
@@ -144,14 +147,30 @@ export function TaskExecutionSurface({
   const isLoading =
     cyclesCollection.loading ||
     workflows.loading ||
-    (workflowId !== undefined && workflowId !== null && workflowStatusesCollection.loading) ||
+    workflowStatusesCollection.loading ||
     (taskReadArgs !== null && tasksCollection.loading);
+  // Cross-team surfaces group by Task State (ADR 0013: there is no single
+  // Workflow across Teams), so the board renders without a surface Workflow.
+  const boardGrouping = getExecutionBoardGrouping(surface, resolvedView.grouping);
+  const showBoard = surface === "team_board" ? workflowStatuses.length > 0 : !isLoading;
+
+  // Dropping a card on a Task State lane resolves to the matching status in
+  // that Task's own Team Workflow.
+  const findTaskStateStatusId = (taskId: string, taskState: string) => {
+    const task = tasks.find((candidate) => candidate.id === taskId);
+    if (!task) return null;
+    return (
+      [...activeWorkflowStatuses]
+        .filter((status) => status.workflowId === task.workflowId && status.taskState === taskState)
+        .sort((left, right) => left.sortOrder - right.sortOrder)[0]?.id ?? null
+    );
+  };
 
   return (
     <section className="flex min-h-0 flex-1 flex-col gap-4">
-      {isLoading && workflowStatuses.length === 0 ? <TaskBoardSkeleton /> : null}
+      {isLoading && !showBoard ? <TaskBoardSkeleton /> : null}
 
-      {workflowStatuses.length > 0 ? (
+      {showBoard ? (
         <TaskKanbanBoard
           className="min-h-0 flex-1"
           workflowStatuses={workflowStatuses.map(toBoardWorkflowStatus)}
@@ -164,27 +183,32 @@ export function TaskExecutionSurface({
           labelOptions={labelsCollection.labelsCollection}
           currentUserId={currentUserId}
           teamMemberIdsByTeamId={teamMemberIdsByTeamId}
-          grouping={resolvedView.grouping}
+          grouping={boardGrouping}
           showEmptyColumns={resolvedView.showEmptyColumns}
           displayProperties={resolvedView.displayProperties}
           onMoveTask={(move) => {
             // The drag's destination column id means a different field per
-            // grouping; team/task_state lanes are not draggable.
+            // grouping; team lanes are not draggable.
             const fields =
-              resolvedView.grouping === "workflow_status"
+              boardGrouping === "workflow_status"
                 ? { workflowStatusId: move.columnId }
-                : resolvedView.grouping === "assignee"
+                : boardGrouping === "assignee"
                   ? {
                       assignedUserId: move.columnId === UNASSIGNED_COLUMN_ID ? null : move.columnId,
                     }
-                  : resolvedView.grouping === "estimate"
-                    ? {
-                        estimate:
-                          move.columnId === NO_ESTIMATE_COLUMN_ID
-                            ? null
-                            : (move.columnId as TaskBoardEstimate),
-                      }
-                    : null;
+                  : boardGrouping === "task_state"
+                    ? (() => {
+                        const workflowStatusId = findTaskStateStatusId(move.taskId, move.columnId);
+                        return workflowStatusId ? { workflowStatusId } : null;
+                      })()
+                    : resolvedView.grouping === "estimate"
+                      ? {
+                          estimate:
+                            move.columnId === NO_ESTIMATE_COLUMN_ID
+                              ? null
+                              : (move.columnId as TaskBoardEstimate),
+                        }
+                      : null;
             if (!fields) return;
             void updateTask({
               churchId,
@@ -263,15 +287,14 @@ export function TaskExecutionSurface({
               fields: { estimate: change.estimate },
             });
           }}
-          onOpenTask={(taskId) => {
-            const url = openTaskDetailsPaneUrl({ id: taskId });
+          onOpenTask={(taskIdentifier) => {
+            const url = openTaskDetailsPaneUrl({ id: taskIdentifier });
             void navigate({ to: url.to, search: url.search });
           }}
         />
       ) : !isLoading ? (
         <p className="text-sm text-muted-foreground">
-          Configure {surface === "team_board" ? "this Team's" : "a default"} Workflow before using
-          the Task board.
+          Configure this Team's Workflow before using the Task board.
         </p>
       ) : null}
     </section>
@@ -300,6 +323,7 @@ function TaskBoardSkeleton() {
 function toBoardWorkflowStatus(status: WorkflowStatus) {
   return {
     id: status.id,
+    workflowId: status.workflowId,
     name: status.name,
     sortOrder: status.sortOrder,
     taskState: status.taskState,
@@ -309,8 +333,10 @@ function toBoardWorkflowStatus(status: WorkflowStatus) {
 function toBoardTask(task: TaskSummary, tasks: readonly TaskSummary[]) {
   return {
     id: task.id,
+    identifier: task.identifier,
     title: task.title,
     teamId: task.teamId,
+    workflowId: task.workflowId,
     cycleId: task.cycleId,
     dueDate: task.dueDate,
     createdAt: task.createdAt,

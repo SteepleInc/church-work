@@ -138,6 +138,24 @@ const completeOnboarding = () =>
             });
           }
 
+          const teams = await ctx.context.adapter.findMany<{
+            readonly archivedAt?: string | null;
+          }>({
+            model: "team",
+            where: [
+              { field: "organizationId", value: orgId },
+              { field: "archivedAt", value: null },
+            ],
+            limit: 1,
+          });
+
+          if (teams.length === 0) {
+            throw ctx.error("BAD_REQUEST", {
+              code: "team_required",
+              message: "A Church must have at least one Team before onboarding can be completed.",
+            });
+          }
+
           await ctx.context.adapter.update({
             model: "organization",
             update: { completedOnboarding: true },
@@ -512,12 +530,20 @@ export function createAuthOptions(ctx: GenericCtx<DataModel>) {
                 type: "number",
                 required: false,
               },
-              defaultWorkflowId: {
+              color: {
                 type: "string",
                 required: false,
               },
-              color: {
+              identifier: {
                 type: "string",
+                required: false,
+              },
+              previousIdentifiers: {
+                type: "string[]",
+                required: false,
+              },
+              nextTaskNumber: {
+                type: "number",
                 required: false,
               },
             },
@@ -679,6 +705,16 @@ export function createAuthOptions(ctx: GenericCtx<DataModel>) {
             });
           },
           afterCreateTeam: async ({ team, user, organization }) => {
+            // Every Team owns its Workflow (ADR 0013): seed it even for teams
+            // created through the raw Better Auth create-team endpoint.
+            if ("runMutation" in ctx) {
+              await ctx.runMutation(internal.workDefaults.internalSeedTeamWorkflow, {
+                churchId: organization.id,
+                teamId: team.id,
+                name: team.name,
+              });
+            }
+
             await recordAuthHookActivity(ctx, {
               churchId: organization.id,
               entityType: "team",

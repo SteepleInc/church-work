@@ -43,6 +43,15 @@ export const TemplateTableFieldsSchema = Schema.Struct({
   archivedAt: Schema.Union(Schema.String, Schema.Null),
 });
 
+export const TemplateTeamTableFieldsSchema = Schema.Struct({
+  churchId: Schema.String,
+  templateId: Schema.String,
+  key: Schema.String,
+  name: Schema.String,
+  mappedTeamId: Schema.String,
+  archivedAt: Schema.Union(Schema.String, Schema.Null),
+});
+
 export const TemplateSchema = Schema.Struct({
   id: Schema.String,
   churchId: Schema.String,
@@ -68,6 +77,7 @@ export const FocusWindowTableFieldsSchema = Schema.Struct({
 export const TemplateTaskTableFieldsSchema = Schema.Struct({
   churchId: Schema.String,
   templateId: Schema.String,
+  templateTeamId: Schema.String,
   key: Schema.String,
   title: Schema.String,
   parentTemplateTaskId: Schema.Union(Schema.String, Schema.Null),

@@ -4,6 +4,9 @@ export type TaskBoardEstimate = "xs" | "s" | "m" | "l" | "xl";
 
 export type TaskBoardWorkflowStatus = {
   readonly id: string;
+  // The owning Workflow; used to scope per-card status pickers on cross-team
+  // boards (ADR 0013: every Team owns its Workflow).
+  readonly workflowId?: string;
   readonly name: string;
   readonly sortOrder: number;
   readonly taskState: TaskBoardTaskState;
@@ -12,11 +15,17 @@ export type TaskBoardWorkflowStatus = {
 
 export type TaskBoardTask = {
   readonly id: string;
+  // The Task Identifier (e.g. "PRD-48"): the Team Identifier plus the Task's
+  // per-Team sequence number, computed by the backend at read time (ADR 0013).
+  readonly identifier: string;
   readonly title: string;
+  // The Task's Team's Workflow (ADR 0013: every Team owns its Workflow);
+  // scopes the card's status picker on cross-team boards.
+  readonly workflowId: string;
   readonly workflowStatusId: string;
   readonly taskState: TaskBoardTaskState;
   readonly boardOrder?: string;
-  readonly teamId?: string | null;
+  readonly teamId: string;
   readonly assignedUserId?: string | null;
   readonly dueDate?: string | null;
   readonly estimate?: TaskBoardEstimate | null;
@@ -56,7 +65,6 @@ export type TaskBoardColumnMove = {
 };
 
 export const UNASSIGNED_COLUMN_ID = "unassigned";
-export const NO_TEAM_COLUMN_ID = "no_team";
 export const NO_ESTIMATE_COLUMN_ID = "no_estimate";
 
 // "No estimate" first to match the Unassigned / No Team columns, then sizes
@@ -110,7 +118,7 @@ export function getTaskGroupColumnId(grouping: TaskBoardGrouping, task: TaskBoar
     case "assignee":
       return task.assignedUserId ?? UNASSIGNED_COLUMN_ID;
     case "team":
-      return task.teamId ?? NO_TEAM_COLUMN_ID;
+      return task.teamId;
     case "estimate":
       return task.estimate ?? NO_ESTIMATE_COLUMN_ID;
   }
@@ -148,10 +156,7 @@ export function buildTaskBoardGroupColumns(args: {
           })),
         ];
       case "team":
-        return [
-          { id: NO_TEAM_COLUMN_ID, title: "No Team", taskState: null },
-          ...args.teams.map((team) => ({ id: team.id, title: team.name, taskState: null })),
-        ];
+        return args.teams.map((team) => ({ id: team.id, title: team.name, taskState: null }));
       case "estimate":
         return [
           { id: NO_ESTIMATE_COLUMN_ID, title: "No estimate", taskState: null },
@@ -220,7 +225,12 @@ function findColumnOfTask(columns: TaskBoardColumns, taskId: string): string | u
 }
 
 export function isTaskBoardGroupingDraggable(grouping: TaskBoardGrouping): boolean {
-  return grouping === "workflow_status" || grouping === "assignee" || grouping === "estimate";
+  return (
+    grouping === "workflow_status" ||
+    grouping === "assignee" ||
+    grouping === "task_state" ||
+    grouping === "estimate"
+  );
 }
 
 function applyColumnToTask(
@@ -242,6 +252,9 @@ function applyColumnToTask(
         estimate: columnId === NO_ESTIMATE_COLUMN_ID ? null : (columnId as TaskBoardEstimate),
       };
     case "task_state":
+      // The caller resolves the dropped Task State to a status in the Task's
+      // own Team Workflow (ADR 0013).
+      return { ...task, taskState: columnId as TaskBoardTaskState };
     case "team":
       return task;
   }

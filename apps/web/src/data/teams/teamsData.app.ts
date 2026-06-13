@@ -1,15 +1,14 @@
 import { api } from "@church-task/backend/convex/_generated/api";
-import { getTeamColorForName, type Team, type TeamMembership } from "@church-task/domain";
+import {
+  generateTeamIdentifier,
+  getTeamColorForName,
+  type Team,
+  type TeamMembership,
+} from "@church-task/domain";
 import { useMutation } from "convex/react";
 import { useConvexQuery as useQuery } from "@/data/query-hooks";
 
-import {
-  appendItem,
-  removeById,
-  removeWhere,
-  reorderBySortOrder,
-  updateById,
-} from "@/data/collection-ops";
+import { appendItem, removeById, removeWhere, reorderBySortOrder } from "@/data/collection-ops";
 import { successfulResponseCollection } from "@/data/convex-query-adapter";
 import {
   collectionItemOptimisticUpdate,
@@ -18,7 +17,7 @@ import {
 
 export type TeamCollectionItem = Pick<
   Team,
-  "id" | "name" | "color" | "defaultWorkflowId" | "sortOrder"
+  "id" | "name" | "identifier" | "previousIdentifiers" | "color" | "sortOrder"
 >;
 
 export type TeamMembershipCollectionItem = Pick<TeamMembership, "id" | "teamId" | "userId">;
@@ -72,9 +71,13 @@ export function useCreateTeamMutation() {
         appendItem(teams, {
           id: optimisticId("team"),
           name: args.name,
-          // Same derivation the server uses, so the optimistic row matches.
+          // Same derivations the server uses, so the optimistic row matches.
           color: getTeamColorForName(args.name),
-          defaultWorkflowId: null,
+          identifier: generateTeamIdentifier(
+            args.name,
+            teams.map((team) => team.identifier),
+          ),
+          previousIdentifiers: [],
           sortOrder: teams.reduce((max, team) => Math.max(max, team.sortOrder ?? -1), -1) + 1,
         }),
     }),
@@ -88,6 +91,22 @@ export function useRenameTeamMutation() {
       collectionKey: "teams",
       patch: (team: TeamCollectionItem, args: { readonly teamId: string; readonly name: string }) =>
         team.id === args.teamId ? { ...team, name: args.name } : undefined,
+    }),
+  );
+}
+
+export function useSetTeamIdentifierMutation() {
+  return useMutation(api.teams.setIdentifierForChurch).withOptimisticUpdate(
+    collectionItemOptimisticUpdate({
+      query: api.teams.listForChurch,
+      collectionKey: "teams",
+      patch: (
+        team: TeamCollectionItem,
+        args: { readonly teamId: string; readonly identifier: string },
+      ) =>
+        team.id === args.teamId
+          ? { ...team, identifier: args.identifier.trim().toUpperCase() }
+          : undefined,
     }),
   );
 }
@@ -123,34 +142,6 @@ export function useReorderTeamsMutation() {
         teams: readonly TeamCollectionItem[],
         args: { readonly teamIds: readonly string[] },
       ) => reorderBySortOrder(teams, args.teamIds),
-    }),
-  );
-}
-
-export function useUpdateTeamProductFieldsMutation() {
-  return useMutation(api.teams.updateProductFields).withOptimisticUpdate(
-    collectionListOptimisticUpdate({
-      query: api.teams.listForChurch,
-      collectionKey: "teams",
-      patch: (
-        teams: readonly TeamCollectionItem[],
-        args: {
-          readonly updates: readonly {
-            readonly teamId: string;
-            readonly fields: { readonly defaultWorkflowId?: string | null };
-          }[];
-        },
-      ) =>
-        args.updates.reduce(
-          (current, update) =>
-            "defaultWorkflowId" in update.fields
-              ? updateById(current, update.teamId, (team) => ({
-                  ...team,
-                  defaultWorkflowId: update.fields.defaultWorkflowId ?? null,
-                }))
-              : current,
-          teams,
-        ),
     }),
   );
 }

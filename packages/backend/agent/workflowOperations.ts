@@ -11,15 +11,6 @@ const WorkflowStatusInput = Schema.Struct({
   sortOrder: Schema.Number,
 });
 
-export const WorkflowCreateArgs = Schema.Struct({
-  churchId: Schema.String,
-  key: Schema.String,
-  name: Schema.String,
-  isDefault: Schema.Boolean,
-  sortOrder: Schema.Number,
-  statuses: Schema.Array(WorkflowStatusInput),
-});
-
 export const WorkflowRenameArgs = Schema.Struct({
   churchId: Schema.String,
   workflowId: Schema.String,
@@ -32,11 +23,6 @@ export const WorkflowReorderArgs = Schema.Struct({
 });
 
 export const WorkflowArchiveArgs = Schema.Struct({
-  churchId: Schema.String,
-  workflowId: Schema.String,
-});
-
-export const WorkflowSetDefaultArgs = Schema.Struct({
   churchId: Schema.String,
   workflowId: Schema.String,
 });
@@ -79,7 +65,7 @@ const TaskWorkflowSummary = Schema.Struct({
   id: Schema.String,
   churchId: Schema.String,
   title: Schema.String,
-  teamId: Schema.Union(Schema.String, Schema.Null),
+  teamId: Schema.String,
   cycleId: Schema.String,
   dueDate: Schema.Union(Schema.String, Schema.Null),
   parentTaskId: Schema.Union(Schema.String, Schema.Null),
@@ -91,11 +77,9 @@ const TaskWorkflowSummary = Schema.Struct({
 export const WorkflowSuccessResponse = Schema.Struct({
   ok: Schema.Literal(true),
   operation: Schema.Union(
-    Schema.Literal("createWorkflow"),
     Schema.Literal("renameWorkflow"),
     Schema.Literal("reorderWorkflows"),
     Schema.Literal("archiveWorkflow"),
-    Schema.Literal("setDefaultWorkflow"),
     Schema.Literal("addWorkflowStatus"),
     Schema.Literal("renameWorkflowStatus"),
     Schema.Literal("reorderWorkflowStatuses"),
@@ -112,11 +96,9 @@ export const WorkflowSuccessResponse = Schema.Struct({
 export const WorkflowErrorResponse = Schema.Struct({
   ok: Schema.Literal(false),
   operation: Schema.Union(
-    Schema.Literal("createWorkflow"),
     Schema.Literal("renameWorkflow"),
     Schema.Literal("reorderWorkflows"),
     Schema.Literal("archiveWorkflow"),
-    Schema.Literal("setDefaultWorkflow"),
     Schema.Literal("addWorkflowStatus"),
     Schema.Literal("renameWorkflowStatus"),
     Schema.Literal("reorderWorkflowStatuses"),

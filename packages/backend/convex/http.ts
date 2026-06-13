@@ -85,8 +85,9 @@ type McpTaskOperationResult = {
     }>;
     readonly tasks: ReadonlyArray<{
       readonly id: string;
+      readonly identifier: string;
       readonly title: string;
-      readonly teamId: string | null;
+      readonly teamId: string;
       readonly assignedUserId: string | null;
       readonly cycleId: string;
       readonly dueDate: string;
@@ -101,6 +102,8 @@ type McpTaskOperationResult = {
 
 const compactTask = (task: NonNullable<McpTaskOperationResult["data"]>["tasks"][number]) => ({
   id: task.id,
+  // The Task Identifier (e.g. "PRD-48") — the user-facing reference (ADR 0013).
+  identifier: task.identifier,
   title: task.title,
   taskState: task.taskState,
   workflowStatusId: task.workflowStatusId,
@@ -376,21 +379,23 @@ http.route({
 
     const body = (await request.json()) as {
       readonly churchId: string;
-      readonly taskId: string;
+      readonly taskId?: string;
+      readonly taskIdentifier?: string;
       readonly title?: string;
       readonly assignedUserId?: string | null;
-      readonly teamId?: string | null;
+      readonly teamId?: string;
       readonly workflowStatusId?: string;
       readonly dueDate?: string;
       readonly cycleId?: string;
       readonly parentTaskId?: string | null;
     };
 
-    const { churchId, taskId, ...fields } = body;
+    const { churchId, taskId, taskIdentifier, ...fields } = body;
     const result = await ctx.runMutation(convexFunctionRefs.tasks.mcpUpdateTask, {
       churchId,
       actorUserId: session.user.id,
       taskId,
+      taskIdentifier,
       fields,
     });
 
@@ -411,15 +416,30 @@ http.route({
     const body = (await request.json()) as {
       readonly churchId: string;
       readonly title: string;
-      readonly teamId?: string | null;
+      readonly teamId?: string;
       readonly assignedUserId?: string | null;
       readonly workflowStatusId: string;
       readonly dueDate: string;
       readonly parentTaskId?: string | null;
     };
 
+    // Every Task belongs to exactly one Team (ADR 0013); reject team-less
+    // creation here so agent callers get a clear error instead of an
+    // argument-validation failure.
+    if (typeof body.teamId !== "string" || body.teamId.length === 0) {
+      return Response.json({
+        ok: false,
+        tool: "create_task",
+        error: {
+          code: "team_required",
+          message: "Task creation requires a teamId.",
+        },
+      });
+    }
+
     const result = await ctx.runMutation(convexFunctionRefs.tasks.mcpCreateTask, {
       ...body,
+      teamId: body.teamId,
       actorUserId: session.user.id,
     });
 
@@ -441,7 +461,7 @@ http.route({
       readonly churchId: string;
       readonly surface?: "my_work" | "our_work";
       readonly cycleId?: string;
-      readonly teamId?: string | null;
+      readonly teamId?: string;
       readonly assignedUserId?: string | null;
       readonly workflowStatusId?: string;
       readonly taskState?: "todo" | "in_progress" | "done" | "canceled";
@@ -465,11 +485,16 @@ http.route({
       return unauthenticatedResponse();
     }
 
-    const body = (await request.json()) as { readonly churchId: string; readonly taskId: string };
+    const body = (await request.json()) as {
+      readonly churchId: string;
+      readonly taskId?: string;
+      readonly taskIdentifier?: string;
+    };
     const result = await ctx.runQuery(convexFunctionRefs.tasks.mcpListTasks, {
       churchId: body.churchId,
       actorUserId: session.user.id,
       taskId: body.taskId,
+      taskIdentifier: body.taskIdentifier,
     });
 
     return Response.json(mcpTaskResponse("get_task", result, { single: true }));
@@ -568,13 +593,15 @@ const handleMcpTaskTransition = async (
 
   const body = (await request.json()) as {
     readonly churchId: string;
-    readonly taskId: string;
+    readonly taskId?: string;
+    readonly taskIdentifier?: string;
   };
 
   const result = await ctx.runMutation(args.mutation, {
     churchId: body.churchId,
     actorUserId: session.user.id,
     taskId: body.taskId,
+    taskIdentifier: body.taskIdentifier,
   });
 
   return Response.json(mcpTaskResponse(args.tool, result, { single: true }));

@@ -20,7 +20,7 @@ import {
 export type TaskCollectionFilters = {
   readonly surface?: "my_work" | "our_work";
   readonly cycleId?: string;
-  readonly teamId?: string | null;
+  readonly teamId?: string;
   readonly assignedUserId?: string | null;
   readonly createdByUserId?: string;
   readonly workflowStatusId?: string;

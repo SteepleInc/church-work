@@ -23,8 +23,15 @@ const FocusWindowInput = Schema.Struct({
 const TemplateTaskInput = Schema.Struct({
   key: Schema.String,
   title: Schema.String,
+  templateTeamKey: Schema.Union(Schema.String, Schema.Null),
   parentTemplateTaskKey: Schema.Union(Schema.String, Schema.Null),
   schedulingRule: SchedulingRule,
+});
+
+const TemplateTeamInput = Schema.Struct({
+  key: Schema.String,
+  name: Schema.String,
+  mappedTeamId: Schema.String,
 });
 
 const CycleAdjustmentLifecycle = CycleAdjustmentLifecycleSchema;
@@ -38,6 +45,7 @@ export const TemplateCreateArgs = Schema.Struct({
       key: Schema.String,
       name: Schema.String,
       recurrence: TemplateRecurrence,
+      templateTeams: Schema.Array(TemplateTeamInput),
       focusWindows: Schema.Array(FocusWindowInput),
       templateTasks: Schema.Array(TemplateTaskInput),
     }),
@@ -96,6 +104,15 @@ const TemplateSummary = Schema.Struct({
   archivedAt: Schema.Union(Schema.String, Schema.Null),
 });
 
+const TemplateTeamSummary = Schema.Struct({
+  id: Schema.String,
+  templateId: Schema.String,
+  key: Schema.String,
+  name: Schema.String,
+  mappedTeamId: Schema.String,
+  archivedAt: Schema.Union(Schema.String, Schema.Null),
+});
+
 const FocusWindowSummary = Schema.Struct({
   id: Schema.String,
   templateId: Schema.String,
@@ -112,6 +129,7 @@ const FocusWindowSummary = Schema.Struct({
 const TemplateTaskSummary = Schema.Struct({
   id: Schema.String,
   templateId: Schema.String,
+  templateTeamId: Schema.String,
   key: Schema.String,
   title: Schema.String,
   parentTemplateTaskId: Schema.Union(Schema.String, Schema.Null),
@@ -169,6 +187,7 @@ export const TemplateSuccessResponse = Schema.Struct({
   ),
   data: Schema.Struct({
     templates: Schema.Array(TemplateSummary),
+    templateTeams: Schema.Array(TemplateTeamSummary),
     focusWindows: Schema.Array(FocusWindowSummary),
     templateTasks: Schema.Array(TemplateTaskSummary),
     cycleAdjustments: Schema.Array(CycleAdjustmentSummary),
@@ -198,6 +217,7 @@ export const TemplateErrorResponse = Schema.Struct({
       Schema.Literal("template_task_not_found"),
       Schema.Literal("invalid_cycle_adjustment"),
       Schema.Literal("workflow_status_not_found"),
+      Schema.Literal("team_not_found"),
       Schema.Literal("template_not_found"),
     ),
     message: Schema.String,

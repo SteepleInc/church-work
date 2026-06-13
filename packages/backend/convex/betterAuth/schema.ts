@@ -188,11 +188,17 @@ export const tables = {
     updatedAt: v.optional(v.union(v.null(), v.number())),
     archivedAt: v.optional(v.union(v.null(), v.string())),
     sortOrder: v.optional(v.union(v.null(), v.number())),
-    defaultWorkflowId: v.optional(v.union(v.null(), v.string())),
     color: v.optional(v.union(v.null(), v.string())),
+    identifier: v.optional(v.union(v.null(), v.string())),
+    previousIdentifiers: v.optional(v.union(v.null(), v.array(v.string()))),
+    // Per-Team Task number counter (ADR 0013): the next number a Task created
+    // in this Team will draw. Convex serializable transactions keep
+    // concurrent draws safe.
+    nextTaskNumber: v.optional(v.union(v.null(), v.number())),
   })
     .index("organizationId", ["organizationId"])
-    .index("organizationId_name", ["organizationId", "name"]),
+    .index("organizationId_name", ["organizationId", "name"])
+    .index("organizationId_identifier", ["organizationId", "identifier"]),
   teamMember: defineTable({
     teamId: v.string(),
     userId: v.string(),

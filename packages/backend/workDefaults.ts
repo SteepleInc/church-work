@@ -1,5 +1,9 @@
 import { getLabelColorForName, normalizeLabelName } from "@church-task/domain/Label";
-import { getTeamColorForName } from "@church-task/domain/Team";
+import {
+  deriveTeamIdentifierBase,
+  generateTeamIdentifier,
+  getTeamColorForName,
+} from "@church-task/domain/Team";
 import type { GenericDatabaseReader, GenericMutationCtx } from "convex/server";
 
 import { components } from "./convex/_generated/api";
@@ -9,10 +13,10 @@ import { listLabelsForChurch, STARTER_LABELS } from "./labels";
 type MutationCtx = GenericMutationCtx<DataModel>;
 
 type BetterAuthTeam = {
+  readonly _id: string;
   readonly name: string;
+  readonly identifier?: string | null;
 };
-
-const DEFAULT_WORKFLOW_KEY = "church-default";
 
 const DEFAULT_WORKFLOW_STATUSES = [
   { key: "to-do", name: "To Do", taskState: "todo", sortOrder: 0 },
@@ -62,21 +66,30 @@ const STARTER_KEY_DATES = [
   },
 ] as const;
 
-export async function seedDefaultWorkModel(ctx: MutationCtx, churchId: string) {
+/**
+ * Seed a Team its own To Do / In Progress / Done Workflow (ADR 0013: every
+ * Team owns its Workflow; there is no Church default Workflow). Idempotent:
+ * a Team that already has a Workflow keeps it, and missing statuses are
+ * filled in.
+ */
+export async function seedTeamWorkflow(
+  ctx: MutationCtx,
+  args: { readonly churchId: string; readonly teamId: string; readonly name: string },
+) {
   const existingWorkflow = await ctx.db
     .query("workflows")
-    .withIndex("by_churchId_and_key", (q) =>
-      q.eq("churchId", churchId).eq("key", DEFAULT_WORKFLOW_KEY),
+    .withIndex("by_churchId_and_teamId", (q) =>
+      q.eq("churchId", args.churchId).eq("teamId", args.teamId),
     )
-    .unique();
+    .first();
 
   const workflowId =
     existingWorkflow?._id ??
     (await ctx.db.insert("workflows", {
-      churchId,
-      key: DEFAULT_WORKFLOW_KEY,
-      name: "Default Workflow",
-      isDefault: true,
+      churchId: args.churchId,
+      teamId: args.teamId,
+      key: `team-${args.teamId}`,
+      name: args.name,
       sortOrder: 0,
       archivedAt: null,
     }));
@@ -91,7 +104,7 @@ export async function seedDefaultWorkModel(ctx: MutationCtx, churchId: string) {
 
     if (!existingStatus) {
       await ctx.db.insert("workflowStatuses", {
-        churchId,
+        churchId: args.churchId,
         workflowId,
         ...status,
         archivedAt: null,
@@ -99,6 +112,10 @@ export async function seedDefaultWorkModel(ctx: MutationCtx, churchId: string) {
     }
   }
 
+  return { workflowId };
+}
+
+export async function seedDefaultWorkModel(ctx: MutationCtx, churchId: string) {
   for (const keyDate of STARTER_KEY_DATES) {
     const existingKeyDate = await ctx.db
       .query("keyDates")
@@ -138,9 +155,15 @@ export async function seedDefaultWorkModel(ctx: MutationCtx, churchId: string) {
     paginationOpts: { cursor: null, numItems: 100 },
   })) as { readonly page: ReadonlyArray<BetterAuthTeam> };
   const existingTeamNames = new Set(existingTeams.page.map((team) => team.name));
+  // Teams created before identifiers were stored count their name-derived
+  // base as taken, matching the read-path fallback.
+  const takenIdentifiers = existingTeams.page.map(
+    (team) => team.identifier ?? deriveTeamIdentifierBase(team.name),
+  );
 
   for (const [sortOrder, name] of STARTER_TEAMS.entries()) {
     if (!existingTeamNames.has(name)) {
+      const identifier = generateTeamIdentifier(name, takenIdentifiers);
       await ctx.runMutation(components.betterAuth.adapter.create, {
         input: {
           model: "team",
@@ -151,16 +174,31 @@ export async function seedDefaultWorkModel(ctx: MutationCtx, churchId: string) {
             updatedAt: null,
             archivedAt: null,
             sortOrder,
-            defaultWorkflowId: null,
             color: getTeamColorForName(name),
+            identifier,
+            previousIdentifiers: [],
           },
         },
       });
       existingTeamNames.add(name);
+      takenIdentifiers.push(identifier);
     }
   }
 
-  return { workflowId };
+  // Every Team owns its Workflow (ADR 0013): seed one for any Team in the
+  // Church that does not have one yet (covers Starter Teams just created
+  // above and is idempotent on re-runs).
+  const allTeams = (await ctx.runQuery(components.betterAuth.adapter.findMany, {
+    model: "team",
+    where: [{ field: "organizationId", value: churchId }],
+    paginationOpts: { cursor: null, numItems: 100 },
+  })) as { readonly page: ReadonlyArray<BetterAuthTeam> };
+
+  for (const team of allTeams.page) {
+    await seedTeamWorkflow(ctx, { churchId, teamId: team._id, name: team.name });
+  }
+
+  return null;
 }
 
 export async function readDefaultWorkModel(

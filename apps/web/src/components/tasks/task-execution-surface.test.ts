@@ -2,8 +2,9 @@ import { describe, expect, test } from "bun:test";
 
 import {
   buildTeamMemberIndex,
+  getDefaultCreateTaskTeamId,
   getTaskCreationDefaults,
-  getExecutionWorkflowId,
+  getExecutionBoardGrouping,
   getTaskExecutionFilters,
   getTaskExecutionReadArgs,
   getTaskParentContext,
@@ -51,28 +52,90 @@ describe("Task execution surface", () => {
     });
   });
 
-  test("selects the effective Workflow for fixed execution surfaces", () => {
-    expect(
-      getExecutionWorkflowId({
-        surface: "my_work",
-        churchDefaultWorkflowId: "church-workflow",
-        teamDefaultWorkflowId: "team-workflow",
-      }),
-    ).toBe("church-workflow");
-    expect(
-      getExecutionWorkflowId({
-        surface: "our_work",
-        churchDefaultWorkflowId: "church-workflow",
-        teamDefaultWorkflowId: "team-workflow",
-      }),
-    ).toBe("church-workflow");
-    expect(
-      getExecutionWorkflowId({
-        surface: "team_board",
-        churchDefaultWorkflowId: "church-workflow",
-        teamDefaultWorkflowId: "team-workflow",
-      }),
-    ).toBe("team-workflow");
+  describe("default create-task Team chain (ADR 0013)", () => {
+    const teams = [
+      { id: "team-b", sortOrder: 2 },
+      { id: "team-a", sortOrder: 1 },
+      { id: "team-c", sortOrder: 3 },
+    ];
+
+    test("a surface preset wins over everything", () => {
+      expect(
+        getDefaultCreateTaskTeamId({
+          presetTeamId: "team-c",
+          lastUsedTeamId: "team-b",
+          currentUserId: "user-1",
+          teams,
+          memberships: [{ teamId: "team-a", userId: "user-1" }],
+        }),
+      ).toBe("team-c");
+    });
+
+    test("falls back to the last-used Team when no preset", () => {
+      expect(
+        getDefaultCreateTaskTeamId({
+          lastUsedTeamId: "team-b",
+          currentUserId: "user-1",
+          teams,
+          memberships: [{ teamId: "team-a", userId: "user-1" }],
+        }),
+      ).toBe("team-b");
+    });
+
+    test("ignores stale presets and last-used Teams that no longer exist", () => {
+      expect(
+        getDefaultCreateTaskTeamId({
+          presetTeamId: "team-gone",
+          lastUsedTeamId: "team-also-gone",
+          currentUserId: "user-1",
+          teams,
+          memberships: [{ teamId: "team-b", userId: "user-1" }],
+        }),
+      ).toBe("team-b");
+    });
+
+    test("falls back to the user's first Team Membership by Team order", () => {
+      expect(
+        getDefaultCreateTaskTeamId({
+          currentUserId: "user-1",
+          teams,
+          memberships: [
+            { teamId: "team-c", userId: "user-1" },
+            { teamId: "team-b", userId: "user-1" },
+            { teamId: "team-a", userId: "user-2" },
+          ],
+        }),
+      ).toBe("team-b");
+    });
+
+    test("falls back to the Church's first Team when the user has no memberships", () => {
+      expect(
+        getDefaultCreateTaskTeamId({
+          currentUserId: "user-1",
+          teams,
+          memberships: [],
+        }),
+      ).toBe("team-a");
+    });
+
+    test("returns null only when the Church has no Teams", () => {
+      expect(
+        getDefaultCreateTaskTeamId({
+          currentUserId: "user-1",
+          teams: [],
+          memberships: [],
+        }),
+      ).toBeNull();
+    });
+  });
+
+  test("groups cross-team boards by Task State and Team Boards by Workflow Status (ADR 0013)", () => {
+    expect(getExecutionBoardGrouping("my_work", "workflow_status")).toBe("task_state");
+    expect(getExecutionBoardGrouping("our_work", "workflow_status")).toBe("task_state");
+    expect(getExecutionBoardGrouping("team_board", "workflow_status")).toBe("workflow_status");
+    // Non-status groupings are untouched everywhere.
+    expect(getExecutionBoardGrouping("my_work", "assignee")).toBe("assignee");
+    expect(getExecutionBoardGrouping("team_board", "team")).toBe("team");
   });
 
   test("builds the web execution read contract used to reflect backend Task changes", () => {
@@ -134,25 +197,29 @@ describe("Task execution surface", () => {
   test("resolves visible Subtask parent context for board cards", () => {
     const parentTask = {
       id: "parent-task",
+      identifier: "PRO-1",
       title: "Prepare service",
-      teamId: null,
+      teamId: "team-1",
       assignedUserId: null,
       cycleId: "cycle-1",
       dueDate: "2026-06-03",
       createdAt: 0,
       parentTaskId: null,
+      workflowId: "workflow-1",
       workflowStatusId: "todo",
       taskState: "todo" as const,
     };
     const childTask = {
       id: "child-task",
+      identifier: "PRO-2",
       title: "Print handouts",
-      teamId: null,
+      teamId: "team-1",
       assignedUserId: "user-1",
       cycleId: "cycle-1",
       dueDate: "2026-06-03",
       createdAt: 0,
       parentTaskId: parentTask.id,
+      workflowId: "workflow-1",
       workflowStatusId: "todo",
       taskState: "todo" as const,
     };

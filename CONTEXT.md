@@ -52,8 +52,12 @@ _Avoid_: Planning period, template period
 An optional date inside a Focus Window that a Template can use as a scheduling reference, such as Easter, the first Sunday of a sermon series, or a specific weekly service date. Not every Template has an Anchor Date.
 _Avoid_: End date, target date
 
+**Template Team**:
+A named team slot inside a Template that is mapped to a real Team. Template Tasks reference Template Teams rather than Teams directly, so a Template can outlive the Teams it was written against. Deleting or archiving a Team forces every Template Team mapped to it to be remapped to another Team or its Template Tasks abandoned, so mappings never dangle and Cycle generation never blocks.
+_Avoid_: Team reference, team binding, dangling team
+
 **Template Task**:
-A task definition inside a Template before it appears in a Cycle. A Template Task follows the same assignment rules as a Task and becomes a Task when its Scheduling Rule places it into a Cycle.
+A task definition inside a Template before it appears in a Cycle. A Template Task belongs to one Template Team and becomes a Task in that Template Team's mapped Team when its Scheduling Rule places it into a Cycle, drawing its Task Identifier from that Team's sequence at that moment.
 _Avoid_: Template card
 
 **Scheduling Rule**:
@@ -69,8 +73,12 @@ The Template that caused a Cycle task to exist. A generated Task may show its So
 _Avoid_: Origin, parent template
 
 **Task**:
-A unit of church work inside a Cycle that can be assigned, scheduled, tracked, and completed. A Task may be assigned to one Team, one User, both, or neither; User assignment means one expected executor, while Team assignment remains the accountability boundary. A Task without a Source Template is still just a Task.
-_Avoid_: Card when referring to the domain concept; one-off task, manual task
+A unit of church work inside a Cycle that belongs to exactly one Team and can be assigned, scheduled, tracked, and completed. A Task may additionally be assigned to one User as the expected executor; the Team is always the accountability boundary. A Task without a Source Template is still just a Task.
+_Avoid_: Card when referring to the domain concept; one-off task, manual task, team-less task
+
+**Task Identifier**:
+The human-readable key of a Task, formed from its Team's Team Identifier and a per-Team sequence number, such as PRD-48. The Task Identifier is how a Task is referenced in URLs and across product surfaces; matching is case-insensitive and the canonical form is uppercase. A Task is numbered within its Team; moving a Task to another Team issues a new Task Identifier from the destination Team's sequence, and the Task's previous Task Identifiers remain resolvable so existing links keep working.
+_Avoid_: Task number alone, Convex id as a user-facing reference, TASK- prefix
 
 **Subtask**:
 A Task that belongs to a parent Task. A Subtask may belong to a different Cycle than its parent Task; parent Task completion is independent from Subtask completion.
@@ -81,10 +89,14 @@ The date by which a Task should be completed, when one is set. A Task may have n
 _Avoid_: Scheduled date, deadline
 
 **Team**:
-A group responsible for an area of church work, such as Production, Kids, or Events. Team assignment establishes responsibility and visibility for a Task.
+A group responsible for an area of church work, such as Production, Kids, or Events. Every Task belongs to exactly one Team, and every Church has at least one Team; the last remaining Team cannot be removed.
 _Avoid_: Department, ministry
 
 _Note_: There is no global Active Team; Teams are used contextually for filtering, visibility, workflow, and assignment inside the Active Church.
+
+**Team Identifier**:
+The short uppercase code that prefixes a Team's Task Identifiers, such as PRD. The Team Identifier is also how a Team is referenced in URLs. A three-letter Team Identifier is generated from the Team's name when the Team is created, and Users may change it later (up to seven characters, unique within the Church). Changing a Team Identifier re-renders all of that Team's Task Identifiers, and the previous Team Identifier remains resolvable so existing links keep working; when a previous identifier is later claimed by another Team, current identifiers always win and the alias resolves only when nothing current matches.
+_Avoid_: Identifier without qualification in domain language, key, prefix, team code
 
 **Team Color**:
 The color assigned to a Team from a fixed product palette, shown wherever the Team is represented visually (such as its avatar). A Team Color is assigned automatically when the Team is created, derived from its name, and is stored with the Team so it can later be changed by Users.
@@ -95,7 +107,7 @@ The relationship between a User and a Team inside a Church. Team Membership dete
 _Avoid_: Department membership, ministry membership
 
 **User**:
-An individual who can be assigned to tasks within a Church. A User may belong to many Teams or no Teams; user assignment identifies who is expected to execute work, but the assigned Team remains the accountability boundary when present.
+An individual who can be assigned to tasks within a Church. A User may belong to many Teams or no Teams; user assignment identifies who is expected to execute work, but the Task's Team remains the accountability boundary.
 _Avoid_: Person
 
 **Church Membership**:
@@ -115,7 +127,7 @@ One screen of Onboarding: Church Profile (tell us about your Church), Initial Te
 _Avoid_: Page, screen number
 
 **Starter Teams**:
-The default Teams every new Church begins with: Worship, Production, Kids, Experience, Facilities, and Social Media. Starter Teams are seeded when the Church is created and may be renamed or removed during Onboarding's Initial Teams step.
+The default Teams every new Church begins with: Worship, Production, Kids, Experience, Facilities, and Social Media. Starter Teams are seeded when the Church is created and may be renamed or removed during Onboarding's Initial Teams step, though a Church must always keep at least one Team.
 _Avoid_: Default initial teams, suggested teams as a separate concept
 
 **Completed Onboarding**:
@@ -187,8 +199,8 @@ The color assigned to a Label from the same fixed product palette used for Team 
 _Avoid_: Arbitrary hex colors, per-label custom colors
 
 **Workflow**:
-The ordered set of Workflow Statuses a Task moves through. A Task assigned to a Team uses that Team's Workflow; a Task without a Team uses the Church default Workflow.
-_Avoid_: Board workflow
+The ordered set of Workflow Statuses a Task moves through. Every Team has its own Workflow, seeded with To Do, In Progress, and Done when the Team is created; a Task always uses its Team's Workflow. There is no Church-level default Workflow.
+_Avoid_: Board workflow, Church default Workflow
 
 **Workflow Status**:
 A specific position in a Workflow, such as To Do, Waiting on Assets, Needs Review, or Done. Each Workflow Status maps to one Task State.

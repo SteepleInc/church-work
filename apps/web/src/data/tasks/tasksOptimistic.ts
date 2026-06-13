@@ -8,7 +8,7 @@ import type { TaskEstimate, TaskStatus } from "@church-task/domain";
 export type OptimisticTask = {
   readonly id: string;
   readonly assignedUserId: string | null;
-  readonly teamId: string | null;
+  readonly teamId: string;
   readonly workflowStatusId: string;
   readonly taskState: TaskStatus;
   readonly boardOrder: string;
@@ -26,7 +26,7 @@ export type OptimisticTask = {
 export type TaskUpdateFields = {
   readonly title?: string;
   readonly assignedUserId?: string | null;
-  readonly teamId?: string | null;
+  readonly teamId?: string;
   readonly workflowStatusId?: string;
   readonly dueDate?: string;
   readonly cycleId?: string;

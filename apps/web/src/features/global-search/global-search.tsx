@@ -132,10 +132,14 @@ export function GlobalSearch() {
       actionText: "Open Team",
       details: [
         { label: "Team", value: team.name },
-        { label: "Route", value: `/team/${team.id}` },
+        { label: "Route", value: `/team/${team.identifier}` },
       ],
       onSelect: selectAndClose(
-        () => void navigate({ params: { teamId: team.id }, to: "/team/$teamId" }),
+        () =>
+          void navigate({
+            params: { teamIdentifier: team.identifier },
+            to: "/team/$teamIdentifier",
+          }),
       ),
     }));
 
@@ -161,7 +165,7 @@ export function GlobalSearch() {
       type: "task" as const,
       title: task.title,
       description: `Church task - ${task.taskState}`,
-      keywords: ["task", "work", task.taskState, task.teamId ?? ""],
+      keywords: ["task", "work", task.taskState, task.teamId],
       icon: ListTodoIcon,
       actionText: "Open Work",
       details: [

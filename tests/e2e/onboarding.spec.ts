@@ -224,6 +224,31 @@ test("creates a Church profile and edits the live starting Teams", async ({ page
   await expect(page.getByRole("navigation", { name: "breadcrumb" })).toContainText("My Work");
 });
 
+test("onboarding keeps at least one initial Team before completion", async ({ page }, testInfo) => {
+  const email = `onboarding-team-floor-${Date.now()}-${testInfo.workerIndex}@example.com`;
+  const churchName = `E2E Team Floor Church ${Date.now()}`;
+
+  await signInWithOtp(page, email);
+  await expect(page).toHaveURL(/\/onboarding$/);
+  await submitChurchProfile(page, churchName);
+  await expectTeamsStep(page);
+
+  for (let teamCount = 6; teamCount > 1; teamCount -= 1) {
+    await page
+      .getByLabel("Initial Teams")
+      .getByRole("button", { name: /^Remove / })
+      .last()
+      .click();
+    await expect(
+      page.getByLabel("Initial Teams").getByRole("button", { name: /^Edit / }),
+    ).toHaveCount(teamCount - 1);
+  }
+
+  await expect(page.getByRole("button", { name: /^Remove / })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Skip" })).not.toBeVisible();
+  await finishOnboardingFromTeamsStep(page);
+});
+
 test("logging out mid-onboarding returns to the teams step at next login", async ({
   page,
 }, testInfo) => {

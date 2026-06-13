@@ -41,11 +41,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { QueryResult, useQuery as useConfectQuery } from "@/data/query-hooks";
+import { normalizeTeamIdentifier } from "@church-task/domain/Team";
 import { revalidateLogic } from "@tanstack/react-form";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { Authenticated, Unauthenticated } from "convex/react";
 import { Schema } from "effect";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import SignInForm from "@/components/sign-in-form";
 import SignUpForm from "@/components/sign-up-form";
@@ -74,19 +75,16 @@ import {
   useReorderTeamsMutation,
   useTeamMembershipsCollection,
   useTeamsCollection,
-  useUpdateTeamProductFieldsMutation,
 } from "@/data/teams/teamsData.app";
 import { useChurchUsersCollection, type UserCollectionItem } from "@/data/users/usersData.app";
 import {
   useAddWorkflowStatusMutation,
   useArchiveWorkflowMutation,
   useArchiveWorkflowStatusMutation,
-  useCreateWorkflowMutation,
   useRenameWorkflowMutation,
   useRenameWorkflowStatusMutation,
   useReorderWorkflowStatusesMutation,
   useReorderWorkflowsMutation,
-  useSetDefaultWorkflowMutation,
   useWorkflowStatusesCollection,
   useWorkflowsCollection,
 } from "@/data/workflows/workflowsData.app";
@@ -96,6 +94,7 @@ import { useQuickActionOpeners } from "@/features/quick-actions/quick-actions-st
 import {
   getDashboardSearchForPanel,
   getUnavailableTeamBoardActions,
+  resolveTeamByRouteIdentifier,
   type DashboardSearch,
 } from "@/routes/-dashboard-utils";
 
@@ -103,7 +102,7 @@ export type ActiveDashboardPanel =
   | "my_work"
   | "our_work"
   | "settings"
-  | { kind: "team"; teamId: string };
+  | { kind: "team"; teamIdentifier: string };
 
 function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboardPanel }) {
   const search = useSearch({ strict: false }) as DashboardSearch;
@@ -115,8 +114,8 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
 
     if (typeof panel === "object") {
       navigate({
-        to: "/team/$teamId",
-        params: { teamId: panel.teamId },
+        to: "/team/$teamIdentifier",
+        params: { teamIdentifier: panel.teamIdentifier },
         search: routeSearch,
       });
       return;
@@ -134,8 +133,9 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
   const activeTeams = teams.teamsCollection;
   const selectedTeam =
     typeof activePanel === "object"
-      ? (activeTeams.find((team) => team.id === activePanel.teamId) ?? null)
+      ? resolveTeamByRouteIdentifier(activeTeams, activePanel.teamIdentifier)
       : null;
+  const canonicalTeamIdentifier = selectedTeam?.identifier ?? null;
   const unavailableTeamBoardActions = getUnavailableTeamBoardActions();
   const { openCreateTask } = useQuickActionOpeners();
   const showCreateTask =
@@ -155,6 +155,19 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
   const showTopBar = showCreateTask && (typeof activePanel !== "object" || selectedTeam !== null);
   const activeTab = resolveTaskViewTab(surface, search.tab);
   const activeView = resolveTaskViewOptions(search.view);
+
+  useEffect(() => {
+    if (typeof activePanel !== "object" || canonicalTeamIdentifier === null) return;
+
+    if (normalizeTeamIdentifier(activePanel.teamIdentifier) !== canonicalTeamIdentifier) {
+      void navigate({
+        to: "/team/$teamIdentifier",
+        params: { teamIdentifier: canonicalTeamIdentifier },
+        replace: true,
+        search: true,
+      });
+    }
+  }, [activePanel, canonicalTeamIdentifier, navigate, search]);
 
   const setTab = (tab: TaskViewTab) => {
     void navigate({
@@ -188,7 +201,11 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
           view={activeView}
           onViewChange={setView}
           onCreateTask={() =>
-            openCreateTask({ assignTo: activePanel === "my_work" ? currentUserId : null })
+            openCreateTask({
+              assignTo: activePanel === "my_work" ? currentUserId : null,
+              // On a Team Board the picker is preset to that Team (ADR 0013).
+              teamId: selectedTeam?.id ?? null,
+            })
           }
         />
       ) : null}
@@ -258,7 +275,7 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
   return (
     <MainContainer>
       {showBoardSurface ? (
-        <PageWrapper className="gap-6" variant="noPageContainer">
+        <PageWrapper variant="noPageContainer" className="gap-6">
           {content}
         </PageWrapper>
       ) : (
@@ -479,14 +496,14 @@ type TeamSetupTeam = {
   id: string;
   name: string;
   sortOrder: number;
-  defaultWorkflowId: string | null;
 };
 
 type WorkflowSetupWorkflow = {
   id: string;
+  // Every Team owns its Workflow (ADR 0013): the owning Team's id.
+  teamId: string;
   key: string;
   name: string;
-  isDefault: boolean;
   sortOrder: number;
   archivedAt: string | null;
 };
@@ -914,17 +931,12 @@ function WorkflowSettingsCard({
   workflows: readonly WorkflowSetupWorkflow[];
   isLoading: boolean;
 }) {
-  const createWorkflow = useCreateWorkflowMutation();
   const renameWorkflow = useRenameWorkflowMutation();
   const reorderWorkflows = useReorderWorkflowsMutation();
   const archiveWorkflow = useArchiveWorkflowMutation();
-  const setDefaultWorkflow = useSetDefaultWorkflowMutation();
-  const updateTeamProductFields = useUpdateTeamProductFieldsMutation();
   const canManage = canMutateChurchSettings(activeChurch.role);
   const activeWorkflows = workflows.filter((workflow) => workflow.archivedAt === null);
-  const defaultWorkflow = activeWorkflows.find((workflow) => workflow.isDefault);
-  const workflowsById = new Map(activeWorkflows.map((workflow) => [workflow.id, workflow]));
-  const [newWorkflowName, setNewWorkflowName] = useState("");
+  const teamsById = new Map(teams.map((team) => [team.id, team]));
   const [renameDrafts, setRenameDrafts] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -973,8 +985,8 @@ function WorkflowSettingsCard({
       <CardHeader>
         <CardTitle id="workflows-settings-title">Workflows</CardTitle>
         <CardDescription>
-          Church-scoped processes available to Teams and Tasks. Teams fall back to the Church
-          default Workflow unless one is assigned here.
+          Every Team owns its Workflow. New Teams start with To Do, In Progress, and Done, and each
+          Team's Workflow can be customized independently.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
@@ -993,75 +1005,11 @@ function WorkflowSettingsCard({
             <AlertDescription>{success}</AlertDescription>
           </Alert>
         ) : null}
-        {canManage ? (
-          <form
-            className="flex flex-col gap-3 sm:flex-row sm:items-end"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const name = newWorkflowName.trim();
-              if (!name) return;
-              void runWorkflowMutation(
-                "create",
-                () =>
-                  createWorkflow({
-                    churchId: activeChurch.id,
-                    key: workflowKey(name),
-                    name,
-                    isDefault: activeWorkflows.length === 0,
-                    sortOrder: activeWorkflows.length,
-                    statuses: defaultWorkflowStatuses(),
-                  }),
-                () => {
-                  setNewWorkflowName("");
-                  setSuccess(`Created Workflow ${name}.`);
-                },
-              );
-            }}
-          >
-            <div className="grid gap-2">
-              <Label htmlFor="new-workflow-name">New Workflow Name</Label>
-              <Input
-                id="new-workflow-name"
-                value={newWorkflowName}
-                disabled={pendingAction === "create"}
-                onChange={(event) => setNewWorkflowName(event.currentTarget.value)}
-              />
-            </div>
-            <Button type="submit" disabled={pendingAction === "create" || !newWorkflowName.trim()}>
-              {pendingAction === "create" ? "Creating..." : "Create Workflow"}
-            </Button>
-          </form>
-        ) : (
+        {canManage ? null : (
           <p className="text-sm text-muted-foreground">
             Only Church owners and admins can change Workflows.
           </p>
         )}
-        {canManage ? (
-          <div className="grid gap-2">
-            <Label htmlFor="church-default-workflow">Church Default Workflow</Label>
-            <NativeSelect
-              id="church-default-workflow"
-              value={defaultWorkflow?.id ?? ""}
-              disabled={pendingAction === "set-default" || activeWorkflows.length === 0}
-              onChange={(event) => {
-                const workflowId = event.currentTarget.value;
-                const workflow = workflowsById.get(workflowId);
-                if (!workflow || workflow.isDefault) return;
-                void runWorkflowMutation(
-                  "set-default",
-                  () => setDefaultWorkflow({ churchId: activeChurch.id, workflowId }),
-                  () => setSuccess(`Set ${workflow.name} as the Church default Workflow.`),
-                );
-              }}
-            >
-              {activeWorkflows.map((workflow) => (
-                <NativeSelectOption key={workflow.id} value={workflow.id}>
-                  {workflow.name}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </div>
-        ) : null}
         <Table>
           <TableHeader>
             <TableRow>
@@ -1092,8 +1040,8 @@ function WorkflowSettingsCard({
                             }))
                           }
                         />
-                        {workflow.isDefault ? (
-                          <Badge variant="secondary">Church default</Badge>
+                        {teamsById.has(workflow.teamId) ? (
+                          <Badge variant="secondary">{teamsById.get(workflow.teamId)?.name}</Badge>
                         ) : null}
                       </div>
                     ) : (
@@ -1177,61 +1125,14 @@ function WorkflowSettingsCard({
             })}
           </TableBody>
         </Table>
-        {canManage && teams.length > 0 ? (
-          <div className="grid gap-3">
-            <h3 className="text-sm font-medium">Team Default Workflows</h3>
-            {teams.map((team) => (
-              <div key={team.id} className="grid gap-2">
-                <Label htmlFor={`team-default-workflow-${team.id}`}>
-                  Default Workflow for {team.name}
-                </Label>
-                <NativeSelect
-                  id={`team-default-workflow-${team.id}`}
-                  value={team.defaultWorkflowId ?? "church-default"}
-                  disabled={pendingAction === `team-default-${team.id}`}
-                  onChange={(event) => {
-                    const value = event.currentTarget.value;
-                    const defaultWorkflowId = value === "church-default" ? null : value;
-                    const workflow = defaultWorkflowId
-                      ? workflowsById.get(defaultWorkflowId)
-                      : null;
-                    void runWorkflowMutation(
-                      `team-default-${team.id}`,
-                      () =>
-                        updateTeamProductFields({
-                          churchId: activeChurch.id,
-                          updates: [{ teamId: team.id, fields: { defaultWorkflowId } }],
-                        }),
-                      () =>
-                        setSuccess(
-                          defaultWorkflowId && workflow
-                            ? `Set ${team.name} to use ${workflow.name} by default.`
-                            : `Set ${team.name} to use the Church default Workflow.`,
-                        ),
-                    );
-                  }}
-                >
-                  <NativeSelectOption value="church-default">
-                    Use Church default Workflow
-                  </NativeSelectOption>
-                  {activeWorkflows.map((workflow) => (
-                    <NativeSelectOption key={workflow.id} value={workflow.id}>
-                      {workflow.name}
-                    </NativeSelectOption>
-                  ))}
-                </NativeSelect>
-              </div>
-            ))}
-          </div>
-        ) : null}
       </CardContent>
       <Dialog open={archiveBlockMessage !== null} onOpenChange={() => setArchiveBlockMessage(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Workflow Cannot Be Archived</DialogTitle>
             <DialogDescription>
-              {archiveBlockMessage} Please reassign the Church default Workflow, Teams, or Tasks
-              that still reference this Workflow first.
+              {archiveBlockMessage} A Workflow owned by an active Team or referenced by Tasks cannot
+              be archived.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter showCloseButton />
@@ -1562,14 +1463,6 @@ function workflowKey(name: string) {
     .slice(0, 48);
 
   return key || "workflow";
-}
-
-function defaultWorkflowStatuses() {
-  return [
-    { key: "to-do", name: "To Do", taskState: "todo" as const, sortOrder: 0 },
-    { key: "in-progress", name: "In Progress", taskState: "in_progress" as const, sortOrder: 1 },
-    { key: "done", name: "Done", taskState: "done" as const, sortOrder: 2 },
-  ];
 }
 
 function taskStateLabel(taskState: WorkflowSetupStatus["taskState"]) {

@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { useOrgData } from "@/data/orgs/orgData.app";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
-import { useTaskData } from "@/data/tasks/taskData.app";
+import { useTaskByIdentifier } from "@/data/tasks/taskData.app";
 import { useTeamData } from "@/data/teams/teamData.app";
 import { useUserData } from "@/data/users/userData.app";
 import { cn } from "@/lib/utils";
@@ -57,10 +57,10 @@ export function DetailsPaneHistory({ history }: DetailsPaneHistoryProps) {
                         )),
                         Match.tag("task", (task) => (
                           <TaskBreadCrumb
+                            identifier={task.id}
                             isCurrentPage={isCurrentPage}
                             key={`${task._tag}-${task.id}-${index}`}
                             linkProps={linkProps}
-                            taskId={task.id}
                           />
                         )),
                         Match.tag("team", (team) => (
@@ -136,14 +136,16 @@ function OrgBreadCrumb({
 }
 
 function TaskBreadCrumb({
-  taskId,
+  identifier,
   ...props
-}: Pick<HistoryBreadCrumbProps, "linkProps" | "isCurrentPage"> & { readonly taskId: string }) {
+}: Pick<HistoryBreadCrumbProps, "linkProps" | "isCurrentPage"> & {
+  readonly identifier: string;
+}) {
   const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
-  const { taskOpt } = useTaskData({
+  // Pane history entries carry Task Identifiers (ADR 0013).
+  const { taskOpt } = useTaskByIdentifier({
     churchId: activeChurch?.id ?? null,
-    currentUserId: activeChurch?.currentUserId ?? null,
-    taskId,
+    identifier,
   });
 
   return (

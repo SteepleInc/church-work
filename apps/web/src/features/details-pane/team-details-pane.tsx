@@ -14,8 +14,9 @@ export function TeamDetailsPane({ teamId }: { readonly teamId: string }) {
   const teams = useTeamsCollection({ churchId: activeChurch?.id ?? null });
   const workflows = useWorkflowsCollection({ churchId: activeChurch?.id ?? null });
   const team = teams.teamsCollection.find((candidate) => candidate.id === teamId) ?? null;
-  const defaultWorkflow = workflows.workflowsCollection.find(
-    (candidate) => candidate.id === team?.defaultWorkflowId,
+  // Every Team owns its Workflow (ADR 0013).
+  const teamWorkflow = workflows.workflowsCollection.find(
+    (candidate) => candidate.teamId === teamId && candidate.archivedAt === null,
   );
   const loading = orgLoading || teams.loading;
 
@@ -28,7 +29,7 @@ export function TeamDetailsPane({ teamId }: { readonly teamId: string }) {
           {loading ? (
             <Skeleton className="h-4 w-40" />
           ) : (
-            <p className="text-sm text-muted-foreground">{teamId}</p>
+            <p className="text-sm text-muted-foreground">{team?.identifier ?? teamId}</p>
           )}
         </>
       }
@@ -36,10 +37,8 @@ export function TeamDetailsPane({ teamId }: { readonly teamId: string }) {
         team ? (
           <DetailSection title="Overview">
             <DetailItem label="Name" value={team.name} />
-            <DetailItem
-              label="Default Workflow"
-              value={defaultWorkflow?.name ?? "Church default"}
-            />
+            <DetailItem label="Identifier" value={team.identifier} />
+            <DetailItem label="Workflow" value={teamWorkflow?.name ?? "Not seeded"} />
             <DetailItem label="Sort Order" value={team.sortOrder} />
           </DetailSection>
         ) : loading ? (

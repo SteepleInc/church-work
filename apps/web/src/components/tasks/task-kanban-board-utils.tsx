@@ -31,12 +31,6 @@ export function matchPickerHotkey(
   );
 }
 
-// Placeholder identifier until Tasks get a human-readable key (e.g. "DEV-369").
-export function toTaskIdentifier(id: string): string {
-  const trailing = id.split(/[_-]/).at(-1) ?? id;
-  return `TASK-${trailing.slice(-4).toUpperCase()}`;
-}
-
 export function statusOptions(
   workflowStatuses: readonly TaskBoardWorkflowStatus[],
 ): readonly CardSelectOption<string>[] {

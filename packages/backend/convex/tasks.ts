@@ -1,8 +1,11 @@
 import { v } from "convex/values";
 
+import { deriveTeamIdentifierBase } from "@church-task/domain/Team";
+
 import { taskErrorResponse, taskResponse } from "../agent/taskOperations";
 import { writeActivity } from "../activityRegistry";
 import registeredFunctions from "../confect/_generated/registeredFunctions";
+import { resolveTaskByIdentifier } from "../identifierResolution";
 import {
   cancelTasks,
   completeTasks,
@@ -12,6 +15,7 @@ import {
   serializeTaskModel,
   updateTasks,
 } from "../tasks";
+import { getTeamWorkflow } from "../workflows";
 import { components } from "./_generated/api";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { withConvexTelemetry } from "./telemetry";
@@ -22,6 +26,7 @@ export const completeBatch = registeredFunctions.tasks.completeBatch;
 export const cancelBatch = registeredFunctions.tasks.cancelBatch;
 export const reopenBatch = registeredFunctions.tasks.reopenBatch;
 export const listForChurch = registeredFunctions.tasks.listForChurch;
+export const resolveByIdentifier = registeredFunctions.tasks.resolveByIdentifier;
 
 const requireMcpChurchMember = async (
   ctx: MutationCtx | QueryCtx,
@@ -133,7 +138,7 @@ const taskEstimateValidator = v.union(
 const taskUpdateFieldsValidator = v.object({
   title: v.optional(v.string()),
   assignedUserId: v.optional(v.union(v.string(), v.null())),
-  teamId: v.optional(v.union(v.string(), v.null())),
+  teamId: v.optional(v.string()),
   workflowStatusId: v.optional(v.string()),
   dueDate: v.optional(v.union(v.string(), v.null())),
   cycleId: v.optional(v.string()),
@@ -143,10 +148,22 @@ const taskUpdateFieldsValidator = v.object({
   estimate: v.optional(v.union(taskEstimateValidator, v.null())),
 });
 
+const resolveMcpTaskId = async (
+  ctx: MutationCtx | QueryCtx,
+  args: { readonly churchId: string; readonly taskId?: string; readonly taskIdentifier?: string },
+) => {
+  if (args.taskIdentifier !== undefined) {
+    const task = await resolveTaskByIdentifier(ctx, args.churchId, args.taskIdentifier);
+    return task?._id ?? null;
+  }
+
+  return args.taskId ?? null;
+};
+
 type McpTaskUpdateFields = {
   readonly title?: string;
   readonly assignedUserId?: string | null;
-  readonly teamId?: string | null;
+  readonly teamId?: string;
   readonly workflowStatusId?: string;
   readonly dueDate?: string | null;
   readonly cycleId?: string;
@@ -167,7 +184,8 @@ const runMcpUpdateTasks = async (
     readonly churchId: string;
     readonly actorUserId: string;
     readonly updates: ReadonlyArray<{
-      readonly taskId: string;
+      readonly taskId?: string;
+      readonly taskIdentifier?: string;
       readonly fields: McpTaskUpdateFields;
     }>;
   },
@@ -210,20 +228,10 @@ const runMcpUpdateTasks = async (
     );
   }
 
-  const churchDefaultWorkflow = await ctx.db
-    .query("workflows")
-    .withIndex("by_churchId", (q) => q.eq("churchId", args.churchId))
-    .filter((q) => q.eq(q.field("isDefault"), true))
-    .first();
-  const teamWorkflowResolution = churchDefaultWorkflow
-    ? {
-        defaultWorkflowId: churchDefaultWorkflow._id,
-        teamWorkflowIds: {} as Record<string, string>,
-      }
-    : undefined;
+  const teamWorkflowIds: Record<string, string> = {};
 
   for (const update of args.updates) {
-    if (update.fields.teamId === undefined || update.fields.teamId === null) continue;
+    if (update.fields.teamId === undefined) continue;
 
     const team = (await ctx.runQuery(components.betterAuth.adapter.findOne, {
       model: "team",
@@ -232,7 +240,6 @@ const runMcpUpdateTasks = async (
         { field: "organizationId", value: args.churchId },
       ],
     })) as {
-      readonly defaultWorkflowId?: string | null;
       readonly archivedAt?: string | null;
     } | null;
 
@@ -244,20 +251,45 @@ const runMcpUpdateTasks = async (
       );
     }
 
-    if (teamWorkflowResolution) {
-      teamWorkflowResolution.teamWorkflowIds[update.fields.teamId] =
-        team.defaultWorkflowId ?? teamWorkflowResolution.defaultWorkflowId;
-    }
+    // Every Team owns its Workflow (ADR 0013); there is no Church default
+    // Workflow to fall back to.
+    const teamWorkflow = await getTeamWorkflow(ctx, {
+      churchId: args.churchId,
+      teamId: update.fields.teamId,
+    });
+    if (teamWorkflow) teamWorkflowIds[update.fields.teamId] = teamWorkflow._id;
   }
 
-  return await updateTasks(ctx, {
+  const resolvedUpdates: Array<{ readonly taskId: string; readonly fields: McpTaskUpdateFields }> =
+    [];
+  for (const update of args.updates) {
+    const taskId = await resolveMcpTaskId(ctx, {
+      churchId: args.churchId,
+      taskId: update.taskId,
+      taskIdentifier: update.taskIdentifier,
+    });
+    if (taskId === null) {
+      return taskErrorResponse(
+        "updateTasks",
+        "task_not_found",
+        "Task was not found in the active Church.",
+      );
+    }
+    resolvedUpdates.push({ taskId, fields: update.fields });
+  }
+
+  const updated = await updateTasks(ctx, {
     churchId: args.churchId,
-    updates: args.updates,
+    updates: resolvedUpdates,
     actorId: args.actorUserId,
     occurredAt: new Date().toISOString(),
     churchTimeZone: church.churchTimeZone,
-    teamWorkflowResolution,
+    teamWorkflowResolution: { teamWorkflowIds },
   });
+
+  return updated.ok
+    ? { ...updated, taskIds: resolvedUpdates.map((update) => update.taskId) }
+    : updated;
 };
 
 const UPDATE_FAILURE_MESSAGES = {
@@ -278,7 +310,7 @@ const UPDATE_FAILURE_MESSAGES = {
   ],
   teamWorkflowNotConfigured: [
     "team_workflow_not_configured",
-    "The Church default Workflow is missing.",
+    "The destination Team's Workflow is missing.",
   ],
   workflowStatusRemapFailed: [
     "workflow_status_remap_failed",
@@ -306,7 +338,8 @@ export const mcpUpdateTask = mutation({
   args: {
     churchId: v.string(),
     actorUserId: v.string(),
-    taskId: v.string(),
+    taskId: v.optional(v.string()),
+    taskIdentifier: v.optional(v.string()),
     fields: taskUpdateFieldsValidator,
   },
   handler: async (ctx, args) =>
@@ -314,20 +347,24 @@ export const mcpUpdateTask = mutation({
       "task.update",
       {
         "church.id": args.churchId,
-        "task.id": args.taskId,
+        "task.id": args.taskId ?? args.taskIdentifier ?? "",
       },
       async () => {
         const updated = await runMcpUpdateTasks(ctx, {
           churchId: args.churchId,
           actorUserId: args.actorUserId,
-          updates: [{ taskId: args.taskId, fields: args.fields }],
+          updates: [
+            { taskId: args.taskId, taskIdentifier: args.taskIdentifier, fields: args.fields },
+          ],
         });
 
         if (!updated.ok) {
           return "error" in updated ? updated : mcpUpdateFailureResponse(updated.code);
         }
 
-        const model = await readTaskModel(ctx, args.churchId, { taskId: args.taskId });
+        const model = await readTaskModel(ctx, args.churchId, {
+          taskId: updated.taskIds[0],
+        });
 
         return taskResponse("updateTasks", serializeTaskModel(model));
       },
@@ -340,7 +377,8 @@ export const mcpUpdateTasksBatch = mutation({
     actorUserId: v.string(),
     updates: v.array(
       v.object({
-        taskId: v.string(),
+        taskId: v.optional(v.string()),
+        taskIdentifier: v.optional(v.string()),
         fields: taskUpdateFieldsValidator,
       }),
     ),
@@ -359,7 +397,7 @@ export const mcpUpdateTasksBatch = mutation({
           return "error" in updated ? updated : mcpUpdateFailureResponse(updated.code);
         }
 
-        const updatedTaskIds = new Set(args.updates.map((update) => update.taskId));
+        const updatedTaskIds = new Set(updated.taskIds);
         const model = await readTaskModel(ctx, args.churchId);
         const data = serializeTaskModel(model);
 
@@ -377,7 +415,8 @@ export const mcpCreateTask = mutation({
     actorUserId: v.string(),
     title: v.string(),
     description: v.optional(v.union(v.string(), v.null())),
-    teamId: v.optional(v.union(v.string(), v.null())),
+    // Every Task belongs to exactly one Team (ADR 0013).
+    teamId: v.string(),
     assignedUserId: v.optional(v.union(v.string(), v.null())),
     workflowStatusId: v.string(),
     dueDate: v.optional(v.union(v.string(), v.null())),
@@ -391,7 +430,6 @@ export const mcpCreateTask = mutation({
       {
         "church.id": args.churchId,
         "task.assigned": args.assignedUserId != null,
-        "task.team_assigned": args.teamId != null,
       },
       async () => {
         const isChurchMember = await requireMcpChurchMember(ctx, args);
@@ -422,6 +460,22 @@ export const mcpCreateTask = mutation({
           );
         }
 
+        const team = (await ctx.runQuery(components.betterAuth.adapter.findOne, {
+          model: "team",
+          where: [
+            { field: "_id", value: args.teamId },
+            { field: "organizationId", value: args.churchId },
+          ],
+        })) as { readonly archivedAt?: string | null } | null;
+
+        if (!team || team.archivedAt != null) {
+          return taskErrorResponse(
+            "createTasks",
+            "team_not_found",
+            "Team was not found in the active Church.",
+          );
+        }
+
         const created = await createTasks(ctx, {
           churchId: args.churchId,
           churchTimeZone: church.churchTimeZone,
@@ -429,7 +483,7 @@ export const mcpCreateTask = mutation({
             {
               title: args.title,
               description: args.description ?? null,
-              teamId: args.teamId ?? null,
+              teamId: args.teamId,
               assignedUserId: args.assignedUserId ?? null,
               createdByUserId: args.actorUserId,
               workflowStatusId: args.workflowStatusId,
@@ -519,7 +573,7 @@ export const mcpListTasks = query({
     actorUserId: v.string(),
     surface: v.optional(v.union(v.literal("my_work"), v.literal("our_work"))),
     cycleId: v.optional(v.string()),
-    teamId: v.optional(v.union(v.string(), v.null())),
+    teamId: v.optional(v.string()),
     assignedUserId: v.optional(v.union(v.string(), v.null())),
     createdByUserId: v.optional(v.string()),
     workflowStatusId: v.optional(v.string()),
@@ -544,6 +598,7 @@ export const mcpListTasks = query({
     excludeSubtasks: v.optional(v.boolean()),
     orderBy: v.optional(v.union(v.literal("created"), v.literal("due_date"))),
     taskId: v.optional(v.string()),
+    taskIdentifier: v.optional(v.string()),
   },
   handler: async (ctx, args) =>
     withConvexTelemetry(
@@ -560,7 +615,8 @@ export const mcpListTasks = query({
           args.taskState ??
           args.taskStates ??
           args.excludeSubtasks ??
-          args.taskId,
+          args.taskId ??
+          args.taskIdentifier,
         ),
       },
       async () => {
@@ -579,7 +635,7 @@ export const mcpListTasks = query({
           cycleId?: string;
           currentUserId?: string;
           taskId?: string;
-          teamId?: string | null;
+          teamId?: string;
           assignedUserId?: string | null;
           createdByUserId?: string;
           workflowStatusId?: string;
@@ -590,7 +646,19 @@ export const mcpListTasks = query({
         } = { currentUserId: args.actorUserId };
         if (args.surface !== undefined) filters.surface = args.surface;
         if (args.cycleId !== undefined) filters.cycleId = args.cycleId;
-        if (args.taskId !== undefined) filters.taskId = args.taskId;
+        const taskId = await resolveMcpTaskId(ctx, {
+          churchId: args.churchId,
+          taskId: args.taskId,
+          taskIdentifier: args.taskIdentifier,
+        });
+        if (taskId !== null) filters.taskId = taskId;
+        if (args.taskIdentifier !== undefined && taskId === null) {
+          return taskErrorResponse(
+            "listTasks",
+            "task_not_found",
+            "No Task matches that Task Identifier in the active Church.",
+          );
+        }
         if (args.teamId !== undefined) filters.teamId = args.teamId;
         if (args.assignedUserId !== undefined) filters.assignedUserId = args.assignedUserId;
         if (args.createdByUserId !== undefined) filters.createdByUserId = args.createdByUserId;
@@ -674,7 +742,7 @@ export const mcpListTeams = query({
         readonly name: string;
         readonly archivedAt?: string | null;
         readonly sortOrder?: number | null;
-        readonly defaultWorkflowId?: string | null;
+        readonly identifier?: string | null;
       }>;
     };
 
@@ -685,7 +753,7 @@ export const mcpListTeams = query({
         .map((team) => ({
           id: team._id,
           name: team.name,
-          defaultWorkflowId: team.defaultWorkflowId ?? null,
+          identifier: team.identifier ?? deriveTeamIdentifierBase(team.name),
           sortOrder: team.sortOrder ?? 0,
         })),
     };
@@ -764,14 +832,15 @@ const makeMcpTaskTransition = (
     args: {
       churchId: v.string(),
       actorUserId: v.string(),
-      taskId: v.string(),
+      taskId: v.optional(v.string()),
+      taskIdentifier: v.optional(v.string()),
     },
     handler: async (ctx, args) =>
       withConvexTelemetry(
         `task.${operation.replace("Tasks", "")}`,
         {
           "church.id": args.churchId,
-          "task.id": args.taskId,
+          "task.id": args.taskId ?? args.taskIdentifier ?? "",
         },
         async () => {
           const isChurchMember = await requireMcpChurchMember(ctx, args);
@@ -784,15 +853,24 @@ const makeMcpTaskTransition = (
             );
           }
 
+          const taskId = await resolveMcpTaskId(ctx, {
+            churchId: args.churchId,
+            taskId: args.taskId,
+            taskIdentifier: args.taskIdentifier,
+          });
+          if (taskId === null) {
+            return taskTransitionErrorResponse(operation, "taskNotFound");
+          }
+
           const result = await transition(ctx, {
             churchId: args.churchId,
-            taskIds: [args.taskId],
+            taskIds: [taskId],
             actorId: args.actorUserId,
           });
 
           if (!result.ok) return taskTransitionErrorResponse(operation, result.code);
 
-          const model = await readTaskModel(ctx, args.churchId, { taskId: args.taskId });
+          const model = await readTaskModel(ctx, args.churchId, { taskId });
 
           return taskResponse(operation, serializeTaskModel(model));
         },

@@ -7,10 +7,22 @@ test.skip(
   process.env.CHURCH_TASK_E2E_SKIP_REASON ?? "E2E environment is not configured.",
 );
 
-async function createTask(page: import("@playwright/test").Page, title: string) {
+async function createTask(
+  page: import("@playwright/test").Page,
+  title: string,
+  options: { readonly team?: string } = {},
+) {
   await page.getByRole("main").getByRole("button", { name: "Create Task" }).click();
   const dialog = page.getByRole("dialog", { name: /New Task/ });
   await dialog.getByPlaceholder("Task title").fill(title);
+  // Every Task belongs to exactly one Team (ADR 0013): the required picker is
+  // prefilled by the default chain (preset → last-used → membership → first).
+  const teamPicker = dialog.getByLabel("Team");
+  await expect(teamPicker).toBeVisible();
+  if (options.team) {
+    await teamPicker.click();
+    await page.getByRole("option", { name: options.team }).click();
+  }
   await dialog.getByRole("button", { name: "Create Task" }).click();
 }
 
@@ -46,7 +58,8 @@ test("My Work filters direct assignments while Our Work supports Church-wide cre
   });
 
   await expect(page.getByRole("navigation", { name: "breadcrumb" })).toContainText("My Work");
-  await createTask(page, assignedTaskTitle);
+  // Headline path (ADR 0013): create a Task from My Work via the Team picker.
+  await createTask(page, assignedTaskTitle, { team: "Production" });
   await expect(page.getByText(assignedTaskTitle).first()).toBeVisible();
 
   await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Our Work" }).click();
@@ -143,7 +156,5 @@ test("Team routes remain accessible under the copied app shell", async ({ page }
   await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: teamName }).click();
   await expect(page).toHaveURL(/\/team\//);
   await expect(page.getByRole("navigation", { name: "breadcrumb" })).toContainText("Team Work");
-  await expect(
-    page.getByText("Configure this Team's Workflow before using the Task board."),
-  ).toBeVisible();
+  await expect(page.getByLabel("To Do Tasks")).toBeVisible();
 });

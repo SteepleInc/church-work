@@ -100,10 +100,6 @@ export const authClient = createAuthClient({
               type: "number",
               required: false,
             },
-            defaultWorkflowId: {
-              type: "string",
-              required: false,
-            },
           },
         },
       },

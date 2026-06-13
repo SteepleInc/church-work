@@ -12,8 +12,9 @@ import {
 
 type WorkflowItem = {
   readonly id: string;
+  // Every Team owns its Workflow (ADR 0013): the owning Team's id.
+  readonly teamId: string;
   readonly name: string;
-  readonly isDefault: boolean;
   readonly sortOrder: number;
 };
 
@@ -57,33 +58,6 @@ export function useWorkflowStatusesCollection(params: { readonly churchId: strin
   };
 }
 
-export function useCreateWorkflowMutation() {
-  return useMutation(api.workflows.createForChurch).withOptimisticUpdate(
-    collectionListOptimisticUpdate({
-      query: api.workDefaults.readForChurch,
-      collectionKey: "workflows",
-      patch: (
-        workflows: readonly WorkflowItem[],
-        args: { readonly name: string; readonly isDefault?: boolean },
-      ) => {
-        const isDefault = args.isDefault ?? false;
-        const withDefault = isDefault
-          ? workflows.map((workflow) =>
-              workflow.isDefault ? { ...workflow, isDefault: false } : workflow,
-            )
-          : workflows;
-        return appendItem(withDefault, {
-          id: optimisticId("workflow"),
-          name: args.name,
-          isDefault,
-          sortOrder:
-            workflows.reduce((max, workflow) => Math.max(max, workflow.sortOrder ?? -1), -1) + 1,
-        });
-      },
-    }),
-  );
-}
-
 export function useRenameWorkflowMutation() {
   return useMutation(api.workflows.renameForChurch).withOptimisticUpdate(
     collectionItemOptimisticUpdate({
@@ -117,22 +91,6 @@ export function useArchiveWorkflowMutation() {
       collectionKey: "workflows",
       patch: (workflows: readonly WorkflowItem[], args: { readonly workflowId: string }) =>
         removeById(workflows, args.workflowId),
-    }),
-  );
-}
-
-export function useSetDefaultWorkflowMutation() {
-  return useMutation(api.workflows.setDefaultForChurch).withOptimisticUpdate(
-    collectionListOptimisticUpdate({
-      query: api.workDefaults.readForChurch,
-      collectionKey: "workflows",
-      patch: (workflows: readonly WorkflowItem[], args: { readonly workflowId: string }) =>
-        workflows.map((workflow) => {
-          const shouldBeDefault = workflow.id === args.workflowId;
-          return workflow.isDefault === shouldBeDefault
-            ? workflow
-            : { ...workflow, isDefault: shouldBeDefault };
-        }),
     }),
   );
 }

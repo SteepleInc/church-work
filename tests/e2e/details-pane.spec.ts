@@ -36,9 +36,16 @@ test("opens a Task details pane from URL state and supports reload/deep-link", a
   await expect(detailsPane.getByText("Task details", { exact: true })).toBeVisible();
   await expect(detailsPane.getByRole("heading", { name: taskTitle })).toBeVisible();
 
+  // The pane subtitle shows the Task Identifier (e.g. "KID-1"), which is also
+  // what the URL state carries instead of the database id (ADR 0013).
+  const identifierLocator = detailsPane.getByText(/^[A-Z0-9]+-\d+$/);
+  await expect(identifierLocator).toBeVisible();
+  const taskIdentifier = (await identifierLocator.textContent())!;
+
   const detailsPaneSearchValue = getDetailsPaneSearchValue(page);
   expect(detailsPaneSearchValue).toContain('"_tag":"task"');
   expect(detailsPaneSearchValue).toContain('"tab":"details"');
+  expect(detailsPaneSearchValue).toContain(`"id":"${taskIdentifier}"`);
 
   const deepLinkUrl = page.url();
   await page.reload();
@@ -49,4 +56,15 @@ test("opens a Task details pane from URL state and supports reload/deep-link", a
   await deepLinkPage.goto(deepLinkUrl);
   await expect(deepLinkPage.getByRole("dialog", { name: "Details Pane" })).toBeVisible();
   await expect(deepLinkPage.getByRole("heading", { name: taskTitle })).toBeVisible();
+
+  // A lowercase identifier resolves case-insensitively and the URL state
+  // normalizes to the canonical uppercase Task Identifier (ADR 0013).
+  const lowercaseUrl = deepLinkUrl.replace(taskIdentifier, taskIdentifier.toLowerCase());
+  const normalizePage = await context.newPage();
+  await normalizePage.goto(lowercaseUrl);
+  await expect(normalizePage.getByRole("dialog", { name: "Details Pane" })).toBeVisible();
+  await expect(normalizePage.getByRole("heading", { name: taskTitle })).toBeVisible();
+  await expect
+    .poll(() => getDetailsPaneSearchValue(normalizePage))
+    .toContain(`"id":"${taskIdentifier}"`);
 });
