@@ -41,11 +41,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { QueryResult, useQuery as useConfectQuery } from "@/data/query-hooks";
+import { normalizeTeamIdentifier } from "@church-task/domain/Team";
 import { revalidateLogic } from "@tanstack/react-form";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { Authenticated, Unauthenticated } from "convex/react";
 import { Schema } from "effect";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import SignInForm from "@/components/sign-in-form";
 import SignUpForm from "@/components/sign-up-form";
@@ -93,6 +94,7 @@ import { useQuickActionOpeners } from "@/features/quick-actions/quick-actions-st
 import {
   getDashboardSearchForPanel,
   getUnavailableTeamBoardActions,
+  resolveTeamByRouteIdentifier,
   type DashboardSearch,
 } from "@/routes/-dashboard-utils";
 
@@ -100,7 +102,7 @@ export type ActiveDashboardPanel =
   | "my_work"
   | "our_work"
   | "settings"
-  | { kind: "team"; teamId: string };
+  | { kind: "team"; teamIdentifier: string };
 
 function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboardPanel }) {
   const search = useSearch({ strict: false }) as DashboardSearch;
@@ -112,8 +114,8 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
 
     if (typeof panel === "object") {
       navigate({
-        to: "/team/$teamId",
-        params: { teamId: panel.teamId },
+        to: "/team/$teamIdentifier",
+        params: { teamIdentifier: panel.teamIdentifier },
         search: routeSearch,
       });
       return;
@@ -131,8 +133,9 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
   const activeTeams = teams.teamsCollection;
   const selectedTeam =
     typeof activePanel === "object"
-      ? (activeTeams.find((team) => team.id === activePanel.teamId) ?? null)
+      ? resolveTeamByRouteIdentifier(activeTeams, activePanel.teamIdentifier)
       : null;
+  const canonicalTeamIdentifier = selectedTeam?.identifier ?? null;
   const unavailableTeamBoardActions = getUnavailableTeamBoardActions();
   const { openCreateTask } = useQuickActionOpeners();
   const showCreateTask =
@@ -152,6 +155,19 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
   const showTopBar = showCreateTask && (typeof activePanel !== "object" || selectedTeam !== null);
   const activeTab = resolveTaskViewTab(surface, search.tab);
   const activeView = resolveTaskViewOptions(search.view);
+
+  useEffect(() => {
+    if (typeof activePanel !== "object" || canonicalTeamIdentifier === null) return;
+
+    if (normalizeTeamIdentifier(activePanel.teamIdentifier) !== canonicalTeamIdentifier) {
+      void navigate({
+        to: "/team/$teamIdentifier",
+        params: { teamIdentifier: canonicalTeamIdentifier },
+        replace: true,
+        search: true,
+      });
+    }
+  }, [activePanel, canonicalTeamIdentifier, navigate, search]);
 
   const setTab = (tab: TaskViewTab) => {
     void navigate({
@@ -259,7 +275,7 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
   return (
     <MainContainer>
       {showBoardSurface ? (
-        <PageWrapper className="gap-6" variant="noPageContainer">
+        <PageWrapper variant="noPageContainer" className="gap-6">
           {content}
         </PageWrapper>
       ) : (

@@ -15,7 +15,10 @@ import {
   collectionListOptimisticUpdate,
 } from "@/data/optimistic-collection";
 
-export type TeamCollectionItem = Pick<Team, "id" | "name" | "identifier" | "color" | "sortOrder">;
+export type TeamCollectionItem = Pick<
+  Team,
+  "id" | "name" | "identifier" | "previousIdentifiers" | "color" | "sortOrder"
+>;
 
 export type TeamMembershipCollectionItem = Pick<TeamMembership, "id" | "teamId" | "userId">;
 
@@ -74,6 +77,7 @@ export function useCreateTeamMutation() {
             args.name,
             teams.map((team) => team.identifier),
           ),
+          previousIdentifiers: [],
           sortOrder: teams.reduce((max, team) => Math.max(max, team.sortOrder ?? -1), -1) + 1,
         }),
     }),

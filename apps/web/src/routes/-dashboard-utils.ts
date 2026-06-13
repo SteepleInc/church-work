@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { normalizeTeamIdentifier } from "@church-task/domain/Team";
 
 import { FilterStateValueSchema } from "@/components/data-table-filter/core/types";
 import { DetailsPaneParams } from "@/components/details-pane/details-pane-types";
@@ -32,6 +33,8 @@ type TaskExecutionFilters = {
 
 type DashboardTeamSummary = {
   readonly id: string;
+  readonly identifier: string;
+  readonly previousIdentifiers?: readonly string[];
 };
 
 type DashboardTeamMembershipSummary = {
@@ -90,4 +93,21 @@ export function getMemberTeams<Team extends DashboardTeamSummary>(
   );
 
   return teams.filter((team) => currentUserTeamIds.has(team.id));
+}
+
+export function resolveTeamByRouteIdentifier<Team extends DashboardTeamSummary>(
+  teams: readonly Team[],
+  routeIdentifier: string,
+): Team | null {
+  const identifier = normalizeTeamIdentifier(routeIdentifier);
+
+  return (
+    teams.find((team) => normalizeTeamIdentifier(team.identifier) === identifier) ??
+    teams.find((team) =>
+      (team.previousIdentifiers ?? []).some(
+        (previousIdentifier) => normalizeTeamIdentifier(previousIdentifier) === identifier,
+      ),
+    ) ??
+    null
+  );
 }

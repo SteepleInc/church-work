@@ -6,6 +6,7 @@ import {
   getDashboardSearchForPanel,
   getMemberTeams,
   getUnavailableTeamBoardActions,
+  resolveTeamByRouteIdentifier,
 } from "./-dashboard-utils";
 
 describe("dashboard execution route search", () => {
@@ -100,9 +101,9 @@ describe("dashboard execution route search", () => {
 
   test("lists only current User Team Memberships in Team navigation", () => {
     const teams = [
-      { id: "team-1", name: "Hospitality" },
-      { id: "team-2", name: "Production" },
-      { id: "team-3", name: "Care" },
+      { id: "team-1", identifier: "HOS", name: "Hospitality" },
+      { id: "team-2", identifier: "PRO", name: "Production" },
+      { id: "team-3", identifier: "CAR", name: "Care" },
     ];
 
     expect(
@@ -114,6 +115,40 @@ describe("dashboard execution route search", () => {
         ],
         "current-user",
       ),
-    ).toEqual([{ id: "team-1", name: "Hospitality" }]);
+    ).toEqual([{ id: "team-1", identifier: "HOS", name: "Hospitality" }]);
+  });
+
+  test("resolves Team routes by current identifier case-insensitively", () => {
+    const teams = [
+      { id: "team-1", identifier: "PRD", name: "Production", previousIdentifiers: [] },
+    ];
+
+    expect(resolveTeamByRouteIdentifier(teams, "prd")).toBe(teams[0]);
+  });
+
+  test("falls back to previous Team identifiers", () => {
+    const teams = [
+      { id: "team-1", identifier: "PRD", name: "Production", previousIdentifiers: ["OLD"] },
+    ];
+
+    expect(resolveTeamByRouteIdentifier(teams, "old")).toBe(teams[0]);
+  });
+
+  test("current Team identifiers beat previous identifier aliases", () => {
+    const teams = [
+      { id: "team-1", identifier: "NEW", name: "Production", previousIdentifiers: ["OLD"] },
+      { id: "team-2", identifier: "OLD", name: "Outreach", previousIdentifiers: [] },
+    ];
+
+    expect(resolveTeamByRouteIdentifier(teams, "old")).toBe(teams[1]);
+  });
+
+  test("returns null for unknown Team route identifiers", () => {
+    expect(
+      resolveTeamByRouteIdentifier(
+        [{ id: "team-1", identifier: "PRD", name: "Production", previousIdentifiers: [] }],
+        "missing",
+      ),
+    ).toBeNull();
   });
 });

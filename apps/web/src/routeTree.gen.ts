@@ -21,7 +21,7 @@ import { Route as OrgAdminRouteImport } from './routes/_org/admin'
 import { Route as OnboardingOnboardingRouteImport } from './routes/_onboarding/onboarding'
 import { Route as MarketingLibraryRouteImport } from './routes/_marketing/library'
 import { Route as AuthSignInRouteImport } from './routes/_auth/sign-in'
-import { Route as OrgTeamTeamIdRouteImport } from './routes/_org/team.$teamId'
+import { Route as OrgTeamTeamIdentifierRouteImport } from './routes/_org/team.$teamIdentifier'
 import { Route as OrgSettingsTeamRouteImport } from './routes/_org/settings.team'
 import { Route as OrgSettingsProfileRouteImport } from './routes/_org/settings.profile'
 import { Route as OrgSettingsOrgRouteImport } from './routes/_org/settings.org'
@@ -88,9 +88,9 @@ const AuthSignInRoute = AuthSignInRouteImport.update({
   path: '/sign-in',
   getParentRoute: () => AuthRouteRoute,
 } as any)
-const OrgTeamTeamIdRoute = OrgTeamTeamIdRouteImport.update({
-  id: '/team/$teamId',
-  path: '/team/$teamId',
+const OrgTeamTeamIdentifierRoute = OrgTeamTeamIdentifierRouteImport.update({
+  id: '/team/$teamIdentifier',
+  path: '/team/$teamIdentifier',
   getParentRoute: () => OrgRouteRoute,
 } as any)
 const OrgSettingsTeamRoute = OrgSettingsTeamRouteImport.update({
@@ -156,7 +156,7 @@ export interface FileRoutesByFullPath {
   '/settings/org': typeof OrgSettingsOrgRoute
   '/settings/profile': typeof OrgSettingsProfileRoute
   '/settings/team': typeof OrgSettingsTeamRouteWithChildren
-  '/team/$teamId': typeof OrgTeamTeamIdRoute
+  '/team/$teamIdentifier': typeof OrgTeamTeamIdentifierRoute
   '/settings/team/$teamTab': typeof OrgSettingsTeamTeamTabRoute
 }
 export interface FileRoutesByTo {
@@ -176,7 +176,7 @@ export interface FileRoutesByTo {
   '/settings/org': typeof OrgSettingsOrgRoute
   '/settings/profile': typeof OrgSettingsProfileRoute
   '/settings/team': typeof OrgSettingsTeamRouteWithChildren
-  '/team/$teamId': typeof OrgTeamTeamIdRoute
+  '/team/$teamIdentifier': typeof OrgTeamTeamIdentifierRoute
   '/settings/team/$teamTab': typeof OrgSettingsTeamTeamTabRoute
 }
 export interface FileRoutesById {
@@ -201,7 +201,7 @@ export interface FileRoutesById {
   '/_org/settings/org': typeof OrgSettingsOrgRoute
   '/_org/settings/profile': typeof OrgSettingsProfileRoute
   '/_org/settings/team': typeof OrgSettingsTeamRouteWithChildren
-  '/_org/team/$teamId': typeof OrgTeamTeamIdRoute
+  '/_org/team/$teamIdentifier': typeof OrgTeamTeamIdentifierRoute
   '/_org/settings/team/$teamTab': typeof OrgSettingsTeamTeamTabRoute
 }
 export interface FileRouteTypes {
@@ -223,7 +223,7 @@ export interface FileRouteTypes {
     | '/settings/org'
     | '/settings/profile'
     | '/settings/team'
-    | '/team/$teamId'
+    | '/team/$teamIdentifier'
     | '/settings/team/$teamTab'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -243,7 +243,7 @@ export interface FileRouteTypes {
     | '/settings/org'
     | '/settings/profile'
     | '/settings/team'
-    | '/team/$teamId'
+    | '/team/$teamIdentifier'
     | '/settings/team/$teamTab'
   id:
     | '__root__'
@@ -267,7 +267,7 @@ export interface FileRouteTypes {
     | '/_org/settings/org'
     | '/_org/settings/profile'
     | '/_org/settings/team'
-    | '/_org/team/$teamId'
+    | '/_org/team/$teamIdentifier'
     | '/_org/settings/team/$teamTab'
   fileRoutesById: FileRoutesById
 }
@@ -364,11 +364,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthSignInRouteImport
       parentRoute: typeof AuthRouteRoute
     }
-    '/_org/team/$teamId': {
-      id: '/_org/team/$teamId'
-      path: '/team/$teamId'
-      fullPath: '/team/$teamId'
-      preLoaderRoute: typeof OrgTeamTeamIdRouteImport
+    '/_org/team/$teamIdentifier': {
+      id: '/_org/team/$teamIdentifier'
+      path: '/team/$teamIdentifier'
+      fullPath: '/team/$teamIdentifier'
+      preLoaderRoute: typeof OrgTeamTeamIdentifierRouteImport
       parentRoute: typeof OrgRouteRoute
     }
     '/_org/settings/team': {
@@ -526,7 +526,7 @@ interface OrgRouteRouteChildren {
   OrgSettingsRoute: typeof OrgSettingsRouteWithChildren
   OrgDevDataRoute: typeof OrgDevDataRoute
   OrgDevSessionRoute: typeof OrgDevSessionRoute
-  OrgTeamTeamIdRoute: typeof OrgTeamTeamIdRoute
+  OrgTeamTeamIdentifierRoute: typeof OrgTeamTeamIdentifierRoute
 }
 
 const OrgRouteRouteChildren: OrgRouteRouteChildren = {
@@ -536,7 +536,7 @@ const OrgRouteRouteChildren: OrgRouteRouteChildren = {
   OrgSettingsRoute: OrgSettingsRouteWithChildren,
   OrgDevDataRoute: OrgDevDataRoute,
   OrgDevSessionRoute: OrgDevSessionRoute,
-  OrgTeamTeamIdRoute: OrgTeamTeamIdRoute,
+  OrgTeamTeamIdentifierRoute: OrgTeamTeamIdentifierRoute,
 }
 
 const OrgRouteRouteWithChildren = OrgRouteRoute._addFileChildren(
