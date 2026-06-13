@@ -153,10 +153,9 @@ function TaskViewOptionsPopover({
           <div className="grid grid-cols-2 gap-1.5">
             <Button
               className="justify-center"
+              onClick={() => onViewChange({ ...view, mode: "list" })}
               size="xs"
               type="button"
-              // List mode is a stub: the option ships before the view does.
-              disabled
               variant={view.mode === "list" ? "secondary" : "outline"}
             >
               <List /> List

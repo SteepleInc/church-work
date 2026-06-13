@@ -7,6 +7,7 @@ import {
   getExecutionBoardGrouping,
   getTaskExecutionFilters,
   getTaskExecutionReadArgs,
+  getTaskGroupAddPreset,
   getTaskParentContext,
   getTaskTabFilters,
   selectCurrentExecutionCycle,
@@ -302,5 +303,46 @@ describe("Task execution surface", () => {
     expect([...(index.get("team-a") ?? [])]).toEqual(["u-1", "u-2"]);
     expect([...(index.get("team-b") ?? [])]).toEqual(["u-3"]);
     expect(index.get("team-missing")).toBeUndefined();
+  });
+
+  // The List group header and the Board column share this "+" preset (the
+  // grouped field for that group is pre-filled in the create dialog).
+  describe("group header add-task preset", () => {
+    const defaults = { assignedUserId: "u-1", teamId: "team-1" };
+    const preset = (grouping: string, columnId: string) =>
+      getTaskGroupAddPreset({
+        grouping,
+        columnId,
+        defaults,
+        unassignedColumnId: "unassigned",
+      });
+
+    test("Workflow Status grouping presets the dropped status and keeps surface defaults", () => {
+      expect(preset("workflow_status", "status-2")).toEqual({
+        assignTo: "u-1",
+        teamId: "team-1",
+        workflowStatusId: "status-2",
+      });
+    });
+
+    test("Assignee grouping presets the column's user as the assignee", () => {
+      expect(preset("assignee", "u-9")).toEqual({ assignTo: "u-9", teamId: "team-1" });
+    });
+
+    test("Assignee grouping's Unassigned column clears the assignee", () => {
+      expect(preset("assignee", "unassigned")).toEqual({ assignTo: null, teamId: "team-1" });
+    });
+
+    test("Team grouping presets the column's Team", () => {
+      expect(preset("team", "team-9")).toEqual({ assignTo: "u-1", teamId: "team-9" });
+    });
+
+    test("Task State grouping has no create-dialog field and falls back to defaults", () => {
+      expect(preset("task_state", "in_progress")).toEqual({ assignTo: "u-1", teamId: "team-1" });
+    });
+
+    test("Estimate grouping has no create-dialog field and falls back to defaults", () => {
+      expect(preset("estimate", "m")).toEqual({ assignTo: "u-1", teamId: "team-1" });
+    });
   });
 });

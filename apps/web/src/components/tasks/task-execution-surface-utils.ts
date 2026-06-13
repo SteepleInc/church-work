@@ -82,6 +82,47 @@ export function getDefaultCreateTaskTeamId(args: {
   return orderedTeams[0]?.id ?? null;
 }
 
+export type TaskGroupAddPreset = {
+  readonly assignTo: string | null;
+  readonly teamId: string | null;
+  readonly workflowStatusId?: string;
+};
+
+/**
+ * The create-dialog preset for a group header's "+" button (shared by the
+ * Board column and the List group header). The grouped field for that group is
+ * pre-filled the same way the Board column "+" pre-fills it: Workflow Status
+ * grouping presets the status, Assignee grouping presets the assignee
+ * (Unassigned clears it), Team grouping presets the Team. Task State and
+ * Estimate groups have no direct create-dialog field, so they fall back to the
+ * surface defaults.
+ */
+export function getTaskGroupAddPreset(args: {
+  readonly grouping: string;
+  readonly columnId: string;
+  readonly defaults: { readonly assignedUserId: string | null; readonly teamId: string | null };
+  readonly unassignedColumnId: string;
+}): TaskGroupAddPreset {
+  const { grouping, columnId, defaults } = args;
+  if (grouping === "workflow_status") {
+    return {
+      assignTo: defaults.assignedUserId,
+      teamId: defaults.teamId,
+      workflowStatusId: columnId,
+    };
+  }
+  if (grouping === "assignee") {
+    return {
+      assignTo: columnId === args.unassignedColumnId ? null : columnId,
+      teamId: defaults.teamId,
+    };
+  }
+  if (grouping === "team") {
+    return { assignTo: defaults.assignedUserId, teamId: columnId };
+  }
+  return { assignTo: defaults.assignedUserId, teamId: defaults.teamId };
+}
+
 /**
  * Board grouping per surface (ADR 0013: every Team owns its Workflow). A Team
  * Board groups by that Team's Workflow Statuses; cross-team surfaces (My

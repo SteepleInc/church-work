@@ -24,6 +24,7 @@ import { useAtom } from "jotai";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { TaskKanbanBoard } from "./task-kanban-board";
+import { TaskListSurface } from "./task-list-surface";
 import {
   NO_ESTIMATE_COLUMN_ID,
   UNASSIGNED_COLUMN_ID,
@@ -35,6 +36,7 @@ import {
   getTaskCreationDefaults,
   getTaskExecutionFilters,
   getTaskExecutionReadArgs,
+  getTaskGroupAddPreset,
   getTaskParentContext,
   selectCurrentExecutionCycle,
   type ExecutionSurface,
@@ -166,11 +168,88 @@ export function TaskExecutionSurface({
     );
   };
 
+  // View mode (list or board) is just one View Option; both presentations are
+  // fed the same grouped Tasks and share these inline-edit handlers. Only the
+  // Board drags (reorder / cross-column moves), so those handlers stay inline
+  // on the Board element below.
+  const boardTasks = tasks.map((task) => toBoardTask(task, tasks));
+  const assigneeOptions = usersCollection.usersCollection.map((user) => ({
+    id: user.id,
+    label: getUserDisplayName(user),
+  }));
+  const sharedSurfaceProps = {
+    workflowStatuses: workflowStatuses.map(toBoardWorkflowStatus),
+    tasks: boardTasks,
+    assigneeOptions,
+    teamOptions: teams,
+    labelOptions: labelsCollection.labelsCollection,
+    currentUserId,
+    teamMemberIdsByTeamId,
+    grouping: boardGrouping,
+    showEmptyColumns: resolvedView.showEmptyColumns,
+    displayProperties: resolvedView.displayProperties,
+    onAssignTask: (change: { taskId: string; assignedUserId: string | null }) => {
+      void updateTask({
+        churchId,
+        actorUserId: currentUserId,
+        taskId: change.taskId,
+        fields: { assignedUserId: change.assignedUserId },
+      });
+    },
+    onChangeTaskStatus: (change: { taskId: string; workflowStatusId: string }) => {
+      void updateTask({
+        churchId,
+        actorUserId: currentUserId,
+        taskId: change.taskId,
+        fields: { workflowStatusId: change.workflowStatusId },
+      });
+    },
+    onChangeTaskLabels: (change: { taskId: string; labelIds: readonly string[] }) => {
+      void updateTask({
+        churchId,
+        actorUserId: currentUserId,
+        taskId: change.taskId,
+        fields: { labelIds: [...change.labelIds] },
+      });
+    },
+    onChangeTaskEstimate: (change: { taskId: string; estimate: TaskBoardEstimate | null }) => {
+      void updateTask({
+        churchId,
+        actorUserId: currentUserId,
+        taskId: change.taskId,
+        fields: { estimate: change.estimate },
+      });
+    },
+    onOpenTask: (taskIdentifier: string) => {
+      const url = openTaskDetailsPaneUrl({ id: taskIdentifier });
+      void navigate({ to: url.to, search: url.search });
+    },
+  } as const;
+
+  // The per-group "+" pre-fills the create dialog with the grouped field for
+  // that group, interpreted the same way the Board column "+" is.
+  const onAddTaskForColumn = (columnId: string) => {
+    openCreateTask(
+      getTaskGroupAddPreset({
+        grouping: boardGrouping,
+        columnId,
+        defaults: getTaskCreationDefaults({ surface, currentUserId, teamId: team?.id ?? null }),
+        unassignedColumnId: UNASSIGNED_COLUMN_ID,
+      }),
+    );
+  };
+
   return (
     <section className="flex min-h-0 flex-1 flex-col gap-4">
       {isLoading && !showBoard ? <TaskBoardSkeleton /> : null}
 
-      {showBoard ? (
+      {showBoard && resolvedView.mode === "list" ? (
+        <TaskListSurface
+          className="min-h-0 flex-1"
+          {...sharedSurfaceProps}
+          onAddTask={onAddTaskForColumn}
+        />
+      ) : showBoard ? (
         <TaskKanbanBoard
           className="min-h-0 flex-1"
           workflowStatuses={workflowStatuses.map(toBoardWorkflowStatus)}
