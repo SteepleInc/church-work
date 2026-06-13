@@ -18,6 +18,28 @@ type BetterAuthTeam = {
   readonly identifier?: string | null;
 };
 
+export async function seedTeamCreatorMembership(
+  ctx: MutationCtx,
+  args: { readonly teamId: string; readonly userId: string },
+) {
+  const existing = await ctx.runQuery(components.betterAuth.adapter.findOne, {
+    model: "teamMember",
+    where: [
+      { field: "teamId", value: args.teamId },
+      { field: "userId", value: args.userId },
+    ],
+  });
+
+  if (!existing) {
+    await ctx.runMutation(components.betterAuth.adapter.create, {
+      input: {
+        model: "teamMember",
+        data: { teamId: args.teamId, userId: args.userId, createdAt: Date.now() },
+      },
+    });
+  }
+}
+
 const DEFAULT_WORKFLOW_STATUSES = [
   { key: "to-do", name: "To Do", taskState: "todo", sortOrder: 0 },
   { key: "in-progress", name: "In Progress", taskState: "in_progress", sortOrder: 1 },
@@ -115,7 +137,11 @@ export async function seedTeamWorkflow(
   return { workflowId };
 }
 
-export async function seedDefaultWorkModel(ctx: MutationCtx, churchId: string) {
+export async function seedDefaultWorkModel(
+  ctx: MutationCtx,
+  churchId: string,
+  creatorUserId?: string,
+) {
   for (const keyDate of STARTER_KEY_DATES) {
     const existingKeyDate = await ctx.db
       .query("keyDates")
@@ -164,7 +190,7 @@ export async function seedDefaultWorkModel(ctx: MutationCtx, churchId: string) {
   for (const [sortOrder, name] of STARTER_TEAMS.entries()) {
     if (!existingTeamNames.has(name)) {
       const identifier = generateTeamIdentifier(name, takenIdentifiers);
-      await ctx.runMutation(components.betterAuth.adapter.create, {
+      const team = await ctx.runMutation(components.betterAuth.adapter.create, {
         input: {
           model: "team",
           data: {
@@ -180,6 +206,9 @@ export async function seedDefaultWorkModel(ctx: MutationCtx, churchId: string) {
           },
         },
       });
+      if (creatorUserId) {
+        await seedTeamCreatorMembership(ctx, { teamId: team._id, userId: creatorUserId });
+      }
       existingTeamNames.add(name);
       takenIdentifiers.push(identifier);
     }

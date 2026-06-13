@@ -557,10 +557,11 @@ export function createAuthOptions(ctx: GenericCtx<DataModel>) {
               });
             }
           },
-          afterCreateOrganization: async ({ organization }) => {
+          afterCreateOrganization: async ({ organization, user }) => {
             if ("runMutation" in ctx) {
               await ctx.runMutation(internal.workDefaults.internalSeedForChurch, {
                 churchId: organization.id,
+                creatorUserId: user.id,
               });
             }
 
@@ -713,6 +714,12 @@ export function createAuthOptions(ctx: GenericCtx<DataModel>) {
                 teamId: team.id,
                 name: team.name,
               });
+              if (user) {
+                await ctx.runMutation(internal.workDefaults.internalSeedTeamCreatorMembership, {
+                  teamId: team.id,
+                  userId: user.id,
+                });
+              }
             }
 
             await recordAuthHookActivity(ctx, {

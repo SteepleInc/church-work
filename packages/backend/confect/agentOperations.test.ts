@@ -673,6 +673,9 @@ describe("agent operation boundary", () => {
       const teams = yield* authenticated.query(refs.public.teams.listForChurch, {
         churchId: church.id!,
       });
+      const memberships = yield* authenticated.query(refs.public.teams.listMembershipsForChurch, {
+        churchId: church.id!,
+      });
 
       const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
         churchId: church.id!,
@@ -689,6 +692,14 @@ describe("agent operation boundary", () => {
       ]);
       expect(teams.data.teams.map((team) => team.sortOrder)).toEqual([0, 1, 2, 3, 4, 5]);
       expect(teams.data.teams.every((team) => team.archivedAt === null)).toBe(true);
+      expect(
+        teams.data.teams.every((team) =>
+          memberships.data.teamMemberships.some(
+            (membership) =>
+              membership.teamId === team.id && membership.userId === signUpBody.user!.id!,
+          ),
+        ),
+      ).toBe(true);
       // Every starter Team owns its own seeded Workflow named after the
       // Team (ADR 0013).
       for (const team of teams.data.teams) {
@@ -3423,6 +3434,9 @@ describe("agent operation boundary", () => {
       const initialRead = yield* authenticated.query(refs.public.teams.listForChurch, {
         churchId: church.id!,
       });
+      const memberships = yield* authenticated.query(refs.public.teams.listMembershipsForChurch, {
+        churchId: church.id!,
+      });
 
       expect(initialRead.ok).toBe(true);
       expect(initialRead.data.teams).toContainEqual({
@@ -3436,6 +3450,12 @@ describe("agent operation boundary", () => {
         identifier: "WOR",
         previousIdentifiers: [],
         sortOrder: 0,
+      });
+      expect(memberships.data.teamMemberships).toContainEqual({
+        id: expect.any(String),
+        churchId: church.id!,
+        teamId: team.id!,
+        userId: signUpBody.user!.id!,
       });
 
       const updated = yield* authenticated.mutation(refs.public.teams.updateProductFields, {
@@ -4165,6 +4185,16 @@ describe("agent operation boundary", () => {
         churchId: church.id!,
       });
       const team = teams.data.teams.find((candidate) => candidate.name === "Worship")!;
+      const createdTeam = yield* ownerAuthenticated.mutation(refs.public.teams.createForChurch, {
+        churchId: church.id!,
+        name: "Owner Created Team",
+      });
+      const ownerMemberships = yield* ownerAuthenticated.query(
+        refs.public.teams.listMembershipsForChurch,
+        {
+          churchId: church.id!,
+        },
+      );
       const defaults = yield* ownerAuthenticated.query(refs.public.workDefaults.readForChurch, {
         churchId: church.id!,
       });
@@ -4229,6 +4259,13 @@ describe("agent operation boundary", () => {
         churchId: church.id!,
         teamId: team.id,
         userId: member.user!.id!,
+      });
+      expect(ownerMemberships.data.teamMemberships).toContainEqual({
+        id: expect.any(String),
+        churchId: church.id!,
+        teamId: createdTeam.data.teams.find((candidate) => candidate.name === "Owner Created Team")!
+          .id,
+        userId: owner.user!.id!,
       });
       expect(unauthorized).toEqual({
         ok: false,

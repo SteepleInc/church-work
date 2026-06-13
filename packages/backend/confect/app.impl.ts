@@ -69,7 +69,12 @@ import {
   serializeLabel,
   updateLabelForChurch,
 } from "../labels";
-import { readDefaultWorkModel, seedDefaultWorkModel, seedTeamWorkflow } from "../workDefaults";
+import {
+  readDefaultWorkModel,
+  seedDefaultWorkModel,
+  seedTeamCreatorMembership,
+  seedTeamWorkflow,
+} from "../workDefaults";
 import {
   cancelTasks,
   completeTasks,
@@ -1917,6 +1922,13 @@ const teamCreateForChurch = FunctionImpl.make(api, "teams", "createForChurch", (
           churchId: args.churchId,
           teamId: createdTeam._id,
           name: args.name,
+        }),
+      ).pipe(Effect.orDie);
+
+      yield* Effect.promise(() =>
+        seedTeamCreatorMembership(ctx, {
+          teamId: createdTeam._id,
+          userId: auth.authUser._id,
         }),
       ).pipe(Effect.orDie);
 

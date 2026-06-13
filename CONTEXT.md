@@ -103,7 +103,7 @@ The color assigned to a Team from a fixed product palette, shown wherever the Te
 _Avoid_: Arbitrary hex colors, avatar color as a separate concept
 
 **Team Membership**:
-The relationship between a User and a Team inside a Church. Team Membership determines which Team's work is naturally visible and relevant to that User.
+The relationship between a User and a Team inside a Church. Team Membership determines which Team's work is naturally visible and relevant to that User. When a User creates a Team, that User is immediately added as a Team Member of the new Team.
 _Avoid_: Department membership, ministry membership
 
 **User**:
@@ -127,7 +127,7 @@ One screen of Onboarding: Church Profile (tell us about your Church), Initial Te
 _Avoid_: Page, screen number
 
 **Starter Teams**:
-The default Teams every new Church begins with: Worship, Production, Kids, Experience, Facilities, and Social Media. Starter Teams are seeded when the Church is created and may be renamed or removed during Onboarding's Initial Teams step, though a Church must always keep at least one Team.
+The default Teams every new Church begins with: Worship, Production, Kids, Experience, Facilities, and Social Media. Starter Teams are seeded when the Church is created, and the Church creator is immediately added as a Team Member of each Starter Team. Starter Teams may be renamed or removed during Onboarding's Initial Teams step, though a Church must always keep at least one Team.
 _Avoid_: Default initial teams, suggested teams as a separate concept
 
 **Completed Onboarding**:
