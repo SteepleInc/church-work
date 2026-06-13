@@ -55,7 +55,6 @@ import {
   getTaskGroupColumnId,
   groupTasksByColumn,
   isTaskBoardGroupingDraggable,
-  moveTaskBetweenGroupColumns,
   buildTaskBoardColumns,
   computeBoardMoves,
   type TaskBoardColumn,
@@ -286,14 +285,9 @@ export function TaskKanbanBoard({
   const handleMove = (event: KanbanMoveEvent) => {
     const activeTaskId = String(event.event.active.id);
     if (grouping !== "workflow_status") {
-      moveTaskBetweenGroupColumns({
-        grouping,
-        columns: columnTasks,
-        taskId: activeTaskId,
-        destinationColumnId: event.overContainer,
-        destinationIndex: event.overIndex,
-        persistMove: onMoveTask,
-      });
+      if (event.activeContainer !== event.overContainer) {
+        void onMoveTask({ taskId: activeTaskId, columnId: event.overContainer });
+      }
       return;
     }
 
@@ -303,6 +297,7 @@ export function TaskKanbanBoard({
     const moves = computeBoardMoves({
       columns: columnTasks,
       activeTaskId,
+      destinationColumnId: event.overContainer,
       selectedTaskIds,
     });
     if (moves.length === 0) return;

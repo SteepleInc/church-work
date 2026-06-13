@@ -321,9 +321,11 @@ export function moveTaskBetweenBoardColumns(args: {
 export function computeBoardMoves(args: {
   readonly columns: TaskBoardColumns;
   readonly activeTaskId: string;
+  readonly destinationColumnId?: string;
   readonly selectedTaskIds?: ReadonlySet<string>;
 }): readonly TaskBoardMove[] {
-  const destinationId = findColumnOfTask(args.columns, args.activeTaskId);
+  const destinationId =
+    args.destinationColumnId ?? findColumnOfTask(args.columns, args.activeTaskId);
   if (!destinationId) return [];
 
   const selected = args.selectedTaskIds ?? new Set<string>();

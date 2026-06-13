@@ -7,6 +7,7 @@ import {
   useContext,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { mergeProps } from "@base-ui/react/merge-props";
@@ -137,6 +138,7 @@ function Kanban<T>({
   const columns = value;
   const setColumns = onValueChange;
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
+  const dragStartContainerRef = useRef<string | null>(null);
 
   const sensors = useSensors(
     useSensor(MouseSensor, {
@@ -170,9 +172,13 @@ function Kanban<T>({
     [columns, columnIds, getItemValue, isColumn],
   );
 
-  const handleDragStart = useCallback((event: DragStartEvent) => {
-    setActiveId(event.active.id);
-  }, []);
+  const handleDragStart = useCallback(
+    (event: DragStartEvent) => {
+      setActiveId(event.active.id);
+      dragStartContainerRef.current = findContainer(event.active.id) ?? null;
+    },
+    [findContainer],
+  );
 
   // Live preview: items part to open the drop slot while dragging, including
   // across columns. When `onMove` is set the preview still mutates the
@@ -233,18 +239,21 @@ function Kanban<T>({
 
   const handleDragCancel = useCallback(() => {
     setActiveId(null);
+    dragStartContainerRef.current = null;
   }, []);
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const { active, over } = event;
       setActiveId(null);
+      const dragStartContainer = dragStartContainerRef.current;
+      dragStartContainerRef.current = null;
 
       if (!over) return;
 
       // Handle item move callback
       if (onMove && !isColumn(active.id)) {
-        const activeContainer = findContainer(active.id);
+        const activeContainer = dragStartContainer ?? findContainer(active.id);
         const overContainer = findContainer(over.id);
 
         if (activeContainer && overContainer) {

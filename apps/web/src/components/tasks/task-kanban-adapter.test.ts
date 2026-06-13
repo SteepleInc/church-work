@@ -116,6 +116,27 @@ describe("Task Kanban adapter", () => {
     expect(moves[0].boardOrder < "a1").toBe(true);
   });
 
+  test("uses the drop event destination when the preview layout still has stale task fields", () => {
+    const moves = computeBoardMoves({
+      columns: {
+        todo: [],
+        doing: [
+          boardTask({
+            id: "task-1",
+            workflowStatusId: "todo",
+            taskState: "todo",
+            boardOrder: "a3",
+          }),
+        ],
+      },
+      activeTaskId: "task-1",
+      destinationColumnId: "doing",
+    });
+
+    expect(moves).toHaveLength(1);
+    expect(moves[0]).toMatchObject({ taskId: "task-1", workflowStatusId: "doing" });
+  });
+
   test("a card dropped at the end of a column appends after the last key", () => {
     const moves = computeBoardMoves({
       columns: {
