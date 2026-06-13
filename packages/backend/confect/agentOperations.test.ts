@@ -673,6 +673,7 @@ describe("agent operation boundary", () => {
       const teams = yield* authenticated.query(refs.public.teams.listForChurch, {
         churchId: church.id!,
       });
+
       const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
         churchId: church.id!,
       });
@@ -2121,6 +2122,9 @@ describe("agent operation boundary", () => {
         userId: owner.user!.id!,
         sessionToken: owner.token!,
       });
+      const teams = yield* authenticated.query(refs.public.teams.listForChurch, {
+        churchId: church.id!,
+      });
       const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
         churchId: church.id!,
       });
@@ -2162,6 +2166,18 @@ describe("agent operation boundary", () => {
       const task = created.data.tasks.find(
         (candidate) => candidate.title === "Assign Team through update",
       )!;
+      yield* authenticated.mutation(refs.public.tasks.createBatch, {
+        churchId: church.id!,
+        tasks: [
+          {
+            title: "Existing destination task",
+            teamId: secondTeam.id!,
+            workflowStatusId: secondTeamTodo.id,
+            dueDate: "2026-06-03",
+            parentTaskId: null,
+          },
+        ],
+      });
 
       const assigned = yield* authenticated.mutation(refs.public.tasks.updateBatch, {
         churchId: church.id!,
@@ -2180,18 +2196,51 @@ describe("agent operation boundary", () => {
         entityType: "task",
         entityId: task.id,
       });
+      const assignedTask = assigned.data.tasks.find((candidate) => candidate.id === task.id)!;
+      const changedTask = changed.data.tasks.find((candidate) => candidate.id === task.id)!;
+      const sourceTeam = teams.data.teams.find((candidate) => candidate.id === taskTeamId)!;
+      const firstDestinationTeam = teams.data.teams.find((candidate) => candidate.id === team.id)!;
+      const secondDestinationTeam = teams.data.teams.find(
+        (candidate) => candidate.id === secondTeam.id,
+      )!;
+      const resolvedInitialAlias = yield* authenticated.query(
+        refs.public.tasks.resolveByIdentifier,
+        {
+          churchId: church.id!,
+          identifier: task.identifier.toLowerCase(),
+        },
+      );
+      const resolvedFirstMoveAlias = yield* authenticated.query(
+        refs.public.tasks.resolveByIdentifier,
+        {
+          churchId: church.id!,
+          identifier: assignedTask.identifier,
+        },
+      );
 
-      expect(assigned.data.tasks.find((candidate) => candidate.id === task.id)).toMatchObject({
+      expect(assignedTask).toMatchObject({
         teamId: team.id,
+        number: 1,
+        identifier: `${firstDestinationTeam.identifier}-1`,
         workflowId: teamWorkflow.id,
         workflowStatusId: teamTodo.id,
         taskState: "todo",
       });
-      expect(changed.data.tasks.find((candidate) => candidate.id === task.id)).toMatchObject({
+      expect(changedTask).toMatchObject({
         teamId: secondTeam.id,
+        number: 2,
+        identifier: `${secondDestinationTeam.identifier}-2`,
         workflowId: secondTeamWorkflow.id,
         workflowStatusId: secondTeamTodo.id,
         taskState: "todo",
+      });
+      expect(resolvedInitialAlias.data.tasks[0]).toMatchObject({
+        id: task.id,
+        identifier: changedTask.identifier,
+      });
+      expect(resolvedFirstMoveAlias.data.tasks[0]).toMatchObject({
+        id: task.id,
+        identifier: changedTask.identifier,
       });
       expect(rejected).toEqual({
         ok: false,
@@ -2204,9 +2253,13 @@ describe("agent operation boundary", () => {
       expect(activities.data.activities.map((activity) => activity.eventType)).toEqual([
         "task.created",
         "task.team_changed",
+        "task.renumbered",
         "task.team_changed",
+        "task.renumbered",
       ]);
       expect(activities.data.activities.map((activity) => activity.actorId)).toEqual([
+        owner.user!.id!,
+        owner.user!.id!,
         owner.user!.id!,
         owner.user!.id!,
         owner.user!.id!,
@@ -2220,6 +2273,14 @@ describe("agent operation boundary", () => {
         workflowStatusId: teamTodo.id,
       });
       expect(activities.data.activities[2]!.metadata).toEqual({
+        previousIdentifier: task.identifier,
+        identifier: assignedTask.identifier,
+        previousNumber: task.number,
+        number: assignedTask.number,
+        previousTeamId: taskTeamId,
+        teamId: team.id,
+      });
+      expect(activities.data.activities[3]!.metadata).toEqual({
         previousTeamId: team.id,
         teamId: secondTeam.id,
         previousWorkflowId: teamWorkflow.id,
@@ -2227,6 +2288,15 @@ describe("agent operation boundary", () => {
         previousWorkflowStatusId: teamTodo.id,
         workflowStatusId: secondTeamTodo.id,
       });
+      expect(activities.data.activities[4]!.metadata).toEqual({
+        previousIdentifier: assignedTask.identifier,
+        identifier: changedTask.identifier,
+        previousNumber: assignedTask.number,
+        number: changedTask.number,
+        previousTeamId: team.id,
+        teamId: secondTeam.id,
+      });
+      expect(task.identifier).toBe(`${sourceTeam.identifier}-${task.number}`);
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 

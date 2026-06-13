@@ -45,6 +45,15 @@ async function readTeamIdentifiers(ctx: TaskReadCtx, churchId: string) {
   return Object.fromEntries(teams.page.map((team) => [team._id, teamIdentifierOf(team)]));
 }
 
+async function readTeamIdentifier(ctx: TaskReadCtx, teamId: string) {
+  const team = (await ctx.runQuery(components.betterAuth.adapter.findOne, {
+    model: "team",
+    where: [{ field: "_id", value: teamId }],
+  })) as TeamIdentifierSourceTeam | null;
+
+  return team ? teamIdentifierOf(team) : "TEAM";
+}
+
 /**
  * Draws per-Team Task numbers (ADR 0013) from the `nextTaskNumber` counter on
  * the team document. Caches the counter per team so batch creates only read
@@ -394,6 +403,7 @@ export async function updateTasks(
   },
 ) {
   const updates: Array<() => Promise<void>> = [];
+  const drawTaskNumber = makeTaskNumberDrawer(ctx);
 
   for (const update of args.updates) {
     const task = await ctx.db.get(update.taskId as Id<"tasks">);
@@ -509,6 +519,8 @@ export async function updateTasks(
       readonly workflowId: string;
       readonly previousWorkflowStatusId: string;
       readonly workflowStatusId: Id<"workflowStatuses">;
+      readonly previousIdentifier: string;
+      readonly teamIdentifier: string;
     } | null = null;
 
     if (update.fields.teamId !== undefined && update.fields.teamId !== task.teamId) {
@@ -537,6 +549,11 @@ export async function updateTasks(
         return { ok: false as const, code: "workflowStatusRemapFailed" as const };
       }
 
+      const [previousTeamIdentifier, teamIdentifier] = await Promise.all([
+        readTeamIdentifier(ctx, task.teamId),
+        readTeamIdentifier(ctx, teamId),
+      ]);
+
       patch.teamId = teamId;
       patch.workflowId = workflowId;
       patch.workflowStatusId = destinationStatus._id;
@@ -549,6 +566,8 @@ export async function updateTasks(
         workflowId,
         previousWorkflowStatusId: task.workflowStatusId,
         workflowStatusId: destinationStatus._id,
+        previousIdentifier: formatTaskIdentifier(previousTeamIdentifier, task.number),
+        teamIdentifier,
       };
     }
 
@@ -624,10 +643,39 @@ export async function updateTasks(
     if (updatedFields.length === 0) continue;
 
     updates.push(async () => {
-      await ctx.db.patch(task._id, patch);
+      const finalPatch = { ...patch };
+      let renumberedTask: {
+        readonly previousIdentifier: string;
+        readonly identifier: string;
+        readonly previousNumber: number;
+        readonly number: number;
+        readonly previousTeamId: string;
+        readonly teamId: string;
+      } | null = null;
 
-      if ("assignedUserId" in patch) {
-        if (patch.assignedUserId === null) {
+      if (remappedTeam) {
+        const number = await drawTaskNumber(remappedTeam.teamId);
+        const identifier = formatTaskIdentifier(remappedTeam.teamIdentifier, number);
+
+        finalPatch.number = number;
+        finalPatch.previousIdentifiers = [
+          ...task.previousIdentifiers.filter((alias) => alias !== remappedTeam.previousIdentifier),
+          remappedTeam.previousIdentifier,
+        ];
+        renumberedTask = {
+          previousIdentifier: remappedTeam.previousIdentifier,
+          identifier,
+          previousNumber: task.number,
+          number,
+          previousTeamId: remappedTeam.previousTeamId,
+          teamId: remappedTeam.teamId,
+        };
+      }
+
+      await ctx.db.patch(task._id, finalPatch);
+
+      if ("assignedUserId" in finalPatch) {
+        if (finalPatch.assignedUserId === null) {
           if (task.assignedUserId !== null) {
             await writeActivity(ctx, {
               churchId: args.churchId,
@@ -653,7 +701,7 @@ export async function updateTasks(
             cycleId: task.cycleId,
             metadata: {
               previousAssignedUserId: task.assignedUserId,
-              assignedUserId: patch.assignedUserId,
+              assignedUserId: finalPatch.assignedUserId,
             },
           });
         }
@@ -677,6 +725,20 @@ export async function updateTasks(
             previousWorkflowStatusId: remappedTeam.previousWorkflowStatusId,
             workflowStatusId: remappedTeam.workflowStatusId,
           },
+        });
+      }
+
+      if (renumberedTask) {
+        await writeActivity(ctx, {
+          churchId: args.churchId,
+          entityType: "task",
+          entityId: task._id,
+          eventType: "task.renumbered",
+          actorType: "user",
+          actorId: args.actorId,
+          occurredAt: args.occurredAt,
+          cycleId: task.cycleId,
+          metadata: renumberedTask,
         });
       }
 
@@ -739,13 +801,13 @@ export async function updateTasks(
           previousParentTaskId?: string | null;
           parentTaskId?: string | null;
         } = { updatedFields: nonAssignmentFields };
-        if ("title" in patch && patch.title !== undefined) {
+        if ("title" in finalPatch && finalPatch.title !== undefined) {
           metadata.previousTitle = task.title;
-          metadata.title = patch.title;
+          metadata.title = finalPatch.title;
         }
-        if ("parentTaskId" in patch) {
+        if ("parentTaskId" in finalPatch) {
           metadata.previousParentTaskId = task.parentTaskId;
-          metadata.parentTaskId = patch.parentTaskId ?? null;
+          metadata.parentTaskId = finalPatch.parentTaskId ?? null;
         }
 
         await writeActivity(ctx, {
