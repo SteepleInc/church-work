@@ -17,6 +17,7 @@ export const TaskViewGroupingSchema = Schema.Literal(
   "task_state",
   "assignee",
   "team",
+  "estimate",
 );
 export type TaskViewGrouping = typeof TaskViewGroupingSchema.Type;
 

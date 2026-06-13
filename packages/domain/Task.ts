@@ -3,6 +3,10 @@ import { Schema } from "effect";
 export const TaskStatusSchema = Schema.Literal("todo", "in_progress", "done", "canceled");
 export const RestorableTaskStatusSchema = Schema.Literal("todo", "in_progress", "done");
 
+// Estimate: per-Task effort size (see CONTEXT.md "Estimate"). Null/absent
+// means "no estimate"; the "no_estimate" sentinel is a UI-only concept.
+export const TaskEstimateSchema = Schema.Literal("xs", "s", "m", "l", "xl");
+
 export const TaskTableFieldsSchema = Schema.Struct({
   churchId: Schema.String,
   title: Schema.String,
@@ -22,6 +26,9 @@ export const TaskTableFieldsSchema = Schema.Struct({
   workflowId: Schema.String,
   workflowStatusId: Schema.String,
   taskState: TaskStatusSchema,
+  // Per-Task effort size. Optional because pre-existing Tasks were written
+  // before the field existed; null and absent both mean "no estimate".
+  estimate: Schema.optional(Schema.Union(TaskEstimateSchema, Schema.Null)),
   // Board Order: fractional-indexing key ordering Tasks within a Board Column
   // (see docs/adr/0012-fractional-board-order.md). Compared as a plain string.
   boardOrder: Schema.String,
@@ -49,6 +56,7 @@ export const TaskSchema = Schema.Struct({
   workflowId: Schema.String,
   workflowStatusId: Schema.String,
   taskState: TaskStatusSchema,
+  estimate: Schema.Union(TaskEstimateSchema, Schema.Null),
   boardOrder: Schema.String,
   finishedAt: Schema.Union(Schema.String, Schema.Null),
   sourceTemplateId: Schema.Union(Schema.String, Schema.Null),
@@ -59,4 +67,5 @@ export const TaskSchema = Schema.Struct({
 
 export type Task = typeof TaskSchema.Type;
 export type TaskStatus = typeof TaskStatusSchema.Type;
+export type TaskEstimate = typeof TaskEstimateSchema.Type;
 export type RestorableTaskStatus = typeof RestorableTaskStatusSchema.Type;

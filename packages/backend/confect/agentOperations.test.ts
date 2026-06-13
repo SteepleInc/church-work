@@ -1980,6 +1980,96 @@ describe("agent operation boundary", () => {
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 
+  it.effect("Task estimate persists through create, update, and clear with Activity", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const ownerResponse = yield* signUpWithEmail(
+        c,
+        `agent-task-estimate-owner-${crypto.randomUUID()}@example.com`,
+      );
+      const owner = (yield* Effect.promise(() => ownerResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: owner.token!,
+        name: "Task Estimate Church",
+        slug: `task-estimate-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: owner.user!.id!,
+        sessionToken: owner.token!,
+      });
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
+        churchId: church.id!,
+      });
+      const todoStatus = defaults.data.workflowStatuses.find(
+        (status) => status.taskState === "todo",
+      )!;
+      const created = yield* authenticated.mutation(refs.public.tasks.createBatch, {
+        churchId: church.id!,
+        tasks: [
+          {
+            title: "Estimated task",
+            teamId: null,
+            workflowStatusId: todoStatus.id,
+            dueDate: "2026-06-03",
+            parentTaskId: null,
+            estimate: "m",
+          },
+          {
+            title: "Unestimated task",
+            teamId: null,
+            workflowStatusId: todoStatus.id,
+            dueDate: "2026-06-03",
+            parentTaskId: null,
+          },
+        ],
+      });
+      const estimated = created.data.tasks.find(
+        (candidate) => candidate.title === "Estimated task",
+      )!;
+      const unestimated = created.data.tasks.find(
+        (candidate) => candidate.title === "Unestimated task",
+      )!;
+
+      const resized = yield* authenticated.mutation(refs.public.tasks.updateBatch, {
+        churchId: church.id!,
+        updates: [{ taskId: estimated.id, fields: { estimate: "l" } }],
+      });
+      const cleared = yield* authenticated.mutation(refs.public.tasks.updateBatch, {
+        churchId: church.id!,
+        updates: [{ taskId: estimated.id, fields: { estimate: null } }],
+      });
+      const activities = yield* authenticated.query(refs.public.activities.listForEntity, {
+        churchId: church.id!,
+        entityType: "task",
+        entityId: estimated.id,
+      });
+
+      expect(estimated.estimate).toBe("m");
+      expect(unestimated.estimate).toBeNull();
+      expect(resized.data.tasks.find((candidate) => candidate.id === estimated.id)).toMatchObject({
+        estimate: "l",
+      });
+      expect(cleared.data.tasks.find((candidate) => candidate.id === estimated.id)).toMatchObject({
+        estimate: null,
+      });
+      expect(activities.data.activities.map((activity) => activity.eventType)).toEqual([
+        "task.created",
+        "task.updated",
+        "task.updated",
+      ]);
+      expect(activities.data.activities[1]!.metadata).toEqual({
+        updatedFields: ["estimate"],
+      });
+      expect(activities.data.activities[2]!.metadata).toEqual({
+        updatedFields: ["estimate"],
+      });
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
   it.effect("Task update assigns and unassigns Teams with Workflow remap Activity", () =>
     Effect.gen(function* () {
       const c = yield* TestConfect.TestConfect;

@@ -56,6 +56,7 @@ import {
   buildTaskBoardColumns,
   computeBoardMoves,
   type TaskBoardColumn,
+  type TaskBoardEstimate,
   type TaskBoardGroupColumn,
   type TaskBoardGrouping,
   type TaskBoardMove,
@@ -80,6 +81,11 @@ export type TaskCardAssignChange = {
 export type TaskCardStatusChange = {
   readonly taskId: string;
   readonly workflowStatusId: string;
+};
+
+export type TaskCardEstimateChange = {
+  readonly taskId: string;
+  readonly estimate: TaskBoardEstimate | null;
 };
 
 export type TaskBoardTeamOption = {
@@ -112,6 +118,7 @@ type TaskKanbanBoardProps = {
   readonly onMoveTasks: (moves: readonly TaskBoardMove[]) => void | Promise<void>;
   readonly onAssignTask?: (change: TaskCardAssignChange) => void | Promise<void>;
   readonly onChangeTaskStatus?: (change: TaskCardStatusChange) => void | Promise<void>;
+  readonly onChangeTaskEstimate?: (change: TaskCardEstimateChange) => void | Promise<void>;
   readonly onOpenTask?: (taskId: string) => void;
   readonly onAddTask?: (workflowStatusId: string) => void;
   readonly onToggleColumnHidden?: (workflowStatusId: string) => void;
@@ -132,7 +139,7 @@ function boardSignature(
     ...columns.map((column) => `${column.id}:${column.title}`),
     ...tasks.map(
       (task) =>
-        `${task.id}:${getTaskGroupColumnId(grouping, task)}:${task.taskState}:${task.boardOrder ?? ""}:${task.assignedUserId ?? ""}`,
+        `${task.id}:${getTaskGroupColumnId(grouping, task)}:${task.taskState}:${task.boardOrder ?? ""}:${task.assignedUserId ?? ""}:${task.estimate ?? ""}`,
     ),
   ].join(":");
 }
@@ -176,6 +183,7 @@ export function TaskKanbanBoard({
   onMoveTasks,
   onAssignTask,
   onChangeTaskStatus,
+  onChangeTaskEstimate,
   onOpenTask,
   onAddTask,
   onToggleColumnHidden,
@@ -331,6 +339,7 @@ export function TaskKanbanBoard({
             selectedTaskIds={selectedTaskIds}
             onAssignTask={onAssignTask}
             onChangeTaskStatus={onChangeTaskStatus}
+            onChangeTaskEstimate={onChangeTaskEstimate}
             onOpenTask={onOpenTask}
             onAddTask={grouping === "workflow_status" ? onAddTask : undefined}
             onHideColumn={grouping === "workflow_status" ? onToggleColumnHidden : undefined}
@@ -435,6 +444,7 @@ interface TaskKanbanColumnProps extends Omit<
   readonly isOverlay?: boolean;
   readonly onAssignTask?: TaskKanbanBoardProps["onAssignTask"];
   readonly onChangeTaskStatus?: TaskKanbanBoardProps["onChangeTaskStatus"];
+  readonly onChangeTaskEstimate?: TaskKanbanBoardProps["onChangeTaskEstimate"];
   readonly onOpenTask?: (taskId: string) => void;
   readonly onAddTask?: (workflowStatusId: string) => void;
   readonly onHideColumn?: (workflowStatusId: string) => void;
@@ -457,6 +467,7 @@ function TaskKanbanColumn({
   isOverlay,
   onAssignTask,
   onChangeTaskStatus,
+  onChangeTaskEstimate,
   onOpenTask,
   onAddTask,
   onHideColumn,
@@ -552,6 +563,7 @@ function TaskKanbanColumn({
               isOverlay={isOverlay}
               onAssignTask={onAssignTask}
               onChangeTaskStatus={onChangeTaskStatus}
+              onChangeTaskEstimate={onChangeTaskEstimate}
               onOpenTask={onOpenTask}
               onToggleTaskSelected={onToggleTaskSelected}
             />
@@ -579,6 +591,7 @@ interface TaskKanbanCardProps extends Omit<
   readonly isOverlay?: boolean;
   readonly onAssignTask?: TaskKanbanBoardProps["onAssignTask"];
   readonly onChangeTaskStatus?: TaskKanbanBoardProps["onChangeTaskStatus"];
+  readonly onChangeTaskEstimate?: TaskKanbanBoardProps["onChangeTaskEstimate"];
   readonly onOpenTask?: (taskId: string) => void;
   readonly onToggleTaskSelected?: (taskId: string) => void;
 }
@@ -597,6 +610,7 @@ function TaskKanbanCard({
   isOverlay,
   onAssignTask,
   onChangeTaskStatus,
+  onChangeTaskEstimate,
   onOpenTask,
   onToggleTaskSelected,
   className,
@@ -635,7 +649,7 @@ function TaskKanbanCard({
   const form = useAppForm({
     defaultValues: {
       priority: "no_priority" as TaskPriority,
-      estimate: "no_estimate" as TaskEstimate,
+      estimate: (task.estimate ?? "no_estimate") as TaskEstimate,
       assignedUserId: task.assignedUserId ?? null,
       workflowStatusId: task.workflowStatusId,
     },
@@ -766,7 +780,13 @@ function TaskKanbanCard({
               const meta = getEstimateMeta(field.state.value);
               return (
                 <EstimateComboboxSelector
-                  onValueChange={(next) => field.handleChange(next)}
+                  onValueChange={(next) => {
+                    field.handleChange(next);
+                    void onChangeTaskEstimate?.({
+                      taskId: task.id,
+                      estimate: next === "no_estimate" ? null : next,
+                    });
+                  }}
                   openRef={estimateOpenRef}
                   trigger={
                     <span

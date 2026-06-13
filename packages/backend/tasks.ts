@@ -1,4 +1,4 @@
-import type { RestorableTaskStatus, TaskStatus } from "@church-task/domain/Task";
+import type { RestorableTaskStatus, TaskEstimate, TaskStatus } from "@church-task/domain/Task";
 import type { GenericDatabaseReader, GenericMutationCtx } from "convex/server";
 
 import { buildCycleForLocalDate, localDateForInstant } from "./churchCycleCalendar";
@@ -54,6 +54,8 @@ type TaskCreateInput = {
   // creation date and keeps dueDate null.
   readonly dueDate: string | null;
   readonly parentTaskId: string | null;
+  // Null or absent means "no estimate".
+  readonly estimate?: TaskEstimate | null;
 };
 
 type TaskUpdateInput = {
@@ -67,6 +69,7 @@ type TaskUpdateInput = {
     readonly cycleId?: string;
     readonly parentTaskId?: string | null;
     readonly boardOrder?: string;
+    readonly estimate?: TaskEstimate | null;
   };
 };
 
@@ -204,6 +207,7 @@ export const serializeTaskModel = (data: Awaited<ReturnType<typeof readTaskModel
     workflowId: task.workflowId,
     workflowStatusId: task.workflowStatusId,
     taskState: task.taskState,
+    estimate: task.estimate ?? null,
     boardOrder: task.boardOrder,
     finishedAt: task.finishedAt ?? null,
     sourceTemplateId: task.sourceTemplateId ?? null,
@@ -314,6 +318,7 @@ export async function createTasks(
       workflowId,
       workflowStatusId,
       taskState,
+      estimate: task.estimate ?? null,
       boardOrder: await appendBoardOrder(workflowStatusId),
       finishedAt: null,
       sourceTemplateId: null,
@@ -352,6 +357,14 @@ export async function updateTasks(
     if ("title" in update.fields && update.fields.title !== task.title) {
       patch.title = update.fields.title;
       updatedFields.push("title");
+    }
+
+    if (
+      "estimate" in update.fields &&
+      (update.fields.estimate ?? null) !== (task.estimate ?? null)
+    ) {
+      patch.estimate = update.fields.estimate ?? null;
+      updatedFields.push("estimate");
     }
 
     if (

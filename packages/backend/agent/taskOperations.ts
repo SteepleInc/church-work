@@ -1,4 +1,4 @@
-import { TaskSchema } from "@church-task/domain/Task";
+import { TaskEstimateSchema, TaskSchema } from "@church-task/domain/Task";
 import { Schema } from "effect";
 
 const TaskCreateInput = Schema.Struct({
@@ -11,6 +11,8 @@ const TaskCreateInput = Schema.Struct({
   // creation date.
   dueDate: Schema.Union(Schema.String, Schema.Null),
   parentTaskId: Schema.Union(Schema.String, Schema.Null),
+  // Null or absent means "no estimate".
+  estimate: Schema.optional(Schema.Union(TaskEstimateSchema, Schema.Null)),
 });
 
 export const TaskCreateBatchArgs = Schema.Struct({
@@ -27,6 +29,7 @@ const TaskUpdateFields = Schema.Struct({
   cycleId: Schema.optional(Schema.String),
   parentTaskId: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
   boardOrder: Schema.optional(Schema.String),
+  estimate: Schema.optional(Schema.Union(TaskEstimateSchema, Schema.Null)),
 });
 
 export const TaskUpdateBatchArgs = Schema.Struct({

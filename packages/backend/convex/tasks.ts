@@ -122,6 +122,14 @@ const taskTransitionErrorResponse = (
   );
 };
 
+const taskEstimateValidator = v.union(
+  v.literal("xs"),
+  v.literal("s"),
+  v.literal("m"),
+  v.literal("l"),
+  v.literal("xl"),
+);
+
 const taskUpdateFieldsValidator = v.object({
   title: v.optional(v.string()),
   assignedUserId: v.optional(v.union(v.string(), v.null())),
@@ -131,6 +139,7 @@ const taskUpdateFieldsValidator = v.object({
   cycleId: v.optional(v.string()),
   parentTaskId: v.optional(v.union(v.string(), v.null())),
   boardOrder: v.optional(v.string()),
+  estimate: v.optional(v.union(taskEstimateValidator, v.null())),
 });
 
 type McpTaskUpdateFields = {
@@ -142,6 +151,7 @@ type McpTaskUpdateFields = {
   readonly cycleId?: string;
   readonly parentTaskId?: string | null;
   readonly boardOrder?: string;
+  readonly estimate?: "xs" | "s" | "m" | "l" | "xl" | null;
 };
 
 /**
@@ -365,6 +375,7 @@ export const mcpCreateTask = mutation({
     workflowStatusId: v.string(),
     dueDate: v.optional(v.union(v.string(), v.null())),
     parentTaskId: v.optional(v.union(v.string(), v.null())),
+    estimate: v.optional(v.union(taskEstimateValidator, v.null())),
   },
   handler: async (ctx, args) =>
     withConvexTelemetry(
@@ -416,6 +427,7 @@ export const mcpCreateTask = mutation({
               workflowStatusId: args.workflowStatusId,
               dueDate: args.dueDate ?? null,
               parentTaskId: args.parentTaskId ?? null,
+              estimate: args.estimate ?? null,
             },
           ],
         });

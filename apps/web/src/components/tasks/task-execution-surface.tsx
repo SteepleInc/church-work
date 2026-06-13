@@ -23,7 +23,11 @@ import { useAtom } from "jotai";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { TaskKanbanBoard } from "./task-kanban-board";
-import { UNASSIGNED_COLUMN_ID } from "./task-kanban-adapter";
+import {
+  NO_ESTIMATE_COLUMN_ID,
+  UNASSIGNED_COLUMN_ID,
+  type TaskBoardEstimate,
+} from "./task-kanban-adapter";
 import {
   buildTeamMemberIndex,
   getExecutionWorkflowId,
@@ -170,7 +174,14 @@ export function TaskExecutionSurface({
                   ? {
                       assignedUserId: move.columnId === UNASSIGNED_COLUMN_ID ? null : move.columnId,
                     }
-                  : null;
+                  : resolvedView.grouping === "estimate"
+                    ? {
+                        estimate:
+                          move.columnId === NO_ESTIMATE_COLUMN_ID
+                            ? null
+                            : (move.columnId as TaskBoardEstimate),
+                      }
+                    : null;
             if (!fields) return;
             void updateTask({
               churchId,
@@ -233,6 +244,14 @@ export function TaskExecutionSurface({
               fields: { workflowStatusId: change.workflowStatusId },
             });
           }}
+          onChangeTaskEstimate={(change) => {
+            void updateTask({
+              churchId,
+              actorUserId: currentUserId,
+              taskId: change.taskId,
+              fields: { estimate: change.estimate },
+            });
+          }}
           onOpenTask={(taskId) => {
             const url = openTaskDetailsPaneUrl({ id: taskId });
             void navigate({ to: url.to, search: url.search });
@@ -288,6 +307,7 @@ function toBoardTask(task: TaskSummary, tasks: readonly TaskSummary[]) {
     parentTask: getTaskParentContext(task, tasks),
     workflowStatusId: task.workflowStatusId,
     taskState: task.taskState,
+    estimate: task.estimate ?? null,
     boardOrder: task.boardOrder,
   };
 }
