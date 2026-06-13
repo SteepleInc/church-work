@@ -1355,6 +1355,211 @@ describe("agent operation boundary", () => {
     }).pipe(Effect.provide(TestConfect.layer())),
   );
 
+  it.effect("Team deletion remaps or abandons mapped Template Teams before removal", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-template-team-delete-repair-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Template Team Delete Repair Church",
+        slug: `template-team-delete-repair-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
+      const createdTeams = yield* authenticated.mutation(refs.public.teams.createForChurch, {
+        churchId: church.id!,
+        name: "Disposable",
+      });
+      const disposable = createdTeams.data.teams.find((team) => team.name === "Disposable")!;
+      const target = createdTeams.data.teams.find((team) => team.name === "Worship")!;
+
+      const created = yield* authenticated.mutation(refs.public.templates.createForChurch, {
+        churchId: church.id!,
+        templates: [
+          {
+            key: "repair-delete-template",
+            name: "Repair Delete Template",
+            recurrence: "weekly",
+            templateTeams: [
+              { key: "remap", name: "Remap Slot", mappedTeamId: disposable.id },
+              { key: "abandon", name: "Abandon Slot", mappedTeamId: disposable.id },
+            ],
+            focusWindows: [],
+            templateTasks: [
+              {
+                key: "remapped-task",
+                title: "Remapped task",
+                templateTeamKey: "remap",
+                parentTemplateTaskKey: null,
+                schedulingRule: { kind: "fixedDate", localDate: "2026-06-03" },
+              },
+              {
+                key: "abandoned-task",
+                title: "Abandoned task",
+                templateTeamKey: "abandon",
+                parentTemplateTaskKey: null,
+                schedulingRule: { kind: "fixedDate", localDate: "2026-06-03" },
+              },
+            ],
+          },
+        ],
+      });
+      const remapSlot = created.data.templateTeams.find((slot) => slot.key === "remap")!;
+      const abandonSlot = created.data.templateTeams.find((slot) => slot.key === "abandon")!;
+      const abandonedTemplateTask = created.data.templateTasks.find(
+        (task) => task.key === "abandoned-task",
+      )!;
+
+      const blocked = yield* authenticated.mutation(refs.public.teams.deleteForChurch, {
+        churchId: church.id!,
+        teamId: disposable.id,
+      });
+      const deleted = yield* authenticated.mutation(refs.public.teams.deleteForChurch, {
+        churchId: church.id!,
+        teamId: disposable.id,
+        templateTeamRepairs: [
+          { templateTeamId: remapSlot.id, action: "remap", mappedTeamId: target.id },
+          { templateTeamId: abandonSlot.id, action: "abandon" },
+        ],
+      });
+      const materialized = yield* authenticated.mutation(
+        refs.public.templates.materializeProjectedTasks,
+        { churchId: church.id!, occurrenceCycleIds: [] },
+      );
+      const listedTasks = yield* authenticated.query(refs.public.tasks.listForChurch, {
+        churchId: church.id!,
+      });
+      const templateTeamsMappedToDeleted = materialized.data.templateTeams.filter(
+        (slot) => slot.archivedAt === null && slot.mappedTeamId === disposable.id,
+      );
+
+      expect(blocked).toEqual({
+        ok: false,
+        operation: "deleteTeam",
+        error: {
+          code: "template_team_repair_required",
+          message:
+            "Template Teams mapped to this Team must be remapped or abandoned before deleting.",
+        },
+      });
+      expect(deleted.ok).toBe(true);
+      expect(materialized.ok).toBe(true);
+      expect(templateTeamsMappedToDeleted).toEqual([]);
+      expect(
+        materialized.data.templateTeams.find((slot) => slot.id === remapSlot.id),
+      ).toMatchObject({
+        mappedTeamId: target.id,
+        archivedAt: null,
+      });
+      expect(
+        materialized.data.templateTeams.find((slot) => slot.id === abandonSlot.id),
+      ).toMatchObject({ archivedAt: expect.any(String) });
+      expect(
+        materialized.data.templateTasks.find((task) => task.id === abandonedTemplateTask.id),
+      ).toMatchObject({ archivedAt: expect.any(String) });
+      expect(listedTasks.data.tasks.find((task) => task.title === "Remapped task")).toMatchObject({
+        teamId: target.id,
+      });
+      expect(listedTasks.data.tasks.some((task) => task.title === "Abandoned task")).toBe(false);
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
+  it.effect("Team archival requires Template Team repairs before archiving", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `agent-template-team-archive-repair-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const signUpBody = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: signUpBody.token!,
+        name: "Template Team Archive Repair Church",
+        slug: `template-team-archive-repair-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: signUpBody.user!.id!,
+        sessionToken: signUpBody.token!,
+      });
+      const createdTeams = yield* authenticated.mutation(refs.public.teams.createForChurch, {
+        churchId: church.id!,
+        name: "Archive Source",
+      });
+      const source = createdTeams.data.teams.find((team) => team.name === "Archive Source")!;
+      const target = createdTeams.data.teams.find((team) => team.name === "Worship")!;
+      const created = yield* authenticated.mutation(refs.public.templates.createForChurch, {
+        churchId: church.id!,
+        templates: [
+          {
+            key: "repair-archive-template",
+            name: "Repair Archive Template",
+            recurrence: "weekly",
+            templateTeams: [{ key: "owner", name: "Owner", mappedTeamId: source.id }],
+            focusWindows: [],
+            templateTasks: [
+              {
+                key: "archive-remapped-task",
+                title: "Archive remapped task",
+                templateTeamKey: null,
+                parentTemplateTaskKey: null,
+                schedulingRule: { kind: "fixedDate", localDate: "2026-06-03" },
+              },
+            ],
+          },
+        ],
+      });
+      const slot = created.data.templateTeams[0]!;
+
+      const blocked = yield* authenticated.mutation(refs.public.teams.archiveForChurch, {
+        churchId: church.id!,
+        teamId: source.id,
+      });
+      const archived = yield* authenticated.mutation(refs.public.teams.archiveForChurch, {
+        churchId: church.id!,
+        teamId: source.id,
+        templateTeamRepairs: [
+          { templateTeamId: slot.id, action: "remap", mappedTeamId: target.id },
+        ],
+      });
+      const materialized = yield* authenticated.mutation(
+        refs.public.templates.materializeProjectedTasks,
+        { churchId: church.id!, occurrenceCycleIds: [] },
+      );
+      const listedTasks = yield* authenticated.query(refs.public.tasks.listForChurch, {
+        churchId: church.id!,
+      });
+
+      expect(blocked).toEqual({
+        ok: false,
+        operation: "archiveTeam",
+        error: {
+          code: "template_team_repair_required",
+          message:
+            "Template Teams mapped to this Team must be remapped or abandoned before archiving.",
+        },
+      });
+      expect(archived.ok).toBe(true);
+      expect(archived.data.teams.some((team) => team.id === source.id)).toBe(false);
+      expect(materialized.data.templateTeams.find((team) => team.id === slot.id)).toMatchObject({
+        mappedTeamId: target.id,
+        archivedAt: null,
+      });
+      expect(
+        listedTasks.data.tasks.find((task) => task.title === "Archive remapped task"),
+      ).toMatchObject({ teamId: target.id });
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
+
   it.effect("Template Task edits sync only future unadjusted projected Tasks", () =>
     Effect.gen(function* () {
       const c = yield* TestConfect.TestConfect;

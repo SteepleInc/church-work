@@ -68,6 +68,14 @@ type TemplateTeamInput = {
   readonly mappedTeamId: string;
 };
 
+type TemplateTeamRemovalRepair =
+  | {
+      readonly templateTeamId: string;
+      readonly action: "remap";
+      readonly mappedTeamId: string;
+    }
+  | { readonly templateTeamId: string; readonly action: "abandon" };
+
 type TemplateInput = {
   readonly key: string;
   readonly name: string;
@@ -524,6 +532,69 @@ export async function materializeProjectedTasks(
   }
 
   return { ok: true as const, taskIds, createdTaskIds };
+}
+
+export async function repairTemplateTeamsForTeamRemoval(
+  ctx: MutationCtx,
+  args: {
+    readonly churchId: string;
+    readonly teamId: string;
+    readonly repairs: ReadonlyArray<TemplateTeamRemovalRepair>;
+    readonly now: string;
+  },
+) {
+  const affectedTemplateTeams = await ctx.db
+    .query("templateTeams")
+    .withIndex("by_churchId_and_mappedTeamId", (q) =>
+      q.eq("churchId", args.churchId).eq("mappedTeamId", args.teamId),
+    )
+    .filter((q) => q.eq(q.field("archivedAt"), null))
+    .collect();
+
+  if (affectedTemplateTeams.length === 0) {
+    return { ok: true as const, repairedTemplateTeamIds: [] as Array<Id<"templateTeams">> };
+  }
+
+  const affectedIds = new Set(affectedTemplateTeams.map((templateTeam) => templateTeam._id));
+  const repairIds = new Set(args.repairs.map((repair) => repair.templateTeamId));
+  if (repairIds.size !== args.repairs.length || repairIds.size !== affectedIds.size) {
+    return { ok: false as const, code: "templateTeamRepairRequired" as const };
+  }
+
+  for (const repair of args.repairs) {
+    if (!affectedIds.has(repair.templateTeamId as Id<"templateTeams">)) {
+      return { ok: false as const, code: "templateTeamRepairRequired" as const };
+    }
+    if (repair.action === "remap") {
+      if (repair.mappedTeamId === args.teamId) {
+        return { ok: false as const, code: "teamNotFound" as const };
+      }
+      const mappedTeam = await ensureMappedTeam(ctx, args.churchId, repair.mappedTeamId);
+      if (!mappedTeam) return { ok: false as const, code: "teamNotFound" as const };
+    }
+  }
+
+  const repairedTemplateTeamIds: Array<Id<"templateTeams">> = [];
+  for (const repair of args.repairs) {
+    const templateTeamId = repair.templateTeamId as Id<"templateTeams">;
+    if (repair.action === "remap") {
+      await ctx.db.patch(templateTeamId, { mappedTeamId: repair.mappedTeamId });
+    } else {
+      await ctx.db.patch(templateTeamId, { archivedAt: args.now });
+      const templateTasks = await ctx.db
+        .query("templateTasks")
+        .withIndex("by_templateTeamId", (q) => q.eq("templateTeamId", templateTeamId))
+        .collect();
+      for (const templateTask of templateTasks) {
+        if (templateTask.archivedAt === null) {
+          await ctx.db.patch(templateTask._id, { archivedAt: args.now });
+        }
+      }
+    }
+    repairedTemplateTeamIds.push(templateTeamId);
+  }
+
+  return { ok: true as const, repairedTemplateTeamIds };
 }
 
 function overrideFields(overrides: ReadonlyArray<CycleAdjustmentOverride>) {

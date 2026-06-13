@@ -39,14 +39,28 @@ export const TeamSetIdentifierArgs = Schema.Struct({
   identifier: Schema.String,
 });
 
+const TemplateTeamRepair = Schema.Union(
+  Schema.Struct({
+    templateTeamId: Schema.String,
+    action: Schema.Literal("remap"),
+    mappedTeamId: Schema.String,
+  }),
+  Schema.Struct({
+    templateTeamId: Schema.String,
+    action: Schema.Literal("abandon"),
+  }),
+);
+
 export const TeamArchiveArgs = Schema.Struct({
   churchId: Schema.String,
   teamId: Schema.String,
+  templateTeamRepairs: Schema.optional(Schema.Array(TemplateTeamRepair)),
 });
 
 export const TeamDeleteArgs = Schema.Struct({
   churchId: Schema.String,
   teamId: Schema.String,
+  templateTeamRepairs: Schema.optional(Schema.Array(TemplateTeamRepair)),
 });
 
 export const TeamReorderArgs = Schema.Struct({
@@ -112,6 +126,7 @@ export const TeamOperationErrorResponse = Schema.Struct({
       Schema.Literal("not_authorized"),
       Schema.Literal("team_not_found"),
       Schema.Literal("team_has_tasks"),
+      Schema.Literal("template_team_repair_required"),
       Schema.Literal("last_team_required"),
       Schema.Literal("workflow_not_found"),
       Schema.Literal("invalid_team_reorder"),

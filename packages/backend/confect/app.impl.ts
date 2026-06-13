@@ -75,6 +75,7 @@ import {
   materializeProjectedTasks,
   previewCycleAdjustmentMerge,
   readTemplateModel,
+  repairTemplateTeamsForTeamRemoval,
   resolveTemplateTaskSchedules,
   setCycleAdjustments,
   updateTemplateTasksAndSyncFutureProjectedTasks,
@@ -1956,6 +1957,29 @@ const teamArchiveForChurch = FunctionImpl.make(api, "teams", "archiveForChurch",
     }
 
     const archivedAt = new Date().toISOString();
+    const repairedTemplateTeams = yield* Effect.promise(() =>
+      repairTemplateTeamsForTeamRemoval(ctx, {
+        churchId: args.churchId,
+        teamId: args.teamId,
+        repairs: args.templateTeamRepairs ?? [],
+        now: archivedAt,
+      }),
+    ).pipe(Effect.orDie);
+    if (!repairedTemplateTeams.ok) {
+      if (repairedTemplateTeams.code === "teamNotFound") {
+        return teamErrorResponse(
+          "archiveTeam",
+          "team_not_found",
+          "Template Team remap target was not found in the active Church.",
+        );
+      }
+      return teamErrorResponse(
+        "archiveTeam",
+        "template_team_repair_required",
+        "Template Teams mapped to this Team must be remapped or abandoned before archiving.",
+      );
+    }
+
     yield* Effect.promise(() =>
       ctx.runMutation(components.betterAuth.adapter.updateOne, {
         input: {
@@ -2047,6 +2071,30 @@ const teamDeleteForChurch = FunctionImpl.make(api, "teams", "deleteForChurch", (
       );
     }
 
+    const deletedAt = new Date().toISOString();
+    const repairedTemplateTeams = yield* Effect.promise(() =>
+      repairTemplateTeamsForTeamRemoval(ctx, {
+        churchId: args.churchId,
+        teamId: args.teamId,
+        repairs: args.templateTeamRepairs ?? [],
+        now: deletedAt,
+      }),
+    ).pipe(Effect.orDie);
+    if (!repairedTemplateTeams.ok) {
+      if (repairedTemplateTeams.code === "teamNotFound") {
+        return teamErrorResponse(
+          "deleteTeam",
+          "team_not_found",
+          "Template Team remap target was not found in the active Church.",
+        );
+      }
+      return teamErrorResponse(
+        "deleteTeam",
+        "template_team_repair_required",
+        "Template Teams mapped to this Team must be remapped or abandoned before deleting.",
+      );
+    }
+
     const teamMemberships = yield* findBetterAuthDocs<{ _id: string }>({
       model: "teamMember",
       where: [{ field: "teamId", value: args.teamId }],
@@ -2079,7 +2127,7 @@ const teamDeleteForChurch = FunctionImpl.make(api, "teams", "deleteForChurch", (
         eventType: "team.deleted",
         actorType: "user",
         actorId: auth.authUser._id,
-        occurredAt: new Date().toISOString(),
+        occurredAt: deletedAt,
         cycleId: null,
         metadata: { name: team.name },
       }),
