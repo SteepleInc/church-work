@@ -51,6 +51,7 @@ const GROUPING_OPTIONS: ReadonlyArray<{
   { value: "task_state", label: "Task State" },
   { value: "assignee", label: "Assignee" },
   { value: "team", label: "Team" },
+  { value: "estimate", label: "Estimate" },
 ];
 
 const ORDERING_OPTIONS: ReadonlyArray<{
