@@ -6,6 +6,7 @@ import { components } from "./convex/_generated/api";
 import type { DataModel, Id } from "./convex/_generated/dataModel";
 import { resolveKeyDateOccurrences } from "./keyDateScheduling";
 import { makeBoardOrderAppender, makeTaskNumberDrawer } from "./tasks";
+import { getTeamWorkflow } from "./workflows";
 import {
   type CycleAdjustmentOverride,
   mergeTemplateTaskProjection,
@@ -319,23 +320,6 @@ async function ensureCycleForProjection(
   });
 }
 
-async function findDefaultTodoWorkflowStatus(ctx: MutationCtx, churchId: string) {
-  const workflows = await ctx.db
-    .query("workflows")
-    .withIndex("by_churchId", (q) => q.eq("churchId", churchId))
-    .collect();
-  const defaultWorkflow = [...workflows]
-    .filter((workflow) => workflow.archivedAt === null)
-    .sort((left, right) => {
-      if (left.isDefault !== right.isDefault) return left.isDefault ? -1 : 1;
-      return left.sortOrder - right.sortOrder;
-    })[0];
-
-  if (!defaultWorkflow) return null;
-
-  return findTodoWorkflowStatus(ctx, defaultWorkflow._id);
-}
-
 async function findTodoWorkflowStatus(ctx: MutationCtx, workflowId: string) {
   const statuses = await ctx.db
     .query("workflowStatuses")
@@ -353,7 +337,6 @@ type BetterAuthProjectionTeam = {
   readonly _id: string;
   readonly archivedAt?: string | null;
   readonly sortOrder?: number | null;
-  readonly defaultWorkflowId?: string | null;
 };
 
 /**
@@ -387,9 +370,15 @@ export async function materializeProjectedTasks(
   const projectionTeam = await findProjectionTeam(ctx, args.churchId);
   if (!projectionTeam) return { ok: false as const, code: "teamNotFound" as const };
 
-  const todoStatus = projectionTeam.defaultWorkflowId
-    ? await findTodoWorkflowStatus(ctx, projectionTeam.defaultWorkflowId)
-    : await findDefaultTodoWorkflowStatus(ctx, args.churchId);
+  // Every Team owns its Workflow (ADR 0013): projected Tasks land in the
+  // projection Team's own Workflow at its To Do status.
+  const projectionWorkflow = await getTeamWorkflow(ctx, {
+    churchId: args.churchId,
+    teamId: projectionTeam._id,
+  });
+  const todoStatus = projectionWorkflow
+    ? await findTodoWorkflowStatus(ctx, projectionWorkflow._id)
+    : null;
   if (!todoStatus) return { ok: false as const, code: "workflowStatusNotFound" as const };
 
   const schedules = await resolveTemplateTaskSchedules(ctx, args);

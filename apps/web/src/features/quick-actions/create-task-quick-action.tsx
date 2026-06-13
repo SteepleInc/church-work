@@ -71,9 +71,6 @@ export function CreateTaskQuickAction() {
   const teamMembershipsCollection = useTeamMembershipsCollection({ churchId });
   const today = new Date().toISOString().slice(0, 10);
   const currentCycle = selectCurrentExecutionCycle(cyclesCollection.cyclesCollection, today);
-  const churchDefaultWorkflow = workflows.workflowsCollection.find(
-    (workflow) => workflow.isDefault,
-  );
   const teams = teamsCollection.teamsCollection;
   const orderedTeams = [...teams].sort((left, right) => left.sortOrder - right.sortOrder);
   const teamOptions = orderedTeams.map((team) => ({ value: team.id, label: team.name }));
@@ -91,15 +88,16 @@ export function CreateTaskQuickAction() {
       : null;
   const workflowStatuses = workflowStatusesCollection.workflowStatusesCollection;
   // A preset status (from a Board Column "+") pins the dialog to that status's
-  // Workflow; otherwise the selected Team's default Workflow (falling back to
-  // the Church default Workflow) provides the statuses.
+  // Workflow; otherwise the selected Team's own Workflow provides the
+  // statuses (ADR 0013: every Team owns its Workflow; no Church default).
   const presetStatus = state?.workflowStatusId
     ? workflowStatuses.find((status) => status.id === state.workflowStatusId)
     : undefined;
   const getStatusContext = (teamId: string) => {
-    const team = teams.find((candidate) => candidate.id === teamId);
-    const effectiveWorkflowId =
-      presetStatus?.workflowId ?? team?.defaultWorkflowId ?? churchDefaultWorkflow?.id ?? null;
+    const teamWorkflow = workflows.workflowsCollection.find(
+      (workflow) => workflow.teamId === teamId && workflow.archivedAt === null,
+    );
+    const effectiveWorkflowId = presetStatus?.workflowId ?? teamWorkflow?.id ?? null;
     const creationStatus =
       presetStatus ??
       workflowStatuses.find(

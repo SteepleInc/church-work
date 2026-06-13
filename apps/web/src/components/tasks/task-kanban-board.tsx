@@ -610,7 +610,13 @@ function TaskKanbanCard({
   const selectedAssignee =
     assigneeOptions.find((option) => option.id === task.assignedUserId) ?? null;
   const teamMemberIds = teamMemberIdsByTeamId.get(task.teamId) ?? EMPTY_USER_ID_SET;
-  const statusItems = statusOptions(workflowStatuses);
+  // The status picker offers only the Task's own Team Workflow's statuses
+  // (ADR 0013) — relevant on cross-team boards fed every Team's statuses.
+  const statusItems = statusOptions(
+    workflowStatuses.filter(
+      (status) => status.workflowId === undefined || status.workflowId === task.workflowId,
+    ),
+  );
   const isSelected = selectedTaskIds.has(task.id);
   const isSelectable = cardState !== "canceled" && onToggleTaskSelected !== undefined;
 

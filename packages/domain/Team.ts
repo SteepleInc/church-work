@@ -79,7 +79,6 @@ export const generateTeamIdentifier = (
 export const TeamProductFieldsSchema = Schema.Struct({
   archivedAt: Schema.Union(Schema.String, Schema.Null),
   sortOrder: Schema.Number,
-  defaultWorkflowId: Schema.Union(Schema.String, Schema.Null),
 });
 
 export const TeamTableFieldsSchema = Schema.Struct({
@@ -87,7 +86,6 @@ export const TeamTableFieldsSchema = Schema.Struct({
   name: Schema.String,
   archivedAt: Schema.Union(Schema.String, Schema.Null),
   sortOrder: Schema.Number,
-  defaultWorkflowId: Schema.Union(Schema.String, Schema.Null),
 });
 
 export const TeamSchema = Schema.Struct({
@@ -99,7 +97,6 @@ export const TeamSchema = Schema.Struct({
   color: TeamColorSchema,
   archivedAt: Schema.Union(Schema.String, Schema.Null),
   sortOrder: Schema.Number,
-  defaultWorkflowId: Schema.Union(Schema.String, Schema.Null),
 });
 
 export const TeamMembershipSchema = Schema.Struct({

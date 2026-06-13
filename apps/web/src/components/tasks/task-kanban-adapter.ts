@@ -2,6 +2,9 @@ export type TaskBoardTaskState = "todo" | "in_progress" | "done" | "canceled";
 
 export type TaskBoardWorkflowStatus = {
   readonly id: string;
+  // The owning Workflow; used to scope per-card status pickers on cross-team
+  // boards (ADR 0013: every Team owns its Workflow).
+  readonly workflowId?: string;
   readonly name: string;
   readonly sortOrder: number;
   readonly taskState: TaskBoardTaskState;
@@ -14,6 +17,9 @@ export type TaskBoardTask = {
   // per-Team sequence number, computed by the backend at read time (ADR 0013).
   readonly identifier: string;
   readonly title: string;
+  // The Task's Team's Workflow (ADR 0013: every Team owns its Workflow);
+  // scopes the card's status picker on cross-team boards.
+  readonly workflowId: string;
   readonly workflowStatusId: string;
   readonly taskState: TaskBoardTaskState;
   readonly boardOrder?: string;
@@ -190,7 +196,7 @@ function findColumnOfTask(columns: TaskBoardColumns, taskId: string): string | u
 }
 
 export function isTaskBoardGroupingDraggable(grouping: TaskBoardGrouping): boolean {
-  return grouping === "workflow_status" || grouping === "assignee";
+  return grouping === "workflow_status" || grouping === "assignee" || grouping === "task_state";
 }
 
 function applyColumnToTask(
@@ -207,6 +213,9 @@ function applyColumnToTask(
         assignedUserId: columnId === UNASSIGNED_COLUMN_ID ? null : columnId,
       };
     case "task_state":
+      // The caller resolves the dropped Task State to a status in the Task's
+      // own Team Workflow (ADR 0013).
+      return { ...task, taskState: columnId as TaskBoardTaskState };
     case "team":
       return task;
   }

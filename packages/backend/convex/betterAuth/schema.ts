@@ -188,7 +188,6 @@ export const tables = {
     updatedAt: v.optional(v.union(v.null(), v.number())),
     archivedAt: v.optional(v.union(v.null(), v.string())),
     sortOrder: v.optional(v.union(v.null(), v.number())),
-    defaultWorkflowId: v.optional(v.union(v.null(), v.string())),
     color: v.optional(v.union(v.null(), v.string())),
     identifier: v.optional(v.union(v.null(), v.string())),
     previousIdentifiers: v.optional(v.union(v.null(), v.array(v.string()))),

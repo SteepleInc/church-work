@@ -814,12 +814,17 @@ describe("Better Auth authenticated state spike", () => {
       const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
         churchId: church.id!,
       });
-      const defaultWorkflow = defaults.data.workflows.find((candidate) => candidate.isDefault)!;
+      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
+      // Every Team owns its Workflow (ADR 0013): statuses come from the Task
+      // Team's own Workflow, not a Church default.
+      const teamWorkflow = defaults.data.workflows.find(
+        (candidate) => candidate.teamId === taskTeamId,
+      )!;
       const todoStatus = defaults.data.workflowStatuses.find(
-        (status) => status.workflowId === defaultWorkflow.id && status.taskState === "todo",
+        (status) => status.workflowId === teamWorkflow.id && status.taskState === "todo",
       )!;
       const doingStatus = defaults.data.workflowStatuses.find(
-        (status) => status.workflowId === defaultWorkflow.id && status.taskState === "in_progress",
+        (status) => status.workflowId === teamWorkflow.id && status.taskState === "in_progress",
       )!;
       const postTool = (toolPath: string, body: Record<string, unknown>) =>
         c.fetch(`/api/mcp/tools/${toolPath}`, {
@@ -831,7 +836,6 @@ describe("Better Auth authenticated state spike", () => {
           body: JSON.stringify(body),
         });
 
-      const taskTeamId = yield* firstTeamId(authenticated, church.id!);
       const createAssignedResponse = yield* postTool("create-task", {
         churchId: church.id!,
         title: "Cross-surface assigned Task",

@@ -512,10 +512,6 @@ export function createAuthOptions(ctx: GenericCtx<DataModel>) {
                 type: "number",
                 required: false,
               },
-              defaultWorkflowId: {
-                type: "string",
-                required: false,
-              },
               color: {
                 type: "string",
                 required: false,
@@ -691,6 +687,16 @@ export function createAuthOptions(ctx: GenericCtx<DataModel>) {
             });
           },
           afterCreateTeam: async ({ team, user, organization }) => {
+            // Every Team owns its Workflow (ADR 0013): seed it even for teams
+            // created through the raw Better Auth create-team endpoint.
+            if ("runMutation" in ctx) {
+              await ctx.runMutation(internal.workDefaults.internalSeedTeamWorkflow, {
+                churchId: organization.id,
+                teamId: team.id,
+                name: team.name,
+              });
+            }
+
             await recordAuthHookActivity(ctx, {
               churchId: organization.id,
               entityType: "team",

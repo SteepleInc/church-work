@@ -22,6 +22,7 @@ export type TaskSummary = {
   readonly dueDate: string;
   readonly createdAt: number;
   readonly parentTaskId: string | null;
+  readonly workflowId: string;
   readonly workflowStatusId: string;
   readonly taskState: TaskState;
   readonly boardOrder?: string;
@@ -79,12 +80,17 @@ export function getDefaultCreateTaskTeamId(args: {
   return orderedTeams[0]?.id ?? null;
 }
 
-export function getExecutionWorkflowId(args: {
-  readonly surface: ExecutionSurface;
-  readonly churchDefaultWorkflowId?: string | null;
-  readonly teamDefaultWorkflowId?: string | null;
-}) {
-  return args.surface === "team_board" ? args.teamDefaultWorkflowId : args.churchDefaultWorkflowId;
+/**
+ * Board grouping per surface (ADR 0013: every Team owns its Workflow). A Team
+ * Board groups by that Team's Workflow Statuses; cross-team surfaces (My
+ * Work, Our Work) have no single Workflow, so Workflow Status grouping
+ * becomes Task State grouping there.
+ */
+export function getExecutionBoardGrouping<Grouping extends string>(
+  surface: ExecutionSurface,
+  grouping: Grouping,
+): Grouping | "task_state" {
+  return surface !== "team_board" && grouping === "workflow_status" ? "task_state" : grouping;
 }
 
 export function getTaskExecutionReadArgs(args: {

@@ -111,7 +111,6 @@ export const ActivityMetadataByEventType = {
   }),
   "workflow.created": Schema.Struct({
     name: Schema.String,
-    isDefault: Schema.Boolean,
   }),
   "workflow.renamed": Schema.Struct({
     previousName: Schema.String,
@@ -123,10 +122,6 @@ export const ActivityMetadataByEventType = {
   }),
   "workflow.archived": Schema.Struct({
     name: Schema.String,
-  }),
-  "workflow.default_changed": Schema.Struct({
-    previousWorkflowId: Schema.Union(Schema.String, Schema.Null),
-    workflowId: Schema.String,
   }),
   "workflow.status.created": Schema.Struct({
     workflowId: Schema.String,
@@ -224,10 +219,6 @@ export const ActivityMetadataByEventType = {
     previousSortOrder: Schema.Number,
     sortOrder: Schema.Number,
   }),
-  "team.default_workflow_changed": Schema.Struct({
-    previousWorkflowId: Schema.Union(Schema.String, Schema.Null),
-    workflowId: Schema.Union(Schema.String, Schema.Null),
-  }),
   "team.member.added": Schema.Struct({
     memberUserId: Schema.String,
   }),
@@ -256,7 +247,6 @@ export const ActivityEventType = Schema.Literal(
   "workflow.renamed",
   "workflow.reordered",
   "workflow.archived",
-  "workflow.default_changed",
   "workflow.status.created",
   "workflow.status.renamed",
   "workflow.status.reordered",
@@ -278,7 +268,6 @@ export const ActivityEventType = Schema.Literal(
   "team.archived",
   "team.deleted",
   "team.reordered",
-  "team.default_workflow_changed",
   "team.member.added",
   "team.member.removed",
 );
@@ -304,7 +293,6 @@ export const ActivityMetadata = Schema.Union(
   ActivityMetadataByEventType["workflow.renamed"],
   ActivityMetadataByEventType["workflow.reordered"],
   ActivityMetadataByEventType["workflow.archived"],
-  ActivityMetadataByEventType["workflow.default_changed"],
   ActivityMetadataByEventType["workflow.status.created"],
   ActivityMetadataByEventType["workflow.status.renamed"],
   ActivityMetadataByEventType["workflow.status.reordered"],
@@ -326,7 +314,6 @@ export const ActivityMetadata = Schema.Union(
   ActivityMetadataByEventType["team.archived"],
   ActivityMetadataByEventType["team.deleted"],
   ActivityMetadataByEventType["team.reordered"],
-  ActivityMetadataByEventType["team.default_workflow_changed"],
   ActivityMetadataByEventType["team.member.added"],
   ActivityMetadataByEventType["team.member.removed"],
 );

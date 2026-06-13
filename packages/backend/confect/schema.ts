@@ -22,7 +22,10 @@ import {
 
 export const Workflows = Table.make("workflows", WorkflowTableFieldsSchema)
   .index("by_churchId_and_key", ["churchId", "key"])
-  .index("by_churchId", ["churchId"]);
+  .index("by_churchId", ["churchId"])
+  // Every Team owns its Workflow (ADR 0013): a Task's Workflow is looked up
+  // by its Team, never through a Church-level default.
+  .index("by_churchId_and_teamId", ["churchId", "teamId"]);
 
 export const WorkflowStatuses = Table.make("workflowStatuses", WorkflowStatusTableFieldsSchema)
   .index("by_workflowId_and_key", ["workflowId", "key"])

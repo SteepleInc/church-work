@@ -15,6 +15,7 @@ function boardTask(overrides: Partial<TaskBoardTask> & { readonly id: string }):
   return {
     title: `Task ${overrides.id}`,
     identifier: `TST-${overrides.id}`,
+    workflowId: "workflow-1",
     workflowStatusId: "todo",
     taskState: "todo",
     teamId: "team-1",
@@ -185,6 +186,7 @@ describe("Board Column grouping", () => {
       id: "task-1",
       identifier: "PRO-1",
       title: "Call volunteer",
+      workflowId: "workflow-1",
       workflowStatusId: "todo",
       taskState: "todo",
       assignedUserId: "user-1",
@@ -194,6 +196,7 @@ describe("Board Column grouping", () => {
       id: "task-2",
       identifier: "KID-1",
       title: "Prepare slides",
+      workflowId: "workflow-2",
       workflowStatusId: "doing",
       taskState: "in_progress",
       assignedUserId: null,
@@ -262,10 +265,10 @@ describe("Board Column grouping", () => {
     expect(columns.map((column) => column.id)).toEqual(["unassigned", "user-1"]);
   });
 
-  test("drag is enabled only for Workflow Status and Assignee groupings", () => {
+  test("drag is enabled for Workflow Status, Assignee, and Task State groupings", () => {
     expect(isTaskBoardGroupingDraggable("workflow_status")).toBe(true);
     expect(isTaskBoardGroupingDraggable("assignee")).toBe(true);
-    expect(isTaskBoardGroupingDraggable("task_state")).toBe(false);
+    expect(isTaskBoardGroupingDraggable("task_state")).toBe(true);
     expect(isTaskBoardGroupingDraggable("team")).toBe(false);
   });
 
@@ -280,6 +283,7 @@ describe("Board Column grouping", () => {
             id: "task-1",
             identifier: "PRO-1",
             title: "Call volunteer",
+            workflowId: "workflow-1",
             workflowStatusId: "todo",
             taskState: "todo",
             assignedUserId: "user-1",
@@ -301,6 +305,7 @@ describe("Board Column grouping", () => {
       id: "task-1",
       identifier: "PRO-1",
       title: "Call volunteer",
+      workflowId: "workflow-1",
       workflowStatusId: "todo",
       taskState: "todo",
       assignedUserId: null,

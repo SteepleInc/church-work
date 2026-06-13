@@ -4,7 +4,7 @@ import {
   buildTeamMemberIndex,
   getDefaultCreateTaskTeamId,
   getTaskCreationDefaults,
-  getExecutionWorkflowId,
+  getExecutionBoardGrouping,
   getTaskExecutionFilters,
   getTaskExecutionReadArgs,
   getTaskParentContext,
@@ -129,28 +129,13 @@ describe("Task execution surface", () => {
     });
   });
 
-  test("selects the effective Workflow for fixed execution surfaces", () => {
-    expect(
-      getExecutionWorkflowId({
-        surface: "my_work",
-        churchDefaultWorkflowId: "church-workflow",
-        teamDefaultWorkflowId: "team-workflow",
-      }),
-    ).toBe("church-workflow");
-    expect(
-      getExecutionWorkflowId({
-        surface: "our_work",
-        churchDefaultWorkflowId: "church-workflow",
-        teamDefaultWorkflowId: "team-workflow",
-      }),
-    ).toBe("church-workflow");
-    expect(
-      getExecutionWorkflowId({
-        surface: "team_board",
-        churchDefaultWorkflowId: "church-workflow",
-        teamDefaultWorkflowId: "team-workflow",
-      }),
-    ).toBe("team-workflow");
+  test("groups cross-team boards by Task State and Team Boards by Workflow Status (ADR 0013)", () => {
+    expect(getExecutionBoardGrouping("my_work", "workflow_status")).toBe("task_state");
+    expect(getExecutionBoardGrouping("our_work", "workflow_status")).toBe("task_state");
+    expect(getExecutionBoardGrouping("team_board", "workflow_status")).toBe("workflow_status");
+    // Non-status groupings are untouched everywhere.
+    expect(getExecutionBoardGrouping("my_work", "assignee")).toBe("assignee");
+    expect(getExecutionBoardGrouping("team_board", "team")).toBe("team");
   });
 
   test("builds the web execution read contract used to reflect backend Task changes", () => {
@@ -220,6 +205,7 @@ describe("Task execution surface", () => {
       dueDate: "2026-06-03",
       createdAt: 0,
       parentTaskId: null,
+      workflowId: "workflow-1",
       workflowStatusId: "todo",
       taskState: "todo" as const,
     };
@@ -233,6 +219,7 @@ describe("Task execution surface", () => {
       dueDate: "2026-06-03",
       createdAt: 0,
       parentTaskId: parentTask.id,
+      workflowId: "workflow-1",
       workflowStatusId: "todo",
       taskState: "todo" as const,
     };

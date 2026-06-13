@@ -75,13 +75,11 @@ import {
   WorkflowArchiveArgs,
   WorkflowArchiveStatusArgs,
   WorkflowAddStatusArgs,
-  WorkflowCreateArgs,
   WorkflowRenameArgs,
   WorkflowRenameStatusArgs,
   WorkflowRemapTaskTeamArgs,
   WorkflowReorderArgs,
   WorkflowReorderStatusesArgs,
-  WorkflowSetDefaultArgs,
   WorkflowWriteResponse,
 } from "../agent/workflowOperations";
 
@@ -367,13 +365,6 @@ export const tasks = GroupSpec.make("tasks")
 export const workflows = GroupSpec.make("workflows")
   .addFunction(
     FunctionSpec.publicMutation({
-      name: "createForChurch",
-      args: WorkflowCreateArgs,
-      returns: WorkflowWriteResponse,
-    }),
-  )
-  .addFunction(
-    FunctionSpec.publicMutation({
       name: "renameForChurch",
       args: WorkflowRenameArgs,
       returns: WorkflowWriteResponse,
@@ -390,13 +381,6 @@ export const workflows = GroupSpec.make("workflows")
     FunctionSpec.publicMutation({
       name: "archiveForChurch",
       args: WorkflowArchiveArgs,
-      returns: WorkflowWriteResponse,
-    }),
-  )
-  .addFunction(
-    FunctionSpec.publicMutation({
-      name: "setDefaultForChurch",
-      args: WorkflowSetDefaultArgs,
       returns: WorkflowWriteResponse,
     }),
   )

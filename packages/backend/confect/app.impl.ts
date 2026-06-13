@@ -60,7 +60,7 @@ import {
   readKeyDateModel,
   resolveKeyDateOccurrences,
 } from "../keyDateScheduling";
-import { readDefaultWorkModel, seedDefaultWorkModel } from "../workDefaults";
+import { readDefaultWorkModel, seedDefaultWorkModel, seedTeamWorkflow } from "../workDefaults";
 import { resolveTaskByIdentifier } from "../identifierResolution";
 import {
   cancelTasks,
@@ -83,14 +83,13 @@ import {
   addWorkflowStatus,
   archiveWorkflow,
   archiveWorkflowStatus,
-  createWorkflow,
+  getTeamWorkflow,
   readWorkflowModel,
   renameWorkflow,
   renameWorkflowStatus,
   remapWorkflowStatusForTaskTeam,
   reorderWorkflowStatuses,
   reorderWorkflows,
-  setDefaultWorkflow,
 } from "../workflows";
 import api from "./_generated/api";
 
@@ -120,7 +119,6 @@ type BetterAuthTeam = {
   readonly organizationId: string;
   readonly archivedAt?: string | null;
   readonly sortOrder?: number | null;
-  readonly defaultWorkflowId?: string | null;
   readonly color?: string | null;
   readonly identifier?: string | null;
   readonly previousIdentifiers?: ReadonlyArray<string> | null;
@@ -203,7 +201,6 @@ const serializeTeam = (team: BetterAuthTeam) => ({
   color: isTeamColor(team.color) ? team.color : getTeamColorForName(team.name),
   archivedAt: team.archivedAt ?? null,
   sortOrder: team.sortOrder ?? 0,
-  defaultWorkflowId: team.defaultWorkflowId ?? null,
 });
 
 const serializeTeamMembership = (churchId: string, membership: BetterAuthTeamMember) => ({
@@ -349,9 +346,9 @@ const getActiveChurch = (churchId: string | null) =>
 const serializeWorkDefaults = (data: Awaited<ReturnType<typeof readDefaultWorkModel>>) => ({
   workflows: data.workflows.map((workflow) => ({
     id: workflow._id,
+    teamId: workflow.teamId,
     key: workflow.key,
     name: workflow.name,
-    isDefault: workflow.isDefault,
     sortOrder: workflow.sortOrder,
     archivedAt: workflow.archivedAt,
   })),
@@ -399,9 +396,9 @@ const serializeWorkflowModel = (data: Awaited<ReturnType<typeof readWorkflowMode
     .sort((left, right) => left.sortOrder - right.sortOrder)
     .map((workflow) => ({
       id: workflow._id,
+      teamId: workflow.teamId,
       key: workflow.key,
       name: workflow.name,
-      isDefault: workflow.isDefault,
       sortOrder: workflow.sortOrder,
       archivedAt: workflow.archivedAt,
     })),
@@ -965,15 +962,6 @@ const coreWorkBatchWrite = FunctionImpl.make(
               ).pipe(Effect.orDie),
             });
             break;
-          case "createWorkflow":
-            results.push({
-              id: operation.id,
-              operation: operation.operation,
-              result: yield* Effect.promise(() =>
-                ctx.runMutation(convexFunctionRefs.workflows.createForChurch, operation.input),
-              ).pipe(Effect.orDie),
-            });
-            break;
           case "renameWorkflow":
             results.push({
               id: operation.id,
@@ -998,15 +986,6 @@ const coreWorkBatchWrite = FunctionImpl.make(
               operation: operation.operation,
               result: yield* Effect.promise(() =>
                 ctx.runMutation(convexFunctionRefs.workflows.archiveForChurch, operation.input),
-              ).pipe(Effect.orDie),
-            });
-            break;
-          case "setDefaultWorkflow":
-            results.push({
-              id: operation.id,
-              operation: operation.operation,
-              result: yield* Effect.promise(() =>
-                ctx.runMutation(convexFunctionRefs.workflows.setDefaultForChurch, operation.input),
               ).pipe(Effect.orDie),
             });
             break;
@@ -1700,7 +1679,6 @@ const teamCreateForChurch = FunctionImpl.make(api, "teams", "createForChurch", (
             updatedAt: null,
             archivedAt: null,
             sortOrder,
-            defaultWorkflowId: null,
             color: getTeamColorForName(args.name),
             identifier,
             previousIdentifiers: [],
@@ -1717,6 +1695,16 @@ const teamCreateForChurch = FunctionImpl.make(api, "teams", "createForChurch", (
       .find((team) => team.name === args.name && (team.sortOrder ?? 0) === sortOrder);
 
     if (createdTeam) {
+      // Every Team owns its Workflow (ADR 0013): seed To Do / In Progress /
+      // Done for the new Team.
+      yield* Effect.promise(() =>
+        seedTeamWorkflow(ctx, {
+          churchId: args.churchId,
+          teamId: createdTeam._id,
+          name: args.name,
+        }),
+      ).pipe(Effect.orDie);
+
       yield* Effect.promise(() =>
         writeActivity(ctx, {
           churchId: args.churchId,
@@ -2185,20 +2173,6 @@ const teamUpdateProductFields = FunctionImpl.make(api, "teams", "updateProductFi
         );
       }
 
-      if ("defaultWorkflowId" in update.fields && update.fields.defaultWorkflowId !== null) {
-        const workflow = yield* Effect.promise(() =>
-          ctx.db.get(update.fields.defaultWorkflowId as Id<"workflows">),
-        ).pipe(Effect.orDie);
-
-        if (!workflow || workflow.churchId !== args.churchId || workflow.archivedAt !== null) {
-          return teamErrorResponse(
-            "updateTeamProductFields",
-            "workflow_not_found",
-            "Workflow was not found in the active Church.",
-          );
-        }
-      }
-
       yield* Effect.promise(() =>
         ctx.runMutation(components.betterAuth.adapter.updateOne, {
           input: {
@@ -2208,28 +2182,6 @@ const teamUpdateProductFields = FunctionImpl.make(api, "teams", "updateProductFi
           },
         }),
       ).pipe(Effect.orDie);
-
-      if (
-        "defaultWorkflowId" in update.fields &&
-        (team.defaultWorkflowId ?? null) !== update.fields.defaultWorkflowId
-      ) {
-        yield* Effect.promise(() =>
-          writeActivity(ctx, {
-            churchId: args.churchId,
-            entityType: "team",
-            entityId: update.teamId,
-            eventType: "team.default_workflow_changed",
-            actorType: "user",
-            actorId: auth.authUser._id,
-            occurredAt: new Date().toISOString(),
-            cycleId: null,
-            metadata: {
-              previousWorkflowId: team.defaultWorkflowId ?? null,
-              workflowId: update.fields.defaultWorkflowId,
-            },
-          }),
-        ).pipe(Effect.orDie);
-      }
     }
 
     const teams = yield* listTeamsForChurch(args.churchId).pipe(
@@ -2268,22 +2220,6 @@ const tasksCreateBatch = FunctionImpl.make(api, "tasks", "createBatch", (args) =
         "createTasks",
         "church_time_zone_missing",
         "Church Time Zone is required before Tasks can be scheduled.",
-      );
-    }
-
-    const churchDefaultWorkflow = yield* Effect.promise(() =>
-      ctx.db
-        .query("workflows")
-        .withIndex("by_churchId", (q) => q.eq("churchId", args.churchId))
-        .filter((q) => q.eq(q.field("isDefault"), true))
-        .first(),
-    ).pipe(Effect.orDie);
-
-    if (!churchDefaultWorkflow) {
-      return taskErrorResponse(
-        "createTasks",
-        "team_workflow_not_configured",
-        "The Church default Workflow is missing.",
       );
     }
 
@@ -2333,7 +2269,21 @@ const tasksCreateBatch = FunctionImpl.make(api, "tasks", "createBatch", (args) =
         );
       }
 
-      teamWorkflowIds[teamId] = team.defaultWorkflowId ?? churchDefaultWorkflow._id;
+      // Every Team owns its Workflow (ADR 0013); there is no Church default
+      // Workflow to fall back to.
+      const teamWorkflow = yield* Effect.promise(() =>
+        getTeamWorkflow(ctx, { churchId: args.churchId, teamId }),
+      ).pipe(Effect.orDie);
+
+      if (!teamWorkflow) {
+        return taskErrorResponse(
+          "createTasks",
+          "team_workflow_not_configured",
+          "The Team's Workflow is missing.",
+        );
+      }
+
+      teamWorkflowIds[teamId] = teamWorkflow._id;
     }
 
     for (const task of args.tasks) {
@@ -2474,22 +2424,6 @@ const tasksUpdateBatch = FunctionImpl.make(api, "tasks", "updateBatch", (args) =
           .filter((teamId): teamId is string => teamId !== undefined),
       ),
     ];
-    const churchDefaultWorkflow = yield* Effect.promise(() =>
-      ctx.db
-        .query("workflows")
-        .withIndex("by_churchId", (q) => q.eq("churchId", args.churchId))
-        .filter((q) => q.eq(q.field("isDefault"), true))
-        .first(),
-    ).pipe(Effect.orDie);
-
-    if (!churchDefaultWorkflow) {
-      return taskErrorResponse(
-        "updateTasks",
-        "team_workflow_not_configured",
-        "The Church default Workflow is missing.",
-      );
-    }
-
     const church = yield* findBetterAuthDoc<BetterAuthOrganization>({
       model: "organization",
       where: [{ field: "_id", value: args.churchId }],
@@ -2524,7 +2458,21 @@ const tasksUpdateBatch = FunctionImpl.make(api, "tasks", "updateBatch", (args) =
         );
       }
 
-      teamWorkflowIds[teamId] = team.defaultWorkflowId ?? churchDefaultWorkflow._id;
+      // Every Team owns its Workflow (ADR 0013); there is no Church default
+      // Workflow to fall back to.
+      const teamWorkflow = yield* Effect.promise(() =>
+        getTeamWorkflow(ctx, { churchId: args.churchId, teamId }),
+      ).pipe(Effect.orDie);
+
+      if (!teamWorkflow) {
+        return taskErrorResponse(
+          "updateTasks",
+          "team_workflow_not_configured",
+          "The Team's Workflow is missing.",
+        );
+      }
+
+      teamWorkflowIds[teamId] = teamWorkflow._id;
     }
 
     const updated = yield* Effect.promise(() =>
@@ -3208,85 +3156,6 @@ const templatesUpdateTemplateTasks = FunctionImpl.make(
     }),
 );
 
-const workflowsCreateForChurch = FunctionImpl.make(api, "workflows", "createForChurch", (args) =>
-  Effect.gen(function* () {
-    const ctx = yield* MutationCtx.MutationCtx<DataModel>();
-    const auth = yield* getAuthenticatedChurchMember(args.churchId).pipe(
-      Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
-    );
-
-    if (auth.status === "notAuthenticated") {
-      return workflowErrorResponse(
-        "createWorkflow",
-        "not_authenticated",
-        "Authentication is required.",
-      );
-    }
-    if (auth.status === "notChurchMember") {
-      return workflowErrorResponse(
-        "createWorkflow",
-        "not_church_member",
-        "Church membership is required.",
-      );
-    }
-    if (auth.membership.role !== "owner" && auth.membership.role !== "admin") {
-      return workflowErrorResponse(
-        "createWorkflow",
-        "not_authorized",
-        "Only Church owners and admins can manage Workflows.",
-      );
-    }
-
-    const created = yield* Effect.promise(() => createWorkflow(ctx, args)).pipe(Effect.orDie);
-
-    if (!created.ok) {
-      return workflowErrorResponse("createWorkflow", "invalid_workflow", created.error);
-    }
-
-    const occurredAt = new Date().toISOString();
-    yield* Effect.promise(() =>
-      writeActivity(ctx, {
-        churchId: args.churchId,
-        entityType: "workflow",
-        entityId: created.workflowId,
-        eventType: "workflow.created",
-        actorType: "user",
-        actorId: auth.authUser._id,
-        occurredAt,
-        cycleId: null,
-        metadata: { name: args.name, isDefault: args.isDefault },
-      }),
-    ).pipe(Effect.orDie);
-
-    const model = yield* Effect.promise(() => readWorkflowModel(ctx, args.churchId)).pipe(
-      Effect.orDie,
-    );
-    for (const status of model.workflowStatuses.filter(
-      (candidate) => candidate.workflowId === created.workflowId,
-    )) {
-      yield* Effect.promise(() =>
-        writeActivity(ctx, {
-          churchId: args.churchId,
-          entityType: "workflow",
-          entityId: status._id,
-          eventType: "workflow.status.created",
-          actorType: "user",
-          actorId: auth.authUser._id,
-          occurredAt,
-          cycleId: null,
-          metadata: {
-            workflowId: created.workflowId,
-            name: status.name,
-            taskState: status.taskState,
-          },
-        }),
-      ).pipe(Effect.orDie);
-    }
-
-    return workflowResponse("createWorkflow", serializeWorkflowModel(model));
-  }),
-);
-
 const workflowsRenameForChurch = FunctionImpl.make(api, "workflows", "renameForChurch", (args) =>
   Effect.gen(function* () {
     const ctx = yield* MutationCtx.MutationCtx<DataModel>();
@@ -3455,7 +3324,7 @@ const workflowsArchiveForChurch = FunctionImpl.make(api, "workflows", "archiveFo
       return workflowErrorResponse(
         "archiveWorkflow",
         "workflow_in_use",
-        "Workflows referenced by the Church default, Teams, or Tasks cannot be archived before reassignment.",
+        "Workflows owned by an active Team or referenced by Tasks cannot be archived.",
       );
     }
     if (!archived.ok) return yield* Effect.dieMessage("Unexpected Workflow archive result.");
@@ -3479,76 +3348,6 @@ const workflowsArchiveForChurch = FunctionImpl.make(api, "workflows", "archiveFo
     );
     return workflowResponse("archiveWorkflow", serializeWorkflowModel(model));
   }),
-);
-
-const workflowsSetDefaultForChurch = FunctionImpl.make(
-  api,
-  "workflows",
-  "setDefaultForChurch",
-  (args) =>
-    Effect.gen(function* () {
-      const ctx = yield* MutationCtx.MutationCtx<DataModel>();
-      const auth = yield* getAuthenticatedChurchMember(args.churchId).pipe(
-        Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
-      );
-
-      if (auth.status === "notAuthenticated") {
-        return workflowErrorResponse(
-          "setDefaultWorkflow",
-          "not_authenticated",
-          "Authentication is required.",
-        );
-      }
-      if (auth.status === "notChurchMember") {
-        return workflowErrorResponse(
-          "setDefaultWorkflow",
-          "not_church_member",
-          "Church membership is required.",
-        );
-      }
-      if (auth.membership.role !== "owner" && auth.membership.role !== "admin") {
-        return workflowErrorResponse(
-          "setDefaultWorkflow",
-          "not_authorized",
-          "Only Church owners and admins can manage Workflows.",
-        );
-      }
-
-      const defaulted = yield* Effect.promise(() => setDefaultWorkflow(ctx, args)).pipe(
-        Effect.orDie,
-      );
-      if (!defaulted.ok) {
-        return workflowErrorResponse(
-          "setDefaultWorkflow",
-          "workflow_not_found",
-          "Workflow was not found in the active Church.",
-        );
-      }
-
-      if (defaulted.previousDefault?._id !== defaulted.workflow._id) {
-        yield* Effect.promise(() =>
-          writeActivity(ctx, {
-            churchId: args.churchId,
-            entityType: "workflow",
-            entityId: args.workflowId,
-            eventType: "workflow.default_changed",
-            actorType: "user",
-            actorId: auth.authUser._id,
-            occurredAt: new Date().toISOString(),
-            cycleId: null,
-            metadata: {
-              previousWorkflowId: defaulted.previousDefault?._id ?? null,
-              workflowId: defaulted.workflow._id,
-            },
-          }),
-        ).pipe(Effect.orDie);
-      }
-
-      const model = yield* Effect.promise(() => readWorkflowModel(ctx, args.churchId)).pipe(
-        Effect.orDie,
-      );
-      return workflowResponse("setDefaultWorkflow", serializeWorkflowModel(model));
-    }),
 );
 
 const workflowsAddStatus = FunctionImpl.make(api, "workflows", "addStatus", (args) =>
@@ -3897,24 +3696,21 @@ const workflowsRemapTaskTeam = FunctionImpl.make(api, "workflows", "remapTaskTea
         "Destination Team was not found in the active Church.",
       );
     }
-    const churchDefaultWorkflow = destinationTeam.defaultWorkflowId
-      ? null
-      : yield* Effect.promise(() =>
-          ctx.db
-            .query("workflows")
-            .withIndex("by_churchId", (q) => q.eq("churchId", args.churchId))
-            .filter((q) => q.eq(q.field("isDefault"), true))
-            .first(),
-        ).pipe(Effect.orDie);
-    const destinationWorkflowId = destinationTeam.defaultWorkflowId ?? churchDefaultWorkflow?._id;
 
-    if (!destinationWorkflowId) {
+    // Every Team owns its Workflow (ADR 0013); there is no Church default
+    // Workflow to fall back to.
+    const destinationWorkflow = yield* Effect.promise(() =>
+      getTeamWorkflow(ctx, { churchId: args.churchId, teamId: args.destinationTeamId }),
+    ).pipe(Effect.orDie);
+
+    if (!destinationWorkflow) {
       return workflowErrorResponse(
         "remapTaskTeamWorkflow",
         "team_workflow_not_configured",
-        "Destination Team does not have a default Workflow and the Church default Workflow is missing.",
+        "The destination Team's Workflow is missing.",
       );
     }
+    const destinationWorkflowId = destinationWorkflow._id;
 
     const remapped = yield* Effect.promise(() =>
       remapWorkflowStatusForTaskTeam(ctx, {
@@ -4044,11 +3840,9 @@ export const templates = GroupImpl.make(api, "templates").pipe(
   Layer.provide(templatesUpdateTemplateTasks),
 );
 export const workflows = GroupImpl.make(api, "workflows").pipe(
-  Layer.provide(workflowsCreateForChurch),
   Layer.provide(workflowsRenameForChurch),
   Layer.provide(workflowsReorderForChurch),
   Layer.provide(workflowsArchiveForChurch),
-  Layer.provide(workflowsSetDefaultForChurch),
   Layer.provide(workflowsAddStatus),
   Layer.provide(workflowsRenameStatus),
   Layer.provide(workflowsReorderStatuses),

@@ -1,5 +1,7 @@
 import { v } from "convex/values";
 
+import { deriveTeamIdentifierBase } from "@church-task/domain/Team";
+
 import { taskErrorResponse, taskResponse } from "../agent/taskOperations";
 import { writeActivity } from "../activityRegistry";
 import registeredFunctions from "../confect/_generated/registeredFunctions";
@@ -12,6 +14,7 @@ import {
   serializeTaskModel,
   updateTasks,
 } from "../tasks";
+import { getTeamWorkflow } from "../workflows";
 import { components } from "./_generated/api";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { withConvexTelemetry } from "./telemetry";
@@ -199,11 +202,6 @@ const runMcpUpdateTasks = async (
     );
   }
 
-  const churchDefaultWorkflow = await ctx.db
-    .query("workflows")
-    .withIndex("by_churchId", (q) => q.eq("churchId", args.churchId))
-    .filter((q) => q.eq(q.field("isDefault"), true))
-    .first();
   const teamWorkflowIds: Record<string, string> = {};
 
   for (const update of args.updates) {
@@ -216,7 +214,6 @@ const runMcpUpdateTasks = async (
         { field: "organizationId", value: args.churchId },
       ],
     })) as {
-      readonly defaultWorkflowId?: string | null;
       readonly archivedAt?: string | null;
     } | null;
 
@@ -228,8 +225,13 @@ const runMcpUpdateTasks = async (
       );
     }
 
-    const teamWorkflowId = team.defaultWorkflowId ?? churchDefaultWorkflow?._id;
-    if (teamWorkflowId) teamWorkflowIds[update.fields.teamId] = teamWorkflowId;
+    // Every Team owns its Workflow (ADR 0013); there is no Church default
+    // Workflow to fall back to.
+    const teamWorkflow = await getTeamWorkflow(ctx, {
+      churchId: args.churchId,
+      teamId: update.fields.teamId,
+    });
+    if (teamWorkflow) teamWorkflowIds[update.fields.teamId] = teamWorkflow._id;
   }
 
   return await updateTasks(ctx, {
@@ -260,7 +262,7 @@ const UPDATE_FAILURE_MESSAGES = {
   ],
   teamWorkflowNotConfigured: [
     "team_workflow_not_configured",
-    "The Church default Workflow is missing.",
+    "The destination Team's Workflow is missing.",
   ],
   workflowStatusRemapFailed: [
     "workflow_status_remap_failed",
@@ -647,7 +649,7 @@ export const mcpListTeams = query({
         readonly name: string;
         readonly archivedAt?: string | null;
         readonly sortOrder?: number | null;
-        readonly defaultWorkflowId?: string | null;
+        readonly identifier?: string | null;
       }>;
     };
 
@@ -658,7 +660,7 @@ export const mcpListTeams = query({
         .map((team) => ({
           id: team._id,
           name: team.name,
-          defaultWorkflowId: team.defaultWorkflowId ?? null,
+          identifier: team.identifier ?? deriveTeamIdentifierBase(team.name),
           sortOrder: team.sortOrder ?? 0,
         })),
     };

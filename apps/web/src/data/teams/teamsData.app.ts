@@ -8,23 +8,14 @@ import {
 import { useMutation } from "convex/react";
 import { useConvexQuery as useQuery } from "@/data/query-hooks";
 
-import {
-  appendItem,
-  removeById,
-  removeWhere,
-  reorderBySortOrder,
-  updateById,
-} from "@/data/collection-ops";
+import { appendItem, removeById, removeWhere, reorderBySortOrder } from "@/data/collection-ops";
 import { successfulResponseCollection } from "@/data/convex-query-adapter";
 import {
   collectionItemOptimisticUpdate,
   collectionListOptimisticUpdate,
 } from "@/data/optimistic-collection";
 
-export type TeamCollectionItem = Pick<
-  Team,
-  "id" | "name" | "identifier" | "color" | "defaultWorkflowId" | "sortOrder"
->;
+export type TeamCollectionItem = Pick<Team, "id" | "name" | "identifier" | "color" | "sortOrder">;
 
 export type TeamMembershipCollectionItem = Pick<TeamMembership, "id" | "teamId" | "userId">;
 
@@ -83,7 +74,6 @@ export function useCreateTeamMutation() {
             args.name,
             teams.map((team) => team.identifier),
           ),
-          defaultWorkflowId: null,
           sortOrder: teams.reduce((max, team) => Math.max(max, team.sortOrder ?? -1), -1) + 1,
         }),
     }),
@@ -148,34 +138,6 @@ export function useReorderTeamsMutation() {
         teams: readonly TeamCollectionItem[],
         args: { readonly teamIds: readonly string[] },
       ) => reorderBySortOrder(teams, args.teamIds),
-    }),
-  );
-}
-
-export function useUpdateTeamProductFieldsMutation() {
-  return useMutation(api.teams.updateProductFields).withOptimisticUpdate(
-    collectionListOptimisticUpdate({
-      query: api.teams.listForChurch,
-      collectionKey: "teams",
-      patch: (
-        teams: readonly TeamCollectionItem[],
-        args: {
-          readonly updates: readonly {
-            readonly teamId: string;
-            readonly fields: { readonly defaultWorkflowId?: string | null };
-          }[];
-        },
-      ) =>
-        args.updates.reduce(
-          (current, update) =>
-            "defaultWorkflowId" in update.fields
-              ? updateById(current, update.teamId, (team) => ({
-                  ...team,
-                  defaultWorkflowId: update.fields.defaultWorkflowId ?? null,
-                }))
-              : current,
-          teams,
-        ),
     }),
   );
 }
