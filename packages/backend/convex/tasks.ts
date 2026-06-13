@@ -5,6 +5,7 @@ import { deriveTeamIdentifierBase } from "@church-task/domain/Team";
 import { taskErrorResponse, taskResponse } from "../agent/taskOperations";
 import { writeActivity } from "../activityRegistry";
 import registeredFunctions from "../confect/_generated/registeredFunctions";
+import { resolveTaskByIdentifier } from "../identifierResolution";
 import {
   cancelTasks,
   completeTasks,
@@ -137,6 +138,18 @@ const taskUpdateFieldsValidator = v.object({
   boardOrder: v.optional(v.string()),
 });
 
+const resolveMcpTaskId = async (
+  ctx: MutationCtx | QueryCtx,
+  args: { readonly churchId: string; readonly taskId?: string; readonly taskIdentifier?: string },
+) => {
+  if (args.taskIdentifier !== undefined) {
+    const task = await resolveTaskByIdentifier(ctx, args.churchId, args.taskIdentifier);
+    return task?._id ?? null;
+  }
+
+  return args.taskId ?? null;
+};
+
 type McpTaskUpdateFields = {
   readonly title?: string;
   readonly assignedUserId?: string | null;
@@ -159,7 +172,8 @@ const runMcpUpdateTasks = async (
     readonly churchId: string;
     readonly actorUserId: string;
     readonly updates: ReadonlyArray<{
-      readonly taskId: string;
+      readonly taskId?: string;
+      readonly taskIdentifier?: string;
       readonly fields: McpTaskUpdateFields;
     }>;
   },
@@ -234,14 +248,36 @@ const runMcpUpdateTasks = async (
     if (teamWorkflow) teamWorkflowIds[update.fields.teamId] = teamWorkflow._id;
   }
 
-  return await updateTasks(ctx, {
+  const resolvedUpdates: Array<{ readonly taskId: string; readonly fields: McpTaskUpdateFields }> =
+    [];
+  for (const update of args.updates) {
+    const taskId = await resolveMcpTaskId(ctx, {
+      churchId: args.churchId,
+      taskId: update.taskId,
+      taskIdentifier: update.taskIdentifier,
+    });
+    if (taskId === null) {
+      return taskErrorResponse(
+        "updateTasks",
+        "task_not_found",
+        "Task was not found in the active Church.",
+      );
+    }
+    resolvedUpdates.push({ taskId, fields: update.fields });
+  }
+
+  const updated = await updateTasks(ctx, {
     churchId: args.churchId,
-    updates: args.updates,
+    updates: resolvedUpdates,
     actorId: args.actorUserId,
     occurredAt: new Date().toISOString(),
     churchTimeZone: church.churchTimeZone,
     teamWorkflowResolution: { teamWorkflowIds },
   });
+
+  return updated.ok
+    ? { ...updated, taskIds: resolvedUpdates.map((update) => update.taskId) }
+    : updated;
 };
 
 const UPDATE_FAILURE_MESSAGES = {
@@ -285,7 +321,8 @@ export const mcpUpdateTask = mutation({
   args: {
     churchId: v.string(),
     actorUserId: v.string(),
-    taskId: v.string(),
+    taskId: v.optional(v.string()),
+    taskIdentifier: v.optional(v.string()),
     fields: taskUpdateFieldsValidator,
   },
   handler: async (ctx, args) =>
@@ -293,20 +330,24 @@ export const mcpUpdateTask = mutation({
       "task.update",
       {
         "church.id": args.churchId,
-        "task.id": args.taskId,
+        "task.id": args.taskId ?? args.taskIdentifier ?? "",
       },
       async () => {
         const updated = await runMcpUpdateTasks(ctx, {
           churchId: args.churchId,
           actorUserId: args.actorUserId,
-          updates: [{ taskId: args.taskId, fields: args.fields }],
+          updates: [
+            { taskId: args.taskId, taskIdentifier: args.taskIdentifier, fields: args.fields },
+          ],
         });
 
         if (!updated.ok) {
           return "error" in updated ? updated : mcpUpdateFailureResponse(updated.code);
         }
 
-        const model = await readTaskModel(ctx, args.churchId, { taskId: args.taskId });
+        const model = await readTaskModel(ctx, args.churchId, {
+          taskId: updated.taskIds[0],
+        });
 
         return taskResponse("updateTasks", serializeTaskModel(model));
       },
@@ -319,7 +360,8 @@ export const mcpUpdateTasksBatch = mutation({
     actorUserId: v.string(),
     updates: v.array(
       v.object({
-        taskId: v.string(),
+        taskId: v.optional(v.string()),
+        taskIdentifier: v.optional(v.string()),
         fields: taskUpdateFieldsValidator,
       }),
     ),
@@ -338,7 +380,7 @@ export const mcpUpdateTasksBatch = mutation({
           return "error" in updated ? updated : mcpUpdateFailureResponse(updated.code);
         }
 
-        const updatedTaskIds = new Set(args.updates.map((update) => update.taskId));
+        const updatedTaskIds = new Set(updated.taskIds);
         const model = await readTaskModel(ctx, args.churchId);
         const data = serializeTaskModel(model);
 
@@ -519,6 +561,7 @@ export const mcpListTasks = query({
     excludeSubtasks: v.optional(v.boolean()),
     orderBy: v.optional(v.union(v.literal("created"), v.literal("due_date"))),
     taskId: v.optional(v.string()),
+    taskIdentifier: v.optional(v.string()),
   },
   handler: async (ctx, args) =>
     withConvexTelemetry(
@@ -535,7 +578,8 @@ export const mcpListTasks = query({
           args.taskState ??
           args.taskStates ??
           args.excludeSubtasks ??
-          args.taskId,
+          args.taskId ??
+          args.taskIdentifier,
         ),
       },
       async () => {
@@ -565,7 +609,19 @@ export const mcpListTasks = query({
         } = { currentUserId: args.actorUserId };
         if (args.surface !== undefined) filters.surface = args.surface;
         if (args.cycleId !== undefined) filters.cycleId = args.cycleId;
-        if (args.taskId !== undefined) filters.taskId = args.taskId;
+        const taskId = await resolveMcpTaskId(ctx, {
+          churchId: args.churchId,
+          taskId: args.taskId,
+          taskIdentifier: args.taskIdentifier,
+        });
+        if (taskId !== null) filters.taskId = taskId;
+        if (args.taskIdentifier !== undefined && taskId === null) {
+          return taskErrorResponse(
+            "listTasks",
+            "task_not_found",
+            "No Task matches that Task Identifier in the active Church.",
+          );
+        }
         if (args.teamId !== undefined) filters.teamId = args.teamId;
         if (args.assignedUserId !== undefined) filters.assignedUserId = args.assignedUserId;
         if (args.createdByUserId !== undefined) filters.createdByUserId = args.createdByUserId;
@@ -739,14 +795,15 @@ const makeMcpTaskTransition = (
     args: {
       churchId: v.string(),
       actorUserId: v.string(),
-      taskId: v.string(),
+      taskId: v.optional(v.string()),
+      taskIdentifier: v.optional(v.string()),
     },
     handler: async (ctx, args) =>
       withConvexTelemetry(
         `task.${operation.replace("Tasks", "")}`,
         {
           "church.id": args.churchId,
-          "task.id": args.taskId,
+          "task.id": args.taskId ?? args.taskIdentifier ?? "",
         },
         async () => {
           const isChurchMember = await requireMcpChurchMember(ctx, args);
@@ -759,15 +816,24 @@ const makeMcpTaskTransition = (
             );
           }
 
+          const taskId = await resolveMcpTaskId(ctx, {
+            churchId: args.churchId,
+            taskId: args.taskId,
+            taskIdentifier: args.taskIdentifier,
+          });
+          if (taskId === null) {
+            return taskTransitionErrorResponse(operation, "taskNotFound");
+          }
+
           const result = await transition(ctx, {
             churchId: args.churchId,
-            taskIds: [args.taskId],
+            taskIds: [taskId],
             actorId: args.actorUserId,
           });
 
           if (!result.ok) return taskTransitionErrorResponse(operation, result.code);
 
-          const model = await readTaskModel(ctx, args.churchId, { taskId: args.taskId });
+          const model = await readTaskModel(ctx, args.churchId, { taskId });
 
           return taskResponse(operation, serializeTaskModel(model));
         },

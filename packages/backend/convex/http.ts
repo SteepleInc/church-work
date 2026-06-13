@@ -379,7 +379,8 @@ http.route({
 
     const body = (await request.json()) as {
       readonly churchId: string;
-      readonly taskId: string;
+      readonly taskId?: string;
+      readonly taskIdentifier?: string;
       readonly title?: string;
       readonly assignedUserId?: string | null;
       readonly teamId?: string;
@@ -389,11 +390,12 @@ http.route({
       readonly parentTaskId?: string | null;
     };
 
-    const { churchId, taskId, ...fields } = body;
+    const { churchId, taskId, taskIdentifier, ...fields } = body;
     const result = await ctx.runMutation(convexFunctionRefs.tasks.mcpUpdateTask, {
       churchId,
       actorUserId: session.user.id,
       taskId,
+      taskIdentifier,
       fields,
     });
 
@@ -483,11 +485,16 @@ http.route({
       return unauthenticatedResponse();
     }
 
-    const body = (await request.json()) as { readonly churchId: string; readonly taskId: string };
+    const body = (await request.json()) as {
+      readonly churchId: string;
+      readonly taskId?: string;
+      readonly taskIdentifier?: string;
+    };
     const result = await ctx.runQuery(convexFunctionRefs.tasks.mcpListTasks, {
       churchId: body.churchId,
       actorUserId: session.user.id,
       taskId: body.taskId,
+      taskIdentifier: body.taskIdentifier,
     });
 
     return Response.json(mcpTaskResponse("get_task", result, { single: true }));
@@ -586,13 +593,15 @@ const handleMcpTaskTransition = async (
 
   const body = (await request.json()) as {
     readonly churchId: string;
-    readonly taskId: string;
+    readonly taskId?: string;
+    readonly taskIdentifier?: string;
   };
 
   const result = await ctx.runMutation(args.mutation, {
     churchId: body.churchId,
     actorUserId: session.user.id,
     taskId: body.taskId,
+    taskIdentifier: body.taskIdentifier,
   });
 
   return Response.json(mcpTaskResponse(args.tool, result, { single: true }));

@@ -773,8 +773,8 @@ describe("church-task task execution", () => {
         },
       ],
       [
-        ["task", "get", "--church-id", "church_123", "--task-id", "task_123"],
-        { tool: "get-task", body: { churchId: "church_123", taskId: "task_123" } },
+        ["task", "get", "--church-id", "church_123", "--task-identifier", "PRD-48"],
+        { tool: "get-task", body: { churchId: "church_123", taskIdentifier: "PRD-48" } },
       ],
       [
         [
@@ -814,8 +814,8 @@ describe("church-task task execution", () => {
           "update",
           "--church-id",
           "church_123",
-          "--task-id",
-          "task_123",
+          "--task-identifier",
+          "PRD-48",
           "--title",
           "Updated title",
           "--workflow-status-id",
@@ -833,7 +833,7 @@ describe("church-task task execution", () => {
           tool: "update-task",
           body: {
             churchId: "church_123",
-            taskId: "task_123",
+            taskIdentifier: "PRD-48",
             title: "Updated title",
             workflowStatusId: "status_doing",
             dueDate: "2026-06-04",
@@ -845,16 +845,16 @@ describe("church-task task execution", () => {
         },
       ],
       [
-        ["task", "complete", "--church-id", "church_123", "--task-id", "task_123"],
-        { tool: "complete-task", body: { churchId: "church_123", taskId: "task_123" } },
+        ["task", "complete", "--church-id", "church_123", "--task-identifier", "PRD-48"],
+        { tool: "complete-task", body: { churchId: "church_123", taskIdentifier: "PRD-48" } },
       ],
       [
-        ["task", "cancel", "--church-id", "church_123", "--task-id", "task_123"],
-        { tool: "cancel-task", body: { churchId: "church_123", taskId: "task_123" } },
+        ["task", "cancel", "--church-id", "church_123", "--task-identifier", "PRD-48"],
+        { tool: "cancel-task", body: { churchId: "church_123", taskIdentifier: "PRD-48" } },
       ],
       [
-        ["task", "reopen", "--church-id", "church_123", "--task-id", "task_123"],
-        { tool: "reopen-task", body: { churchId: "church_123", taskId: "task_123" } },
+        ["task", "reopen", "--church-id", "church_123", "--task-identifier", "PRD-48"],
+        { tool: "reopen-task", body: { churchId: "church_123", taskIdentifier: "PRD-48" } },
       ],
       [
         ["lookup", "users", "--church-id", "church_123"],

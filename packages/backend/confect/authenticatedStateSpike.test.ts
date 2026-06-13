@@ -548,7 +548,7 @@ describe("Better Auth authenticated state spike", () => {
         },
         body: JSON.stringify({
           churchId: church.id!,
-          taskId: task.id,
+          taskIdentifier: task.identifier.toLowerCase(),
           assignedUserId: owner.user!.id!,
         }),
       });
@@ -563,7 +563,11 @@ describe("Better Auth authenticated state spike", () => {
       expect(body).toMatchObject({
         ok: true,
         tool: "update_task",
-        task: expect.objectContaining({ id: task.id, assignedUserId: owner.user!.id! }),
+        task: expect.objectContaining({
+          id: task.id,
+          identifier: task.identifier,
+          assignedUserId: owner.user!.id!,
+        }),
       });
       expect(activities.data.activities.map((activity) => activity.eventType)).toEqual([
         "task.created",
@@ -1061,7 +1065,7 @@ describe("Better Auth authenticated state spike", () => {
         dueDate: "2026-06-03",
       });
       const createBody = (yield* Effect.promise(() => createResponse.json())) as {
-        task?: { id: string; title: string; assignedUserId: string };
+        task?: { id: string; identifier: string; title: string; assignedUserId: string };
       };
       const createdTask = createBody.task!;
       const listResponse = yield* postTool("list-tasks", {
@@ -1074,14 +1078,19 @@ describe("Better Auth authenticated state spike", () => {
       const listBody = (yield* Effect.promise(() => listResponse.json())) as unknown;
       const getResponse = yield* postTool("get-task", {
         churchId: church.id!,
-        taskId: createdTask.id,
+        taskIdentifier: createdTask.identifier.toLowerCase(),
       });
       const getBody = (yield* Effect.promise(() => getResponse.json())) as unknown;
+      const missingGetResponse = yield* postTool("get-task", {
+        churchId: church.id!,
+        taskIdentifier: "NOPE-999",
+      });
+      const missingGetBody = (yield* Effect.promise(() => missingGetResponse.json())) as unknown;
       const usersResponse = yield* postTool("list-users", { churchId: church.id! });
       const usersBody = (yield* Effect.promise(() => usersResponse.json())) as unknown;
       const teamsResponse = yield* postTool("list-teams", { churchId: church.id! });
       const teamsBody = (yield* Effect.promise(() => teamsResponse.json())) as {
-        teams?: Array<{ name: string }>;
+        teams?: Array<{ name: string; identifier: string }>;
       };
       const cyclesResponse = yield* postTool("list-cycles", { churchId: church.id! });
       const cyclesBody = (yield* Effect.promise(() => cyclesResponse.json())) as unknown;
@@ -1096,6 +1105,7 @@ describe("Better Auth authenticated state spike", () => {
         tool: "create_task",
         task: expect.objectContaining({
           id: createdTask.id,
+          identifier: expect.stringMatching(/^[A-Z0-9]{3,7}-\d+$/),
           title: "Create from MCP",
           assignedUserId: owner.user!.id!,
         }),
@@ -1112,7 +1122,13 @@ describe("Better Auth authenticated state spike", () => {
       expect(getBody).toMatchObject({
         ok: true,
         tool: "get_task",
-        task: expect.objectContaining({ id: createdTask.id }),
+        task: expect.objectContaining({ id: createdTask.id, identifier: createdTask.identifier }),
+      });
+      expect(missingGetResponse.status).toBe(200);
+      expect(missingGetBody).toMatchObject({
+        ok: false,
+        tool: "get_task",
+        error: { code: "task_not_found" },
       });
       expect(usersResponse.status).toBe(200);
       expect(usersBody).toMatchObject({
@@ -1126,7 +1142,9 @@ describe("Better Auth authenticated state spike", () => {
         tool: "list_teams",
       });
       expect(teamsBody.teams).toEqual(
-        expect.arrayContaining([expect.objectContaining({ name: "Worship" })]),
+        expect.arrayContaining([
+          expect.objectContaining({ name: "Worship", identifier: expect.any(String) }),
+        ]),
       );
       expect(cyclesResponse.status).toBe(200);
       expect(cyclesBody).toMatchObject({

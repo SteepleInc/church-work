@@ -406,6 +406,20 @@ const addOptionalValue = (
   if (value !== undefined) body[key] = value;
 };
 
+const addTaskReference = (
+  body: Record<string, unknown>,
+  args: ReadonlyArray<string>,
+): Effect.Effect<void, MissingOptionError> =>
+  Effect.gen(function* () {
+    const taskIdentifier = optionValueFromArgs(args, "--task-identifier");
+    if (taskIdentifier !== undefined) {
+      body.taskIdentifier = taskIdentifier;
+      return;
+    }
+
+    body.taskId = yield* requiredOptionFromArgs(args, "--task-id");
+  });
+
 const readEnvToken = (env: CliEnv) => {
   const token = env.CHURCH_TASK_AUTH_TOKEN?.trim();
   return token ? Effect.succeed(token) : Effect.fail(new MissingLoginTokenError());
@@ -529,10 +543,12 @@ const runTaskList = (args: ReadonlyArray<string>) =>
 
 const runTaskGet = (args: ReadonlyArray<string>) =>
   Effect.gen(function* () {
-    return yield* runTaskTool("get-task", {
+    const body: Record<string, unknown> = {
       churchId: yield* requiredOptionFromArgs(args, "--church-id"),
-      taskId: yield* requiredOptionFromArgs(args, "--task-id"),
-    });
+    };
+    yield* addTaskReference(body, args);
+
+    return yield* runTaskTool("get-task", body);
   });
 
 const runTaskCreate = (args: ReadonlyArray<string>) =>
@@ -556,8 +572,8 @@ const runTaskUpdate = (args: ReadonlyArray<string>) =>
   Effect.gen(function* () {
     const body: Record<string, unknown> = {
       churchId: yield* requiredOptionFromArgs(args, "--church-id"),
-      taskId: yield* requiredOptionFromArgs(args, "--task-id"),
     };
+    yield* addTaskReference(body, args);
 
     addOptionalValue(body, "title", optionValueFromArgs(args, "--title"));
     addOptionalValue(body, "workflowStatusId", optionValueFromArgs(args, "--workflow-status-id"));
@@ -585,10 +601,12 @@ const runTaskUpdate = (args: ReadonlyArray<string>) =>
 
 const runTaskTransition = (tool: string, args: ReadonlyArray<string>) =>
   Effect.gen(function* () {
-    return yield* runTaskTool(tool, {
+    const body: Record<string, unknown> = {
       churchId: yield* requiredOptionFromArgs(args, "--church-id"),
-      taskId: yield* requiredOptionFromArgs(args, "--task-id"),
-    });
+    };
+    yield* addTaskReference(body, args);
+
+    return yield* runTaskTool(tool, body);
   });
 
 const runLookup = (lookup: string | undefined, args: ReadonlyArray<string>) =>
