@@ -141,7 +141,7 @@ export function buildTaskBoardGroupColumns(args: {
           .filter((column) => !hiddenColumnIds.has(column.id))
           .map((column) => ({ id: column.id, title: column.title, taskState: column.taskState }));
       case "task_state":
-        return (["todo", "in_progress", "done", "canceled"] as const).map((state) => ({
+        return (["todo", "in_progress", "done"] as const).map((state) => ({
           id: state,
           title: TASK_STATE_LABELS[state],
           taskState: state,
@@ -169,12 +169,19 @@ export function buildTaskBoardGroupColumns(args: {
     }
   })();
 
-  if (args.showEmptyColumns) return columns;
+  // Global rule: no Board Column ever represents the Canceled Task State, under
+  // any grouping. Canceling is a status-picker action, not a board lane;
+  // canceled Tasks drop off the board and are only reachable by filtering for
+  // Canceled (matches Linear, where the status-grouped board has no Canceled
+  // column even with "Show empty columns" on).
+  const visibleColumns = columns.filter((column) => column.taskState !== "canceled");
+
+  if (args.showEmptyColumns) return visibleColumns;
 
   const populatedColumnIds = new Set(
     args.tasks.map((task) => getTaskGroupColumnId(args.grouping, task)),
   );
-  return columns.filter((column) => populatedColumnIds.has(column.id));
+  return visibleColumns.filter((column) => populatedColumnIds.has(column.id));
 }
 
 export function compareBoardOrder(left: TaskBoardTask, right: TaskBoardTask): number {

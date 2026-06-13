@@ -260,7 +260,7 @@ describe("Board Column grouping", () => {
     expect(columns.map((column) => column.title)).toEqual(["Production", "Kids"]);
   });
 
-  test("groups by Task State with the canonical lanes", () => {
+  test("groups by Task State without a Canceled lane", () => {
     const columns = buildTaskBoardGroupColumns({
       grouping: "task_state",
       workflowStatuses: [],
@@ -270,7 +270,24 @@ describe("Board Column grouping", () => {
       showEmptyColumns: true,
     });
 
-    expect(columns.map((column) => column.id)).toEqual(["todo", "in_progress", "done", "canceled"]);
+    expect(columns.map((column) => column.id)).toEqual(["todo", "in_progress", "done"]);
+  });
+
+  test("never renders a Canceled Board Column when grouping by Workflow Status", () => {
+    const columns = buildTaskBoardGroupColumns({
+      grouping: "workflow_status",
+      workflowStatuses: [
+        { id: "todo", name: "To Do", sortOrder: 1, taskState: "todo" },
+        { id: "done", name: "Done", sortOrder: 2, taskState: "done" },
+        { id: "canceled", name: "Canceled", sortOrder: 3, taskState: "canceled" },
+      ],
+      assignees,
+      teams,
+      tasks,
+      showEmptyColumns: true,
+    });
+
+    expect(columns.map((column) => column.id)).toEqual(["todo", "done"]);
   });
 
   test("hides empty Board Columns when View Options say so", () => {
