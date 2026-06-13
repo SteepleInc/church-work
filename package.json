@@ -39,6 +39,7 @@
     "dev:server": "turbo -F @church-task/backend dev",
     "dev:server:e2e": "turbo -F @church-task/backend dev:e2e",
     "dev:setup": "turbo -F @church-task/backend dev:setup",
+    "convex:wipe": "bun --env-file=.env scripts/wipe-convex-db.ts",
     "test:backend": "turbo -F @church-task/backend test:backend",
     "test:cli": "turbo -F @church-task/cli test:cli",
     "test:e2e": "playwright test",

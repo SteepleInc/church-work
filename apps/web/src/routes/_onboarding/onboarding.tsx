@@ -461,7 +461,6 @@ function FinishedStepCard(props: { readonly churchId: string }) {
       }
 
       await refetchSession();
-      toast.success("Church setup complete.");
       // The redirectIfOnboarded guard navigates into the product once the
       // Active Church query reflects Completed Onboarding.
     } finally {

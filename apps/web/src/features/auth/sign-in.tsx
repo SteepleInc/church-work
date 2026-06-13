@@ -8,7 +8,6 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { Match } from "effect";
 import { useAtom } from "jotai";
 import { useEffect, useLayoutEffect } from "react";
-import { toast } from "sonner";
 
 type SignInProps = {
   readonly defaultEmail?: string;
@@ -70,10 +69,7 @@ export function SignIn({ defaultEmail, invitationId: passedInvitationId, redirec
             <OtpForm
               autoSubmit
               email={email}
-              onSuccess={async () => {
-                await refetch();
-                toast.success("Sign in successful");
-              }}
+              onSuccess={refetch}
               submitLabel="Sign In"
             />
           )),
