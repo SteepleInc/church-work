@@ -3,7 +3,5 @@
     "installCommand": "bun install",
     "provider": "none"
   },
-  "setupScripts": [
-    "sh ./scripts/worktree-setup.sh --no-ports"
-  ]
+  "setupScripts": ["sh ./scripts/worktree-setup.sh --no-ports"]
 }
