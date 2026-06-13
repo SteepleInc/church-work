@@ -98,6 +98,9 @@ export type FilterStateValue = typeof FilterStateValueSchema.Type;
 export type ColumnOption = {
   readonly label: string;
   readonly value: string;
+  // Optional leading visual (avatar/status dot/team color) for rich option
+  // pickers. Carried alongside the catalog; never persisted to the URL.
+  readonly icon?: import("react").ReactNode;
 };
 
 export type ColumnConfig<

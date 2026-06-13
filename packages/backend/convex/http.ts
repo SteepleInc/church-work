@@ -457,6 +457,7 @@ http.route({
       return unauthenticatedResponse();
     }
 
+    type TaskState = "todo" | "in_progress" | "done" | "canceled";
     const body = (await request.json()) as {
       readonly churchId: string;
       readonly surface?: "my_work" | "our_work";
@@ -464,7 +465,18 @@ http.route({
       readonly teamId?: string;
       readonly assignedUserId?: string | null;
       readonly workflowStatusId?: string;
-      readonly taskState?: "todo" | "in_progress" | "done" | "canceled";
+      readonly taskState?: TaskState;
+      // Multi-value include/exclude filters (Board ad-hoc filters).
+      readonly teamIdIn?: ReadonlyArray<string>;
+      readonly teamIdNotIn?: ReadonlyArray<string>;
+      readonly assignedUserIdIn?: ReadonlyArray<string | null>;
+      readonly assignedUserIdNotIn?: ReadonlyArray<string | null>;
+      readonly createdByUserIdIn?: ReadonlyArray<string | null>;
+      readonly createdByUserIdNotIn?: ReadonlyArray<string | null>;
+      readonly workflowStatusIdIn?: ReadonlyArray<string>;
+      readonly workflowStatusIdNotIn?: ReadonlyArray<string>;
+      readonly taskStateIn?: ReadonlyArray<TaskState>;
+      readonly taskStateNotIn?: ReadonlyArray<TaskState>;
     };
     const result = await ctx.runQuery(convexFunctionRefs.tasks.mcpListTasks, {
       ...body,

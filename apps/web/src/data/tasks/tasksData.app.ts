@@ -29,6 +29,18 @@ export type TaskCollectionFilters = {
   readonly excludeSubtasks?: boolean;
   readonly orderBy?: "created" | "due_date";
   readonly taskId?: string;
+  // Ad-hoc Board filters: multi-value include/exclude per field. User-id lists
+  // allow null to represent Unassigned.
+  readonly teamIdIn?: readonly string[];
+  readonly teamIdNotIn?: readonly string[];
+  readonly assignedUserIdIn?: readonly (string | null)[];
+  readonly assignedUserIdNotIn?: readonly (string | null)[];
+  readonly createdByUserIdIn?: readonly (string | null)[];
+  readonly createdByUserIdNotIn?: readonly (string | null)[];
+  readonly workflowStatusIdIn?: readonly string[];
+  readonly workflowStatusIdNotIn?: readonly string[];
+  readonly taskStateIn?: readonly TaskStatus[];
+  readonly taskStateNotIn?: readonly TaskStatus[];
 };
 
 export function useTasksCollection(params: {
@@ -36,7 +48,20 @@ export function useTasksCollection(params: {
   readonly currentUserId: string | null;
   readonly filters?: TaskCollectionFilters;
 }) {
-  const { taskStates, ...restFilters } = params.filters ?? {};
+  const {
+    taskStates,
+    teamIdIn,
+    teamIdNotIn,
+    assignedUserIdIn,
+    assignedUserIdNotIn,
+    createdByUserIdIn,
+    createdByUserIdNotIn,
+    workflowStatusIdIn,
+    workflowStatusIdNotIn,
+    taskStateIn,
+    taskStateNotIn,
+    ...restFilters
+  } = params.filters ?? {};
   const result = useQuery(
     api.tasks.mcpListTasks,
     params.churchId && params.currentUserId
@@ -46,6 +71,16 @@ export function useTasksCollection(params: {
           ...restFilters,
           // Convex argument validators expect mutable arrays.
           ...(taskStates ? { taskStates: [...taskStates] } : {}),
+          ...(teamIdIn ? { teamIdIn: [...teamIdIn] } : {}),
+          ...(teamIdNotIn ? { teamIdNotIn: [...teamIdNotIn] } : {}),
+          ...(assignedUserIdIn ? { assignedUserIdIn: [...assignedUserIdIn] } : {}),
+          ...(assignedUserIdNotIn ? { assignedUserIdNotIn: [...assignedUserIdNotIn] } : {}),
+          ...(createdByUserIdIn ? { createdByUserIdIn: [...createdByUserIdIn] } : {}),
+          ...(createdByUserIdNotIn ? { createdByUserIdNotIn: [...createdByUserIdNotIn] } : {}),
+          ...(workflowStatusIdIn ? { workflowStatusIdIn: [...workflowStatusIdIn] } : {}),
+          ...(workflowStatusIdNotIn ? { workflowStatusIdNotIn: [...workflowStatusIdNotIn] } : {}),
+          ...(taskStateIn ? { taskStateIn: [...taskStateIn] } : {}),
+          ...(taskStateNotIn ? { taskStateNotIn: [...taskStateNotIn] } : {}),
         }
       : "skip",
   );

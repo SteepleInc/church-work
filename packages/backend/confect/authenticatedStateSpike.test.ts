@@ -1162,4 +1162,134 @@ describe("Better Auth authenticated state spike", () => {
       );
     }).pipe(Effect.provide(TestConfect.layer())),
   );
+
+  it.effect("mcpListTasks filters by multi-value include/exclude across Board fields", () =>
+    Effect.gen(function* () {
+      const c = yield* TestConfect.TestConfect;
+      const email = `mcp-task-filters-${crypto.randomUUID()}@example.com`;
+      const signUpResponse = yield* signUpWithEmail(c, email);
+      const owner = (yield* Effect.promise(() => signUpResponse.json())) as {
+        user?: { id?: string };
+        token?: string;
+      };
+      const churchResponse = yield* createChurch(c, {
+        token: owner.token!,
+        name: "MCP Task Filters Church",
+        slug: `mcp-task-filters-${crypto.randomUUID()}`,
+      });
+      const church = (yield* Effect.promise(() => churchResponse.json())) as { id?: string };
+      const authenticated = yield* authenticatedConfect(c, {
+        userId: owner.user!.id!,
+        sessionToken: owner.token!,
+      });
+
+      const teams = yield* authenticated.query(refs.public.teams.listForChurch, {
+        churchId: church.id!,
+      });
+      const teamA = teams.data.teams[0]!.id;
+      const teamB = teams.data.teams[1]!.id;
+
+      const defaults = yield* authenticated.query(refs.public.workDefaults.readForChurch, {
+        churchId: church.id!,
+      });
+      const statusFor = (teamId: string, taskState: "todo" | "in_progress") => {
+        const workflow = defaults.data.workflows.find((candidate) => candidate.teamId === teamId)!;
+        return defaults.data.workflowStatuses.find(
+          (status) => status.workflowId === workflow.id && status.taskState === taskState,
+        )!;
+      };
+      const teamATodo = statusFor(teamA, "todo");
+      const teamAInProgress = statusFor(teamA, "in_progress");
+      const teamBTodo = statusFor(teamB, "todo");
+
+      const postTool = (toolPath: string, body: Record<string, unknown>) =>
+        c.fetch(`/api/mcp/tools/${toolPath}`, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${owner.token}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify(body),
+        });
+
+      const createTask = (body: Record<string, unknown>) =>
+        Effect.gen(function* () {
+          const response = yield* postTool("create-task", { churchId: church.id!, ...body });
+          const parsed = (yield* Effect.promise(() => response.json())) as {
+            task?: { id: string };
+          };
+          return parsed.task!.id;
+        });
+
+      // Team A, To Do, assigned to the owner.
+      const taskAssigned = yield* createTask({
+        title: "Team A todo assigned",
+        teamId: teamA,
+        assignedUserId: owner.user!.id!,
+        workflowStatusId: teamATodo.id,
+        dueDate: "2026-06-03",
+      });
+      // Team A, In Progress, unassigned.
+      const taskUnassigned = yield* createTask({
+        title: "Team A in-progress unassigned",
+        teamId: teamA,
+        workflowStatusId: teamAInProgress.id,
+        dueDate: "2026-06-03",
+      });
+      // Team B, To Do, unassigned.
+      const taskTeamB = yield* createTask({
+        title: "Team B todo unassigned",
+        teamId: teamB,
+        workflowStatusId: teamBTodo.id,
+        dueDate: "2026-06-03",
+      });
+
+      const listIds = (body: Record<string, unknown>) =>
+        Effect.gen(function* () {
+          const response = yield* postTool("list-tasks", { churchId: church.id!, ...body });
+          const parsed = (yield* Effect.promise(() => response.json())) as {
+            ok?: boolean;
+            tasks?: Array<{ id: string }>;
+          };
+          expect(response.status).toBe(200);
+          expect(parsed.ok).toBe(true);
+          return new Set((parsed.tasks ?? []).map((task) => task.id));
+        });
+
+      // teamIdIn keeps only Team A tasks (OR within the field).
+      const teamAOnly = yield* listIds({ teamIdIn: [teamA] });
+      expect(teamAOnly).toEqual(new Set([taskAssigned, taskUnassigned]));
+
+      // teamIdNotIn excludes Team A, leaving Team B.
+      const notTeamA = yield* listIds({ teamIdNotIn: [teamA] });
+      expect(notTeamA).toEqual(new Set([taskTeamB]));
+
+      // assignedUserIdIn with null matches Unassigned tasks only.
+      const unassignedOnly = yield* listIds({ assignedUserIdIn: [null] });
+      expect(unassignedOnly).toEqual(new Set([taskUnassigned, taskTeamB]));
+
+      // assignedUserIdIn with the owner matches the assigned task only.
+      const ownerAssigned = yield* listIds({ assignedUserIdIn: [owner.user!.id!] });
+      expect(ownerAssigned).toEqual(new Set([taskAssigned]));
+
+      // taskStateNotIn excludes In Progress, leaving the two To Do tasks.
+      const notInProgress = yield* listIds({ taskStateNotIn: ["in_progress"] });
+      expect(notInProgress).toEqual(new Set([taskAssigned, taskTeamB]));
+
+      // workflowStatusIdIn narrows to a single status.
+      const teamATodoOnly = yield* listIds({ workflowStatusIdIn: [teamATodo.id] });
+      expect(teamATodoOnly).toEqual(new Set([taskAssigned]));
+
+      // Fields combine with AND: Team A AND Unassigned -> the in-progress task.
+      const teamAAndUnassigned = yield* listIds({
+        teamIdIn: [teamA],
+        assignedUserIdIn: [null],
+      });
+      expect(teamAAndUnassigned).toEqual(new Set([taskUnassigned]));
+
+      // Empty arrays are treated as "no constraint" (never hide everything).
+      const noConstraint = yield* listIds({ teamIdIn: [] });
+      expect(noConstraint).toEqual(new Set([taskAssigned, taskUnassigned, taskTeamB]));
+    }).pipe(Effect.provide(TestConfect.layer())),
+  );
 });

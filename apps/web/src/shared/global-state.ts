@@ -7,6 +7,7 @@ export const detailsPaneStickyAtom = atom(false);
 export enum FilterKeys {
   Orgs = "orgs-filters",
   Users = "users-filters",
+  Tasks = "tasks-filters",
   Default = "default-filters",
 }
 

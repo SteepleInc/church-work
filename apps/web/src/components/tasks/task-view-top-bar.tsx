@@ -9,7 +9,6 @@ import {
 import { useEffect, useState, type MutableRefObject } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Kbd } from "@/components/ui/kbd";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -23,7 +22,9 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
+import type { ColumnConfig, FilterItem } from "@/components/data-table-filter/core/types";
 import type { ExecutionSurface } from "@/components/tasks/task-execution-surface-utils";
+import { TaskFilterAddMenu, TaskFilterChips } from "@/components/tasks/task-filters-bar";
 import {
   DEFAULT_TASK_VIEW_OPTIONS,
   getTaskViewTabs,
@@ -45,11 +46,13 @@ type TaskViewTopBarProps = {
   readonly onCreateTask?: () => void;
   readonly insightsOpen?: boolean;
   readonly onToggleInsights?: () => void;
-  // Imperative openers populated for the keyboard layer: Shift+V opens View
-  // Options, F opens Filter. The route passes mutable refs the keyboard layer
-  // calls.
+  readonly filterFields?: ReadonlyArray<ColumnConfig<unknown>>;
+  readonly filters?: readonly FilterItem[];
+  readonly onFiltersChange?: (filters: FilterItem[]) => void;
+  // Imperative opener populated for the keyboard layer: Shift+V opens View
+  // Options. The route passes a mutable ref the keyboard layer calls. (Filter's
+  // `F` shortcut is handled natively by TaskFilterAddMenu.)
   readonly openDisplayOptionsRef?: MutableRefObject<(() => void) | null>;
-  readonly openFilterRef?: MutableRefObject<(() => void) | null>;
 };
 
 const GROUPING_OPTIONS: ReadonlyArray<{
@@ -86,84 +89,94 @@ export function TaskViewTopBar({
   onCreateTask,
   insightsOpen = false,
   onToggleInsights,
+  filterFields,
+  filters,
+  onFiltersChange,
   openDisplayOptionsRef,
-  openFilterRef,
 }: TaskViewTopBarProps) {
   const tabs = getTaskViewTabs(surface);
-  const [filterOpen, setFilterOpen] = useState(false);
-
-  useEffect(() => {
-    if (!openFilterRef) return;
-    openFilterRef.current = () => setFilterOpen(true);
-    return () => {
-      openFilterRef.current = null;
-    };
-  }, [openFilterRef]);
+  const canFilter = Boolean(filterFields && onFiltersChange);
+  const activeFilters = filters ?? [];
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <div aria-label="View Tabs" className="flex items-center gap-1" role="tablist">
-        {tabs.map((candidate) => {
-          const isActive = candidate.value === tab;
-
-          return (
-            <Button
-              aria-selected={isActive}
-              className="rounded-full"
-              key={candidate.value}
-              onClick={() => onTabChange(candidate.value)}
-              role="tab"
-              size="sm"
-              type="button"
-              variant={isActive ? "secondary" : "ghost"}
-            >
-              {candidate.label}
-            </Button>
-          );
-        })}
-      </div>
-
-      <div className="flex items-center gap-1">
-        {onCreateTask ? (
-          <Button onClick={onCreateTask} size="sm" type="button">
-            Create Task
-          </Button>
-        ) : null}
-        <Popover open={filterOpen} onOpenChange={setFilterOpen}>
-          <PopoverTrigger
-            render={
-              <Button aria-label="Filter" size="icon-sm" type="button" variant="ghost">
-                <ListFilter />
-              </Button>
-            }
-          />
-          <PopoverContent align="end" className="w-64 text-sm">
-            <p className="font-medium">Filters</p>
-            <p className="mt-1 text-muted-foreground text-xs">
-              Property filters are coming soon. For now, use the View Tabs to narrow Tasks, and View
-              Options (<Kbd>⇧</Kbd> <Kbd>V</Kbd>) to group and order them.
-            </p>
-          </PopoverContent>
-        </Popover>
-        <TaskViewOptionsPopover
-          onViewChange={onViewChange}
-          openRef={openDisplayOptionsRef}
-          view={view}
-        />
-        <Button
-          aria-label="Insights"
-          aria-pressed={insightsOpen}
-          onClick={onToggleInsights}
-          size="icon-sm"
-          type="button"
-          variant={insightsOpen ? "secondary" : "ghost"}
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div
+          aria-label="View Tabs"
+          className="flex flex-1 flex-wrap items-center gap-2"
+          role="tablist"
         >
-          <ChartNoAxesColumn />
-        </Button>
-        <Button aria-label="Breakdown panel" size="icon-sm" type="button" variant="ghost">
-          <PanelRight />
-        </Button>
+          {tabs.map((candidate) => {
+            const isActive = candidate.value === tab;
+
+            return (
+              <Button
+                aria-selected={isActive}
+                className="rounded-full"
+                key={candidate.value}
+                onClick={() => onTabChange(candidate.value)}
+                role="tab"
+                size="sm"
+                type="button"
+                variant={isActive ? "secondary" : "ghost"}
+              >
+                {candidate.label}
+              </Button>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center gap-1">
+          {onCreateTask ? (
+            <Button onClick={onCreateTask} size="sm" type="button">
+              Create Task
+            </Button>
+          ) : null}
+          {canFilter ? (
+            <TaskFilterAddMenu
+              fields={filterFields!}
+              filters={activeFilters}
+              onChange={onFiltersChange!}
+              enableShortcut
+              trigger={
+                <Button aria-label="Filter" size="icon-sm" type="button" variant="ghost">
+                  <ListFilter />
+                </Button>
+              }
+            />
+          ) : (
+            <Button aria-label="Filter" size="icon-sm" type="button" variant="ghost">
+              <ListFilter />
+            </Button>
+          )}
+          <TaskViewOptionsPopover
+            onViewChange={onViewChange}
+            openRef={openDisplayOptionsRef}
+            view={view}
+          />
+          <Button
+            aria-label="Insights"
+            aria-pressed={insightsOpen}
+            onClick={onToggleInsights}
+            size="icon-sm"
+            type="button"
+            variant={insightsOpen ? "secondary" : "ghost"}
+          >
+            <ChartNoAxesColumn />
+          </Button>
+          <Button aria-label="Breakdown panel" size="icon-sm" type="button" variant="ghost">
+            <PanelRight />
+          </Button>
+        </div>
       </div>
+
+      {canFilter && activeFilters.length > 0 ? (
+        <TaskFilterChips
+          fields={filterFields!}
+          filters={activeFilters}
+          onChange={onFiltersChange!}
+        />
+      ) : null}
     </div>
   );
 }

@@ -212,6 +212,21 @@ export async function readTaskModel(
     readonly taskStates?: ReadonlyArray<TaskState>;
     readonly excludeSubtasks?: boolean;
     readonly orderBy?: "created" | "due_date";
+    // Ad-hoc Board filters (see the task filter ColumnConfig catalog on the
+    // web). Each field carries an optional include list (the Task must match
+    // one of these — OR within the field) and an optional exclude list (the
+    // Task must match none of these). Fields combine with AND. `null` in the
+    // user-id lists represents Unassigned (no assigned User).
+    readonly teamIdIn?: ReadonlyArray<string>;
+    readonly teamIdNotIn?: ReadonlyArray<string>;
+    readonly assignedUserIdIn?: ReadonlyArray<string | null>;
+    readonly assignedUserIdNotIn?: ReadonlyArray<string | null>;
+    readonly createdByUserIdIn?: ReadonlyArray<string | null>;
+    readonly createdByUserIdNotIn?: ReadonlyArray<string | null>;
+    readonly workflowStatusIdIn?: ReadonlyArray<string>;
+    readonly workflowStatusIdNotIn?: ReadonlyArray<string>;
+    readonly taskStateIn?: ReadonlyArray<TaskState>;
+    readonly taskStateNotIn?: ReadonlyArray<TaskState>;
   } = {},
 ) {
   const cycles = await ctx.db
@@ -244,6 +259,53 @@ export async function readTaskModel(
     if (filters.taskState && task.taskState !== filters.taskState) return false;
     if (filters.taskStates && !filters.taskStates.includes(task.taskState)) return false;
     if (filters.excludeSubtasks && task.parentTaskId !== null) return false;
+
+    // Ad-hoc Board filters: include lists are OR within a field; exclude
+    // lists must match none. Empty arrays are treated as "no constraint" so a
+    // value-less filter never hides every Task.
+    const taskAssignedUserId = task.assignedUserId ?? null;
+    const taskCreatedByUserId = task.createdByUserId ?? null;
+    if (filters.teamIdIn?.length && !filters.teamIdIn.includes(task.teamId)) return false;
+    if (filters.teamIdNotIn?.length && filters.teamIdNotIn.includes(task.teamId)) return false;
+    if (
+      filters.assignedUserIdIn?.length &&
+      !filters.assignedUserIdIn.includes(taskAssignedUserId)
+    ) {
+      return false;
+    }
+    if (
+      filters.assignedUserIdNotIn?.length &&
+      filters.assignedUserIdNotIn.includes(taskAssignedUserId)
+    ) {
+      return false;
+    }
+    if (
+      filters.createdByUserIdIn?.length &&
+      !filters.createdByUserIdIn.includes(taskCreatedByUserId)
+    ) {
+      return false;
+    }
+    if (
+      filters.createdByUserIdNotIn?.length &&
+      filters.createdByUserIdNotIn.includes(taskCreatedByUserId)
+    ) {
+      return false;
+    }
+    if (
+      filters.workflowStatusIdIn?.length &&
+      !filters.workflowStatusIdIn.includes(task.workflowStatusId)
+    ) {
+      return false;
+    }
+    if (
+      filters.workflowStatusIdNotIn?.length &&
+      filters.workflowStatusIdNotIn.includes(task.workflowStatusId)
+    ) {
+      return false;
+    }
+    if (filters.taskStateIn?.length && !filters.taskStateIn.includes(task.taskState)) return false;
+    if (filters.taskStateNotIn?.length && filters.taskStateNotIn.includes(task.taskState))
+      return false;
 
     if (!executionCycle) return true;
 

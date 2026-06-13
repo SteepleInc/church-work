@@ -22,6 +22,10 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { useAtom } from "jotai";
 
+import { taskFiltersToCollectionFilters } from "@/components/tasks/task-filters";
+import { FilterKeys } from "@/shared/global-state";
+import { useFiltersValue } from "@/shared/hooks/useFilters";
+
 import { Skeleton } from "@/components/ui/skeleton";
 import { TaskInsightsPanel } from "@/components/tasks/task-insights-panel";
 import {
@@ -83,7 +87,6 @@ export function TaskExecutionSurface({
   onInsightsChange,
   onToggleLayout,
   onOpenDisplayOptions,
-  onOpenFilter,
   onOpenShortcutsHelp,
 }: {
   readonly churchId: string;
@@ -101,7 +104,6 @@ export function TaskExecutionSurface({
   // Surface-level keyboard shortcut targets, owned by the route.
   readonly onToggleLayout?: () => void;
   readonly onOpenDisplayOptions?: () => void;
-  readonly onOpenFilter?: () => void;
   readonly onOpenShortcutsHelp?: () => void;
 }) {
   const today = new Date().toISOString().slice(0, 10);
@@ -145,6 +147,9 @@ export function TaskExecutionSurface({
         : []
       : activeWorkflowStatuses;
   const resolvedView = resolveTaskViewOptions(view);
+  // Ad-hoc Board filters (FilterKeys.Tasks) combine with the surface/tab scope
+  // as additional ANDed constraints (see task-filters.tsx).
+  const adHocFilters = useFiltersValue(FilterKeys.Tasks);
   const taskReadArgs = getTaskExecutionReadArgs({
     churchId,
     currentUserId,
@@ -153,15 +158,18 @@ export function TaskExecutionSurface({
     cycleId: currentCycle?.id ?? null,
   });
   const taskFilters: TaskCollectionFilters | undefined = taskReadArgs
-    ? getTaskExecutionFilters({
-        surface,
-        teamId: team?.id ?? null,
-        cycleId: taskReadArgs.cycleId,
-        currentUserId,
-        tab,
-        showSubtasks: resolvedView.showSubtasks,
-        ordering: resolvedView.ordering,
-      })
+    ? {
+        ...getTaskExecutionFilters({
+          surface,
+          teamId: team?.id ?? null,
+          cycleId: taskReadArgs.cycleId,
+          currentUserId,
+          tab,
+          showSubtasks: resolvedView.showSubtasks,
+          ordering: resolvedView.ordering,
+        }),
+        ...taskFiltersToCollectionFilters(adHocFilters),
+      }
     : undefined;
   const tasksCollection = useTasksCollection({
     churchId: !cyclesCollection.loading && taskReadArgs !== null ? churchId : null,
@@ -276,7 +284,6 @@ export function TaskExecutionSurface({
   const keyboardActions: TaskSurfaceKeyboardActions = {
     onToggleLayout,
     onOpenDisplayOptions,
-    onOpenFilter,
     onOpenShortcutsHelp,
     // Cmd/Ctrl+A selects every non-canceled Task currently shown.
     getSelectAllIds: () =>

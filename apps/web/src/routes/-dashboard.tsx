@@ -56,8 +56,12 @@ import {
   toInsightsSearchValue,
   type ResolvedInsightsState,
 } from "@/components/tasks/task-insights-options";
+import { useTaskFilterFields } from "@/components/tasks/task-filters";
 import { TaskShortcutsHelp } from "@/components/tasks/task-shortcuts-help";
 import { TaskViewTopBar } from "@/components/tasks/task-view-top-bar";
+import type { ColumnConfig } from "@/components/data-table-filter/core/types";
+import { FilterKeys } from "@/shared/global-state";
+import { useFilters } from "@/shared/hooks/useFilters";
 import {
   getDefaultTaskViewTab,
   resolveTaskViewOptions,
@@ -162,10 +166,17 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
   const activeTab = resolveTaskViewTab(surface, search.tab);
   const activeView = resolveTaskViewOptions(search.view);
   const activeInsights = resolveInsightsState(search.insights);
+  const [taskFilters, setTaskFilters] = useFilters(FilterKeys.Tasks);
+  const taskFilterFields = useTaskFilterFields({
+    churchId: showTopBar ? (activeChurch?.id ?? null) : null,
+    surface,
+    teamId: selectedTeam?.id ?? null,
+    tab: activeTab,
+  });
 
-  // Imperative openers the keyboard layer triggers; populated by the top bar.
+  // Imperative opener the keyboard layer triggers for Shift+V; populated by the
+  // top bar. (Filter's `F` is handled natively by the reUI Filters menu.)
   const openDisplayOptionsRef = useRef<(() => void) | null>(null);
-  const openFilterRef = useRef<(() => void) | null>(null);
   const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
 
   useEffect(() => {
@@ -229,9 +240,11 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
           view={activeView}
           onViewChange={setView}
           openDisplayOptionsRef={openDisplayOptionsRef}
-          openFilterRef={openFilterRef}
           insightsOpen={activeInsights.open}
           onToggleInsights={() => setInsights({ ...activeInsights, open: !activeInsights.open })}
+          filterFields={taskFilterFields as ReadonlyArray<ColumnConfig<unknown>>}
+          filters={taskFilters}
+          onFiltersChange={setTaskFilters}
           onCreateTask={() =>
             openCreateTask({
               assignTo: activePanel === "my_work" ? currentUserId : null,
@@ -277,7 +290,6 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
           onInsightsChange={setInsights}
           onToggleLayout={toggleLayout}
           onOpenDisplayOptions={() => openDisplayOptionsRef.current?.()}
-          onOpenFilter={() => openFilterRef.current?.()}
           onOpenShortcutsHelp={() => setShortcutsHelpOpen(true)}
         />
       ) : (

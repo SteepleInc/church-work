@@ -599,6 +599,36 @@ export const mcpListTasks = query({
     orderBy: v.optional(v.union(v.literal("created"), v.literal("due_date"))),
     taskId: v.optional(v.string()),
     taskIdentifier: v.optional(v.string()),
+    // Ad-hoc Board filters: multi-value include/exclude per field. User-id
+    // lists allow null to represent Unassigned.
+    teamIdIn: v.optional(v.array(v.string())),
+    teamIdNotIn: v.optional(v.array(v.string())),
+    assignedUserIdIn: v.optional(v.array(v.union(v.string(), v.null()))),
+    assignedUserIdNotIn: v.optional(v.array(v.union(v.string(), v.null()))),
+    createdByUserIdIn: v.optional(v.array(v.union(v.string(), v.null()))),
+    createdByUserIdNotIn: v.optional(v.array(v.union(v.string(), v.null()))),
+    workflowStatusIdIn: v.optional(v.array(v.string())),
+    workflowStatusIdNotIn: v.optional(v.array(v.string())),
+    taskStateIn: v.optional(
+      v.array(
+        v.union(
+          v.literal("todo"),
+          v.literal("in_progress"),
+          v.literal("done"),
+          v.literal("canceled"),
+        ),
+      ),
+    ),
+    taskStateNotIn: v.optional(
+      v.array(
+        v.union(
+          v.literal("todo"),
+          v.literal("in_progress"),
+          v.literal("done"),
+          v.literal("canceled"),
+        ),
+      ),
+    ),
   },
   handler: async (ctx, args) =>
     withConvexTelemetry(
@@ -643,6 +673,16 @@ export const mcpListTasks = query({
           taskStates?: ReadonlyArray<"todo" | "in_progress" | "done" | "canceled">;
           excludeSubtasks?: boolean;
           orderBy?: "created" | "due_date";
+          teamIdIn?: ReadonlyArray<string>;
+          teamIdNotIn?: ReadonlyArray<string>;
+          assignedUserIdIn?: ReadonlyArray<string | null>;
+          assignedUserIdNotIn?: ReadonlyArray<string | null>;
+          createdByUserIdIn?: ReadonlyArray<string | null>;
+          createdByUserIdNotIn?: ReadonlyArray<string | null>;
+          workflowStatusIdIn?: ReadonlyArray<string>;
+          workflowStatusIdNotIn?: ReadonlyArray<string>;
+          taskStateIn?: ReadonlyArray<"todo" | "in_progress" | "done" | "canceled">;
+          taskStateNotIn?: ReadonlyArray<"todo" | "in_progress" | "done" | "canceled">;
         } = { currentUserId: args.actorUserId };
         if (args.surface !== undefined) filters.surface = args.surface;
         if (args.cycleId !== undefined) filters.cycleId = args.cycleId;
@@ -667,6 +707,25 @@ export const mcpListTasks = query({
         if (args.taskStates !== undefined) filters.taskStates = args.taskStates;
         if (args.excludeSubtasks !== undefined) filters.excludeSubtasks = args.excludeSubtasks;
         if (args.orderBy !== undefined) filters.orderBy = args.orderBy;
+        if (args.teamIdIn !== undefined) filters.teamIdIn = args.teamIdIn;
+        if (args.teamIdNotIn !== undefined) filters.teamIdNotIn = args.teamIdNotIn;
+        if (args.assignedUserIdIn !== undefined) filters.assignedUserIdIn = args.assignedUserIdIn;
+        if (args.assignedUserIdNotIn !== undefined) {
+          filters.assignedUserIdNotIn = args.assignedUserIdNotIn;
+        }
+        if (args.createdByUserIdIn !== undefined)
+          filters.createdByUserIdIn = args.createdByUserIdIn;
+        if (args.createdByUserIdNotIn !== undefined) {
+          filters.createdByUserIdNotIn = args.createdByUserIdNotIn;
+        }
+        if (args.workflowStatusIdIn !== undefined) {
+          filters.workflowStatusIdIn = args.workflowStatusIdIn;
+        }
+        if (args.workflowStatusIdNotIn !== undefined) {
+          filters.workflowStatusIdNotIn = args.workflowStatusIdNotIn;
+        }
+        if (args.taskStateIn !== undefined) filters.taskStateIn = args.taskStateIn;
+        if (args.taskStateNotIn !== undefined) filters.taskStateNotIn = args.taskStateNotIn;
 
         const model = await readTaskModel(ctx, args.churchId, filters);
 

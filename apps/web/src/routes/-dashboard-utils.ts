@@ -13,6 +13,7 @@ export const DashboardSearchSchema = Schema.Struct({
   "details-pane": lenientSearchField(DetailsPaneParams),
   [FilterKeys.Orgs]: lenientSearchField(FilterStateValueSchema),
   [FilterKeys.Users]: lenientSearchField(FilterStateValueSchema),
+  [FilterKeys.Tasks]: lenientSearchField(FilterStateValueSchema),
 });
 
 /**

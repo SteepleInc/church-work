@@ -59,13 +59,13 @@ const EMPTY_SELECTION: ReadonlySet<string> = new Set();
 
 /**
  * Surface-level callbacks the keyboard layer needs but that live on the
- * orchestrator (view options, layout, filter entry, help overlay). Passed to
- * the provider so the global handler can fire them.
+ * orchestrator (view options, layout, help overlay). Passed to the provider so
+ * the global handler can fire them. The Filter `F` shortcut is owned natively
+ * by the reUI Filters menu, so it is intentionally not handled here.
  */
 export type TaskSurfaceKeyboardActions = {
   readonly onToggleLayout?: () => void;
   readonly onOpenDisplayOptions?: () => void;
-  readonly onOpenFilter?: () => void;
   // Returns the ids to select for Cmd/Ctrl+A (every non-canceled Task shown).
   readonly getSelectAllIds?: () => readonly string[];
   readonly onOpenShortcutsHelp?: () => void;
@@ -209,11 +209,6 @@ export function TaskSurfaceKeyboardProvider({
       if (!event.altKey && (key === "v" || key === "V") && event.shiftKey) {
         event.preventDefault();
         actionsRef.current.onOpenDisplayOptions?.();
-        return;
-      }
-      if (!event.altKey && !event.shiftKey && (key === "f" || key === "F")) {
-        event.preventDefault();
-        actionsRef.current.onOpenFilter?.();
         return;
       }
 
