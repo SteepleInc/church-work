@@ -11,6 +11,14 @@ import {
 } from "react";
 
 import { isEditableTarget } from "./task-kanban-board-utils";
+import {
+  nextFocusIndex,
+  resolveSurfaceShortcut,
+  selectionRange,
+  type TaskShortcutField,
+} from "./task-surface-keyboard-utils";
+
+export type { TaskShortcutField } from "./task-surface-keyboard-utils";
 
 /**
  * Shared keyboard-cursor layer for the Task surfaces (Board + List).
@@ -33,8 +41,6 @@ import { isEditableTarget } from "./task-kanban-board-utils";
  * Both surfaces read {@link useTaskSurfaceKeyboard} to highlight the focused
  * row and reflect selection.
  */
-
-export type TaskShortcutField = "status" | "assignee" | "priority" | "labels" | "estimate";
 
 type TaskShortcutHandlers = {
   readonly open?: () => void;
@@ -140,25 +146,15 @@ export function TaskSurfaceKeyboardProvider({
   const moveFocus = useCallback(
     (direction: 1 | -1, extendSelection: boolean) => {
       const order = orderRef.current;
-      if (order.length === 0) return;
       const current = focusedTaskIdRef.current;
-      const currentIndex = current ? order.indexOf(current) : -1;
-      const nextIndex =
-        currentIndex < 0
-          ? direction === 1
-            ? 0
-            : order.length - 1
-          : Math.min(order.length - 1, Math.max(0, currentIndex + direction));
-      const nextId = order[nextIndex];
+      const nextIndex = nextFocusIndex(order, current, direction);
+      const nextId = nextIndex >= 0 ? order[nextIndex] : undefined;
       if (!nextId) return;
 
       if (extendSelection) {
         // Linear's Shift+Arrow grows a contiguous range from the anchor.
         if (anchorRef.current === null) anchorRef.current = current ?? nextId;
-        const anchorIndex = order.indexOf(anchorRef.current);
-        const [lo, hi] =
-          anchorIndex <= nextIndex ? [anchorIndex, nextIndex] : [nextIndex, anchorIndex];
-        setSelection(new Set(order.slice(lo, hi + 1)));
+        setSelection(new Set(selectionRange(order, anchorRef.current, nextId)));
       }
       setFocusedTaskId(nextId);
     },
@@ -167,111 +163,72 @@ export function TaskSurfaceKeyboardProvider({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.repeat && event.key !== "ArrowDown" && event.key !== "ArrowUp") {
-        // Allow held arrows to repeat navigation, but not letter shortcuts.
-      }
       if (isEditableTarget(event.target)) return;
 
-      const key = event.key;
-      const mod = event.metaKey || event.ctrlKey;
+      const focusedId = focusedTaskIdRef.current;
+      const intent = resolveSurfaceShortcut(event, focusedId !== null);
 
-      // --- Surface-level shortcuts (no cursor required) --------------------
-      if (mod && (key === "/" || key === "?")) {
-        event.preventDefault();
-        actionsRef.current.onOpenShortcutsHelp?.();
-        return;
-      }
-      if (mod && (key === "b" || key === "B")) {
-        // Linear: Cmd/Ctrl+B toggles Board/List layout.
-        event.preventDefault();
-        actionsRef.current.onToggleLayout?.();
-        return;
-      }
-      if (mod && (key === "a" || key === "A")) {
-        const getSelectAllIds = actionsRef.current.getSelectAllIds;
-        if (getSelectAllIds) {
+      switch (intent.kind) {
+        case "none":
+          return;
+        case "open-help":
+          event.preventDefault();
+          actionsRef.current.onOpenShortcutsHelp?.();
+          return;
+        case "toggle-layout":
+          event.preventDefault();
+          actionsRef.current.onToggleLayout?.();
+          return;
+        case "select-all": {
+          const getSelectAllIds = actionsRef.current.getSelectAllIds;
+          if (!getSelectAllIds) return;
           event.preventDefault();
           setSelection(new Set(getSelectAllIds()));
           anchorRef.current = orderRef.current[0] ?? null;
+          return;
         }
-        return;
-      }
-      if (mod) return; // leave other Cmd/Ctrl combos to the browser/app.
-
-      if (key === "Escape") {
-        if (selectedRef.current.size > 0) {
+        case "clear-selection":
+          if (selectedRef.current.size > 0) {
+            event.preventDefault();
+            clearSelection();
+          }
+          return;
+        case "open-display-options":
           event.preventDefault();
-          clearSelection();
+          actionsRef.current.onOpenDisplayOptions?.();
+          return;
+        case "move":
+          event.preventDefault();
+          moveFocus(intent.direction, intent.extend);
+          return;
+        case "open-task": {
+          const handlers = focusedId ? handlersRef.current.get(focusedId) : undefined;
+          if (handlers?.open) {
+            event.preventDefault();
+            handlers.open();
+          }
+          return;
         }
-        return;
-      }
-
-      if (!event.altKey && (key === "v" || key === "V") && event.shiftKey) {
-        event.preventDefault();
-        actionsRef.current.onOpenDisplayOptions?.();
-        return;
-      }
-
-      // --- Navigation -----------------------------------------------------
-      // Alt+Shift+Arrow is the manual-reorder shortcut, handled by the Board;
-      // leave it alone here.
-      if (event.altKey) return;
-      if (key === "ArrowDown" || (key === "j" && !event.shiftKey)) {
-        event.preventDefault();
-        moveFocus(1, event.shiftKey);
-        return;
-      }
-      if (key === "ArrowUp" || (key === "k" && !event.shiftKey)) {
-        event.preventDefault();
-        moveFocus(-1, event.shiftKey);
-        return;
-      }
-      if (event.shiftKey && key === "J") {
-        event.preventDefault();
-        moveFocus(1, true);
-        return;
-      }
-      if (event.shiftKey && key === "K") {
-        event.preventDefault();
-        moveFocus(-1, true);
-        return;
-      }
-
-      // --- Per-task actions (require a focused cursor) ---------------------
-      const focusedId = focusedTaskIdRef.current;
-      if (!focusedId) return;
-      const handlers = handlersRef.current.get(focusedId);
-      if (!handlers) return;
-
-      // Open parent issue: Cmd+Shift+Up is handled above (mod). Plain `o` then
-      // `i` is the Linear chord, but we keep the simpler Enter/`o` to open.
-      if (key === "Enter" || (key === "o" && !event.shiftKey && !event.altKey)) {
-        if (handlers.open) {
+        case "toggle-select":
+          if (!focusedId) return;
           event.preventDefault();
-          handlers.open();
-        }
-        return;
-      }
-
-      if (key === "x" || key === "X") {
-        event.preventDefault();
-        toggleSelected(focusedId);
-        return;
-      }
-
-      const pickerKey = matchFieldKey(event);
-      if (pickerKey) {
-        const opener = handlers.pickers[pickerKey]?.current;
-        if (opener) {
-          event.preventDefault();
-          opener();
+          toggleSelected(focusedId);
+          return;
+        case "field": {
+          const handlers = focusedId ? handlersRef.current.get(focusedId) : undefined;
+          const opener = handlers?.pickers[intent.field]?.current;
+          if (opener) {
+            event.preventDefault();
+            opener();
+          }
+          return;
         }
       }
     };
 
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [clearSelection, moveFocus, toggleSelected]);
+  }, [clearSelection, moveFocus, toggleSelected, setSelection]);
 
   const value = useMemo<TaskSurfaceKeyboardContextValue>(
     () => ({
@@ -301,23 +258,6 @@ export function TaskSurfaceKeyboardProvider({
       {children}
     </TaskSurfaceKeyboardContext.Provider>
   );
-}
-
-// Maps a bare keystroke to the card field it opens (mirrors the previous
-// hover-scoped bindings: S status, A assignee, P priority, L labels, Shift+E
-// estimate).
-function matchFieldKey(
-  event: Pick<KeyboardEvent, "key" | "shiftKey" | "altKey">,
-): TaskShortcutField | null {
-  if (event.altKey) return null;
-  const key = event.key.toLowerCase();
-  if (key === "e" && event.shiftKey) return "estimate";
-  if (event.shiftKey) return null;
-  if (key === "s") return "status";
-  if (key === "a") return "assignee";
-  if (key === "p") return "priority";
-  if (key === "l") return "labels";
-  return null;
 }
 
 export function useTaskSurfaceKeyboard(): TaskSurfaceKeyboardContextValue | null {
