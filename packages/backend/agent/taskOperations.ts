@@ -11,6 +11,7 @@ const TaskCreateInput = Schema.Struct({
   // creation date.
   dueDate: Schema.Union(Schema.String, Schema.Null),
   parentTaskId: Schema.Union(Schema.String, Schema.Null),
+  labelIds: Schema.optional(Schema.Array(Schema.String)),
   // Null or absent means "no estimate".
   estimate: Schema.optional(Schema.Union(TaskEstimateSchema, Schema.Null)),
 });
@@ -29,6 +30,7 @@ const TaskUpdateFields = Schema.Struct({
   cycleId: Schema.optional(Schema.String),
   parentTaskId: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
   boardOrder: Schema.optional(Schema.String),
+  labelIds: Schema.optional(Schema.Array(Schema.String)),
   estimate: Schema.optional(Schema.Union(TaskEstimateSchema, Schema.Null)),
 });
 
@@ -102,6 +104,8 @@ export const TaskErrorResponse = Schema.Struct({
       Schema.Literal("workflow_status_not_found"),
       Schema.Literal("workflow_status_not_in_effective_workflow"),
       Schema.Literal("parent_task_not_found"),
+      Schema.Literal("label_not_found"),
+      Schema.Literal("label_not_in_team_scope"),
       Schema.Literal("task_not_found"),
       Schema.Literal("team_not_found"),
       Schema.Literal("team_workflow_not_configured"),

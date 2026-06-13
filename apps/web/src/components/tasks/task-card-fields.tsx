@@ -1,3 +1,4 @@
+import { getLabelColorForName, isLabelColor, type LabelColor } from "@church-task/domain/Label";
 import {
   Ban,
   Check,
@@ -7,6 +8,7 @@ import {
   CircleDot,
   CircleUserRound,
   LoaderCircle,
+  Plus,
   SignalHigh,
   SignalLow,
   SignalMedium,
@@ -115,29 +117,37 @@ export function estimateValues(): readonly TaskEstimate[] {
   return ESTIMATE_OPTIONS.map((option) => option.value);
 }
 
-// --- Labels (stubbed: local-only, no backend yet) ----------------------------
+// --- Labels -------------------------------------------------------------------
 
-export type TaskLabelMeta = {
-  readonly value: string;
-  readonly label: string;
-  // Tailwind background class for the label's colored dot.
-  readonly dotClassName: string;
+/** A Church Label as the pickers and badges consume it. */
+export type TaskLabelOption = {
+  readonly id: string;
+  readonly name: string;
+  // Label Color token from the fixed product palette (see CONTEXT.md).
+  readonly color: string;
 };
 
-// Starter label set for church work. Labels are UI-only until the data model
-// grows a labels concept; the picker reads from this list.
-export const TASK_LABEL_OPTIONS: readonly TaskLabelMeta[] = [
-  { value: "worship", label: "Worship", dotClassName: "bg-purple-500" },
-  { value: "kids_youth", label: "Kids & Youth", dotClassName: "bg-orange-500" },
-  { value: "outreach", label: "Outreach", dotClassName: "bg-green-500" },
-  { value: "events", label: "Events", dotClassName: "bg-blue-500" },
-  { value: "facilities", label: "Facilities", dotClassName: "bg-amber-500" },
-  { value: "communications", label: "Communications", dotClassName: "bg-pink-500" },
-  { value: "admin", label: "Admin", dotClassName: "bg-gray-500" },
-];
+// Label Color token -> Tailwind dot class. Tokens come from LABEL_COLORS in
+// @church-task/domain; Tailwind needs literal class strings, so the mapping
+// lives here on the web side (same pattern as TeamAvatar).
+const LABEL_COLOR_DOT_CLASSES: Record<LabelColor, string> = {
+  red: "bg-red-500",
+  orange: "bg-orange-500",
+  amber: "bg-amber-500",
+  emerald: "bg-emerald-500",
+  teal: "bg-teal-500",
+  blue: "bg-blue-500",
+  violet: "bg-violet-500",
+  pink: "bg-pink-500",
+};
 
-export function getTaskLabelMeta(value: string): TaskLabelMeta | null {
-  return TASK_LABEL_OPTIONS.find((option) => option.value === value) ?? null;
+/** Resolves a Label's colored-dot class, falling back to the name-derived color. */
+export function labelDotClassName(option: {
+  readonly name: string;
+  readonly color: string;
+}): string {
+  const resolved = isLabelColor(option.color) ? option.color : getLabelColorForName(option.name);
+  return LABEL_COLOR_DOT_CLASSES[resolved];
 }
 
 // --- Created-at formatting --------------------------------------------------
@@ -974,7 +984,12 @@ export function EstimateComboboxSelector({
 
 type LabelsComboboxSelectorProps = {
   readonly value: readonly string[];
+  readonly options: readonly TaskLabelOption[];
   readonly onValueChange: (value: readonly string[]) => void;
+  // Inline label creation (Linear-style "Create label" row). Omitting it hides
+  // the create row. The handler creates the Label and appends its id to the
+  // selection once the id exists.
+  readonly onCreateLabel?: (name: string) => void;
   readonly trigger: ReactNode;
   readonly disabled?: boolean;
   // Populated by the parent so an "L" hover/dialog shortcut can open the
@@ -982,20 +997,39 @@ type LabelsComboboxSelectorProps = {
   readonly openRef?: MutableRefObject<(() => void) | null>;
 };
 
+// Sentinel item that renders the "Create label" row. Its display label mirrors
+// the query so Base UI's filter always keeps it visible.
+const CREATE_LABEL_ITEM = "__create-label__";
+
 /**
  * Linear-style labels picker. A multi-select list of labels with a leading
  * colored dot and a check on every selected row; the popup stays open across
- * selections. Pressing "L" on the trigger opens the picker.
+ * selections. Pressing "L" on the trigger opens the picker. When the query
+ * matches no existing label exactly, a "Create label" row appears.
  */
 export function LabelsComboboxSelector({
   value,
+  options,
   onValueChange,
+  onCreateLabel,
   trigger,
   disabled = false,
   openRef,
 }: LabelsComboboxSelectorProps) {
-  const items = useMemo(() => TASK_LABEL_OPTIONS.map((option) => option.value), []);
-  const labelFor = (candidate: string) => getTaskLabelMeta(candidate)?.label ?? candidate;
+  const [query, setQuery] = useState("");
+  const trimmedQuery = query.trim();
+  const canCreate =
+    onCreateLabel !== undefined &&
+    trimmedQuery !== "" &&
+    !options.some((option) => option.name.trim().toLowerCase() === trimmedQuery.toLowerCase());
+  const items = useMemo(() => {
+    const ids = options.map((option) => option.id);
+    return canCreate ? [...ids, CREATE_LABEL_ITEM] : ids;
+  }, [options, canCreate]);
+  const labelFor = (candidate: string) => {
+    if (candidate === CREATE_LABEL_ITEM) return query;
+    return options.find((option) => option.id === candidate)?.name ?? candidate;
+  };
   const [open, setOpen] = usePickerOpener(openRef, disabled);
 
   return (
@@ -1004,8 +1038,20 @@ export function LabelsComboboxSelector({
       items={items}
       itemToStringLabel={labelFor}
       multiple
-      onOpenChange={setOpen}
-      onValueChange={(next) => onValueChange(next ?? [])}
+      onInputValueChange={setQuery}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setQuery("");
+      }}
+      onValueChange={(next) => {
+        const selected = next ?? [];
+        if (selected.includes(CREATE_LABEL_ITEM)) {
+          if (canCreate) onCreateLabel(trimmedQuery);
+          onValueChange(selected.filter((candidate) => candidate !== CREATE_LABEL_ITEM));
+          return;
+        }
+        onValueChange(selected);
+      }}
       open={open}
       value={value as string[]}
     >
@@ -1043,19 +1089,27 @@ export function LabelsComboboxSelector({
               <PickerHeader placeholder="Add labels..." shortcut="L" />
               <ComboboxEmpty>No labels.</ComboboxEmpty>
               <ComboboxList>
-                {TASK_LABEL_OPTIONS.map((option) => (
+                {options.map((option) => (
                   <ShortcutComboboxItem
-                    key={option.value}
-                    selected={value.includes(option.value)}
+                    key={option.id}
+                    selected={value.includes(option.id)}
                     shortcut={null}
-                    value={option.value}
+                    value={option.id}
                   >
                     <span className="flex size-4 shrink-0 items-center justify-center">
-                      <span className={cn("size-2.5 rounded-full", option.dotClassName)} />
+                      <span className={cn("size-2.5 rounded-full", labelDotClassName(option))} />
                     </span>
-                    <span className="truncate">{option.label}</span>
+                    <span className="truncate">{option.name}</span>
                   </ShortcutComboboxItem>
                 ))}
+                {canCreate ? (
+                  <ShortcutComboboxItem selected={false} shortcut={null} value={CREATE_LABEL_ITEM}>
+                    <span className="flex size-4 shrink-0 items-center justify-center">
+                      <Plus className="size-3.5" />
+                    </span>
+                    <span className="truncate">Create label "{trimmedQuery}"</span>
+                  </ShortcutComboboxItem>
+                ) : null}
               </ComboboxList>
             </ComboboxPrimitive.Popup>
           </span>

@@ -17,6 +17,7 @@ const baseTask: OptimisticTask = {
   dueDate: "2026-01-01",
   cycleId: "cycle-1",
   parentTaskId: null,
+  labelIds: [],
   estimate: null,
 };
 

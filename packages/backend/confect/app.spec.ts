@@ -32,6 +32,14 @@ import {
   KeyDateWriteResponse,
 } from "../agent/keyDateOperations";
 import {
+  LabelCreateArgs,
+  LabelDeleteArgs,
+  LabelListArgs,
+  LabelReadResponse,
+  LabelUpdateArgs,
+  LabelWriteResponse,
+} from "../agent/labelOperations";
+import {
   ActiveChurchArgs,
   ActiveChurchResponse,
   BatchReadArgs,
@@ -229,6 +237,38 @@ export const activities = GroupSpec.make("activities")
       name: "listForEntity",
       args: ListActivitiesForEntityArgs,
       returns: ListActivitiesForEntityResponse,
+    }),
+  );
+
+// Labels are open to every Church member — create, rename, recolor, and
+// delete are deliberately not role-gated (see CONTEXT.md "Label").
+export const labels = GroupSpec.make("labels")
+  .addFunction(
+    FunctionSpec.publicQuery({
+      name: "listForChurch",
+      args: LabelListArgs,
+      returns: LabelReadResponse,
+    }),
+  )
+  .addFunction(
+    FunctionSpec.publicMutation({
+      name: "createForChurch",
+      args: LabelCreateArgs,
+      returns: LabelWriteResponse,
+    }),
+  )
+  .addFunction(
+    FunctionSpec.publicMutation({
+      name: "updateForChurch",
+      args: LabelUpdateArgs,
+      returns: LabelWriteResponse,
+    }),
+  )
+  .addFunction(
+    FunctionSpec.publicMutation({
+      name: "deleteForChurch",
+      args: LabelDeleteArgs,
+      returns: LabelWriteResponse,
     }),
   );
 

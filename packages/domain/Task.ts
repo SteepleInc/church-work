@@ -23,6 +23,10 @@ export const TaskTableFieldsSchema = Schema.Struct({
   // written before the field existed; Template projection writes null.
   createdByUserId: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
   parentTaskId: Schema.Union(Schema.String, Schema.Null),
+  // Labels attached to the Task as an id array (see
+  // docs/adr/0013-task-labels-as-id-array-with-hard-deleted-labels.md).
+  // Optional because pre-existing Tasks were written before the field existed.
+  labelIds: Schema.optional(Schema.Array(Schema.String)),
   workflowId: Schema.String,
   workflowStatusId: Schema.String,
   taskState: TaskStatusSchema,
@@ -53,6 +57,7 @@ export const TaskSchema = Schema.Struct({
   createdAt: Schema.Number,
   createdByUserId: Schema.Union(Schema.String, Schema.Null),
   parentTaskId: Schema.Union(Schema.String, Schema.Null),
+  labelIds: Schema.Array(Schema.String),
   workflowId: Schema.String,
   workflowStatusId: Schema.String,
   taskState: TaskStatusSchema,

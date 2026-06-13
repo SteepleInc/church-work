@@ -25,6 +25,7 @@ import { Route as OrgTeamTeamIdRouteImport } from './routes/_org/team.$teamId'
 import { Route as OrgSettingsTeamRouteImport } from './routes/_org/settings.team'
 import { Route as OrgSettingsProfileRouteImport } from './routes/_org/settings.profile'
 import { Route as OrgSettingsOrgRouteImport } from './routes/_org/settings.org'
+import { Route as OrgSettingsLabelsRouteImport } from './routes/_org/settings.labels'
 import { Route as OrgDevSessionRouteImport } from './routes/_org/dev.session'
 import { Route as OrgDevDataRouteImport } from './routes/_org/dev.data'
 import { Route as OrgAdminUsersRouteImport } from './routes/_org/admin.users'
@@ -108,6 +109,11 @@ const OrgSettingsOrgRoute = OrgSettingsOrgRouteImport.update({
   path: '/org',
   getParentRoute: () => OrgSettingsRoute,
 } as any)
+const OrgSettingsLabelsRoute = OrgSettingsLabelsRouteImport.update({
+  id: '/labels',
+  path: '/labels',
+  getParentRoute: () => OrgSettingsRoute,
+} as any)
 const OrgDevSessionRoute = OrgDevSessionRouteImport.update({
   id: '/dev/session',
   path: '/dev/session',
@@ -153,6 +159,7 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof OrgAdminUsersRoute
   '/dev/data': typeof OrgDevDataRoute
   '/dev/session': typeof OrgDevSessionRoute
+  '/settings/labels': typeof OrgSettingsLabelsRoute
   '/settings/org': typeof OrgSettingsOrgRoute
   '/settings/profile': typeof OrgSettingsProfileRoute
   '/settings/team': typeof OrgSettingsTeamRouteWithChildren
@@ -173,6 +180,7 @@ export interface FileRoutesByTo {
   '/admin/users': typeof OrgAdminUsersRoute
   '/dev/data': typeof OrgDevDataRoute
   '/dev/session': typeof OrgDevSessionRoute
+  '/settings/labels': typeof OrgSettingsLabelsRoute
   '/settings/org': typeof OrgSettingsOrgRoute
   '/settings/profile': typeof OrgSettingsProfileRoute
   '/settings/team': typeof OrgSettingsTeamRouteWithChildren
@@ -198,6 +206,7 @@ export interface FileRoutesById {
   '/_org/admin/users': typeof OrgAdminUsersRoute
   '/_org/dev/data': typeof OrgDevDataRoute
   '/_org/dev/session': typeof OrgDevSessionRoute
+  '/_org/settings/labels': typeof OrgSettingsLabelsRoute
   '/_org/settings/org': typeof OrgSettingsOrgRoute
   '/_org/settings/profile': typeof OrgSettingsProfileRoute
   '/_org/settings/team': typeof OrgSettingsTeamRouteWithChildren
@@ -220,6 +229,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/dev/data'
     | '/dev/session'
+    | '/settings/labels'
     | '/settings/org'
     | '/settings/profile'
     | '/settings/team'
@@ -240,6 +250,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/dev/data'
     | '/dev/session'
+    | '/settings/labels'
     | '/settings/org'
     | '/settings/profile'
     | '/settings/team'
@@ -264,6 +275,7 @@ export interface FileRouteTypes {
     | '/_org/admin/users'
     | '/_org/dev/data'
     | '/_org/dev/session'
+    | '/_org/settings/labels'
     | '/_org/settings/org'
     | '/_org/settings/profile'
     | '/_org/settings/team'
@@ -392,6 +404,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OrgSettingsOrgRouteImport
       parentRoute: typeof OrgSettingsRoute
     }
+    '/_org/settings/labels': {
+      id: '/_org/settings/labels'
+      path: '/labels'
+      fullPath: '/settings/labels'
+      preLoaderRoute: typeof OrgSettingsLabelsRouteImport
+      parentRoute: typeof OrgSettingsRoute
+    }
     '/_org/dev/session': {
       id: '/_org/dev/session'
       path: '/dev/session'
@@ -504,12 +523,14 @@ const OrgSettingsTeamRouteWithChildren = OrgSettingsTeamRoute._addFileChildren(
 )
 
 interface OrgSettingsRouteChildren {
+  OrgSettingsLabelsRoute: typeof OrgSettingsLabelsRoute
   OrgSettingsOrgRoute: typeof OrgSettingsOrgRoute
   OrgSettingsProfileRoute: typeof OrgSettingsProfileRoute
   OrgSettingsTeamRoute: typeof OrgSettingsTeamRouteWithChildren
 }
 
 const OrgSettingsRouteChildren: OrgSettingsRouteChildren = {
+  OrgSettingsLabelsRoute: OrgSettingsLabelsRoute,
   OrgSettingsOrgRoute: OrgSettingsOrgRoute,
   OrgSettingsProfileRoute: OrgSettingsProfileRoute,
   OrgSettingsTeamRoute: OrgSettingsTeamRouteWithChildren,

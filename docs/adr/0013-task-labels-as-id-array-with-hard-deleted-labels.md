@@ -1,0 +1,7 @@
+# Task Labels as an id array, with hard-deleted Labels
+
+Labels attach to Tasks as a `labelIds: string[]` field on the `tasks` table rather than a `taskLabels` junction table. Every task read path is already bounded (index scan by church/cycle, then in-memory filtering per ADR 0007), so label filtering and rendering add zero new scan cost as an array check, while a junction table would add join reads to every board render and write amplification on every label toggle without making any planned query faster. Labels per task are small and bounded; tasks remain the scan dimension we already manage. If an unbounded reverse lookup ("all Tasks ever with label X") is ever needed, backfilling a junction or counts from the arrays is mechanical.
+
+Unlike Teams and Workflows (which soft-delete via `archivedAt`), Labels are **hard-deleted**, Linear-style: the label document is removed and its id is stripped from all Tasks in paginated batches. Labels are lightweight shared vocabulary, not records with history; keeping archived labels around would either pollute pickers or leave dangling ids that produce wrong label counts in the UI. Because the strip is batched, all "N labels" UI totals must be computed from resolved labels, not raw `labelIds` length.
+
+Scope rules (Church-scoped vs Team-scoped Labels, stripping of foreign Team Labels when a Task changes Teams, name uniqueness per scope) are enforced in the backend mutations only — never in the UI — so human and agent callers (ADR 0002) get identical behavior from a single enforcement point.

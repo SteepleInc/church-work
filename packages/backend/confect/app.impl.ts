@@ -22,6 +22,7 @@ import {
   type CoreWorkBatchWriteArgs,
 } from "../agent/coreWorkOperations";
 import { keyDateErrorResponse, keyDateResponse } from "../agent/keyDateOperations";
+import { labelErrorResponse, labelsResponse } from "../agent/labelOperations";
 import {
   activeChurchResponse,
   batchReadResponse,
@@ -51,6 +52,13 @@ import {
   readKeyDateModel,
   resolveKeyDateOccurrences,
 } from "../keyDateScheduling";
+import {
+  createLabelForChurch,
+  deleteLabelForChurch,
+  listLabelsForChurch,
+  serializeLabel,
+  updateLabelForChurch,
+} from "../labels";
 import { readDefaultWorkModel, seedDefaultWorkModel } from "../workDefaults";
 import {
   cancelTasks,
@@ -351,6 +359,7 @@ const serializeWorkDefaults = (data: Awaited<ReturnType<typeof readDefaultWorkMo
     schedule: keyDate.schedule,
     archivedAt: keyDate.archivedAt,
   })),
+  labels: data.labels.map(serializeLabel),
 });
 
 const serializeKeyDateModel = (
@@ -443,6 +452,7 @@ const serializeTaskModel = (data: Awaited<ReturnType<typeof readTaskModel>>) => 
     createdAt: task._creationTime,
     createdByUserId: task.createdByUserId ?? null,
     parentTaskId: task.parentTaskId,
+    labelIds: task.labelIds ?? [],
     workflowId: task.workflowId,
     workflowStatusId: task.workflowStatusId,
     taskState: task.taskState,
@@ -1180,6 +1190,189 @@ const workDefaultsReadForChurch = FunctionImpl.make(api, "workDefaults", "readFo
     );
 
     return workDefaultsResponse("readWorkDefaults", serializeWorkDefaults(defaults));
+  }),
+);
+
+// Labels are open to every Church member — deliberately not role-gated
+// (see CONTEXT.md "Label"). Scope rules live in the shared helpers so human
+// and agent callers behave identically (ADR 0013).
+const labelsListForChurch = FunctionImpl.make(api, "labels", "listForChurch", (args) =>
+  Effect.gen(function* () {
+    const ctx = yield* QueryCtx.QueryCtx<DataModel>();
+    const auth = yield* getAuthenticatedChurchMember(args.churchId);
+
+    if (auth.status === "notAuthenticated") {
+      return labelErrorResponse("listLabels", "not_authenticated", "Authentication is required.");
+    }
+    if (auth.status === "notChurchMember") {
+      return labelErrorResponse(
+        "listLabels",
+        "not_church_member",
+        "Church membership is required.",
+      );
+    }
+
+    const labels = yield* Effect.promise(() => listLabelsForChurch(ctx, args.churchId)).pipe(
+      Effect.orDie,
+    );
+
+    return labelsResponse("listLabels", labels.map(serializeLabel));
+  }),
+);
+
+const labelsCreateForChurch = FunctionImpl.make(api, "labels", "createForChurch", (args) =>
+  Effect.gen(function* () {
+    const ctx = yield* MutationCtx.MutationCtx<DataModel>();
+    const auth = yield* getAuthenticatedChurchMember(args.churchId).pipe(
+      Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
+    );
+
+    if (auth.status === "notAuthenticated") {
+      return labelErrorResponse("createLabel", "not_authenticated", "Authentication is required.");
+    }
+    if (auth.status === "notChurchMember") {
+      return labelErrorResponse(
+        "createLabel",
+        "not_church_member",
+        "Church membership is required.",
+      );
+    }
+
+    const teamId = args.teamId ?? null;
+    if (teamId !== null) {
+      const team = yield* findBetterAuthDoc<BetterAuthTeam>({
+        model: "team",
+        where: [
+          { field: "_id", value: teamId },
+          { field: "organizationId", value: args.churchId },
+        ],
+      }).pipe(Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx));
+
+      if (!team || team.archivedAt != null) {
+        return labelErrorResponse(
+          "createLabel",
+          "team_not_found",
+          "Team was not found in the active Church.",
+        );
+      }
+    }
+
+    const created = yield* Effect.promise(() =>
+      createLabelForChurch(ctx, {
+        churchId: args.churchId,
+        name: args.name,
+        teamId,
+        ...(args.color !== undefined ? { color: args.color } : {}),
+      }),
+    ).pipe(Effect.orDie);
+
+    if (!created.ok && created.code === "invalidLabelName") {
+      return labelErrorResponse("createLabel", "invalid_label_name", "Label name is required.");
+    }
+    if (!created.ok) {
+      return labelErrorResponse(
+        "createLabel",
+        "duplicate_label_name",
+        "A Label with that name already exists in this scope.",
+      );
+    }
+
+    const labels = yield* Effect.promise(() => listLabelsForChurch(ctx, args.churchId)).pipe(
+      Effect.orDie,
+    );
+
+    return labelsResponse("createLabel", labels.map(serializeLabel));
+  }),
+);
+
+const labelsUpdateForChurch = FunctionImpl.make(api, "labels", "updateForChurch", (args) =>
+  Effect.gen(function* () {
+    const ctx = yield* MutationCtx.MutationCtx<DataModel>();
+    const auth = yield* getAuthenticatedChurchMember(args.churchId).pipe(
+      Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
+    );
+
+    if (auth.status === "notAuthenticated") {
+      return labelErrorResponse("updateLabel", "not_authenticated", "Authentication is required.");
+    }
+    if (auth.status === "notChurchMember") {
+      return labelErrorResponse(
+        "updateLabel",
+        "not_church_member",
+        "Church membership is required.",
+      );
+    }
+
+    const updated = yield* Effect.promise(() =>
+      updateLabelForChurch(ctx, {
+        churchId: args.churchId,
+        labelId: args.labelId,
+        ...(args.name !== undefined ? { name: args.name } : {}),
+        ...(args.color !== undefined ? { color: args.color } : {}),
+      }),
+    ).pipe(Effect.orDie);
+
+    if (!updated.ok && updated.code === "labelNotFound") {
+      return labelErrorResponse(
+        "updateLabel",
+        "label_not_found",
+        "Label was not found in the active Church.",
+      );
+    }
+    if (!updated.ok && updated.code === "invalidLabelName") {
+      return labelErrorResponse("updateLabel", "invalid_label_name", "Label name is required.");
+    }
+    if (!updated.ok) {
+      return labelErrorResponse(
+        "updateLabel",
+        "duplicate_label_name",
+        "A Label with that name already exists in this scope.",
+      );
+    }
+
+    const labels = yield* Effect.promise(() => listLabelsForChurch(ctx, args.churchId)).pipe(
+      Effect.orDie,
+    );
+
+    return labelsResponse("updateLabel", labels.map(serializeLabel));
+  }),
+);
+
+const labelsDeleteForChurch = FunctionImpl.make(api, "labels", "deleteForChurch", (args) =>
+  Effect.gen(function* () {
+    const ctx = yield* MutationCtx.MutationCtx<DataModel>();
+    const auth = yield* getAuthenticatedChurchMember(args.churchId).pipe(
+      Effect.provideService(QueryCtx.QueryCtx<DataModel>(), ctx),
+    );
+
+    if (auth.status === "notAuthenticated") {
+      return labelErrorResponse("deleteLabel", "not_authenticated", "Authentication is required.");
+    }
+    if (auth.status === "notChurchMember") {
+      return labelErrorResponse(
+        "deleteLabel",
+        "not_church_member",
+        "Church membership is required.",
+      );
+    }
+
+    const deleted = yield* Effect.promise(() =>
+      deleteLabelForChurch(ctx, { churchId: args.churchId, labelId: args.labelId }),
+    ).pipe(Effect.orDie);
+
+    if (!deleted.ok) {
+      return labelErrorResponse(
+        "deleteLabel",
+        "label_not_found",
+        "Label was not found in the active Church.",
+      );
+    }
+
+    const labels = yield* Effect.promise(() => listLabelsForChurch(ctx, args.churchId)).pipe(
+      Effect.orDie,
+    );
+
+    return labelsResponse("deleteLabel", labels.map(serializeLabel));
   }),
 );
 
@@ -2270,6 +2463,20 @@ const tasksCreateBatch = FunctionImpl.make(api, "tasks", "createBatch", (args) =
         "Task Due Date must be a real Church-local date in YYYY-MM-DD format.",
       );
     }
+    if (!created.ok && created.code === "labelNotFound") {
+      return taskErrorResponse(
+        "createTasks",
+        "label_not_found",
+        "Label was not found in the active Church.",
+      );
+    }
+    if (!created.ok && created.code === "labelNotInTeamScope") {
+      return taskErrorResponse(
+        "createTasks",
+        "label_not_in_team_scope",
+        "Team Labels can only be applied to Tasks assigned to their Team.",
+      );
+    }
     if (!created.ok) {
       return yield* Effect.dieMessage("Unexpected Task creation result.");
     }
@@ -2479,6 +2686,20 @@ const tasksUpdateBatch = FunctionImpl.make(api, "tasks", "updateBatch", (args) =
         "updateTasks",
         "parent_task_not_found",
         "Parent Task was not found in the active Church.",
+      );
+    }
+    if (!updated.ok && updated.code === "labelNotFound") {
+      return taskErrorResponse(
+        "updateTasks",
+        "label_not_found",
+        "Label was not found in the active Church.",
+      );
+    }
+    if (!updated.ok && updated.code === "labelNotInTeamScope") {
+      return taskErrorResponse(
+        "updateTasks",
+        "label_not_in_team_scope",
+        "Team Labels can only be applied to Tasks assigned to their Team.",
       );
     }
     if (!updated.ok) {
@@ -3846,6 +4067,12 @@ export const keyDates = GroupImpl.make(api, "keyDates").pipe(
 export const activities = GroupImpl.make(api, "activities").pipe(
   Layer.provide(activitiesRecordForChurch),
   Layer.provide(activitiesListForEntity),
+);
+export const labels = GroupImpl.make(api, "labels").pipe(
+  Layer.provide(labelsListForChurch),
+  Layer.provide(labelsCreateForChurch),
+  Layer.provide(labelsUpdateForChurch),
+  Layer.provide(labelsDeleteForChurch),
 );
 export const teams = GroupImpl.make(api, "teams").pipe(
   Layer.provide(teamListForChurch),

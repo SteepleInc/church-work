@@ -1,3 +1,4 @@
+import { LabelSchema } from "@church-task/domain/Label";
 import { WorkflowSchema, WorkflowStatusSchema } from "@church-task/domain/Workflow";
 import { Schema } from "effect";
 
@@ -39,10 +40,13 @@ export const KeyDateSummary = Schema.Struct({
   archivedAt: Schema.Union(Schema.String, Schema.Null),
 });
 
+export const LabelSummary = LabelSchema;
+
 export const WorkDefaultsData = Schema.Struct({
   workflows: Schema.Array(WorkflowSummary),
   workflowStatuses: Schema.Array(WorkflowStatusSummary),
   keyDates: Schema.Array(KeyDateSummary),
+  labels: Schema.Array(LabelSummary),
 });
 
 export const WorkDefaultsResponse = Schema.Struct({

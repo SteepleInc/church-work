@@ -139,6 +139,7 @@ const taskUpdateFieldsValidator = v.object({
   cycleId: v.optional(v.string()),
   parentTaskId: v.optional(v.union(v.string(), v.null())),
   boardOrder: v.optional(v.string()),
+  labelIds: v.optional(v.array(v.string())),
   estimate: v.optional(v.union(taskEstimateValidator, v.null())),
 });
 
@@ -151,6 +152,7 @@ type McpTaskUpdateFields = {
   readonly cycleId?: string;
   readonly parentTaskId?: string | null;
   readonly boardOrder?: string;
+  readonly labelIds?: ReadonlyArray<string>;
   readonly estimate?: "xs" | "s" | "m" | "l" | "xl" | null;
 };
 
@@ -282,6 +284,11 @@ const UPDATE_FAILURE_MESSAGES = {
     "workflow_status_remap_failed",
     "Task Workflow Status could not be remapped for the destination Team.",
   ],
+  labelNotFound: ["label_not_found", "Label was not found in the active Church."],
+  labelNotInTeamScope: [
+    "label_not_in_team_scope",
+    "Team Labels can only be applied to Tasks assigned to their Team.",
+  ],
   invalidTaskTransition: [
     "invalid_task_transition",
     "Task cannot perform that transition from its current state.",
@@ -375,6 +382,7 @@ export const mcpCreateTask = mutation({
     workflowStatusId: v.string(),
     dueDate: v.optional(v.union(v.string(), v.null())),
     parentTaskId: v.optional(v.union(v.string(), v.null())),
+    labelIds: v.optional(v.array(v.string())),
     estimate: v.optional(v.union(taskEstimateValidator, v.null())),
   },
   handler: async (ctx, args) =>
@@ -427,6 +435,7 @@ export const mcpCreateTask = mutation({
               workflowStatusId: args.workflowStatusId,
               dueDate: args.dueDate ?? null,
               parentTaskId: args.parentTaskId ?? null,
+              labelIds: args.labelIds ?? [],
               estimate: args.estimate ?? null,
             },
           ],
@@ -451,6 +460,20 @@ export const mcpCreateTask = mutation({
             "createTasks",
             "invalid_due_date",
             "Task Due Date must be a real Church-local date in YYYY-MM-DD format.",
+          );
+        }
+        if (!created.ok && created.code === "labelNotFound") {
+          return taskErrorResponse(
+            "createTasks",
+            "label_not_found",
+            "Label was not found in the active Church.",
+          );
+        }
+        if (!created.ok && created.code === "labelNotInTeamScope") {
+          return taskErrorResponse(
+            "createTasks",
+            "label_not_in_team_scope",
+            "Team Labels can only be applied to Tasks assigned to their Team.",
           );
         }
         if (!created.ok) {

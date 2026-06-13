@@ -1,5 +1,6 @@
 import { useOpenTaskDetailsPaneUrl } from "@/components/details-pane/details-pane-helpers";
 import { useCyclesCollection } from "@/data/cycles/cyclesData.app";
+import { useLabelsCollection } from "@/data/labels/labelsData.app";
 import { useTeamMembershipsCollection } from "@/data/teams/teamsData.app";
 import {
   useTasksCollection,
@@ -90,6 +91,7 @@ export function TaskExecutionSurface({
   const workflowStatusesCollection = useWorkflowStatusesCollection({ churchId });
   const usersCollection = useChurchUsersCollection({ churchId });
   const teamMembershipsCollection = useTeamMembershipsCollection({ churchId });
+  const labelsCollection = useLabelsCollection({ churchId });
   const teamMemberIdsByTeamId = buildTeamMemberIndex(
     teamMembershipsCollection.teamMembershipsCollection,
   );
@@ -159,6 +161,7 @@ export function TaskExecutionSurface({
             label: getUserDisplayName(user),
           }))}
           teamOptions={teams}
+          labelOptions={labelsCollection.labelsCollection}
           currentUserId={currentUserId}
           teamMemberIdsByTeamId={teamMemberIdsByTeamId}
           grouping={resolvedView.grouping}
@@ -244,6 +247,14 @@ export function TaskExecutionSurface({
               fields: { workflowStatusId: change.workflowStatusId },
             });
           }}
+          onChangeTaskLabels={(change) => {
+            void updateTask({
+              churchId,
+              actorUserId: currentUserId,
+              taskId: change.taskId,
+              fields: { labelIds: [...change.labelIds] },
+            });
+          }}
           onChangeTaskEstimate={(change) => {
             void updateTask({
               churchId,
@@ -309,5 +320,6 @@ function toBoardTask(task: TaskSummary, tasks: readonly TaskSummary[]) {
     taskState: task.taskState,
     estimate: task.estimate ?? null,
     boardOrder: task.boardOrder,
+    labelIds: task.labelIds ?? [],
   };
 }

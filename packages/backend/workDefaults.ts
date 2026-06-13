@@ -1,8 +1,10 @@
+import { getLabelColorForName, normalizeLabelName } from "@church-task/domain/Label";
 import { getTeamColorForName } from "@church-task/domain/Team";
 import type { GenericDatabaseReader, GenericMutationCtx } from "convex/server";
 
 import { components } from "./convex/_generated/api";
 import type { DataModel } from "./convex/_generated/dataModel";
+import { listLabelsForChurch, STARTER_LABELS } from "./labels";
 
 type MutationCtx = GenericMutationCtx<DataModel>;
 
@@ -112,6 +114,24 @@ export async function seedDefaultWorkModel(ctx: MutationCtx, churchId: string) {
     }
   }
 
+  // Starter Labels (see CONTEXT.md): Church-scoped, seeded idempotently by
+  // case-insensitive name. The seed runs at Church creation (and as a manual
+  // one-time backfill for pre-existing Churches), so it never duplicates.
+  const existingLabels = await listLabelsForChurch(ctx, churchId);
+  const existingLabelNames = new Set(existingLabels.map((label) => normalizeLabelName(label.name)));
+
+  for (const name of STARTER_LABELS) {
+    if (!existingLabelNames.has(normalizeLabelName(name))) {
+      await ctx.db.insert("labels", {
+        churchId,
+        teamId: null,
+        name,
+        color: getLabelColorForName(name),
+      });
+      existingLabelNames.add(normalizeLabelName(name));
+    }
+  }
+
   const existingTeams = (await ctx.runQuery(components.betterAuth.adapter.findMany, {
     model: "team",
     where: [{ field: "organizationId", value: churchId }],
@@ -159,10 +179,12 @@ export async function readDefaultWorkModel(
     .query("keyDates")
     .withIndex("by_churchId", (q) => q.eq("churchId", churchId))
     .collect();
+  const labels = await listLabelsForChurch(ctx, churchId);
 
   return {
     workflows,
     workflowStatuses,
     keyDates,
+    labels,
   };
 }

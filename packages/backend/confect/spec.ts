@@ -9,6 +9,7 @@ import {
   cycleMaintenance,
   healthCheck,
   keyDates,
+  labels,
   privateData,
   tasks,
   templates,
@@ -26,6 +27,7 @@ export default Spec.make()
   .add(cycleMaintenance)
   .add(healthCheck)
   .add(keyDates)
+  .add(labels)
   .add(privateData)
   .add(tasks)
   .add(templates)

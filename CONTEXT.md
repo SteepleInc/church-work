@@ -170,6 +170,22 @@ _Avoid_: Rank, severity, using priority to mean Board position
 A per-Task effort size: No estimate, XS, S, M, L, or XL. Every Task, including a Subtask, has its own independent Estimate; a Subtask does not inherit its parent's Estimate, and a parent's Estimate never aggregates its Subtasks' Estimates. Template Tasks do not carry an Estimate.
 _Avoid_: Size, points, story points, rolling up or summing Estimates
 
+**Label**:
+A named, colored tag a Church defines and applies to Tasks to categorize work across Cycles, such as Worship, Outreach, or Facilities. A Label is scoped to the whole Church or to one Team; a Task may carry many Labels, and any User in the Church may create and manage Labels.
+_Avoid_: Tag, category
+
+**Team Label**:
+A Label scoped to one Team, applicable only to Tasks assigned to that Team. When a Task changes Teams, Team Labels foreign to the destination Team are removed; a Task with no Team carries only Church-scoped Labels.
+_Avoid_: Private label, team tag
+
+**Starter Labels**:
+The default Church-scoped Labels every new Church begins with: Worship, Kids & Youth, Outreach, Events, Facilities, Communications, and Admin. Starter Labels are seeded when the Church is created and may be renamed, recolored, or deleted like any Label.
+_Avoid_: Default labels as a separate concept, hard-coded labels
+
+**Label Color**:
+The color assigned to a Label from the same fixed product palette used for Team Color. A Label Color is derived from the Label's name when the Label is created and is stored with the Label so Users can change it later.
+_Avoid_: Arbitrary hex colors, per-label custom colors
+
 **Workflow**:
 The ordered set of Workflow Statuses a Task moves through. A Task assigned to a Team uses that Team's Workflow; a Task without a Team uses the Church default Workflow.
 _Avoid_: Board workflow

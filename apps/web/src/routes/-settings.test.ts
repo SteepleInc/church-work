@@ -11,12 +11,13 @@ import {
 
 describe("settings route sections", () => {
   it("keeps the copied sectioned settings structure focused on active Church Task areas", () => {
-    expect(getSettingsSectionIds()).toEqual(["profile", "church", "members", "invites"]);
+    expect(getSettingsSectionIds()).toEqual(["profile", "church", "members", "invites", "labels"]);
     expect(settingsSections.map((section) => section.label)).toEqual([
       "Profile",
       "Church",
       "Members",
       "Invitations",
+      "Labels",
     ]);
     expect(settingsSections.map((section) => ({ params: section.params, to: section.to }))).toEqual(
       [
@@ -24,6 +25,7 @@ describe("settings route sections", () => {
         { params: undefined, to: "/settings/org" },
         { params: { teamTab: "members" }, to: "/settings/team/$teamTab" },
         { params: { teamTab: "invites" }, to: "/settings/team/$teamTab" },
+        { params: undefined, to: "/settings/labels" },
       ],
     );
   });

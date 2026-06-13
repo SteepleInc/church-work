@@ -1,5 +1,6 @@
 import { DatabaseSchema, Table } from "@confect/server";
 import { CycleTableFieldsSchema } from "@church-task/domain/Cycle";
+import { LabelTableFieldsSchema } from "@church-task/domain/Label";
 import { TaskTableFieldsSchema } from "@church-task/domain/Task";
 import {
   CycleAdjustmentTableFieldsSchema,
@@ -40,6 +41,12 @@ export const Tasks = Table.make("tasks", TaskTableFieldsSchema)
   .index("by_churchId_and_sourceTemplateTaskId", ["churchId", "sourceTemplateTaskId"])
   .index("by_parentTaskId", ["parentTaskId"])
   .index("by_workflowStatusId", ["workflowStatusId"]);
+
+// Labels are hard-deleted (no archivedAt), Linear-style; see
+// docs/adr/0013-task-labels-as-id-array-with-hard-deleted-labels.md.
+export const Labels = Table.make("labels", LabelTableFieldsSchema).index("by_churchId", [
+  "churchId",
+]);
 
 export const Cycles = Table.make("cycles", CycleTableFieldsSchema)
   .index("by_churchId_and_startDate", ["churchId", "startDate"])
@@ -135,6 +142,7 @@ export default DatabaseSchema.make()
   .addTable(Workflows)
   .addTable(WorkflowStatuses)
   .addTable(Tasks)
+  .addTable(Labels)
   .addTable(Cycles)
   .addTable(KeyDates)
   .addTable(KeyDateOccurrences)

@@ -1,5 +1,6 @@
 export * from "@church-task/domain/ChurchInvitation";
 export * from "@church-task/domain/Cycle";
+export * from "@church-task/domain/Label";
 export * from "@church-task/domain/Org";
 export * from "@church-task/domain/Task";
 export * from "@church-task/domain/Team";

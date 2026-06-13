@@ -4,6 +4,7 @@ import {
   CheckListIcon,
   Database01Icon,
   Settings01Icon,
+  Tag01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
@@ -55,6 +56,11 @@ export const settingsNavItems: readonly NavItem[] = [
     matchPath: "/settings/team",
     title: "Team",
     to: "/settings/team/members",
+  },
+  {
+    icon: <NavIcon icon={Tag01Icon} />,
+    title: "Labels",
+    to: "/settings/labels",
   },
 ];
 

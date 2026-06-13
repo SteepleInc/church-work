@@ -65,6 +65,14 @@ export const ActivityMetadataByEventType = {
     previousWorkflowStatusId: Schema.String,
     workflowStatusId: Schema.String,
   }),
+  // Label add/remove on a Task. Names are denormalized so history reads
+  // sensibly after a Label is hard-deleted (ADR 0013).
+  "task.labels_changed": Schema.Struct({
+    previousLabelIds: Schema.Array(Schema.String),
+    labelIds: Schema.Array(Schema.String),
+    addedLabelNames: Schema.Array(Schema.String),
+    removedLabelNames: Schema.Array(Schema.String),
+  }),
   "task.status_moved": Schema.Struct({
     previousTaskState: TaskState,
     taskState: TaskState,
@@ -255,6 +263,7 @@ export const ActivityEventType = Schema.Literal(
   "task.team_assigned",
   "task.team_changed",
   "task.team_unassigned",
+  "task.labels_changed",
   "task.status_moved",
   "task.due_date_changed",
   "task.cycle_changed",
@@ -304,6 +313,7 @@ export const ActivityMetadata = Schema.Union(
   ActivityMetadataByEventType["task.team_assigned"],
   ActivityMetadataByEventType["task.team_changed"],
   ActivityMetadataByEventType["task.team_unassigned"],
+  ActivityMetadataByEventType["task.labels_changed"],
   ActivityMetadataByEventType["task.status_moved"],
   ActivityMetadataByEventType["task.due_date_changed"],
   ActivityMetadataByEventType["task.cycle_changed"],

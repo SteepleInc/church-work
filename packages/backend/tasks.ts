@@ -4,6 +4,14 @@ import type { GenericDatabaseReader, GenericMutationCtx } from "convex/server";
 import { buildCycleForLocalDate, localDateForInstant } from "./churchCycleCalendar";
 import type { DataModel, Id } from "./convex/_generated/dataModel";
 import { writeActivity } from "./activityRegistry";
+import {
+  dedupeLabelIds,
+  labelNamesForIds,
+  labelsById,
+  listLabelsForChurch,
+  stripForeignTeamLabelIds,
+  validateTaskLabelIds,
+} from "./labels";
 
 type MutationCtx = GenericMutationCtx<DataModel>;
 
@@ -54,6 +62,7 @@ type TaskCreateInput = {
   // creation date and keeps dueDate null.
   readonly dueDate: string | null;
   readonly parentTaskId: string | null;
+  readonly labelIds?: ReadonlyArray<string>;
   // Null or absent means "no estimate".
   readonly estimate?: TaskEstimate | null;
 };
@@ -69,6 +78,7 @@ type TaskUpdateInput = {
     readonly cycleId?: string;
     readonly parentTaskId?: string | null;
     readonly boardOrder?: string;
+    readonly labelIds?: ReadonlyArray<string>;
     readonly estimate?: TaskEstimate | null;
   };
 };
@@ -204,6 +214,7 @@ export const serializeTaskModel = (data: Awaited<ReturnType<typeof readTaskModel
     createdAt: task._creationTime,
     createdByUserId: task.createdByUserId ?? null,
     parentTaskId: task.parentTaskId,
+    labelIds: task.labelIds ?? [],
     workflowId: task.workflowId,
     workflowStatusId: task.workflowStatusId,
     taskState: task.taskState,
@@ -254,7 +265,10 @@ export async function createTasks(
     readonly workflowId: string;
     readonly workflowStatusId: Id<"workflowStatuses">;
     readonly taskState: TaskState;
+    readonly labelIds: ReadonlyArray<string>;
   }> = [];
+
+  const churchLabels = labelsById(await listLabelsForChurch(ctx, args.churchId));
 
   for (const task of args.tasks) {
     const workflowStatus = await ctx.db.get(task.workflowStatusId as Id<"workflowStatuses">);
@@ -281,17 +295,27 @@ export async function createTasks(
       }
     }
 
+    // Labels must exist in the Church, and Team Labels must match the Task's
+    // Team (enforced here for every caller; see ADR 0013).
+    const labelIds = dedupeLabelIds(task.labelIds ?? []);
+    const labelValidation = validateTaskLabelIds(churchLabels, {
+      labelIds,
+      teamId: task.teamId,
+    });
+    if (!labelValidation.ok) return { ok: false as const, code: labelValidation.code };
+
     validatedTasks.push({
       task,
       workflowId: workflowStatus.workflowId,
       workflowStatusId: workflowStatus._id,
       taskState: workflowStatus.taskState,
+      labelIds,
     });
   }
 
   const appendBoardOrder = makeBoardOrderAppender(ctx);
 
-  for (const { task, workflowId, workflowStatusId, taskState } of validatedTasks) {
+  for (const { task, workflowId, workflowStatusId, taskState, labelIds } of validatedTasks) {
     // No Due Date: the Task joins the Cycle containing its creation date.
     const cycleAnchorDate =
       task.dueDate ??
@@ -315,6 +339,7 @@ export async function createTasks(
       cycleId,
       dueDate: task.dueDate,
       parentTaskId: task.parentTaskId,
+      labelIds: [...labelIds],
       workflowId,
       workflowStatusId,
       taskState,
@@ -344,6 +369,7 @@ export async function updateTasks(
   },
 ) {
   const updates: Array<() => Promise<void>> = [];
+  const churchLabels = labelsById(await listLabelsForChurch(ctx, args.churchId));
 
   for (const update of args.updates) {
     const task = await ctx.db.get(update.taskId as Id<"tasks">);
@@ -528,6 +554,46 @@ export async function updateTasks(
       };
     }
 
+    // Labels: explicit `labelIds` updates are validated against the Task's
+    // effective Team; a Team change without explicit labels strips Team
+    // Labels foreign to the destination Team (see CONTEXT.md "Team Label").
+    let changedLabels: {
+      readonly previousLabelIds: ReadonlyArray<string>;
+      readonly labelIds: ReadonlyArray<string>;
+    } | null = null;
+
+    const effectiveTeamId =
+      "teamId" in update.fields ? (update.fields.teamId ?? null) : task.teamId;
+    const currentLabelIds = task.labelIds ?? [];
+
+    if ("labelIds" in update.fields && update.fields.labelIds !== undefined) {
+      const requestedLabelIds = dedupeLabelIds(update.fields.labelIds);
+      const labelValidation = validateTaskLabelIds(churchLabels, {
+        labelIds: requestedLabelIds,
+        teamId: effectiveTeamId,
+      });
+      if (!labelValidation.ok) return { ok: false as const, code: labelValidation.code };
+
+      const sameLabels =
+        requestedLabelIds.length === currentLabelIds.length &&
+        [...requestedLabelIds].sort().join("\n") === [...currentLabelIds].sort().join("\n");
+      if (!sameLabels) {
+        patch.labelIds = requestedLabelIds;
+        updatedFields.push("labelIds");
+        changedLabels = { previousLabelIds: currentLabelIds, labelIds: requestedLabelIds };
+      }
+    } else if (remappedTeam) {
+      const strippedLabelIds = stripForeignTeamLabelIds(churchLabels, {
+        labelIds: currentLabelIds,
+        teamId: effectiveTeamId,
+      });
+      if (strippedLabelIds.length !== currentLabelIds.length) {
+        patch.labelIds = strippedLabelIds;
+        updatedFields.push("labelIds");
+        changedLabels = { previousLabelIds: currentLabelIds, labelIds: strippedLabelIds };
+      }
+    }
+
     let movedStatus: {
       readonly previousTaskState: TaskState;
       readonly taskState: TaskState;
@@ -695,6 +761,33 @@ export async function updateTasks(
         }
       }
 
+      if (changedLabels) {
+        const previousSet = new Set(changedLabels.previousLabelIds);
+        const nextSet = new Set(changedLabels.labelIds);
+        await writeActivity(ctx, {
+          churchId: args.churchId,
+          entityType: "task",
+          entityId: task._id,
+          eventType: "task.labels_changed",
+          actorType: "user",
+          actorId: args.actorId,
+          occurredAt: args.occurredAt,
+          cycleId: task.cycleId,
+          metadata: {
+            previousLabelIds: changedLabels.previousLabelIds,
+            labelIds: changedLabels.labelIds,
+            addedLabelNames: labelNamesForIds(
+              churchLabels,
+              changedLabels.labelIds.filter((labelId) => !previousSet.has(labelId)),
+            ),
+            removedLabelNames: labelNamesForIds(
+              churchLabels,
+              changedLabels.previousLabelIds.filter((labelId) => !nextSet.has(labelId)),
+            ),
+          },
+        });
+      }
+
       if (movedStatus) {
         await writeActivity(ctx, {
           churchId: args.churchId,
@@ -744,7 +837,8 @@ export async function updateTasks(
           field !== "workflowStatusId" &&
           field !== "dueDate" &&
           field !== "cycleId" &&
-          field !== "boardOrder",
+          field !== "boardOrder" &&
+          field !== "labelIds",
       );
       if (nonAssignmentFields.length > 0) {
         const metadata: {

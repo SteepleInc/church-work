@@ -1,5 +1,8 @@
+import { Tag } from "lucide-react";
+
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
-import { useTasksCollection } from "@/data/tasks/tasksData.app";
+import { useLabelsCollection } from "@/data/labels/labelsData.app";
+import { useTasksCollection, useUpdateTaskMutation } from "@/data/tasks/tasksData.app";
 import { useTeamsCollection } from "@/data/teams/teamsData.app";
 import { useChurchUsersCollection } from "@/data/users/usersData.app";
 import { useWorkflowStatusesCollection } from "@/data/workflows/workflowsData.app";
@@ -9,7 +12,9 @@ import {
   DetailSectionSkeleton,
 } from "@/components/details-pane/details-components";
 import { DetailsShell } from "@/components/details-pane/details-shell";
+import { labelDotClassName, LabelsComboboxSelector } from "@/components/tasks/task-card-fields";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 export function TaskDetailsPane({ taskId }: { readonly taskId: string }) {
   const { currentOrgOpt: activeChurch, loading: orgLoading } = useCurrentOrgOpt();
@@ -21,6 +26,8 @@ export function TaskDetailsPane({ taskId }: { readonly taskId: string }) {
   const teams = useTeamsCollection({ churchId: activeChurch?.id ?? null });
   const users = useChurchUsersCollection({ churchId: activeChurch?.id ?? null });
   const workflowStatuses = useWorkflowStatusesCollection({ churchId: activeChurch?.id ?? null });
+  const labels = useLabelsCollection({ churchId: activeChurch?.id ?? null });
+  const updateTask = useUpdateTaskMutation();
   const task = tasks.tasksCollection.find((candidate) => candidate.id === taskId) ?? null;
   const team = teams.teamsCollection.find((candidate) => candidate.id === task?.teamId) ?? null;
   const assignee = users.usersCollection.find((candidate) => candidate.id === task?.assignedUserId);
@@ -28,6 +35,15 @@ export function TaskDetailsPane({ taskId }: { readonly taskId: string }) {
     (candidate) => candidate.id === task?.workflowStatusId,
   );
   const loading = orgLoading || tasks.loading;
+
+  // Church Labels plus the Task's Team's Labels are applicable here
+  // (see CONTEXT.md "Team Label").
+  const applicableLabels = labels.labelsCollection.filter(
+    (label) => label.teamId === null || label.teamId === task?.teamId,
+  );
+  const taskLabels = (task?.labelIds ?? [])
+    .map((labelId) => labels.labelsCollection.find((label) => label.id === labelId))
+    .filter((label) => label !== undefined);
 
   return (
     <DetailsShell
@@ -56,6 +72,44 @@ export function TaskDetailsPane({ taskId }: { readonly taskId: string }) {
             <DetailItem
               label="Assignee"
               value={assignee?.name ?? assignee?.email ?? "Unassigned"}
+            />
+            <DetailItem
+              label="Labels"
+              value={
+                activeChurch ? (
+                  <LabelsComboboxSelector
+                    onValueChange={(next) =>
+                      void updateTask({
+                        churchId: activeChurch.id,
+                        actorUserId: activeChurch.currentUserId,
+                        taskId: task.id,
+                        fields: { labelIds: [...next] },
+                      })
+                    }
+                    options={applicableLabels}
+                    trigger={
+                      taskLabels.length === 0 ? (
+                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                          <Tag className="size-3.5" />
+                          Add labels
+                        </span>
+                      ) : (
+                        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          {taskLabels.map((label) => (
+                            <span className="flex items-center gap-1.5" key={label.id}>
+                              <span
+                                className={cn("size-2 rounded-full", labelDotClassName(label))}
+                              />
+                              {label.name}
+                            </span>
+                          ))}
+                        </span>
+                      )
+                    }
+                    value={task.labelIds ?? []}
+                  />
+                ) : null
+              }
             />
           </DetailSection>
         ) : loading ? (

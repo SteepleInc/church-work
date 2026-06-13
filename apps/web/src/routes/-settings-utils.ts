@@ -1,12 +1,16 @@
 import type { CurrentOrg } from "@/data/orgs/orgData.app";
 
-type SettingsSection = "profile" | "church" | "members" | "invites";
+type SettingsSection = "profile" | "church" | "members" | "invites" | "labels";
 
 export const settingsSections: readonly {
   readonly id: SettingsSection;
   readonly label: string;
   readonly description: string;
-  readonly to: "/settings/profile" | "/settings/org" | "/settings/team/$teamTab";
+  readonly to:
+    | "/settings/profile"
+    | "/settings/org"
+    | "/settings/team/$teamTab"
+    | "/settings/labels";
   readonly params?: { readonly teamTab: "members" | "invites" };
 }[] = [
   {
@@ -34,6 +38,12 @@ export const settingsSections: readonly {
     description: "Invite members and review pending invitations.",
     params: { teamTab: "invites" },
     to: "/settings/team/$teamTab",
+  },
+  {
+    id: "labels",
+    label: "Labels",
+    description: "Labels for categorizing Tasks across the Church.",
+    to: "/settings/labels",
   },
 ];
 

@@ -23,6 +23,7 @@ export type TaskSummary = {
   readonly taskState: TaskState;
   readonly estimate?: "xs" | "s" | "m" | "l" | "xl" | null;
   readonly boardOrder?: string;
+  readonly labelIds?: readonly string[];
 };
 
 export function selectCurrentExecutionCycle(

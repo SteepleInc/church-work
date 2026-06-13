@@ -21,6 +21,7 @@ export type TaskBoardTask = {
   readonly dueDate?: string | null;
   readonly estimate?: TaskBoardEstimate | null;
   readonly createdAt?: number | null;
+  readonly labelIds?: readonly string[];
   readonly parentTask?: {
     readonly id: string;
     readonly title: string;

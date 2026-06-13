@@ -20,6 +20,7 @@ import type * as dashboard from "../dashboard.js";
 import type * as healthCheck from "../healthCheck.js";
 import type * as http from "../http.js";
 import type * as keyDates from "../keyDates.js";
+import type * as labels from "../labels.js";
 import type * as listQueryHelpers from "../listQueryHelpers.js";
 import type * as polar from "../polar.js";
 import type * as privateData from "../privateData.js";
@@ -49,6 +50,7 @@ declare const fullApi: ApiFromModules<{
   healthCheck: typeof healthCheck;
   http: typeof http;
   keyDates: typeof keyDates;
+  labels: typeof labels;
   listQueryHelpers: typeof listQueryHelpers;
   polar: typeof polar;
   privateData: typeof privateData;
