@@ -88,7 +88,9 @@ export function getPriorityMeta(value: TaskPriority): PriorityMeta {
   return PRIORITY_OPTIONS.find((option) => option.value === value) ?? PRIORITY_OPTIONS[0];
 }
 
-// --- Size / estimate (stubbed: local-only, no backend yet) ------------------
+// --- Estimate ----------------------------------------------------------------
+// Persisted on the Task; "no_estimate" is the UI sentinel for the backend's
+// null/absent estimate.
 
 export type TaskEstimate = "no_estimate" | "xs" | "s" | "m" | "l" | "xl";
 

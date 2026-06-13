@@ -18,6 +18,7 @@ const baseTask: OptimisticTask = {
   cycleId: "cycle-1",
   parentTaskId: null,
   labelIds: [],
+  estimate: null,
 };
 
 const lookup = workflowStatusStateLookup([
@@ -54,6 +55,14 @@ describe("applyTaskUpdate", () => {
     const next = applyTaskUpdate(assigned, { assignedUserId: null }, lookup);
 
     expect(next.assignedUserId).toBeNull();
+  });
+
+  test("applies estimate changes and supports clearing back to no estimate", () => {
+    const sized = applyTaskUpdate(baseTask, { estimate: "l" }, lookup);
+    expect(sized.estimate).toBe("l");
+
+    const cleared = applyTaskUpdate(sized, { estimate: null }, lookup);
+    expect(cleared.estimate).toBeNull();
   });
 
   test("does not mutate the input Task", () => {

@@ -167,8 +167,8 @@ A per-Task importance attribute: No priority, Urgent, High, Medium, or Low. Prio
 _Avoid_: Rank, severity, using priority to mean Board position
 
 **Estimate**:
-A per-Task effort size: No estimate, XS, S, M, L, or XL. Estimate is currently UI-only and not yet persisted in the data model.
-_Avoid_: Size, points, story points
+A per-Task effort size: No estimate, XS, S, M, L, or XL. Every Task, including a Subtask, has its own independent Estimate; a Subtask does not inherit its parent's Estimate, and a parent's Estimate never aggregates its Subtasks' Estimates. Template Tasks do not carry an Estimate.
+_Avoid_: Size, points, story points, rolling up or summing Estimates
 
 **Label**:
 A named, colored tag a Church defines and applies to Tasks to categorize work across Cycles, such as Worship, Outreach, or Facilities. A Label is scoped to the whole Church or to one Team; a Task may carry many Labels, and any User in the Church may create and manage Labels.

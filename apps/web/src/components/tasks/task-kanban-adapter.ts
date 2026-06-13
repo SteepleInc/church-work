@@ -1,5 +1,7 @@
 export type TaskBoardTaskState = "todo" | "in_progress" | "done" | "canceled";
 
+export type TaskBoardEstimate = "xs" | "s" | "m" | "l" | "xl";
+
 export type TaskBoardWorkflowStatus = {
   readonly id: string;
   readonly name: string;
@@ -17,6 +19,7 @@ export type TaskBoardTask = {
   readonly teamId?: string | null;
   readonly assignedUserId?: string | null;
   readonly dueDate?: string | null;
+  readonly estimate?: TaskBoardEstimate | null;
   readonly createdAt?: number | null;
   readonly labelIds?: readonly string[];
   readonly parentTask?: {
@@ -39,7 +42,7 @@ export type TaskBoardMove = {
   readonly boardOrder: string;
 };
 
-export type TaskBoardGrouping = "workflow_status" | "task_state" | "assignee" | "team";
+export type TaskBoardGrouping = "workflow_status" | "task_state" | "assignee" | "team" | "estimate";
 
 export type TaskBoardGroupColumn = {
   readonly id: string;
@@ -54,6 +57,20 @@ export type TaskBoardColumnMove = {
 
 export const UNASSIGNED_COLUMN_ID = "unassigned";
 export const NO_TEAM_COLUMN_ID = "no_team";
+export const NO_ESTIMATE_COLUMN_ID = "no_estimate";
+
+// "No estimate" first to match the Unassigned / No Team columns, then sizes
+// ascending.
+const ESTIMATE_COLUMNS: ReadonlyArray<{
+  readonly id: TaskBoardEstimate;
+  readonly title: string;
+}> = [
+  { id: "xs", title: "XS" },
+  { id: "s", title: "S" },
+  { id: "m", title: "M" },
+  { id: "l", title: "L" },
+  { id: "xl", title: "XL" },
+];
 
 const TASK_STATE_LABELS: Record<TaskBoardTaskState, string> = {
   todo: "To Do",
@@ -94,6 +111,8 @@ export function getTaskGroupColumnId(grouping: TaskBoardGrouping, task: TaskBoar
       return task.assignedUserId ?? UNASSIGNED_COLUMN_ID;
     case "team":
       return task.teamId ?? NO_TEAM_COLUMN_ID;
+    case "estimate":
+      return task.estimate ?? NO_ESTIMATE_COLUMN_ID;
   }
 }
 
@@ -132,6 +151,15 @@ export function buildTaskBoardGroupColumns(args: {
         return [
           { id: NO_TEAM_COLUMN_ID, title: "No Team", taskState: null },
           ...args.teams.map((team) => ({ id: team.id, title: team.name, taskState: null })),
+        ];
+      case "estimate":
+        return [
+          { id: NO_ESTIMATE_COLUMN_ID, title: "No estimate", taskState: null },
+          ...ESTIMATE_COLUMNS.map((column) => ({
+            id: column.id,
+            title: column.title,
+            taskState: null,
+          })),
         ];
     }
   })();
@@ -192,7 +220,7 @@ function findColumnOfTask(columns: TaskBoardColumns, taskId: string): string | u
 }
 
 export function isTaskBoardGroupingDraggable(grouping: TaskBoardGrouping): boolean {
-  return grouping === "workflow_status" || grouping === "assignee";
+  return grouping === "workflow_status" || grouping === "assignee" || grouping === "estimate";
 }
 
 function applyColumnToTask(
@@ -207,6 +235,11 @@ function applyColumnToTask(
       return {
         ...task,
         assignedUserId: columnId === UNASSIGNED_COLUMN_ID ? null : columnId,
+      };
+    case "estimate":
+      return {
+        ...task,
+        estimate: columnId === NO_ESTIMATE_COLUMN_ID ? null : (columnId as TaskBoardEstimate),
       };
     case "task_state":
     case "team":

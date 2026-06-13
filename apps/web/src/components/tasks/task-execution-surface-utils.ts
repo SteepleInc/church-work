@@ -21,6 +21,7 @@ export type TaskSummary = {
   readonly parentTaskId: string | null;
   readonly workflowStatusId: string;
   readonly taskState: TaskState;
+  readonly estimate?: "xs" | "s" | "m" | "l" | "xl" | null;
   readonly boardOrder?: string;
   readonly labelIds?: readonly string[];
 };

@@ -1,4 +1,4 @@
-import type { TaskStatus } from "@church-task/domain";
+import type { TaskEstimate, TaskStatus } from "@church-task/domain";
 
 /**
  * Minimal shape of a serialized Task as returned inside `mcpListTasks`.
@@ -16,6 +16,7 @@ export type OptimisticTask = {
   readonly cycleId: string;
   readonly parentTaskId: string | null;
   readonly labelIds: readonly string[];
+  readonly estimate: TaskEstimate | null;
 };
 
 /**
@@ -32,6 +33,7 @@ export type TaskUpdateFields = {
   readonly parentTaskId?: string | null;
   readonly boardOrder?: string;
   readonly labelIds?: readonly string[];
+  readonly estimate?: TaskEstimate | null;
 };
 
 /**
@@ -70,6 +72,7 @@ export function applyTaskUpdate<Task extends OptimisticTask>(
     ...(fields.parentTaskId !== undefined ? { parentTaskId: fields.parentTaskId } : {}),
     ...(fields.boardOrder !== undefined ? { boardOrder: fields.boardOrder } : {}),
     ...(fields.labelIds !== undefined ? { labelIds: fields.labelIds } : {}),
+    ...(fields.estimate !== undefined ? { estimate: fields.estimate } : {}),
     workflowStatusId: nextWorkflowStatusId,
     taskState: nextTaskState,
   };
