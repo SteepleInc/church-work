@@ -158,7 +158,25 @@ _Avoid_: Hard-coded page, special board
 A built-in Saved View created or maintained by Church Task, such as My Work, a default Team view, or Our Work for all visible Church work. A System Saved View behaves like a Saved View but is permanent in product navigation and cannot be deleted by Users.
 _Avoid_: Hard-coded view, special view
 
-**View Options**:
+**Insights**:
+A bar-chart-and-table summary of the Tasks in the current Saved View, counted by Task dimensions. Insights inherits the Saved View's filters and Task set so its totals match the Board or list, and adds its own Measure, Slice, and Segment. Insights summarizes Tasks; it does not own them or define their Task State.
+_Avoid_: Metrics, Reports, Analytics, Breakdown, Dashboard
+
+**Measure**:
+The value Insights counts. The only Measure is Task count; Estimate is a categorical dimension that Insights counts by rather than sums, so there is no points or summed-Estimate Measure.
+_Avoid_: Sum of estimates, story points, velocity, cycle time
+
+**Slice**:
+The Task dimension forming the bars (x-axis) of an Insights chart and the rows of its table, one of Workflow Status, Task State, assignee, Team, or Estimate.
+_Avoid_: Group by as the Insights term, x-axis as the domain term
+
+**Segment**:
+The optional Task dimension that stacks each Insights bar and adds the table's breakdown columns, drawn from the same dimensions as Slice. Segment defaults to none, giving plain bars; a chosen Segment cannot be the same dimension as the Slice.
+_Avoid_: Sub-group, stack as the domain term, secondary group by
+
+**Insights State**:
+The open/closed state of the Insights panel together with its Measure, Slice, Segment, and show-canceled toggle, carried in the URL alongside View Options and View Tab so a shared link reproduces the same Insights its sender sees.
+_Avoid_: Local-only Insights config, cookie/local-storage Insights preferences
 The presentation settings for the active Saved View carried in the URL — such as view mode (list or board), grouping, ordering, display properties, and sub-task visibility — so a shared link reproduces exactly what its sender sees. View Options override the Saved View's defaults for that session only; writing them back as the Saved View's defaults is a separate explicit action.
 _Avoid_: Display options as the canonical name, view settings, cookie/local-storage view preferences for task surfaces
 

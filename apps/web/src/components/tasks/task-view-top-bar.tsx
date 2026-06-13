@@ -41,6 +41,8 @@ type TaskViewTopBarProps = {
   readonly view: ResolvedTaskViewOptions;
   readonly onViewChange: (view: ResolvedTaskViewOptions) => void;
   readonly onCreateTask?: () => void;
+  readonly insightsOpen?: boolean;
+  readonly onToggleInsights?: () => void;
 };
 
 const GROUPING_OPTIONS: ReadonlyArray<{
@@ -75,6 +77,8 @@ export function TaskViewTopBar({
   view,
   onViewChange,
   onCreateTask,
+  insightsOpen = false,
+  onToggleInsights,
 }: TaskViewTopBarProps) {
   const tabs = getTaskViewTabs(surface);
 
@@ -111,7 +115,14 @@ export function TaskViewTopBar({
           <ListFilter />
         </Button>
         <TaskViewOptionsPopover onViewChange={onViewChange} view={view} />
-        <Button aria-label="Insights" size="icon-sm" type="button" variant="ghost">
+        <Button
+          aria-label="Insights"
+          aria-pressed={insightsOpen}
+          onClick={onToggleInsights}
+          size="icon-sm"
+          type="button"
+          variant={insightsOpen ? "secondary" : "ghost"}
+        >
           <ChartNoAxesColumn />
         </Button>
         <Button aria-label="Breakdown panel" size="icon-sm" type="button" variant="ghost">

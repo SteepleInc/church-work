@@ -1,5 +1,6 @@
 import { Schema } from "effect";
 
+import { InsightsSearchSchema, type InsightsState } from "@/components/tasks/task-insights-options";
 import { lenientSearchField } from "@/shared/lenient-search";
 
 /**
@@ -174,14 +175,17 @@ export function resolveTaskViewTab(
 export const MyWorkSearchSchema = Schema.Struct({
   tab: lenientSearchField(MyWorkViewTabSchema),
   view: lenientSearchField(TaskViewOptionsSchema),
+  ...InsightsSearchSchema,
 });
 
 export const ChurchWorkSearchSchema = Schema.Struct({
   tab: lenientSearchField(ChurchWorkViewTabSchema),
   view: lenientSearchField(TaskViewOptionsSchema),
+  ...InsightsSearchSchema,
 });
 
 export type TaskViewSearch = {
   readonly tab?: TaskViewTab;
   readonly view?: TaskViewOptions;
+  readonly insights?: InsightsState;
 };

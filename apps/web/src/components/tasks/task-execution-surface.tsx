@@ -23,6 +23,16 @@ import { useNavigate } from "@tanstack/react-router";
 import { useAtom } from "jotai";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { TaskInsightsPanel } from "@/components/tasks/task-insights-panel";
+import {
+  buildInsightsData,
+  insightsToCsv,
+  type InsightsBucketMeta,
+} from "@/components/tasks/task-insights-data";
+import {
+  INSIGHTS_DIMENSION_OPTIONS,
+  type ResolvedInsightsState,
+} from "@/components/tasks/task-insights-options";
 import { TaskKanbanBoard } from "./task-kanban-board";
 import {
   NO_ESTIMATE_COLUMN_ID,
@@ -63,6 +73,8 @@ export function TaskExecutionSurface({
   teams = [],
   tab,
   view,
+  insights,
+  onInsightsChange,
 }: {
   readonly churchId: string;
   readonly currentUserId: string;
@@ -74,6 +86,8 @@ export function TaskExecutionSurface({
   readonly teams?: readonly { readonly id: string; readonly name: string }[];
   readonly tab?: TaskViewTab;
   readonly view?: TaskViewOptions;
+  readonly insights?: ResolvedInsightsState;
+  readonly onInsightsChange?: (next: ResolvedInsightsState) => void;
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const navigate = useNavigate();
@@ -166,19 +180,64 @@ export function TaskExecutionSurface({
     );
   };
 
+  const boardTasks = tasks.map((task) => toBoardTask(task, tasks));
+  const assigneeOptions = usersCollection.usersCollection.map((user) => ({
+    id: user.id,
+    label: getUserDisplayName(user),
+  }));
+  const insightsState = insights ?? null;
+  const insightsMeta: InsightsBucketMeta = {
+    workflowStatuses: activeWorkflowStatuses.map(toBoardWorkflowStatus),
+    assignees: assigneeOptions,
+    teams,
+  };
+
   return (
     <section className="flex min-h-0 flex-1 flex-col gap-4">
       {isLoading && !showBoard ? <TaskBoardSkeleton /> : null}
+
+      {insightsState?.open && onInsightsChange ? (
+        <TaskInsightsPanel
+          meta={insightsMeta}
+          onClose={() => onInsightsChange({ ...insightsState, open: false })}
+          onCopyLink={() => {
+            void navigator.clipboard?.writeText(window.location.href);
+          }}
+          onExportCsv={() => {
+            const sliceLabel =
+              INSIGHTS_DIMENSION_OPTIONS.find((option) => option.value === insightsState.slice)
+                ?.label ?? "Slice";
+            const scoped = insightsState.showCanceled
+              ? boardTasks
+              : boardTasks.filter((task) => task.taskState !== "canceled");
+            const csv = insightsToCsv(
+              buildInsightsData({
+                slice: insightsState.slice,
+                segment: insightsState.segment,
+                tasks: scoped,
+                meta: insightsMeta,
+              }),
+              sliceLabel,
+            );
+            downloadCsv(csv, "insights.csv");
+          }}
+          onRefresh={() => {
+            // Data is live (Convex subscriptions); Refresh is a no-op re-render
+            // hook kept for parity with Linear's menu.
+            onInsightsChange({ ...insightsState });
+          }}
+          onStateChange={onInsightsChange}
+          state={insightsState}
+          tasks={boardTasks}
+        />
+      ) : null}
 
       {showBoard ? (
         <TaskKanbanBoard
           className="min-h-0 flex-1"
           workflowStatuses={workflowStatuses.map(toBoardWorkflowStatus)}
-          tasks={tasks.map((task) => toBoardTask(task, tasks))}
-          assigneeOptions={usersCollection.usersCollection.map((user) => ({
-            id: user.id,
-            label: getUserDisplayName(user),
-          }))}
+          tasks={boardTasks}
+          assigneeOptions={assigneeOptions}
           teamOptions={teams}
           labelOptions={labelsCollection.labelsCollection}
           currentUserId={currentUserId}
@@ -318,6 +377,16 @@ function TaskBoardSkeleton() {
       ))}
     </div>
   );
+}
+
+function downloadCsv(csv: string, filename: string) {
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 function toBoardWorkflowStatus(status: WorkflowStatus) {

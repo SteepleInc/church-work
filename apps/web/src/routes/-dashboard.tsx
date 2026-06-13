@@ -51,6 +51,11 @@ import { useEffect, useState } from "react";
 import SignInForm from "@/components/sign-in-form";
 import SignUpForm from "@/components/sign-up-form";
 import { TaskExecutionSurface } from "@/components/tasks/task-execution-surface";
+import {
+  resolveInsightsState,
+  toInsightsSearchValue,
+  type ResolvedInsightsState,
+} from "@/components/tasks/task-insights-options";
 import { TaskViewTopBar } from "@/components/tasks/task-view-top-bar";
 import {
   getDefaultTaskViewTab,
@@ -155,6 +160,7 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
   const showTopBar = showCreateTask && (typeof activePanel !== "object" || selectedTeam !== null);
   const activeTab = resolveTaskViewTab(surface, search.tab);
   const activeView = resolveTaskViewOptions(search.view);
+  const activeInsights = resolveInsightsState(search.insights);
 
   useEffect(() => {
     if (typeof activePanel !== "object" || canonicalTeamIdentifier === null) return;
@@ -191,6 +197,17 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
     });
   };
 
+  const setInsights = (insights: ResolvedInsightsState) => {
+    void navigate({
+      to: ".",
+      replace: true,
+      search: (prev: Record<string, unknown>) => ({
+        ...prev,
+        insights: toInsightsSearchValue(insights),
+      }),
+    });
+  };
+
   const content = (
     <>
       {showTopBar ? (
@@ -200,6 +217,8 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
           onTabChange={setTab}
           view={activeView}
           onViewChange={setView}
+          insightsOpen={activeInsights.open}
+          onToggleInsights={() => setInsights({ ...activeInsights, open: !activeInsights.open })}
           onCreateTask={() =>
             openCreateTask({
               assignTo: activePanel === "my_work" ? currentUserId : null,
@@ -241,6 +260,8 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
           teams={activeTeams.map((candidate) => ({ id: candidate.id, name: candidate.name }))}
           tab={activeTab}
           view={search.view}
+          insights={activeInsights}
+          onInsightsChange={setInsights}
         />
       ) : (
         <>
