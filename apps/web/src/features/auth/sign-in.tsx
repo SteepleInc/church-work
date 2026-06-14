@@ -69,7 +69,9 @@ export function SignIn({ defaultEmail, invitationId: passedInvitationId, redirec
             <OtpForm
               autoSubmit
               email={email}
-              onSuccess={refetch}
+              onSuccess={async () => {
+                await refetch();
+              }}
               submitLabel="Sign In"
             />
           )),

@@ -27,7 +27,10 @@ const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 export const SIDEBAR_WIDTH = "18rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
 export const SIDEBAR_WIDTH_ICON = "3rem";
-const SIDEBAR_KEYBOARD_SHORTCUT = "b";
+// Linear uses `[` to toggle the left sidebar (Cmd/Ctrl+B is the board/list
+// layout toggle on Task surfaces). Plain `[` so it works without a modifier,
+// matching Linear.
+const SIDEBAR_KEYBOARD_SHORTCUT = "[";
 
 type SidebarContextProps = {
   state: "expanded" | "collapsed";
@@ -90,13 +93,25 @@ function SidebarProvider({
     return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
   }, [isMobile, setOpen, setOpenMobile]);
 
-  // Adds a keyboard shortcut to toggle the sidebar.
+  // Adds a keyboard shortcut to toggle the sidebar. Bare `[` (Linear-style),
+  // ignored while typing in a field or when a modifier is held.
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === SIDEBAR_KEYBOARD_SHORTCUT && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault();
-        toggleSidebar();
+      if (event.key !== SIDEBAR_KEYBOARD_SHORTCUT) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target;
+      if (target instanceof HTMLElement) {
+        if (
+          target.isContentEditable ||
+          target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT"
+        ) {
+          return;
+        }
       }
+      event.preventDefault();
+      toggleSidebar();
     };
 
     window.addEventListener("keydown", handleKeyDown);

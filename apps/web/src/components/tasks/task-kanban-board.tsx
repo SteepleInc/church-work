@@ -26,6 +26,7 @@ import { EllipsisIcon, PlusIcon, Tag, Triangle } from "lucide-react";
 import {
   type ComponentProps,
   type MouseEvent as ReactMouseEvent,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -67,12 +68,13 @@ import {
   type TaskBoardWorkflowStatus,
 } from "./task-kanban-adapter";
 import { DEFAULT_TASK_VIEW_OPTIONS, type TaskDisplayProperty } from "./task-view-options";
+import { statusOptions } from "./task-kanban-board-utils";
 import {
-  isEditableTarget,
-  matchPickerHotkey,
-  statusOptions,
-  type PickerHotkey,
-} from "./task-kanban-board-utils";
+  useRegisterSurfaceOrder,
+  useRegisterTaskShortcuts,
+  useTaskSurfaceKeyboard,
+  type TaskShortcutField,
+} from "./task-surface-keyboard";
 
 export type TaskCardAssignChange = {
   readonly taskId: string;
@@ -161,25 +163,7 @@ const EMPTY_TEAM_MEMBERS: ReadonlyMap<string, ReadonlySet<string>> = new Map();
 const EMPTY_USER_ID_SET: ReadonlySet<string> = new Set();
 const EMPTY_HIDDEN_COLUMNS: readonly string[] = [];
 const EMPTY_SELECTION: ReadonlySet<string> = new Set();
-
-// Opens a card's field picker when its shortcut is pressed while the card is
-// hovered. Listens on the document so the key works without the trigger being
-// focused, and ignores keystrokes aimed at editable elements.
-function useCardPickerHotkeys(active: boolean, hotkeys: readonly PickerHotkey[]) {
-  useEffect(() => {
-    if (!active) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (isEditableTarget(event.target)) return;
-      const match = matchPickerHotkey(event, hotkeys);
-      const opener = match?.openRef.current;
-      if (!opener) return;
-      event.preventDefault();
-      opener();
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [active, hotkeys]);
-}
+const noopSetSelection = (_: ReadonlySet<string>) => {};
 
 export function TaskKanbanBoard({
   workflowStatuses,
@@ -249,30 +233,23 @@ export function TaskKanbanBoard({
     setSyncedSignature(signature);
   }
 
-  // Card selection: "Select all in column" or shift-click, cleared by Esc or
-  // clicking empty board space. Dragging any selected card moves the group.
-  const [selectedTaskIds, setSelectedTaskIds] = useState<ReadonlySet<string>>(EMPTY_SELECTION);
+  // Card selection lives in the shared keyboard layer (so X/Shift+Arrow/Cmd+A
+  // and the per-column "Select all" all read/write one source); the Board
+  // mirrors it here. Esc clearing is handled centrally by the keyboard layer.
+  const keyboard = useTaskSurfaceKeyboard();
+  const selectedTaskIds = keyboard?.selectedTaskIds ?? EMPTY_SELECTION;
+  const setSelectedTaskIds = keyboard?.setSelection ?? noopSetSelection;
 
-  useEffect(() => {
-    if (selectedTaskIds.size === 0) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      setSelectedTaskIds(EMPTY_SELECTION);
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [selectedTaskIds.size]);
+  // Report the flat, top-to-bottom card order so J/K navigation walks every
+  // column in turn.
+  const flatOrder = useMemo(
+    () => columns.flatMap((column) => (columnTasks[column.id] ?? []).map((task) => task.id)),
+    [columns, columnTasks],
+  );
+  useRegisterSurfaceOrder(flatOrder);
 
   const toggleTaskSelected = (taskId: string) => {
-    setSelectedTaskIds((selection) => {
-      const next = new Set(selection);
-      if (next.has(taskId)) {
-        next.delete(taskId);
-      } else {
-        next.add(taskId);
-      }
-      return next;
-    });
+    keyboard?.toggleSelected(taskId);
   };
 
   const selectAllInColumn = (columnId: string) => {
@@ -301,7 +278,7 @@ export function TaskKanbanBoard({
       selectedTaskIds,
     });
     if (moves.length === 0) return;
-    if (moves.length > 1) setSelectedTaskIds(EMPTY_SELECTION);
+    if (moves.length > 1) keyboard?.clearSelection();
     void onMoveTasks(moves);
   };
 
@@ -310,6 +287,54 @@ export function TaskKanbanBoard({
     for (const task of tasks) byId.set(task.id, task);
     return byId;
   }, [tasks]);
+
+  // Alt/Option+Shift+Up/Down moves the focused card up or down within its
+  // column (Linear's manual-reorder shortcut), reusing the same fractional
+  // board-order math as drag. Only meaningful when columns are status-grouped
+  // (the only draggable, reorderable grouping).
+  const reorderFocused = useCallback(
+    (direction: 1 | -1) => {
+      const focusedId = keyboard?.focusedTaskId ?? null;
+      if (!focusedId || grouping !== "workflow_status") return;
+      const columnId = Object.keys(columnTasks).find((id) =>
+        columnTasks[id]?.some((task) => task.id === focusedId),
+      );
+      if (!columnId) return;
+      const columnList = columnTasks[columnId] ?? [];
+      const fromIndex = columnList.findIndex((task) => task.id === focusedId);
+      const toIndex = fromIndex + direction;
+      if (fromIndex < 0 || toIndex < 0 || toIndex >= columnList.length) return;
+
+      const reordered = [...columnList];
+      const [moved] = reordered.splice(fromIndex, 1);
+      reordered.splice(toIndex, 0, moved);
+      const nextColumns = { ...columnTasks, [columnId]: reordered };
+      setColumnTasks(nextColumns);
+
+      const moves = computeBoardMoves({
+        columns: nextColumns,
+        activeTaskId: focusedId,
+        destinationColumnId: columnId,
+      });
+      if (moves.length > 0) void onMoveTasks(moves);
+    },
+    [columnTasks, grouping, keyboard, onMoveTasks],
+  );
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!event.altKey || !event.shiftKey) return;
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        reorderFocused(-1);
+      } else if (event.key === "ArrowDown") {
+        event.preventDefault();
+        reorderFocused(1);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [reorderFocused]);
 
   return (
     <Kanban
@@ -328,7 +353,7 @@ export function TaskKanbanBoard({
         if (!(event.target instanceof Element)) return;
         if (!event.currentTarget.contains(event.target)) return;
         if (event.target.closest("button,[role='menuitem'],[role='menu']")) return;
-        setSelectedTaskIds(EMPTY_SELECTION);
+        keyboard?.clearSelection();
       }}
     >
       {/* Grid items stretch by default, so every Board Column fills the full
@@ -699,30 +724,41 @@ function TaskKanbanCard({
       (status) => status.workflowId === undefined || status.workflowId === task.workflowId,
     ),
   );
-  const isSelected = selectedTaskIds.has(task.id);
+  const selectedFromContext = selectedTaskIds.has(task.id);
   const isSelectable = cardState !== "canceled" && onToggleTaskSelected !== undefined;
 
-  // While this card is hovered, keyboard shortcuts open the matching picker.
-  // Each selector populates its ref with an imperative opener; the bindings
-  // table maps a key (and optional Shift) to the picker it opens.
+  // Each selector populates its ref with an imperative opener; the keyboard
+  // layer fires the matching opener for the focused card (S status, A
+  // assignee, P priority, Shift+E estimate, L labels).
   const statusOpenRef = useRef<(() => void) | null>(null);
   const assigneeOpenRef = useRef<(() => void) | null>(null);
   const priorityOpenRef = useRef<(() => void) | null>(null);
   const estimateOpenRef = useRef<(() => void) | null>(null);
   const labelsOpenRef = useRef<(() => void) | null>(null);
-  const [isHovered, setIsHovered] = useState(false);
 
-  const pickerHotkeys = useMemo<readonly PickerHotkey[]>(
-    () => [
-      { key: "s", openRef: statusOpenRef },
-      { key: "a", openRef: assigneeOpenRef },
-      { key: "p", openRef: priorityOpenRef },
-      { key: "e", shift: true, openRef: estimateOpenRef },
-      { key: "l", openRef: labelsOpenRef },
-    ],
+  const pickers = useMemo<Partial<Record<TaskShortcutField, typeof statusOpenRef>>>(
+    () => ({
+      status: statusOpenRef,
+      assignee: assigneeOpenRef,
+      priority: priorityOpenRef,
+      estimate: estimateOpenRef,
+      labels: labelsOpenRef,
+    }),
     [],
   );
-  useCardPickerHotkeys(isHovered, pickerHotkeys);
+
+  const keyboard = useTaskSurfaceKeyboard();
+  const { isFocused, isSelected: selectedFromKeyboard } = useRegisterTaskShortcuts(task.id, {
+    open: onOpenTask ? () => onOpenTask(task.identifier) : undefined,
+    pickers,
+  });
+  const isSelected = selectedFromContext || selectedFromKeyboard;
+
+  // Keep the keyboard-focused card scrolled into view as J/K walk the board.
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (isFocused) cardRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [isFocused]);
 
   const form = useAppForm({
     defaultValues: {
@@ -786,17 +822,18 @@ function TaskKanbanCard({
 
   const cardContent = (
     <Card
+      ref={cardRef}
       className={cn(
         "gap-0 rounded-md py-0 shadow-xs ring-foreground/10",
         cardState === "canceled" && "opacity-70",
         onOpenTask && "cursor-pointer transition-colors hover:ring-foreground/20",
+        isFocused && "ring-2 ring-primary/60",
         isSelected &&
           "bg-primary/5 ring-primary/40 hover:ring-primary/50 group-data-[dragging=true]/kanban-root:opacity-40",
         className,
       )}
       onClick={handleCardClick}
-      onPointerEnter={() => setIsHovered(true)}
-      onPointerLeave={() => setIsHovered(false)}
+      onPointerEnter={() => keyboard?.setFocusedTaskId(task.id)}
     >
       <CardHeader className="flex flex-row items-center justify-between gap-2 px-3 pt-3 pb-0">
         <div className="flex min-w-0 items-center gap-1.5">

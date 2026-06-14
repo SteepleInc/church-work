@@ -6,6 +6,7 @@ import {
   PanelRight,
   SlidersHorizontal,
 } from "lucide-react";
+import { useEffect, useState, type MutableRefObject } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -48,6 +49,10 @@ type TaskViewTopBarProps = {
   readonly filterFields?: ReadonlyArray<ColumnConfig<unknown>>;
   readonly filters?: readonly FilterItem[];
   readonly onFiltersChange?: (filters: FilterItem[]) => void;
+  // Imperative opener populated for the keyboard layer: Shift+V opens View
+  // Options. The route passes a mutable ref the keyboard layer calls. (Filter's
+  // `F` shortcut is handled natively by TaskFilterAddMenu.)
+  readonly openDisplayOptionsRef?: MutableRefObject<(() => void) | null>;
 };
 
 const GROUPING_OPTIONS: ReadonlyArray<{
@@ -87,6 +92,7 @@ export function TaskViewTopBar({
   filterFields,
   filters,
   onFiltersChange,
+  openDisplayOptionsRef,
 }: TaskViewTopBarProps) {
   const tabs = getTaskViewTabs(surface);
   const canFilter = Boolean(filterFields && onFiltersChange);
@@ -131,6 +137,7 @@ export function TaskViewTopBar({
               fields={filterFields!}
               filters={activeFilters}
               onChange={onFiltersChange!}
+              enableShortcut
               trigger={
                 <Button aria-label="Filter" size="icon-sm" type="button" variant="ghost">
                   <ListFilter />
@@ -142,7 +149,11 @@ export function TaskViewTopBar({
               <ListFilter />
             </Button>
           )}
-          <TaskViewOptionsPopover onViewChange={onViewChange} view={view} />
+          <TaskViewOptionsPopover
+            onViewChange={onViewChange}
+            openRef={openDisplayOptionsRef}
+            view={view}
+          />
           <Button
             aria-label="Insights"
             aria-pressed={insightsOpen}
@@ -173,10 +184,22 @@ export function TaskViewTopBar({
 function TaskViewOptionsPopover({
   view,
   onViewChange,
+  openRef,
 }: {
   readonly view: ResolvedTaskViewOptions;
   readonly onViewChange: (view: ResolvedTaskViewOptions) => void;
+  readonly openRef?: MutableRefObject<(() => void) | null>;
 }) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!openRef) return;
+    openRef.current = () => setOpen(true);
+    return () => {
+      openRef.current = null;
+    };
+  }, [openRef]);
+
   const toggleDisplayProperty = (property: TaskDisplayProperty) => {
     const isShown = view.displayProperties.includes(property);
     onViewChange({
@@ -190,7 +213,7 @@ function TaskViewOptionsPopover({
   const isDefaultView = toTaskViewSearchValue(view) === undefined;
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={<Button aria-label="View Options" size="icon-sm" type="button" variant="ghost" />}
       >

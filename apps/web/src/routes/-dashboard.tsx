@@ -46,7 +46,7 @@ import { revalidateLogic } from "@tanstack/react-form";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { Authenticated, Unauthenticated } from "convex/react";
 import { Schema } from "effect";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import SignInForm from "@/components/sign-in-form";
 import SignUpForm from "@/components/sign-up-form";
@@ -57,6 +57,7 @@ import {
   type ResolvedInsightsState,
 } from "@/components/tasks/task-insights-options";
 import { useTaskFilterFields } from "@/components/tasks/task-filters";
+import { TaskShortcutsHelp } from "@/components/tasks/task-shortcuts-help";
 import { TaskViewTopBar } from "@/components/tasks/task-view-top-bar";
 import type { ColumnConfig } from "@/components/data-table-filter/core/types";
 import { FilterKeys } from "@/shared/global-state";
@@ -173,6 +174,11 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
     tab: activeTab,
   });
 
+  // Imperative opener the keyboard layer triggers for Shift+V; populated by the
+  // top bar. (Filter's `F` is handled natively by the reUI Filters menu.)
+  const openDisplayOptionsRef = useRef<(() => void) | null>(null);
+  const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
+
   useEffect(() => {
     if (typeof activePanel !== "object" || canonicalTeamIdentifier === null) return;
 
@@ -208,6 +214,10 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
     });
   };
 
+  // Cmd/Ctrl+B flips Board <-> List (Linear's layout toggle).
+  const toggleLayout = () =>
+    setView({ ...activeView, mode: activeView.mode === "board" ? "list" : "board" });
+
   const setInsights = (insights: ResolvedInsightsState) => {
     void navigate({
       to: ".",
@@ -221,6 +231,7 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
 
   const content = (
     <>
+      <TaskShortcutsHelp open={shortcutsHelpOpen} onOpenChange={setShortcutsHelpOpen} />
       {showTopBar ? (
         <TaskViewTopBar
           surface={surface}
@@ -228,6 +239,7 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
           onTabChange={setTab}
           view={activeView}
           onViewChange={setView}
+          openDisplayOptionsRef={openDisplayOptionsRef}
           insightsOpen={activeInsights.open}
           onToggleInsights={() => setInsights({ ...activeInsights, open: !activeInsights.open })}
           filterFields={taskFilterFields as ReadonlyArray<ColumnConfig<unknown>>}
@@ -276,6 +288,9 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
           view={search.view}
           insights={activeInsights}
           onInsightsChange={setInsights}
+          onToggleLayout={toggleLayout}
+          onOpenDisplayOptions={() => openDisplayOptionsRef.current?.()}
+          onOpenShortcutsHelp={() => setShortcutsHelpOpen(true)}
         />
       ) : (
         <>

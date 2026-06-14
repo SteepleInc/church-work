@@ -1,5 +1,5 @@
 import { PlusIcon, Tag, Triangle } from "lucide-react";
-import { type MouseEvent as ReactMouseEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type MouseEvent as ReactMouseEvent, useEffect, useMemo, useRef } from "react";
 
 import { useAppForm } from "@/components/form/ts-form";
 import { Badge } from "@/components/ui/badge";
@@ -45,12 +45,13 @@ import type {
   TaskCardStatusChange,
 } from "./task-kanban-board";
 import { DEFAULT_TASK_VIEW_OPTIONS, type TaskDisplayProperty } from "./task-view-options";
+import { statusOptions } from "./task-kanban-board-utils";
 import {
-  isEditableTarget,
-  matchPickerHotkey,
-  statusOptions,
-  type PickerHotkey,
-} from "./task-kanban-board-utils";
+  useRegisterSurfaceOrder,
+  useRegisterTaskShortcuts,
+  useTaskSurfaceKeyboard,
+  type TaskShortcutField,
+} from "./task-surface-keyboard";
 
 type TaskListSurfaceProps = {
   readonly workflowStatuses: readonly TaskBoardWorkflowStatus[];
@@ -78,25 +79,6 @@ type TaskListSurfaceProps = {
 
 const EMPTY_TEAM_MEMBERS: ReadonlyMap<string, ReadonlySet<string>> = new Map();
 const EMPTY_USER_ID_SET: ReadonlySet<string> = new Set();
-
-// Opens a row's field picker when its shortcut is pressed while the row is
-// hovered. Mirrors the Board card's hotkey behavior (see useCardPickerHotkeys
-// in task-kanban-board.tsx).
-function useRowPickerHotkeys(active: boolean, hotkeys: readonly PickerHotkey[]) {
-  useEffect(() => {
-    if (!active) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (isEditableTarget(event.target)) return;
-      const match = matchPickerHotkey(event, hotkeys);
-      const opener = match?.openRef.current;
-      if (!opener) return;
-      event.preventDefault();
-      opener();
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [active, hotkeys]);
-}
 
 /**
  * The Linear-style List View presentation of a Saved View (see CONTEXT.md
@@ -150,6 +132,14 @@ export function TaskListSurface({
     () => new Map(teamOptions.map((team) => [team.id, team])),
     [teamOptions],
   );
+
+  // Report the flat, top-to-bottom row order so J/K navigation walks every
+  // group in turn.
+  const flatOrder = useMemo(
+    () => columns.flatMap((column) => (tasksByColumn[column.id] ?? []).map((task) => task.id)),
+    [columns, tasksByColumn],
+  );
+  useRegisterSurfaceOrder(flatOrder);
 
   return (
     // Single vertical scroll container: sticky group headers resolve against
@@ -364,25 +354,35 @@ function TaskListRow({
     ),
   );
 
-  // While this row is hovered, keyboard shortcuts open the matching picker.
+  // Each selector populates its ref with an imperative opener; the keyboard
+  // layer fires the matching opener for the focused row.
   const statusOpenRef = useRef<(() => void) | null>(null);
   const assigneeOpenRef = useRef<(() => void) | null>(null);
   const priorityOpenRef = useRef<(() => void) | null>(null);
   const estimateOpenRef = useRef<(() => void) | null>(null);
   const labelsOpenRef = useRef<(() => void) | null>(null);
-  const [isHovered, setIsHovered] = useState(false);
 
-  const pickerHotkeys = useMemo<readonly PickerHotkey[]>(
-    () => [
-      { key: "s", openRef: statusOpenRef },
-      { key: "a", openRef: assigneeOpenRef },
-      { key: "p", openRef: priorityOpenRef },
-      { key: "e", shift: true, openRef: estimateOpenRef },
-      { key: "l", openRef: labelsOpenRef },
-    ],
+  const pickers = useMemo<Partial<Record<TaskShortcutField, typeof statusOpenRef>>>(
+    () => ({
+      status: statusOpenRef,
+      assignee: assigneeOpenRef,
+      priority: priorityOpenRef,
+      estimate: estimateOpenRef,
+      labels: labelsOpenRef,
+    }),
     [],
   );
-  useRowPickerHotkeys(isHovered, pickerHotkeys);
+
+  const keyboard = useTaskSurfaceKeyboard();
+  const { isFocused, isSelected } = useRegisterTaskShortcuts(task.id, {
+    open: onOpenTask ? () => onOpenTask(task.identifier) : undefined,
+    pickers,
+  });
+
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (isFocused) rowRef.current?.scrollIntoView({ block: "nearest" });
+  }, [isFocused]);
 
   const form = useAppForm({
     defaultValues: {
@@ -407,23 +407,33 @@ function TaskListRow({
     .map((labelId) => labelOptions.find((option) => option.id === labelId))
     .filter((option) => option !== undefined);
 
+  const isSelectable = rowState !== "canceled";
+
   const handleRowClick = (event: ReactMouseEvent) => {
     // The selectors stop propagation, so a row click means the body was hit.
-    // Task links carry the Task Identifier, not the database id (ADR 0013).
     if (event.defaultPrevented) return;
+    // Shift-click selects (Linear), like the Board card.
+    if (event.shiftKey && isSelectable) {
+      keyboard?.toggleSelected(task.id);
+      return;
+    }
+    // Task links carry the Task Identifier, not the database id (ADR 0013).
     onOpenTask?.(task.identifier);
   };
 
   return (
     <div
+      ref={rowRef}
+      data-selected={isSelected || undefined}
       className={cn(
         "flex h-11 items-center gap-2 border-b px-6 transition-colors",
         rowState === "canceled" && "opacity-70",
         onOpenTask && "cursor-pointer hover:bg-accent/50",
+        isFocused && "bg-accent/60 ring-1 ring-primary/50 ring-inset",
+        isSelected && "bg-primary/5",
       )}
       onClick={handleRowClick}
-      onPointerEnter={() => setIsHovered(true)}
-      onPointerLeave={() => setIsHovered(false)}
+      onPointerEnter={() => keyboard?.setFocusedTaskId(task.id)}
     >
       {showProperty("priority") ? (
         <form.Field name="priority">

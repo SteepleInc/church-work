@@ -102,11 +102,15 @@ export function TaskFilterAddMenu({
   filters,
   onChange,
   trigger,
+  enableShortcut = false,
 }: {
   readonly fields: ReadonlyArray<ColumnConfig<unknown>>;
   readonly filters: readonly FilterItem[];
   readonly onChange: (filters: FilterItem[]) => void;
   readonly trigger: ReactNode;
+  // When true, the reUI Filters menu opens on its built-in `F` shortcut
+  // (ignored while typing). Matches Linear's "F opens filters".
+  readonly enableShortcut?: boolean;
 }) {
   const fieldConfigs = useMemo(() => fields.map(toFieldConfig), [fields]);
   const usedFieldKeys = useMemo(() => new Set(filters.map((filter) => filter.columnId)), [filters]);
@@ -130,6 +134,8 @@ export function TaskFilterAddMenu({
       trigger={trigger}
       size="sm"
       allowMultiple={false}
+      enableShortcut={enableShortcut}
+      shortcutKey="f"
     />
   );
 }
