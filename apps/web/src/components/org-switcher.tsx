@@ -1,17 +1,30 @@
-import { useState } from "react";
+import refs from "@church-task/backend/confect/_generated/refs";
+import { Settings01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { createSequenceMatcher } from "@tanstack/hotkeys";
+import { useNavigate } from "@tanstack/react-router";
+import { LogOutIcon } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { CheckCircleIcon } from "@/components/icons/checkCircleIcon";
 import { ChevronDownIcon } from "@/components/icons/chevronDownIcon";
 import { PlusIcon } from "@/components/icons/plusIcon";
+import { getFilteredOrgSwitcherItems } from "@/components/org-switcher-utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuItemWithLoading,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Kbd } from "@/components/ui/kbd";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   SidebarMenu,
@@ -20,19 +33,108 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCreateOrg } from "@/data/useCreateOrg";
 import { useChangeOrg } from "@/data/useChangeOrg";
-import { useOrgId } from "@/data/useOrgId";
+import { useCreateOrg } from "@/data/useCreateOrg";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { type OrgCollectionItem, useUserOrgsCollection } from "@/data/orgs/orgsData.app";
-import { getFilteredOrgSwitcherItems } from "@/components/org-switcher-utils";
+import { useOrgId } from "@/data/useOrgId";
+import { QueryResult, useQuery } from "@/data/query-hooks";
+import { clearIntentionalSignOut, markIntentionalSignOut } from "@/features/auth/sign-out-routing";
+import { authClient } from "@/lib/auth-client";
+
+// Avoid hijacking shortcuts while the user is typing in a field.
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  if (target.isContentEditable) {
+    return true;
+  }
+  const tag = target.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+}
 
 export function OrgSwitcher() {
+  const navigate = useNavigate();
   const { currentOrgOpt, loading: currentOrgLoading } = useCurrentOrgOpt();
   const { orgsCollection } = useUserOrgsCollection();
   const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+  const [switchOpen, setSwitchOpen] = useState(false);
   const { createOrg } = useCreateOrg();
+  const { setOpenMobile } = useSidebar();
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const userResult = useQuery(refs.public.auth.getCurrentUser);
+  const currentUser = QueryResult.isSuccess(userResult) ? userResult.value : null;
   const filteredOrgs = getFilteredOrgSwitcherItems({ orgs: orgsCollection, search });
+
+  const goToSettings = () => {
+    setOpenMobile(false);
+    void navigate({ to: "/settings/profile" });
+  };
+
+  const signOut = async () => {
+    markIntentionalSignOut();
+    setIsSigningOut(true);
+
+    await authClient.signOut();
+    await navigate({ to: "/" });
+    clearIntentionalSignOut();
+
+    setIsSigningOut(false);
+  };
+
+  // Linear-style sequence shortcuts: "G then S" opens Settings, "O then W"
+  // opens the Switch workspace submenu. Skipped while typing in a field.
+  useEffect(() => {
+    const settingsMatcher = createSequenceMatcher(["G", "S"], { timeout: 1000 });
+    const switchMatcher = createSequenceMatcher(["O", "W"], { timeout: 1000 });
+
+    const handler = (event: KeyboardEvent) => {
+      if (event.repeat || isEditableTarget(event.target)) {
+        return;
+      }
+      if (event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+
+      if (settingsMatcher.match(event)) {
+        event.preventDefault();
+        setOpen(false);
+        goToSettings();
+        return;
+      }
+
+      if (switchMatcher.match(event)) {
+        event.preventDefault();
+        setOpen(true);
+        setSwitchOpen(true);
+      }
+    };
+
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
+  // Linear-style "Option+Shift+Q" logs out from anywhere.
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.repeat || isEditableTarget(event.target)) {
+        return;
+      }
+      if (!(event.altKey && event.shiftKey)) {
+        return;
+      }
+      if (event.key.toLowerCase() !== "q") {
+        return;
+      }
+      event.preventDefault();
+      void signOut();
+    };
+
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
 
   if (currentOrgLoading && !currentOrgOpt) {
     return (
@@ -54,7 +156,7 @@ export function OrgSwitcher() {
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <DropdownMenu>
+        <DropdownMenu onOpenChange={setOpen} open={open}>
           <DropdownMenuTrigger
             render={
               <SidebarMenuButton
@@ -71,40 +173,78 @@ export function OrgSwitcher() {
             <ChevronDownIcon className="ml-auto size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            align="center"
-            className="flex w-(--anchor-width) min-w-56 flex-col rounded-lg p-0"
+            align="start"
+            className="min-w-56 rounded-lg"
             side="bottom"
             sideOffset={4}
           >
-            {orgsCollection.length > 5 ? (
-              <Input
-                className="shrink-0"
-                onChange={(event) => setSearch(event.currentTarget.value)}
-                onKeyDown={(event) => event.stopPropagation()}
-                placeholder="Search"
-                value={search}
-              />
-            ) : null}
+            <DropdownMenuItem onClick={goToSettings}>
+              <HugeiconsIcon className="size-4" icon={Settings01Icon} strokeWidth={2} />
+              <span>Settings</span>
+              <DropdownMenuShortcut>
+                <Kbd>G</Kbd>
+                <span className="mx-1">then</span>
+                <Kbd>S</Kbd>
+              </DropdownMenuShortcut>
+            </DropdownMenuItem>
 
-            <div className="flex overflow-hidden">
-              <ScrollArea className="w-full" viewportClassName="p-1">
-                <DropdownMenuLabel className="text-muted-foreground text-xs">
-                  Your Churches
-                </DropdownMenuLabel>
-                {filteredOrgs.map((org) => (
-                  <OrgDropdownItem key={org.id} org={org} />
-                ))}
+            <DropdownMenuSub onOpenChange={setSwitchOpen} open={switchOpen}>
+              <DropdownMenuSubTrigger>
+                <span>Switch Church</span>
+                <DropdownMenuShortcut className="mr-2">
+                  <Kbd>O</Kbd>
+                  <span className="mx-1">then</span>
+                  <Kbd>W</Kbd>
+                </DropdownMenuShortcut>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="flex max-h-80 w-64 flex-col p-0">
+                {currentUser?.email ? (
+                  <DropdownMenuLabel className="shrink-0 text-muted-foreground text-xs">
+                    {currentUser.email}
+                  </DropdownMenuLabel>
+                ) : null}
 
-                <DropdownMenuSeparator />
+                {orgsCollection.length > 5 ? (
+                  <Input
+                    className="shrink-0"
+                    onChange={(event) => setSearch(event.currentTarget.value)}
+                    onKeyDown={(event) => event.stopPropagation()}
+                    placeholder="Search"
+                    value={search}
+                  />
+                ) : null}
 
-                <DropdownMenuItem onClick={createOrg}>
-                  <div className="flex size-6 items-center justify-center rounded-md border bg-background">
-                    <PlusIcon className="size-4" />
-                  </div>
-                  <div className="font-medium text-muted-foreground">Create Church</div>
-                </DropdownMenuItem>
-              </ScrollArea>
-            </div>
+                <div className="flex overflow-hidden">
+                  <ScrollArea className="w-full" viewportClassName="p-1">
+                    {filteredOrgs.map((org) => (
+                      <OrgDropdownItem key={org.id} org={org} />
+                    ))}
+
+                    <DropdownMenuSeparator />
+
+                    <DropdownMenuLabel className="text-muted-foreground text-xs">
+                      Account
+                    </DropdownMenuLabel>
+                    <DropdownMenuItem onClick={createOrg}>
+                      <div className="flex size-6 items-center justify-center rounded-md border bg-background">
+                        <PlusIcon className="size-4" />
+                      </div>
+                      <div className="font-medium text-muted-foreground">Create Church</div>
+                    </DropdownMenuItem>
+                  </ScrollArea>
+                </div>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+
+            <DropdownMenuSeparator />
+
+            <DropdownMenuItemWithLoading loading={isSigningOut} onClick={signOut}>
+              <LogOutIcon className="size-4" />
+              <span>Log out</span>
+              <DropdownMenuShortcut>
+                <Kbd>alt shift Q</Kbd>
+              </DropdownMenuShortcut>
+            </DropdownMenuItemWithLoading>
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>
