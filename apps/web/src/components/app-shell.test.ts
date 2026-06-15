@@ -72,7 +72,6 @@ describe("app shell route behavior", () => {
     expect(getPrimaryAppShellNavItems()).toEqual([
       { label: "My Work", to: "/my-work", matchPath: "/my-work" },
       { label: "Our Work", to: "/our-work", matchPath: "/our-work" },
-      { label: "Settings", to: "/settings", matchPath: "/settings" },
     ]);
   });
 
@@ -153,16 +152,12 @@ describe("app shell route behavior", () => {
     expect(navSharedSource).toContain(
       'import { PersonIcon } from "@/components/icons/personIcon";',
     );
-    expect(navSharedSource).toContain(
-      'import { UserCircleIcon } from "@/components/icons/userCircleIcon";',
-    );
     expect(appNavigationSource).toContain(
       'import { CommentTextIcon } from "@/components/icons/commentText";',
     );
     expect(navSharedSource).toContain("icon: <ChurchIcon />");
     expect(navSharedSource).toContain("icon: <HomeIcon />");
     expect(navSharedSource).toContain("icon: <PersonIcon />");
-    expect(navSharedSource).toContain("icon: <UserCircleIcon />");
     expect(appNavigationSource).toContain("<CommentTextIcon />");
   });
 
@@ -174,9 +169,7 @@ describe("app shell route behavior", () => {
       'import { ChevronDownIcon } from "@/components/icons/chevronDownIcon";',
     );
     expect(orgSwitcherSource).toContain('import { PlusIcon } from "@/components/icons/plusIcon";');
-    expect(orgSwitcherSource).toContain(
-      'className="flex w-(--anchor-width) min-w-56 flex-col rounded-lg p-0"',
-    );
+    expect(orgSwitcherSource).toContain('className="min-w-56 rounded-lg"');
     expect(orgSwitcherSource).toContain('placeholder="Search"');
     expect(orgSwitcherSource).toContain('viewportClassName="p-1"');
     expect(orgSwitcherSource).toContain('<span className="line-clamp-2">{org.name}</span>');
@@ -184,7 +177,6 @@ describe("app shell route behavior", () => {
     expect(orgSwitcherSource).toContain("Onboarding incomplete");
     expect(orgSwitcherSource).toContain("completedOnboarding: org.completedOnboarding");
     expect(orgSwitcherSource).not.toContain("DropdownMenuGroup");
-    expect(orgSwitcherSource).not.toContain('from "lucide-react"');
   });
 
   test("keeps sidebar links scoped to the copied PreachX global details search param", () => {

@@ -1,6 +1,5 @@
 import { revalidateLogic } from "@tanstack/react-form";
 import { Schema } from "effect";
-import type { ReactNode } from "react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -9,11 +8,9 @@ import { useAppForm } from "@/components/form/ts-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrentOrgOpt, type CurrentOrg } from "@/data/orgs/orgData.app";
 import { authClient } from "@/lib/auth-client";
-import { TeamInvitationsSettingsPanel, TeamMembersSettingsPanel } from "@/routes/-dashboard";
 import {
   getChurchProfileSettingsDefaultValues,
   normalizeOptionalChurchProfileValue,
@@ -84,14 +81,6 @@ const ChurchProfileSettingsSchema = Schema.Struct({
   url: Schema.String,
   zip: Schema.String,
 });
-
-export function SettingsFrame({ children }: { readonly children: ReactNode }) {
-  return (
-    <ScrollArea viewportClassName="px-6 pt-1.5 pb-6">
-      <div className="flex flex-col gap-4">{children}</div>
-    </ScrollArea>
-  );
-}
 
 export function SettingsProfilePanel() {
   const { data, refetch: refetchSession } = authClient.useSession();
@@ -402,22 +391,6 @@ function SettingsChurchForm({
         </CardContent>
       </Card>
     </section>
-  );
-}
-
-export function SettingsTeamTabPanel({ teamTab }: { readonly teamTab: string }) {
-  if (teamTab === "invites") {
-    return (
-      <div className="mt-4 flex flex-col overflow-hidden">
-        <TeamInvitationsSettingsPanel />
-      </div>
-    );
-  }
-
-  return (
-    <div className="mt-4 flex flex-col overflow-hidden">
-      <TeamMembersSettingsPanel />
-    </div>
   );
 }
 

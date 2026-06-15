@@ -2,12 +2,7 @@ import { Link } from "@tanstack/react-router";
 import type { ComponentProps } from "react";
 
 import { CommentTextIcon } from "@/components/icons/commentText";
-import {
-  devNavItems,
-  homeNavItem,
-  settingsNavItems,
-  workspaceNavItems,
-} from "@/components/navigation/nav-shared";
+import { devNavItems, homeNavItem, workspaceNavItems } from "@/components/navigation/nav-shared";
 import { AdminNav } from "@/components/navigation/adminNav";
 import { DevMenu } from "@/components/navigation/dev-menu";
 import { MobileSidebarContent } from "@/components/navigation/mobile-sidebar-content";
@@ -140,15 +135,6 @@ function AppNavigationBody() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}
-        </SidebarMenu>
-      </SidebarGroup>
-
-      <SidebarGroup>
-        <SidebarGroupLabel>Settings</SidebarGroupLabel>
-        <SidebarMenu>
-          {settingsNavItems.map((item) => (
-            <SideBarItem key={item.to} {...item} />
-          ))}
         </SidebarMenu>
       </SidebarGroup>
 

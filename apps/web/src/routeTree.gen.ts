@@ -9,12 +9,13 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SettingsRouteRouteImport } from './routes/_settings/route'
 import { Route as OrgRouteRouteImport } from './routes/_org/route'
 import { Route as OnboardingRouteRouteImport } from './routes/_onboarding/route'
 import { Route as MarketingRouteRouteImport } from './routes/_marketing/route'
 import { Route as AuthRouteRouteImport } from './routes/_auth/route'
 import { Route as MarketingIndexRouteImport } from './routes/_marketing/index'
-import { Route as OrgSettingsRouteImport } from './routes/_org/settings'
+import { Route as SettingsSettingsRouteImport } from './routes/_settings/settings'
 import { Route as OrgOurWorkRouteImport } from './routes/_org/our-work'
 import { Route as OrgMyWorkRouteImport } from './routes/_org/my-work'
 import { Route as OrgAdminRouteImport } from './routes/_org/admin'
@@ -22,17 +23,24 @@ import { Route as OnboardingOnboardingRouteImport } from './routes/_onboarding/o
 import { Route as MarketingLibraryRouteImport } from './routes/_marketing/library'
 import { Route as AuthSignInRouteImport } from './routes/_auth/sign-in'
 import { Route as OrgTeamTeamIdentifierRouteImport } from './routes/_org/team.$teamIdentifier'
-import { Route as OrgSettingsTeamRouteImport } from './routes/_org/settings.team'
-import { Route as OrgSettingsProfileRouteImport } from './routes/_org/settings.profile'
-import { Route as OrgSettingsOrgRouteImport } from './routes/_org/settings.org'
-import { Route as OrgSettingsLabelsRouteImport } from './routes/_org/settings.labels'
 import { Route as OrgDevSessionRouteImport } from './routes/_org/dev.session'
 import { Route as OrgDevDataRouteImport } from './routes/_org/dev.data'
 import { Route as OrgAdminUsersRouteImport } from './routes/_org/admin.users'
 import { Route as OrgAdminOrgsRouteImport } from './routes/_org/admin.orgs'
 import { Route as AuthAcceptInvitationIdRouteImport } from './routes/_auth/accept-invitation.$id'
-import { Route as OrgSettingsTeamTeamTabRouteImport } from './routes/_org/settings.team.$teamTab'
+import { Route as SettingsSettingsWorkspaceMembersRouteImport } from './routes/_settings/settings.workspace.members'
+import { Route as SettingsSettingsWorkspaceLabelsRouteImport } from './routes/_settings/settings.workspace.labels'
+import { Route as SettingsSettingsWorkspaceGeneralRouteImport } from './routes/_settings/settings.workspace.general'
+import { Route as SettingsSettingsTeamsTeamIdRouteImport } from './routes/_settings/settings.teams.$teamId'
+import { Route as SettingsSettingsAccountProfileRouteImport } from './routes/_settings/settings.account.profile'
+import { Route as SettingsSettingsTeamsTeamIdIndexRouteImport } from './routes/_settings/settings.teams.$teamId.index'
+import { Route as SettingsSettingsTeamsTeamIdMembersRouteImport } from './routes/_settings/settings.teams.$teamId.members'
+import { Route as SettingsSettingsTeamsTeamIdGeneralRouteImport } from './routes/_settings/settings.teams.$teamId.general'
 
+const SettingsRouteRoute = SettingsRouteRouteImport.update({
+  id: '/_settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OrgRouteRoute = OrgRouteRouteImport.update({
   id: '/_org',
   getParentRoute: () => rootRouteImport,
@@ -54,10 +62,10 @@ const MarketingIndexRoute = MarketingIndexRouteImport.update({
   path: '/',
   getParentRoute: () => MarketingRouteRoute,
 } as any)
-const OrgSettingsRoute = OrgSettingsRouteImport.update({
+const SettingsSettingsRoute = SettingsSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
-  getParentRoute: () => OrgRouteRoute,
+  getParentRoute: () => SettingsRouteRoute,
 } as any)
 const OrgOurWorkRoute = OrgOurWorkRouteImport.update({
   id: '/our-work',
@@ -94,26 +102,6 @@ const OrgTeamTeamIdentifierRoute = OrgTeamTeamIdentifierRouteImport.update({
   path: '/team/$teamIdentifier',
   getParentRoute: () => OrgRouteRoute,
 } as any)
-const OrgSettingsTeamRoute = OrgSettingsTeamRouteImport.update({
-  id: '/team',
-  path: '/team',
-  getParentRoute: () => OrgSettingsRoute,
-} as any)
-const OrgSettingsProfileRoute = OrgSettingsProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
-  getParentRoute: () => OrgSettingsRoute,
-} as any)
-const OrgSettingsOrgRoute = OrgSettingsOrgRouteImport.update({
-  id: '/org',
-  path: '/org',
-  getParentRoute: () => OrgSettingsRoute,
-} as any)
-const OrgSettingsLabelsRoute = OrgSettingsLabelsRouteImport.update({
-  id: '/labels',
-  path: '/labels',
-  getParentRoute: () => OrgSettingsRoute,
-} as any)
 const OrgDevSessionRoute = OrgDevSessionRouteImport.update({
   id: '/dev/session',
   path: '/dev/session',
@@ -139,11 +127,54 @@ const AuthAcceptInvitationIdRoute = AuthAcceptInvitationIdRouteImport.update({
   path: '/accept-invitation/$id',
   getParentRoute: () => AuthRouteRoute,
 } as any)
-const OrgSettingsTeamTeamTabRoute = OrgSettingsTeamTeamTabRouteImport.update({
-  id: '/$teamTab',
-  path: '/$teamTab',
-  getParentRoute: () => OrgSettingsTeamRoute,
-} as any)
+const SettingsSettingsWorkspaceMembersRoute =
+  SettingsSettingsWorkspaceMembersRouteImport.update({
+    id: '/workspace/members',
+    path: '/workspace/members',
+    getParentRoute: () => SettingsSettingsRoute,
+  } as any)
+const SettingsSettingsWorkspaceLabelsRoute =
+  SettingsSettingsWorkspaceLabelsRouteImport.update({
+    id: '/workspace/labels',
+    path: '/workspace/labels',
+    getParentRoute: () => SettingsSettingsRoute,
+  } as any)
+const SettingsSettingsWorkspaceGeneralRoute =
+  SettingsSettingsWorkspaceGeneralRouteImport.update({
+    id: '/workspace/general',
+    path: '/workspace/general',
+    getParentRoute: () => SettingsSettingsRoute,
+  } as any)
+const SettingsSettingsTeamsTeamIdRoute =
+  SettingsSettingsTeamsTeamIdRouteImport.update({
+    id: '/teams/$teamId',
+    path: '/teams/$teamId',
+    getParentRoute: () => SettingsSettingsRoute,
+  } as any)
+const SettingsSettingsAccountProfileRoute =
+  SettingsSettingsAccountProfileRouteImport.update({
+    id: '/account/profile',
+    path: '/account/profile',
+    getParentRoute: () => SettingsSettingsRoute,
+  } as any)
+const SettingsSettingsTeamsTeamIdIndexRoute =
+  SettingsSettingsTeamsTeamIdIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => SettingsSettingsTeamsTeamIdRoute,
+  } as any)
+const SettingsSettingsTeamsTeamIdMembersRoute =
+  SettingsSettingsTeamsTeamIdMembersRouteImport.update({
+    id: '/members',
+    path: '/members',
+    getParentRoute: () => SettingsSettingsTeamsTeamIdRoute,
+  } as any)
+const SettingsSettingsTeamsTeamIdGeneralRoute =
+  SettingsSettingsTeamsTeamIdGeneralRouteImport.update({
+    id: '/general',
+    path: '/general',
+    getParentRoute: () => SettingsSettingsTeamsTeamIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof MarketingIndexRoute
@@ -153,18 +184,21 @@ export interface FileRoutesByFullPath {
   '/admin': typeof OrgAdminRouteWithChildren
   '/my-work': typeof OrgMyWorkRoute
   '/our-work': typeof OrgOurWorkRoute
-  '/settings': typeof OrgSettingsRouteWithChildren
+  '/settings': typeof SettingsSettingsRouteWithChildren
   '/accept-invitation/$id': typeof AuthAcceptInvitationIdRoute
   '/admin/orgs': typeof OrgAdminOrgsRoute
   '/admin/users': typeof OrgAdminUsersRoute
   '/dev/data': typeof OrgDevDataRoute
   '/dev/session': typeof OrgDevSessionRoute
-  '/settings/labels': typeof OrgSettingsLabelsRoute
-  '/settings/org': typeof OrgSettingsOrgRoute
-  '/settings/profile': typeof OrgSettingsProfileRoute
-  '/settings/team': typeof OrgSettingsTeamRouteWithChildren
   '/team/$teamIdentifier': typeof OrgTeamTeamIdentifierRoute
-  '/settings/team/$teamTab': typeof OrgSettingsTeamTeamTabRoute
+  '/settings/account/profile': typeof SettingsSettingsAccountProfileRoute
+  '/settings/teams/$teamId': typeof SettingsSettingsTeamsTeamIdRouteWithChildren
+  '/settings/workspace/general': typeof SettingsSettingsWorkspaceGeneralRoute
+  '/settings/workspace/labels': typeof SettingsSettingsWorkspaceLabelsRoute
+  '/settings/workspace/members': typeof SettingsSettingsWorkspaceMembersRoute
+  '/settings/teams/$teamId/general': typeof SettingsSettingsTeamsTeamIdGeneralRoute
+  '/settings/teams/$teamId/members': typeof SettingsSettingsTeamsTeamIdMembersRoute
+  '/settings/teams/$teamId/': typeof SettingsSettingsTeamsTeamIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof MarketingIndexRoute
@@ -174,18 +208,20 @@ export interface FileRoutesByTo {
   '/admin': typeof OrgAdminRouteWithChildren
   '/my-work': typeof OrgMyWorkRoute
   '/our-work': typeof OrgOurWorkRoute
-  '/settings': typeof OrgSettingsRouteWithChildren
+  '/settings': typeof SettingsSettingsRouteWithChildren
   '/accept-invitation/$id': typeof AuthAcceptInvitationIdRoute
   '/admin/orgs': typeof OrgAdminOrgsRoute
   '/admin/users': typeof OrgAdminUsersRoute
   '/dev/data': typeof OrgDevDataRoute
   '/dev/session': typeof OrgDevSessionRoute
-  '/settings/labels': typeof OrgSettingsLabelsRoute
-  '/settings/org': typeof OrgSettingsOrgRoute
-  '/settings/profile': typeof OrgSettingsProfileRoute
-  '/settings/team': typeof OrgSettingsTeamRouteWithChildren
   '/team/$teamIdentifier': typeof OrgTeamTeamIdentifierRoute
-  '/settings/team/$teamTab': typeof OrgSettingsTeamTeamTabRoute
+  '/settings/account/profile': typeof SettingsSettingsAccountProfileRoute
+  '/settings/workspace/general': typeof SettingsSettingsWorkspaceGeneralRoute
+  '/settings/workspace/labels': typeof SettingsSettingsWorkspaceLabelsRoute
+  '/settings/workspace/members': typeof SettingsSettingsWorkspaceMembersRoute
+  '/settings/teams/$teamId/general': typeof SettingsSettingsTeamsTeamIdGeneralRoute
+  '/settings/teams/$teamId/members': typeof SettingsSettingsTeamsTeamIdMembersRoute
+  '/settings/teams/$teamId': typeof SettingsSettingsTeamsTeamIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -193,25 +229,29 @@ export interface FileRoutesById {
   '/_marketing': typeof MarketingRouteRouteWithChildren
   '/_onboarding': typeof OnboardingRouteRouteWithChildren
   '/_org': typeof OrgRouteRouteWithChildren
+  '/_settings': typeof SettingsRouteRouteWithChildren
   '/_auth/sign-in': typeof AuthSignInRoute
   '/_marketing/library': typeof MarketingLibraryRoute
   '/_onboarding/onboarding': typeof OnboardingOnboardingRoute
   '/_org/admin': typeof OrgAdminRouteWithChildren
   '/_org/my-work': typeof OrgMyWorkRoute
   '/_org/our-work': typeof OrgOurWorkRoute
-  '/_org/settings': typeof OrgSettingsRouteWithChildren
+  '/_settings/settings': typeof SettingsSettingsRouteWithChildren
   '/_marketing/': typeof MarketingIndexRoute
   '/_auth/accept-invitation/$id': typeof AuthAcceptInvitationIdRoute
   '/_org/admin/orgs': typeof OrgAdminOrgsRoute
   '/_org/admin/users': typeof OrgAdminUsersRoute
   '/_org/dev/data': typeof OrgDevDataRoute
   '/_org/dev/session': typeof OrgDevSessionRoute
-  '/_org/settings/labels': typeof OrgSettingsLabelsRoute
-  '/_org/settings/org': typeof OrgSettingsOrgRoute
-  '/_org/settings/profile': typeof OrgSettingsProfileRoute
-  '/_org/settings/team': typeof OrgSettingsTeamRouteWithChildren
   '/_org/team/$teamIdentifier': typeof OrgTeamTeamIdentifierRoute
-  '/_org/settings/team/$teamTab': typeof OrgSettingsTeamTeamTabRoute
+  '/_settings/settings/account/profile': typeof SettingsSettingsAccountProfileRoute
+  '/_settings/settings/teams/$teamId': typeof SettingsSettingsTeamsTeamIdRouteWithChildren
+  '/_settings/settings/workspace/general': typeof SettingsSettingsWorkspaceGeneralRoute
+  '/_settings/settings/workspace/labels': typeof SettingsSettingsWorkspaceLabelsRoute
+  '/_settings/settings/workspace/members': typeof SettingsSettingsWorkspaceMembersRoute
+  '/_settings/settings/teams/$teamId/general': typeof SettingsSettingsTeamsTeamIdGeneralRoute
+  '/_settings/settings/teams/$teamId/members': typeof SettingsSettingsTeamsTeamIdMembersRoute
+  '/_settings/settings/teams/$teamId/': typeof SettingsSettingsTeamsTeamIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -229,12 +269,15 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/dev/data'
     | '/dev/session'
-    | '/settings/labels'
-    | '/settings/org'
-    | '/settings/profile'
-    | '/settings/team'
     | '/team/$teamIdentifier'
-    | '/settings/team/$teamTab'
+    | '/settings/account/profile'
+    | '/settings/teams/$teamId'
+    | '/settings/workspace/general'
+    | '/settings/workspace/labels'
+    | '/settings/workspace/members'
+    | '/settings/teams/$teamId/general'
+    | '/settings/teams/$teamId/members'
+    | '/settings/teams/$teamId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -250,37 +293,43 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/dev/data'
     | '/dev/session'
-    | '/settings/labels'
-    | '/settings/org'
-    | '/settings/profile'
-    | '/settings/team'
     | '/team/$teamIdentifier'
-    | '/settings/team/$teamTab'
+    | '/settings/account/profile'
+    | '/settings/workspace/general'
+    | '/settings/workspace/labels'
+    | '/settings/workspace/members'
+    | '/settings/teams/$teamId/general'
+    | '/settings/teams/$teamId/members'
+    | '/settings/teams/$teamId'
   id:
     | '__root__'
     | '/_auth'
     | '/_marketing'
     | '/_onboarding'
     | '/_org'
+    | '/_settings'
     | '/_auth/sign-in'
     | '/_marketing/library'
     | '/_onboarding/onboarding'
     | '/_org/admin'
     | '/_org/my-work'
     | '/_org/our-work'
-    | '/_org/settings'
+    | '/_settings/settings'
     | '/_marketing/'
     | '/_auth/accept-invitation/$id'
     | '/_org/admin/orgs'
     | '/_org/admin/users'
     | '/_org/dev/data'
     | '/_org/dev/session'
-    | '/_org/settings/labels'
-    | '/_org/settings/org'
-    | '/_org/settings/profile'
-    | '/_org/settings/team'
     | '/_org/team/$teamIdentifier'
-    | '/_org/settings/team/$teamTab'
+    | '/_settings/settings/account/profile'
+    | '/_settings/settings/teams/$teamId'
+    | '/_settings/settings/workspace/general'
+    | '/_settings/settings/workspace/labels'
+    | '/_settings/settings/workspace/members'
+    | '/_settings/settings/teams/$teamId/general'
+    | '/_settings/settings/teams/$teamId/members'
+    | '/_settings/settings/teams/$teamId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -288,10 +337,18 @@ export interface RootRouteChildren {
   MarketingRouteRoute: typeof MarketingRouteRouteWithChildren
   OnboardingRouteRoute: typeof OnboardingRouteRouteWithChildren
   OrgRouteRoute: typeof OrgRouteRouteWithChildren
+  SettingsRouteRoute: typeof SettingsRouteRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/_settings': {
+      id: '/_settings'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof SettingsRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_org': {
       id: '/_org'
       path: ''
@@ -327,12 +384,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MarketingIndexRouteImport
       parentRoute: typeof MarketingRouteRoute
     }
-    '/_org/settings': {
-      id: '/_org/settings'
+    '/_settings/settings': {
+      id: '/_settings/settings'
       path: '/settings'
       fullPath: '/settings'
-      preLoaderRoute: typeof OrgSettingsRouteImport
-      parentRoute: typeof OrgRouteRoute
+      preLoaderRoute: typeof SettingsSettingsRouteImport
+      parentRoute: typeof SettingsRouteRoute
     }
     '/_org/our-work': {
       id: '/_org/our-work'
@@ -383,34 +440,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OrgTeamTeamIdentifierRouteImport
       parentRoute: typeof OrgRouteRoute
     }
-    '/_org/settings/team': {
-      id: '/_org/settings/team'
-      path: '/team'
-      fullPath: '/settings/team'
-      preLoaderRoute: typeof OrgSettingsTeamRouteImport
-      parentRoute: typeof OrgSettingsRoute
-    }
-    '/_org/settings/profile': {
-      id: '/_org/settings/profile'
-      path: '/profile'
-      fullPath: '/settings/profile'
-      preLoaderRoute: typeof OrgSettingsProfileRouteImport
-      parentRoute: typeof OrgSettingsRoute
-    }
-    '/_org/settings/org': {
-      id: '/_org/settings/org'
-      path: '/org'
-      fullPath: '/settings/org'
-      preLoaderRoute: typeof OrgSettingsOrgRouteImport
-      parentRoute: typeof OrgSettingsRoute
-    }
-    '/_org/settings/labels': {
-      id: '/_org/settings/labels'
-      path: '/labels'
-      fullPath: '/settings/labels'
-      preLoaderRoute: typeof OrgSettingsLabelsRouteImport
-      parentRoute: typeof OrgSettingsRoute
-    }
     '/_org/dev/session': {
       id: '/_org/dev/session'
       path: '/dev/session'
@@ -446,12 +475,61 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAcceptInvitationIdRouteImport
       parentRoute: typeof AuthRouteRoute
     }
-    '/_org/settings/team/$teamTab': {
-      id: '/_org/settings/team/$teamTab'
-      path: '/$teamTab'
-      fullPath: '/settings/team/$teamTab'
-      preLoaderRoute: typeof OrgSettingsTeamTeamTabRouteImport
-      parentRoute: typeof OrgSettingsTeamRoute
+    '/_settings/settings/workspace/members': {
+      id: '/_settings/settings/workspace/members'
+      path: '/workspace/members'
+      fullPath: '/settings/workspace/members'
+      preLoaderRoute: typeof SettingsSettingsWorkspaceMembersRouteImport
+      parentRoute: typeof SettingsSettingsRoute
+    }
+    '/_settings/settings/workspace/labels': {
+      id: '/_settings/settings/workspace/labels'
+      path: '/workspace/labels'
+      fullPath: '/settings/workspace/labels'
+      preLoaderRoute: typeof SettingsSettingsWorkspaceLabelsRouteImport
+      parentRoute: typeof SettingsSettingsRoute
+    }
+    '/_settings/settings/workspace/general': {
+      id: '/_settings/settings/workspace/general'
+      path: '/workspace/general'
+      fullPath: '/settings/workspace/general'
+      preLoaderRoute: typeof SettingsSettingsWorkspaceGeneralRouteImport
+      parentRoute: typeof SettingsSettingsRoute
+    }
+    '/_settings/settings/teams/$teamId': {
+      id: '/_settings/settings/teams/$teamId'
+      path: '/teams/$teamId'
+      fullPath: '/settings/teams/$teamId'
+      preLoaderRoute: typeof SettingsSettingsTeamsTeamIdRouteImport
+      parentRoute: typeof SettingsSettingsRoute
+    }
+    '/_settings/settings/account/profile': {
+      id: '/_settings/settings/account/profile'
+      path: '/account/profile'
+      fullPath: '/settings/account/profile'
+      preLoaderRoute: typeof SettingsSettingsAccountProfileRouteImport
+      parentRoute: typeof SettingsSettingsRoute
+    }
+    '/_settings/settings/teams/$teamId/': {
+      id: '/_settings/settings/teams/$teamId/'
+      path: '/'
+      fullPath: '/settings/teams/$teamId/'
+      preLoaderRoute: typeof SettingsSettingsTeamsTeamIdIndexRouteImport
+      parentRoute: typeof SettingsSettingsTeamsTeamIdRoute
+    }
+    '/_settings/settings/teams/$teamId/members': {
+      id: '/_settings/settings/teams/$teamId/members'
+      path: '/members'
+      fullPath: '/settings/teams/$teamId/members'
+      preLoaderRoute: typeof SettingsSettingsTeamsTeamIdMembersRouteImport
+      parentRoute: typeof SettingsSettingsTeamsTeamIdRoute
+    }
+    '/_settings/settings/teams/$teamId/general': {
+      id: '/_settings/settings/teams/$teamId/general'
+      path: '/general'
+      fullPath: '/settings/teams/$teamId/general'
+      preLoaderRoute: typeof SettingsSettingsTeamsTeamIdGeneralRouteImport
+      parentRoute: typeof SettingsSettingsTeamsTeamIdRoute
     }
   }
 }
@@ -510,41 +588,10 @@ const OrgAdminRouteWithChildren = OrgAdminRoute._addFileChildren(
   OrgAdminRouteChildren,
 )
 
-interface OrgSettingsTeamRouteChildren {
-  OrgSettingsTeamTeamTabRoute: typeof OrgSettingsTeamTeamTabRoute
-}
-
-const OrgSettingsTeamRouteChildren: OrgSettingsTeamRouteChildren = {
-  OrgSettingsTeamTeamTabRoute: OrgSettingsTeamTeamTabRoute,
-}
-
-const OrgSettingsTeamRouteWithChildren = OrgSettingsTeamRoute._addFileChildren(
-  OrgSettingsTeamRouteChildren,
-)
-
-interface OrgSettingsRouteChildren {
-  OrgSettingsLabelsRoute: typeof OrgSettingsLabelsRoute
-  OrgSettingsOrgRoute: typeof OrgSettingsOrgRoute
-  OrgSettingsProfileRoute: typeof OrgSettingsProfileRoute
-  OrgSettingsTeamRoute: typeof OrgSettingsTeamRouteWithChildren
-}
-
-const OrgSettingsRouteChildren: OrgSettingsRouteChildren = {
-  OrgSettingsLabelsRoute: OrgSettingsLabelsRoute,
-  OrgSettingsOrgRoute: OrgSettingsOrgRoute,
-  OrgSettingsProfileRoute: OrgSettingsProfileRoute,
-  OrgSettingsTeamRoute: OrgSettingsTeamRouteWithChildren,
-}
-
-const OrgSettingsRouteWithChildren = OrgSettingsRoute._addFileChildren(
-  OrgSettingsRouteChildren,
-)
-
 interface OrgRouteRouteChildren {
   OrgAdminRoute: typeof OrgAdminRouteWithChildren
   OrgMyWorkRoute: typeof OrgMyWorkRoute
   OrgOurWorkRoute: typeof OrgOurWorkRoute
-  OrgSettingsRoute: typeof OrgSettingsRouteWithChildren
   OrgDevDataRoute: typeof OrgDevDataRoute
   OrgDevSessionRoute: typeof OrgDevSessionRoute
   OrgTeamTeamIdentifierRoute: typeof OrgTeamTeamIdentifierRoute
@@ -554,7 +601,6 @@ const OrgRouteRouteChildren: OrgRouteRouteChildren = {
   OrgAdminRoute: OrgAdminRouteWithChildren,
   OrgMyWorkRoute: OrgMyWorkRoute,
   OrgOurWorkRoute: OrgOurWorkRoute,
-  OrgSettingsRoute: OrgSettingsRouteWithChildren,
   OrgDevDataRoute: OrgDevDataRoute,
   OrgDevSessionRoute: OrgDevSessionRoute,
   OrgTeamTeamIdentifierRoute: OrgTeamTeamIdentifierRoute,
@@ -564,11 +610,65 @@ const OrgRouteRouteWithChildren = OrgRouteRoute._addFileChildren(
   OrgRouteRouteChildren,
 )
 
+interface SettingsSettingsTeamsTeamIdRouteChildren {
+  SettingsSettingsTeamsTeamIdGeneralRoute: typeof SettingsSettingsTeamsTeamIdGeneralRoute
+  SettingsSettingsTeamsTeamIdMembersRoute: typeof SettingsSettingsTeamsTeamIdMembersRoute
+  SettingsSettingsTeamsTeamIdIndexRoute: typeof SettingsSettingsTeamsTeamIdIndexRoute
+}
+
+const SettingsSettingsTeamsTeamIdRouteChildren: SettingsSettingsTeamsTeamIdRouteChildren =
+  {
+    SettingsSettingsTeamsTeamIdGeneralRoute:
+      SettingsSettingsTeamsTeamIdGeneralRoute,
+    SettingsSettingsTeamsTeamIdMembersRoute:
+      SettingsSettingsTeamsTeamIdMembersRoute,
+    SettingsSettingsTeamsTeamIdIndexRoute:
+      SettingsSettingsTeamsTeamIdIndexRoute,
+  }
+
+const SettingsSettingsTeamsTeamIdRouteWithChildren =
+  SettingsSettingsTeamsTeamIdRoute._addFileChildren(
+    SettingsSettingsTeamsTeamIdRouteChildren,
+  )
+
+interface SettingsSettingsRouteChildren {
+  SettingsSettingsAccountProfileRoute: typeof SettingsSettingsAccountProfileRoute
+  SettingsSettingsTeamsTeamIdRoute: typeof SettingsSettingsTeamsTeamIdRouteWithChildren
+  SettingsSettingsWorkspaceGeneralRoute: typeof SettingsSettingsWorkspaceGeneralRoute
+  SettingsSettingsWorkspaceLabelsRoute: typeof SettingsSettingsWorkspaceLabelsRoute
+  SettingsSettingsWorkspaceMembersRoute: typeof SettingsSettingsWorkspaceMembersRoute
+}
+
+const SettingsSettingsRouteChildren: SettingsSettingsRouteChildren = {
+  SettingsSettingsAccountProfileRoute: SettingsSettingsAccountProfileRoute,
+  SettingsSettingsTeamsTeamIdRoute:
+    SettingsSettingsTeamsTeamIdRouteWithChildren,
+  SettingsSettingsWorkspaceGeneralRoute: SettingsSettingsWorkspaceGeneralRoute,
+  SettingsSettingsWorkspaceLabelsRoute: SettingsSettingsWorkspaceLabelsRoute,
+  SettingsSettingsWorkspaceMembersRoute: SettingsSettingsWorkspaceMembersRoute,
+}
+
+const SettingsSettingsRouteWithChildren =
+  SettingsSettingsRoute._addFileChildren(SettingsSettingsRouteChildren)
+
+interface SettingsRouteRouteChildren {
+  SettingsSettingsRoute: typeof SettingsSettingsRouteWithChildren
+}
+
+const SettingsRouteRouteChildren: SettingsRouteRouteChildren = {
+  SettingsSettingsRoute: SettingsSettingsRouteWithChildren,
+}
+
+const SettingsRouteRouteWithChildren = SettingsRouteRoute._addFileChildren(
+  SettingsRouteRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   AuthRouteRoute: AuthRouteRouteWithChildren,
   MarketingRouteRoute: MarketingRouteRouteWithChildren,
   OnboardingRouteRoute: OnboardingRouteRouteWithChildren,
   OrgRouteRoute: OrgRouteRouteWithChildren,
+  SettingsRouteRoute: SettingsRouteRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

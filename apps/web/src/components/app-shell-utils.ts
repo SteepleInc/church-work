@@ -13,7 +13,6 @@ export function getPrimaryAppShellNavItems() {
   return [
     { label: "My Work", to: "/my-work", matchPath: "/my-work" },
     { label: "Our Work", to: "/our-work", matchPath: "/our-work" },
-    { label: "Settings", to: "/settings", matchPath: "/settings" },
   ];
 }
 

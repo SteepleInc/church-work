@@ -70,7 +70,7 @@ export function OrgSwitcher() {
 
   const goToSettings = () => {
     setOpenMobile(false);
-    void navigate({ to: "/settings/profile" });
+    void navigate({ to: "/settings/account/profile" });
   };
 
   const signOut = async () => {

@@ -22,7 +22,7 @@ const RESOURCE_CARDS = [
   {
     description: "Manage profile, Church, members, and invitations.",
     name: "Settings",
-    to: "/settings/profile",
+    to: "/settings/account/profile",
   },
 ] as const;
 

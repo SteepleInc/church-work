@@ -117,7 +117,7 @@ export function GlobalSearch() {
               { label: "Church", value: activeChurch.name },
               { label: "Slug", value: activeChurch.slug ?? "Not set" },
             ],
-            onSelect: selectAndClose(() => void navigate({ to: "/settings/org" })),
+            onSelect: selectAndClose(() => void navigate({ to: "/settings/workspace/general" })),
           },
         ]
       : [];
@@ -155,9 +155,7 @@ export function GlobalSearch() {
         { label: "Member", value: user.name || user.email || "Church member" },
         { label: "Role", value: user.role },
       ],
-      onSelect: selectAndClose(
-        () => void navigate({ params: { teamTab: "members" }, to: "/settings/team/$teamTab" }),
-      ),
+      onSelect: selectAndClose(() => void navigate({ to: "/settings/workspace/members" })),
     }));
 
     const taskResults = tasks.tasksCollection.map((task) => ({

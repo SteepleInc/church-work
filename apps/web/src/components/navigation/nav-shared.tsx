@@ -4,14 +4,12 @@ import {
   CheckListIcon,
   Database01Icon,
   Settings01Icon,
-  Tag01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
 import { ChurchIcon } from "@/components/icons/churchIcon";
 import { HomeIcon } from "@/components/icons/homeIcon";
 import { PersonIcon } from "@/components/icons/personIcon";
-import { UserCircleIcon } from "@/components/icons/userCircleIcon";
 
 export type NavItem = {
   readonly title: string | ReactNode;
@@ -37,30 +35,6 @@ export const workspaceNavItems: readonly NavItem[] = [
     icon: <NavIcon icon={AiFolder01Icon} />,
     title: "Our Work",
     to: "/our-work",
-  },
-];
-
-export const settingsNavItems: readonly NavItem[] = [
-  {
-    icon: <PersonIcon />,
-    title: "Profile",
-    to: "/settings/profile",
-  },
-  {
-    icon: <ChurchIcon />,
-    title: "Church",
-    to: "/settings/org",
-  },
-  {
-    icon: <UserCircleIcon />,
-    matchPath: "/settings/team",
-    title: "Team",
-    to: "/settings/team/members",
-  },
-  {
-    icon: <NavIcon icon={Tag01Icon} />,
-    title: "Labels",
-    to: "/settings/labels",
   },
 ];
 
