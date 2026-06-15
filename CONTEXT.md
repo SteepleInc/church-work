@@ -158,6 +158,10 @@ _Avoid_: Hard-coded page, special board
 A built-in Saved View created or maintained by Church Task, such as My Work, a default Team view, or Our Work for all visible Church work. A System Saved View behaves like a Saved View but is permanent in product navigation and cannot be deleted by Users.
 _Avoid_: Hard-coded view, special view
 
+**Default Team View**:
+A Team's built-in System Saved View showing that Team's incomplete Tasks across all Cycles, not scoped to any single Cycle. It is the team destination surfaced in the sidebar as "Tasks" and is presented as a System Board.
+_Avoid_: Team backlog, team inbox, Cycle-scoped team list
+
 **Insights**:
 A bar-chart-and-table summary of the Tasks in the current Saved View, counted by Task dimensions. Insights inherits the Saved View's filters and Task set so its totals match the Board or list, and adds its own Measure, Slice, and Segment. Insights summarizes Tasks; it does not own them or define their Task State.
 _Avoid_: Metrics, Reports, Analytics, Breakdown, Dashboard

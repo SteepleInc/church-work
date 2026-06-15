@@ -1,7 +1,5 @@
 import { Link } from "@tanstack/react-router";
 import type { ComponentProps } from "react";
-import { Message01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 
 import { CommentTextIcon } from "@/components/icons/commentText";
 import {
@@ -14,6 +12,7 @@ import { AdminNav } from "@/components/navigation/adminNav";
 import { DevMenu } from "@/components/navigation/dev-menu";
 import { MobileSidebarContent } from "@/components/navigation/mobile-sidebar-content";
 import { SideBarItem } from "@/components/navigation/sidebar-item";
+import { TeamNavList, YourTeamsAddMenu } from "@/components/navigation/team-nav";
 import { OrgSwitcher } from "@/components/org-switcher";
 import {
   Sidebar,
@@ -81,11 +80,16 @@ function AppNavigationBody() {
   const isAppAdministrator = useIsAdmin();
   const teams = useTeamsCollection({ churchId: activeChurch?.id ?? null });
   const teamMemberships = useTeamMembershipsCollection({ churchId: activeChurch?.id ?? null });
+  const currentUserId = activeChurch?.currentUserId ?? null;
   const memberTeams = getMemberTeams(
     teams.teamsCollection,
     teamMemberships.teamMembershipsCollection,
-    activeChurch?.currentUserId ?? null,
+    currentUserId,
   );
+  const memberTeamIds = new Set(memberTeams.map((team) => team.id));
+  // Teams in this Church the user is not yet a member of, offered in the
+  // "Your teams" + menu so they can join one in place.
+  const joinableTeams = teams.teamsCollection.filter((team) => !memberTeamIds.has(team.id));
   const canAccessInternalNav = isAppAdministrator;
 
   return (
@@ -105,7 +109,14 @@ function AppNavigationBody() {
       </SidebarGroup>
 
       <SidebarGroup>
-        <SidebarGroupLabel>Team Work</SidebarGroupLabel>
+        <SidebarGroupLabel>Your teams</SidebarGroupLabel>
+        {activeChurch ? (
+          <YourTeamsAddMenu
+            churchId={activeChurch.id}
+            currentUserId={currentUserId}
+            joinableTeams={joinableTeams}
+          />
+        ) : null}
         <SidebarMenu>
           {teamMemberships.loading || teams.loading ? (
             <>
@@ -116,16 +127,12 @@ function AppNavigationBody() {
                 <SidebarMenuSkeleton showIcon />
               </SidebarMenuItem>
             </>
-          ) : memberTeams.length > 0 ? (
-            memberTeams.map((team) => (
-              <SideBarItem
-                icon={<HugeiconsIcon className="size-4" icon={Message01Icon} strokeWidth={2} />}
-                key={team.id}
-                matchPath={`/team/${team.identifier}`}
-                title={team.name}
-                to={`/team/${team.identifier}`}
-              />
-            ))
+          ) : memberTeams.length > 0 && activeChurch ? (
+            <TeamNavList
+              churchId={activeChurch.id}
+              currentUserId={currentUserId}
+              teams={memberTeams}
+            />
           ) : (
             <SidebarMenuItem>
               <SidebarMenuButton disabled type="button">
