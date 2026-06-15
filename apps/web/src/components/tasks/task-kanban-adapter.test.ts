@@ -5,8 +5,10 @@ import {
   buildTaskBoardGroupColumns,
   computeBoardMoves,
   groupTasksByWorkflowStatus,
+  groupWorkflowStatusesByIdentity,
   isTaskBoardGroupingDraggable,
   moveTaskBetweenGroupColumns,
+  workflowStatusGroupKey,
   type TaskBoardColumnMove,
   type TaskBoardTask,
 } from "./task-kanban-adapter";
@@ -41,6 +43,39 @@ describe("Task Kanban adapter", () => {
     expect(columns).toEqual([
       { id: "todo", title: "To Do", taskState: "todo" },
       { id: "done", title: "Done", taskState: "done" },
+    ]);
+  });
+
+  test("groups same-identity Workflow Statuses across Teams' Workflows", () => {
+    // Every Team owns its Workflow (ADR 0013): "To Do" repeats per Team with a
+    // distinct id. Same (Task State, name) collapses; differing Task State does
+    // not. Order follows first appearance.
+    const groups = groupWorkflowStatusesByIdentity([
+      { id: "todo-w1", name: "To Do", taskState: "todo" },
+      { id: "doing-w1", name: "In Progress", taskState: "in_progress" },
+      { id: "todo-w2", name: "To Do", taskState: "todo" },
+      { id: "review-w2", name: "To Do", taskState: "in_progress" },
+    ]);
+
+    expect(groups).toEqual([
+      {
+        key: workflowStatusGroupKey("todo", "To Do"),
+        name: "To Do",
+        taskState: "todo",
+        ids: ["todo-w1", "todo-w2"],
+      },
+      {
+        key: workflowStatusGroupKey("in_progress", "In Progress"),
+        name: "In Progress",
+        taskState: "in_progress",
+        ids: ["doing-w1"],
+      },
+      {
+        key: workflowStatusGroupKey("in_progress", "To Do"),
+        name: "To Do",
+        taskState: "in_progress",
+        ids: ["review-w2"],
+      },
     ]);
   });
 

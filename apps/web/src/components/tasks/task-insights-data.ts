@@ -1,6 +1,9 @@
 import {
+  buildTaskBoardColumns,
   buildTaskBoardGroupColumns,
   getTaskGroupColumnId,
+  workflowStatusGroupKey,
+  type TaskBoardGroupColumn,
   type TaskBoardGrouping,
   type TaskBoardTask,
   type TaskBoardWorkflowStatus,
@@ -50,12 +53,61 @@ export type InsightsData = {
 
 const NO_SEGMENT_ID = "__total__";
 
+/**
+ * Builds Workflow Status columns collapsed across Teams' Workflows (ADR 0013):
+ * every Team owns its own Workflow, so "To Do" / "In Progress" / "Done" exist
+ * once per Team with distinct ids. Insights aggregates over the whole Task set,
+ * so same-identity statuses share one bucket — otherwise the chart and table
+ * show a duplicate row per Team. Built from `buildTaskBoardColumns` so the
+ * sort, canceled-exclusion, and labels still match the Board exactly, then
+ * collapsed by the shared (Task State, name) identity key.
+ */
+function buildMergedStatusColumns(
+  statuses: readonly TaskBoardWorkflowStatus[],
+): TaskBoardGroupColumn[] {
+  const seen = new Set<string>();
+  const columns: TaskBoardGroupColumn[] = [];
+  for (const column of buildTaskBoardColumns(statuses)) {
+    const key = workflowStatusGroupKey(column.taskState, column.title);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    columns.push({ id: key, title: column.title, taskState: column.taskState });
+  }
+  return columns;
+}
+
+/**
+ * Maps each Workflow Status id to its merged identity-key column id so Tasks
+ * from different Teams' Workflows land in the same Insights bucket.
+ */
+function buildStatusIdToMergedId(
+  statuses: readonly TaskBoardWorkflowStatus[],
+): ReadonlyMap<string, string> {
+  return new Map(
+    statuses.map((status) => [status.id, workflowStatusGroupKey(status.taskState, status.name)]),
+  );
+}
+
 function buildColumns(
   dimension: TaskBoardGrouping,
   meta: InsightsBucketMeta,
   tasks: readonly TaskBoardTask[],
   showEmpty: boolean,
-) {
+): TaskBoardGroupColumn[] {
+  // Workflow Status is the one dimension that needs name-merging; every other
+  // dimension already has globally-unique buckets.
+  if (dimension === "workflow_status") {
+    const merged = buildMergedStatusColumns(meta.workflowStatuses);
+    if (showEmpty) return merged;
+    const statusIdToMergedId = buildStatusIdToMergedId(meta.workflowStatuses);
+    const populated = new Set(
+      tasks
+        .map((task) => statusIdToMergedId.get(task.workflowStatusId))
+        .filter((id): id is string => id !== undefined),
+    );
+    return merged.filter((column) => populated.has(column.id));
+  }
+
   return buildTaskBoardGroupColumns({
     grouping: dimension,
     workflowStatuses: meta.workflowStatuses,
@@ -64,6 +116,21 @@ function buildColumns(
     tasks,
     showEmptyColumns: showEmpty,
   });
+}
+
+/**
+ * Resolves the bucket id for a Task under a dimension, applying the same
+ * Workflow Status name-merge the columns use.
+ */
+function bucketIdForTask(
+  dimension: TaskBoardGrouping,
+  task: TaskBoardTask,
+  statusIdToMergedId: ReadonlyMap<string, string>,
+): string {
+  if (dimension === "workflow_status") {
+    return statusIdToMergedId.get(task.workflowStatusId) ?? task.workflowStatusId;
+  }
+  return getTaskGroupColumnId(dimension, task);
 }
 
 /**
@@ -78,6 +145,10 @@ export function buildInsightsData(args: {
   readonly meta: InsightsBucketMeta;
 }): InsightsData {
   const { slice, segment, tasks, meta } = args;
+
+  // Shared by the column builders and the per-task bucketing so merged Workflow
+  // Status buckets line up exactly.
+  const statusIdToMergedId = buildStatusIdToMergedId(meta.workflowStatuses);
 
   // Slice columns drive the bars; show every column (empty included) so the
   // chart shows the full dimension, matching Linear.
@@ -97,10 +168,10 @@ export function buildInsightsData(args: {
   for (const column of sliceColumns) counts.set(column.id, new Map());
 
   for (const task of tasks) {
-    const sliceId = getTaskGroupColumnId(slice, task);
+    const sliceId = bucketIdForTask(slice, task, statusIdToMergedId);
     if (!sliceColumnIds.has(sliceId)) continue;
     const segmentId = hasSegment
-      ? getTaskGroupColumnId(segment as TaskBoardGrouping, task)
+      ? bucketIdForTask(segment as TaskBoardGrouping, task, statusIdToMergedId)
       : NO_SEGMENT_ID;
     const bucket = counts.get(sliceId);
     if (!bucket) continue;

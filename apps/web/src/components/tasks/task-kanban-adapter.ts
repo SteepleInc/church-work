@@ -91,6 +91,58 @@ export function taskStateLabel(taskState: TaskBoardTaskState): string {
   return TASK_STATE_LABELS[taskState];
 }
 
+/**
+ * A set of Workflow Statuses that share the same identity — the same Task State
+ * and human-readable name — collapsed across Teams' Workflows.
+ *
+ * Every Team owns its own Workflow (ADR 0013), so "To Do" / "In Progress" /
+ * "Done" exist once per Team with distinct ids but identical names. Anywhere we
+ * aggregate across Teams (Insights buckets, the Status filter's option list) we
+ * present one entry per identity and fan back out to the member ids when we
+ * need to match Tasks. `taskState` is part of the identity so two same-named
+ * statuses mapped to different Task States never merge.
+ */
+export type WorkflowStatusGroup = {
+  // Stable identity key: `${taskState}:${name}`.
+  readonly key: string;
+  readonly name: string;
+  readonly taskState: TaskBoardTaskState;
+  // Every member status id, in input order.
+  readonly ids: readonly string[];
+};
+
+export function workflowStatusGroupKey(taskState: TaskBoardTaskState, name: string): string {
+  return `${taskState}:${name}`;
+}
+
+/**
+ * Groups Workflow Statuses by their (Task State, name) identity, preserving the
+ * order each identity first appears. The single source of truth for collapsing
+ * per-Team duplicate statuses; both the Status filter and Insights build on it.
+ */
+export function groupWorkflowStatusesByIdentity(
+  statuses: readonly Pick<TaskBoardWorkflowStatus, "id" | "name" | "taskState">[],
+): readonly WorkflowStatusGroup[] {
+  const groups = new Map<string, { name: string; taskState: TaskBoardTaskState; ids: string[] }>();
+
+  for (const status of statuses) {
+    const key = workflowStatusGroupKey(status.taskState, status.name);
+    const group = groups.get(key);
+    if (group) {
+      group.ids.push(status.id);
+    } else {
+      groups.set(key, { name: status.name, taskState: status.taskState, ids: [status.id] });
+    }
+  }
+
+  return [...groups.entries()].map(([key, group]) => ({
+    key,
+    name: group.name,
+    taskState: group.taskState,
+    ids: group.ids,
+  }));
+}
+
 export function buildTaskBoardColumns(statuses: readonly TaskBoardWorkflowStatus[]) {
   return statuses
     .filter(

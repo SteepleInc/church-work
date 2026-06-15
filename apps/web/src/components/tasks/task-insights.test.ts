@@ -69,20 +69,77 @@ describe("Insights counting", () => {
     const data = buildInsightsData({ slice: "workflow_status", segment: "none", tasks, meta });
     expect(data.total).toBe(3);
     expect(data.series).toEqual([]);
-    const todo = data.slices.find((slice) => slice.id === "todo");
+    const todo = data.slices.find((slice) => slice.label === "To Do");
     expect(todo?.total).toBe(2);
-    expect(data.slices.find((slice) => slice.id === "doing")?.total).toBe(1);
-    expect(data.slices.find((slice) => slice.id === "done")?.total).toBe(0);
+    expect(data.slices.find((slice) => slice.label === "In Progress")?.total).toBe(1);
+    expect(data.slices.find((slice) => slice.label === "Done")?.total).toBe(0);
   });
 
   test("cross-tabs Slice by Segment with per-bar percentages", () => {
     const data = buildInsightsData({ slice: "workflow_status", segment: "team", tasks, meta });
     expect(data.series.map((entry) => entry.id)).toEqual(["t1", "t2"]);
-    const todo = data.slices.find((slice) => slice.id === "todo");
+    const todo = data.slices.find((slice) => slice.label === "To Do");
     expect(todo?.total).toBe(2);
     expect(todo?.segments.find((seg) => seg.id === "t1")?.count).toBe(1);
     expect(todo?.segments.find((seg) => seg.id === "t1")?.percentage).toBeCloseTo(50);
     expect(todo?.segments.find((seg) => seg.id === "t2")?.percentage).toBeCloseTo(50);
+  });
+
+  test("merges same-named Workflow Statuses across Teams' Workflows", () => {
+    // Every Team owns its Workflow (ADR 0013): "To Do" exists once per Team with
+    // a distinct id. Insights collapses them into a single bucket by name.
+    const perTeamStatuses: readonly TaskBoardWorkflowStatus[] = [
+      { id: "todo-w1", workflowId: "w1", name: "To Do", sortOrder: 0, taskState: "todo" },
+      {
+        id: "doing-w1",
+        workflowId: "w1",
+        name: "In Progress",
+        sortOrder: 1,
+        taskState: "in_progress",
+      },
+      { id: "todo-w2", workflowId: "w2", name: "To Do", sortOrder: 0, taskState: "todo" },
+      {
+        id: "doing-w2",
+        workflowId: "w2",
+        name: "In Progress",
+        sortOrder: 1,
+        taskState: "in_progress",
+      },
+    ];
+    const perTeamTasks: readonly TaskBoardTask[] = [
+      task({
+        id: "a",
+        workflowId: "w1",
+        workflowStatusId: "todo-w1",
+        taskState: "todo",
+        teamId: "t1",
+      }),
+      task({
+        id: "b",
+        workflowId: "w2",
+        workflowStatusId: "todo-w2",
+        taskState: "todo",
+        teamId: "t2",
+      }),
+      task({
+        id: "c",
+        workflowId: "w2",
+        workflowStatusId: "doing-w2",
+        taskState: "in_progress",
+        teamId: "t2",
+      }),
+    ];
+    const data = buildInsightsData({
+      slice: "workflow_status",
+      segment: "none",
+      tasks: perTeamTasks,
+      meta: { ...meta, workflowStatuses: perTeamStatuses },
+    });
+
+    expect(data.slices.filter((slice) => slice.label === "To Do")).toHaveLength(1);
+    expect(data.slices.filter((slice) => slice.label === "In Progress")).toHaveLength(1);
+    expect(data.slices.find((slice) => slice.label === "To Do")?.total).toBe(2);
+    expect(data.slices.find((slice) => slice.label === "In Progress")?.total).toBe(1);
   });
 
   test("canceled tasks never form a Slice bucket", () => {
@@ -101,7 +158,7 @@ describe("Insights counting", () => {
 
   test("an empty Slice bucket shows zero segment counts and zero percentages", () => {
     const data = buildInsightsData({ slice: "workflow_status", segment: "team", tasks, meta });
-    const done = data.slices.find((slice) => slice.id === "done");
+    const done = data.slices.find((slice) => slice.label === "Done");
     expect(done?.total).toBe(0);
     expect(done?.segments.every((segment) => segment.count === 0)).toBe(true);
     expect(done?.segments.every((segment) => segment.percentage === 0)).toBe(true);

@@ -15,8 +15,11 @@ import type {
   TaskState,
   TaskSummary,
 } from "@/components/tasks/task-execution-surface-utils";
-import { UNASSIGNED_COLUMN_ID } from "@/components/tasks/task-kanban-adapter";
-import { taskStateLabel } from "@/components/tasks/task-kanban-adapter";
+import {
+  groupWorkflowStatusesByIdentity,
+  taskStateLabel,
+  UNASSIGNED_COLUMN_ID,
+} from "@/components/tasks/task-kanban-adapter";
 import type { TaskCollectionFilters } from "@/data/tasks/tasksData.app";
 import type { TaskViewTab } from "@/components/tasks/task-view-options";
 import { getUserDisplayName, useChurchUsersCollection } from "@/data/users/usersData.app";
@@ -82,26 +85,13 @@ function teamOptions(teams: readonly TeamOption[]): readonly ColumnOption[] {
 }
 
 function workflowStatusOptions(statuses: readonly WorkflowStatusOption[]): readonly ColumnOption[] {
-  const groups = new Map<string, { ids: string[]; name: string; taskState: TaskState }>();
-
-  for (const status of statuses) {
-    const key = `${status.taskState}:${status.name}`;
-    const group = groups.get(key);
-
-    if (group) {
-      group.ids.push(status.id);
-    } else {
-      groups.set(key, { ids: [status.id], name: status.name, taskState: status.taskState });
-    }
-  }
-
-  return [...groups.values()].map((status) => ({
+  return groupWorkflowStatusesByIdentity(statuses).map((group) => ({
     value:
-      status.ids.length === 1
-        ? status.ids[0]
-        : `${WORKFLOW_STATUS_GROUP_PREFIX}${status.ids.join(",")}`,
-    label: status.name,
-    icon: <WorkflowStatusIcon taskState={status.taskState} />,
+      group.ids.length === 1
+        ? group.ids[0]
+        : `${WORKFLOW_STATUS_GROUP_PREFIX}${group.ids.join(",")}`,
+    label: group.name,
+    icon: <WorkflowStatusIcon taskState={group.taskState} />,
   }));
 }
 

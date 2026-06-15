@@ -119,10 +119,15 @@ export function TaskInsightsPanel({
   const stackKeys = hasSegment ? data.series.map((entry) => entry.id) : ["total"];
 
   // The Segment options exclude the current Slice (a Segment can never equal the
-  // Slice — CONTEXT.md).
+  // Slice — CONTEXT.md). "No segment" leads so the closed trigger can resolve
+  // the "none" value to its label.
   const segmentOptions = INSIGHTS_DIMENSION_OPTIONS.filter(
     (option) => option.value !== state.slice,
   );
+  const segmentItems = [
+    { value: "none" as InsightsSegment, label: "No segment" },
+    ...segmentOptions,
+  ];
 
   return (
     <aside
@@ -177,6 +182,7 @@ export function TaskInsightsPanel({
         <div className="grid gap-1.5">
           <Label className="text-xs text-muted-foreground">Measure</Label>
           <Select
+            items={INSIGHTS_MEASURE_OPTIONS}
             value={state.measure}
             onValueChange={(value) =>
               onStateChange({ ...state, measure: value as ResolvedInsightsState["measure"] })
@@ -198,6 +204,7 @@ export function TaskInsightsPanel({
         <div className="grid gap-1.5">
           <Label className="text-xs text-muted-foreground">Slice</Label>
           <Select
+            items={INSIGHTS_DIMENSION_OPTIONS}
             value={state.slice}
             onValueChange={(value) => {
               const slice = value as InsightsDimension;
@@ -225,6 +232,7 @@ export function TaskInsightsPanel({
         <div className="grid gap-1.5">
           <Label className="text-xs text-muted-foreground">Segment</Label>
           <Select
+            items={segmentItems}
             value={state.segment}
             onValueChange={(value) =>
               onStateChange({ ...state, segment: value as InsightsSegment })
