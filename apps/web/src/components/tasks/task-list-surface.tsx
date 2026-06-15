@@ -1,5 +1,5 @@
-import { PlusIcon, Tag, Triangle } from "lucide-react";
-import { type MouseEvent as ReactMouseEvent, useEffect, useMemo, useRef } from "react";
+import { ChevronRight, PlusIcon, Tag, Triangle } from "lucide-react";
+import { type MouseEvent as ReactMouseEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAppForm } from "@/components/form/ts-form";
 import { Badge } from "@/components/ui/badge";
@@ -208,13 +208,35 @@ function TaskListGroup({
   onOpenTask,
   onAddTask,
 }: TaskListGroupProps) {
+  // Per-group expand/collapse. Defaults to expanded; a single click on the
+  // chevron button or a double click on the header toggles it. Only the chevron
+  // animates (rotate) — the rows mount/unmount instantly (no expand animation).
+  const [collapsed, setCollapsed] = useState(false);
+
   return (
     // Each group is a plain block; its sticky header is bounded by this block,
     // so the next group's header pushes it up as it scrolls past (pure-CSS
     // Linear-style sticky behavior — no scroll listeners).
     <section aria-label={`${column.title} group`}>
-      <div className="sticky top-0 z-10 flex h-10 items-center justify-between gap-2 border-b bg-muted/95 px-6 backdrop-blur-sm">
-        <div className="flex min-w-0 items-center gap-2">
+      <div
+        className="group/header sticky top-0 z-10 flex h-9 items-center justify-between gap-2 bg-muted/50 px-6 backdrop-blur-sm"
+        onDoubleClick={() => setCollapsed((value) => !value)}
+      >
+        <div className="flex min-w-0 items-center gap-1.5">
+          <Button
+            aria-label={collapsed ? `Expand ${column.title}` : `Collapse ${column.title}`}
+            onClick={() => setCollapsed((value) => !value)}
+            size="icon-xs"
+            type="button"
+            variant="ghost"
+          >
+            <ChevronRight
+              className={cn(
+                "size-4 text-muted-foreground transition-transform",
+                !collapsed && "rotate-90",
+              )}
+            />
+          </Button>
           {column.taskState ? <WorkflowStatusIcon taskState={column.taskState} /> : null}
           <span className="truncate font-medium text-sm">{column.title}</span>
           <span className="text-muted-foreground text-sm tabular-nums">{tasks.length}</span>
@@ -227,7 +249,10 @@ function TaskListGroup({
                   size="icon-xs"
                   variant="ghost"
                   aria-label={`Add Task to ${column.title}`}
-                  onClick={() => onAddTask(column.id)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onAddTask(column.id);
+                  }}
                 >
                   <PlusIcon />
                 </Button>
@@ -239,7 +264,7 @@ function TaskListGroup({
           </Tooltip>
         ) : null}
       </div>
-      <div className="flex flex-col">
+      <div className={cn("flex flex-col", collapsed && "hidden")}>
         {tasks.map((task) => (
           <TaskListRow
             key={task.id}
@@ -426,7 +451,7 @@ function TaskListRow({
       ref={rowRef}
       data-selected={isSelected || undefined}
       className={cn(
-        "flex h-11 items-center gap-2 border-b px-6 transition-colors",
+        "flex h-11 items-center gap-2 border-border/60 border-b px-6 transition-colors",
         rowState === "canceled" && "opacity-70",
         onOpenTask && "cursor-pointer hover:bg-accent/50",
         isFocused && "bg-accent/60 ring-1 ring-primary/50 ring-inset",
