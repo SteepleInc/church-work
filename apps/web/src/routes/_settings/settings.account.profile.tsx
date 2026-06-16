@@ -10,7 +10,7 @@ export const Route = createFileRoute("/_settings/settings/account/profile")({
 function RouteComponent() {
   return (
     <SettingsPage>
-      <SettingsPageHeader description="Manage your Church Task account details." title="Profile" />
+      <SettingsPageHeader title="Profile" />
       <SettingsProfilePanel />
     </SettingsPage>
   );

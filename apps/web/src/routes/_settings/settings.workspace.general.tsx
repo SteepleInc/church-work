@@ -10,10 +10,7 @@ export const Route = createFileRoute("/_settings/settings/workspace/general")({
 function RouteComponent() {
   return (
     <SettingsPage>
-      <SettingsPageHeader
-        description="Manage the Church details used across onboarding, invitations, and Cycle boundaries."
-        title="Workspace"
-      />
+      <SettingsPageHeader title="Workspace" />
       <SettingsChurchPanel />
     </SettingsPage>
   );

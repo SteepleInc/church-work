@@ -3,13 +3,13 @@ import { Schema } from "effect";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { CardForm } from "@/components/form/card-form";
+import { Form } from "@/components/form/form";
 import { useAppForm } from "@/components/form/ts-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrentOrgOpt, type CurrentOrg } from "@/data/orgs/orgData.app";
+import { SettingsFieldRow, SettingsSection } from "@/features/settings/settings-page";
 import { authClient } from "@/lib/auth-client";
 import {
   getChurchProfileSettingsDefaultValues,
@@ -87,23 +87,39 @@ export function SettingsProfilePanel() {
   const user = data?.user;
 
   if (!user) {
-    return <SettingsFormSkeleton />;
+    return <SettingsCardSkeleton rowCounts={[2, 1]} />;
   }
 
   return <SettingsProfileForm refetchSession={refetchSession} user={user} />;
 }
 
 /**
- * Form-shaped Skeleton for settings panels while session or Active Church
- * data has not yet arrived (ADR 0010 — no "Loading X..." text).
+ * Card-shaped Skeleton matching the Linear-style sectioned settings forms so the
+ * loading state does not shift layout once session / Active Church data arrives
+ * (ADR 0010 — no "Loading X..." text). Each entry in `rowCounts` renders one
+ * framed card with that many field rows; cards after the first show a title
+ * placeholder above them.
  */
-function SettingsFormSkeleton({ fields = 2 }: { readonly fields?: number }) {
+function SettingsCardSkeleton({ rowCounts }: { readonly rowCounts: readonly number[] }) {
   return (
-    <div className="flex flex-col gap-4">
-      {Array.from({ length: fields }, (_, index) => (
-        <div className="flex flex-col gap-1.5" key={index}>
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-9 w-full max-w-md" />
+    <div className="flex flex-col gap-8">
+      {rowCounts.map((rowCount, sectionIndex) => (
+        <div className="flex flex-col gap-2.5" key={sectionIndex}>
+          {sectionIndex > 0 ? <Skeleton className="h-3 w-24" /> : null}
+          <div className="rounded-lg border border-border/70 bg-card px-5">
+            {Array.from({ length: rowCount }, (_, rowIndex) => (
+              <div
+                className="flex items-center justify-between gap-6 border-border/60 border-b py-3.5 last:border-b-0"
+                key={rowIndex}
+              >
+                <div className="flex flex-col gap-1.5">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-3 w-40" />
+                </div>
+                <Skeleton className="h-8 w-[17.5rem]" />
+              </div>
+            ))}
+          </div>
         </div>
       ))}
     </div>
@@ -115,9 +131,16 @@ function SettingsProfileForm({
   user,
 }: {
   readonly refetchSession: () => Promise<unknown>;
-  readonly user: { readonly id: string; readonly name: string; readonly email: string };
+  readonly user: {
+    readonly id: string;
+    readonly name: string;
+    readonly email: string;
+    readonly image?: string | null;
+  };
 }) {
   const [profileError, setProfileError] = useState<string | null>(null);
+
+  const fieldWrapperClassName = "w-full max-w-none gap-1.5";
 
   const form = useAppForm({
     defaultValues: {
@@ -147,69 +170,93 @@ function SettingsProfileForm({
   });
 
   return (
-    <div className="grid gap-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Profile Settings</CardTitle>
-          <CardDescription>Manage your Church Task account details.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <CardForm
-            Actions={
-              <form.Subscribe
-                selector={(state) => ({
-                  isDefaultValue: state.isDefaultValue,
-                  isSubmitting: state.isSubmitting,
-                })}
-              >
-                {({ isDefaultValue, isSubmitting }) => (
-                  <Button
-                    className="mr-auto"
-                    disabled={isDefaultValue}
-                    loading={isSubmitting}
-                    type="submit"
-                  >
-                    Update Profile
-                  </Button>
-                )}
-              </form.Subscribe>
-            }
-            actionsClassName="justify-start"
-            form={form}
-            Primary={
-              <>
-                <form.AppField name="name">
-                  {(field) => (
-                    <field.InputField
-                      autoCapitalize="words"
-                      autoComplete="name"
-                      label="Name"
-                      placeholder="Jane Doe"
-                      required
-                    />
-                  )}
-                </form.AppField>
-                <SettingDetail label="Email" value={user.email} />
-                {profileError ? (
-                  <Alert variant="destructive">
-                    <AlertDescription>{profileError}</AlertDescription>
-                  </Alert>
-                ) : null}
-              </>
-            }
-          />
-        </CardContent>
-      </Card>
+    <Form className="flex flex-col gap-8" form={form}>
+      <SettingsSection card>
+        <SettingsFieldRow
+          control={<UserAvatar image={user.image} name={user.name} />}
+          description="Recommended size is 256x256px"
+          label="Photo"
+        />
+        <form.AppField name="name">
+          {(field) => (
+            <SettingsFieldRow
+              control={
+                <field.InputField
+                  autoCapitalize="words"
+                  autoComplete="name"
+                  label=""
+                  placeholder="Jane Doe"
+                  required
+                  wrapperClassName={fieldWrapperClassName}
+                />
+              }
+              htmlFor="name"
+              label="Name"
+            />
+          )}
+        </form.AppField>
+        <SettingsFieldRow
+          control={<span className="truncate text-muted-foreground text-sm">{user.email}</span>}
+          description="Used to sign in and for notifications"
+          label="Email"
+        />
+      </SettingsSection>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Technical</CardTitle>
-          <CardDescription>Details you may need when contacting support.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <SettingDetail label="User Id" value={user.id} />
-        </CardContent>
-      </Card>
+      <SettingsSection card title="Technical">
+        <SettingsFieldRow
+          control={<span className="break-all text-muted-foreground text-sm">{user.id}</span>}
+          description="The unique identifier for your account"
+          label="User ID"
+        />
+      </SettingsSection>
+
+      {profileError ? (
+        <Alert variant="destructive">
+          <AlertDescription>{profileError}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      <form.Subscribe
+        selector={(state) => ({
+          isDefaultValue: state.isDefaultValue,
+          isSubmitting: state.isSubmitting,
+        })}
+      >
+        {({ isDefaultValue, isSubmitting }) =>
+          isDefaultValue ? null : (
+            <div className="sticky bottom-0 z-10 -mx-8 flex items-center justify-end gap-3 border-border border-t bg-background/80 px-8 py-4 backdrop-blur md:-mx-12 md:px-12">
+              <Button onClick={() => form.reset()} type="button" variant="ghost">
+                Discard
+              </Button>
+              <Button loading={isSubmitting} type="submit">
+                Save changes
+              </Button>
+            </div>
+          )
+        }
+      </form.Subscribe>
+    </Form>
+  );
+}
+
+function UserAvatar({ image, name }: { readonly image?: string | null; readonly name: string }) {
+  const initial = name.trim().slice(0, 1).toLocaleUpperCase() || "U";
+
+  if (image) {
+    return (
+      <img
+        alt={name}
+        className="ml-auto size-10 rounded-full object-cover"
+        height={40}
+        src={image}
+        width={40}
+      />
+    );
+  }
+
+  return (
+    <div className="ml-auto flex size-10 items-center justify-center rounded-full bg-primary font-semibold text-base text-primary-foreground">
+      {initial}
     </div>
   );
 }
@@ -219,7 +266,7 @@ export function SettingsChurchPanel() {
   const { refetch: refetchSession } = authClient.useSession();
 
   if (loading) {
-    return <SettingsFormSkeleton fields={4} />;
+    return <SettingsCardSkeleton rowCounts={[3, 2, 5]} />;
   }
 
   if (!activeChurch) {
@@ -289,118 +336,204 @@ function SettingsChurchForm({
     },
   });
 
+  const fieldWrapperClassName = "w-full max-w-none gap-1.5";
+
   return (
-    <section className="grid gap-4 md:grid-cols-2">
-      <Card className="md:col-span-2">
-        <CardHeader>
-          <CardTitle>Church Profile</CardTitle>
-          <CardDescription>
-            Manage the Church details used across onboarding, invitations, and Cycle boundaries.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <CardForm
-            Actions={
-              <form.Subscribe
-                selector={(state) => ({
-                  isDefaultValue: state.isDefaultValue,
-                  isSubmitting: state.isSubmitting,
-                })}
-              >
-                {({ isDefaultValue, isSubmitting }) => (
-                  <Button
-                    className="mr-auto"
-                    disabled={!canUpdate || isDefaultValue}
-                    loading={isSubmitting}
-                    type="submit"
-                  >
-                    Update Church Profile
-                  </Button>
-                )}
-              </form.Subscribe>
-            }
-            actionsClassName="justify-start"
-            form={form}
-            Primary={
-              <fieldset className="contents" disabled={!canUpdate}>
-                <form.AppField name="name">
-                  {(field) => <field.InputField label="Church Name" required />}
-                </form.AppField>
-                <form.AppField name="churchTimeZone">
-                  {(field) => (
-                    <field.SelectField
-                      label="Church Time Zone"
-                      options={churchTimeZoneOptions(activeChurch.churchTimeZone)}
-                      required
-                    />
-                  )}
-                </form.AppField>
-                <form.AppField name="url">
-                  {(field) => (
-                    <field.InputField label="Website" placeholder="https://example.org" />
-                  )}
-                </form.AppField>
-                <form.AppField name="size">
-                  {(field) => (
-                    <field.SelectField label="Church Size" options={CHURCH_SIZE_OPTIONS} />
-                  )}
-                </form.AppField>
-                {!canUpdate ? (
-                  <Alert>
-                    <AlertDescription>
-                      Only Church owners and admins can update Church settings.
-                    </AlertDescription>
-                  </Alert>
-                ) : null}
-                {churchError ? (
-                  <Alert variant="destructive">
-                    <AlertDescription>{churchError}</AlertDescription>
-                  </Alert>
-                ) : null}
-              </fieldset>
-            }
-            Secondary={
-              <fieldset className="contents" disabled={!canUpdate}>
-                <form.AppField name="street">
-                  {(field) => <field.InputField label="Street" />}
-                </form.AppField>
-                <form.AppField name="city">
-                  {(field) => <field.InputField label="City" />}
-                </form.AppField>
-                <form.AppField name="state">
-                  {(field) => <field.InputField label="State / Region" />}
-                </form.AppField>
-                <form.AppField name="zip">
-                  {(field) => <field.InputField label="Postal Code" />}
-                </form.AppField>
-                <form.AppField name="countryCode">
-                  {(field) => <field.InputField label="Country Code" />}
-                </form.AppField>
-              </fieldset>
-            }
+    <Form className="flex flex-col gap-8" form={form}>
+      <fieldset className="contents" disabled={!canUpdate}>
+        <SettingsSection card>
+          <SettingsFieldRow
+            control={<ChurchAvatar name={activeChurch.name} slug={activeChurch.slug} />}
+            description="Recommended size is 256x256px"
+            label="Logo"
           />
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Technical</CardTitle>
-          <CardDescription>Details you may need when contacting support.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <SettingDetail label="Org Id" value={activeChurch.id} />
-        </CardContent>
-      </Card>
-    </section>
+          <form.AppField name="name">
+            {(field) => (
+              <SettingsFieldRow
+                control={
+                  <field.InputField
+                    label=""
+                    placeholder="Workspace name"
+                    required
+                    wrapperClassName={fieldWrapperClassName}
+                  />
+                }
+                htmlFor="name"
+                label="Name"
+              />
+            )}
+          </form.AppField>
+          <SettingsFieldRow
+            control={<UrlPreview slug={activeChurch.slug} />}
+            description="Where members find this workspace"
+            label="URL"
+          />
+          <form.AppField name="url">
+            {(field) => (
+              <SettingsFieldRow
+                control={
+                  <field.InputField
+                    label=""
+                    placeholder="https://example.org"
+                    wrapperClassName={fieldWrapperClassName}
+                  />
+                }
+                description="Your church's public website"
+                htmlFor="url"
+                label="Website"
+              />
+            )}
+          </form.AppField>
+        </SettingsSection>
+
+        <SettingsSection card title="Time & region">
+          <form.AppField name="churchTimeZone">
+            {(field) => (
+              <SettingsFieldRow
+                control={
+                  <field.SelectField
+                    label=""
+                    options={churchTimeZoneOptions(activeChurch.churchTimeZone)}
+                    required
+                    wrapperClassName={fieldWrapperClassName}
+                  />
+                }
+                description="Used for Cycle boundaries and scheduling"
+                htmlFor="churchTimeZone"
+                label="Time zone"
+              />
+            )}
+          </form.AppField>
+          <form.AppField name="size">
+            {(field) => (
+              <SettingsFieldRow
+                control={
+                  <field.SelectField
+                    label=""
+                    options={CHURCH_SIZE_OPTIONS}
+                    wrapperClassName={fieldWrapperClassName}
+                  />
+                }
+                description="Approximate weekly attendance"
+                htmlFor="size"
+                label="Church size"
+              />
+            )}
+          </form.AppField>
+        </SettingsSection>
+
+        <SettingsSection card title="Address">
+          <form.AppField name="street">
+            {(field) => (
+              <SettingsFieldRow
+                control={<field.InputField label="" wrapperClassName={fieldWrapperClassName} />}
+                htmlFor="street"
+                label="Street"
+              />
+            )}
+          </form.AppField>
+          <form.AppField name="city">
+            {(field) => (
+              <SettingsFieldRow
+                control={<field.InputField label="" wrapperClassName={fieldWrapperClassName} />}
+                htmlFor="city"
+                label="City"
+              />
+            )}
+          </form.AppField>
+          <form.AppField name="state">
+            {(field) => (
+              <SettingsFieldRow
+                control={<field.InputField label="" wrapperClassName={fieldWrapperClassName} />}
+                htmlFor="state"
+                label="State / region"
+              />
+            )}
+          </form.AppField>
+          <form.AppField name="zip">
+            {(field) => (
+              <SettingsFieldRow
+                control={<field.InputField label="" wrapperClassName={fieldWrapperClassName} />}
+                htmlFor="zip"
+                label="Postal code"
+              />
+            )}
+          </form.AppField>
+          <form.AppField name="countryCode">
+            {(field) => (
+              <SettingsFieldRow
+                control={<field.InputField label="" wrapperClassName={fieldWrapperClassName} />}
+                htmlFor="countryCode"
+                label="Country code"
+              />
+            )}
+          </form.AppField>
+        </SettingsSection>
+      </fieldset>
+
+      <SettingsSection card title="Technical">
+        <SettingsFieldRow
+          control={
+            <span className="break-all text-muted-foreground text-sm">{activeChurch.id}</span>
+          }
+          description="The unique identifier for this workspace"
+          label="Workspace ID"
+        />
+      </SettingsSection>
+
+      {!canUpdate ? (
+        <Alert>
+          <AlertDescription>
+            Only Church owners and admins can update workspace settings.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {churchError ? (
+        <Alert variant="destructive">
+          <AlertDescription>{churchError}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {canUpdate ? (
+        <form.Subscribe
+          selector={(state) => ({
+            isDefaultValue: state.isDefaultValue,
+            isSubmitting: state.isSubmitting,
+          })}
+        >
+          {({ isDefaultValue, isSubmitting }) =>
+            isDefaultValue ? null : (
+              <div className="sticky bottom-0 z-10 -mx-8 flex items-center justify-end gap-3 border-border border-t bg-background/80 px-8 py-4 backdrop-blur md:-mx-12 md:px-12">
+                <Button onClick={() => form.reset()} type="button" variant="ghost">
+                  Discard
+                </Button>
+                <Button loading={isSubmitting} type="submit">
+                  Save changes
+                </Button>
+              </div>
+            )
+          }
+        </form.Subscribe>
+      ) : null}
+    </Form>
   );
 }
 
-function SettingDetail({ label, value }: { readonly label: string; readonly value: string }) {
+function ChurchAvatar({ name, slug }: { readonly name: string; readonly slug: string | null }) {
+  const initial = (slug ?? name).trim().slice(0, 1).toLocaleUpperCase() || "C";
+
   return (
-    <div className="grid gap-1">
-      <div className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-        {label}
-      </div>
-      <div className="break-all">{value}</div>
+    <div className="ml-auto flex size-10 items-center justify-center rounded-md bg-primary font-semibold text-base text-primary-foreground">
+      {initial}
+    </div>
+  );
+}
+
+function UrlPreview({ slug }: { readonly slug: string | null }) {
+  return (
+    <div className="flex h-8 w-full items-center rounded-lg border border-input bg-transparent px-2.5 text-sm">
+      <span className="text-muted-foreground">app/</span>
+      <span className="truncate font-medium">{slug ?? "workspace"}</span>
     </div>
   );
 }

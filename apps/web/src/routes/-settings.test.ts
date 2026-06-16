@@ -54,11 +54,16 @@ describe("Linear-style settings navigation", () => {
     expect(orgSwitcherSource).toContain('to: "/settings/account/profile"');
   });
 
-  it("composes Profile and Church settings with the copied CardForm", () => {
+  it("renders Profile and Workspace settings as Linear-style framed cards", () => {
     const settingsSource = readFileSync(new URL("./-settings.tsx", import.meta.url), "utf8");
 
-    expect(settingsSource).toContain('import { CardForm } from "@/components/form/card-form"');
-    expect(settingsSource.match(/<CardForm/g)?.length).toBe(2);
+    expect(settingsSource).toContain(
+      'import { SettingsFieldRow, SettingsSection } from "@/features/settings/settings-page"',
+    );
+    expect(settingsSource).toContain("<SettingsFieldRow");
+    // Both the Profile and Workspace forms render framed cards (Logo/Photo +
+    // Technical), so there are at least two card sections in the file.
+    expect(settingsSource.match(/<SettingsSection card/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
   });
 
   it("normalizes profile names like the copied profile settings form", () => {

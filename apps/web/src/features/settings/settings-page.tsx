@@ -78,20 +78,30 @@ export function SettingsSection({
   title,
   description,
   children,
+  card = false,
 }: {
   readonly title?: ReactNode;
   readonly description?: ReactNode;
   readonly children: ReactNode;
+  /**
+   * When true, wraps the section's rows in a Linear-style framed card (subtle
+   * border + rounded corners) with the title rendered above the card.
+   */
+  readonly card?: boolean;
 }) {
   return (
-    <section className="flex flex-col gap-4">
+    <section className="flex flex-col gap-2.5">
       {title || description ? (
-        <div className="flex flex-col gap-1">
-          {title ? <h2 className="font-medium text-base">{title}</h2> : null}
-          {description ? <p className="text-muted-foreground text-sm">{description}</p> : null}
+        <div className="flex flex-col gap-0.5 px-0.5">
+          {title ? <h2 className="font-medium text-muted-foreground text-xs">{title}</h2> : null}
+          {description ? <p className="text-muted-foreground text-xs">{description}</p> : null}
         </div>
       ) : null}
-      {children}
+      {card ? (
+        <div className="rounded-lg border border-border/70 bg-card px-5">{children}</div>
+      ) : (
+        children
+      )}
     </section>
   );
 }
@@ -123,6 +133,42 @@ export function SettingsRow({
 
 export function SettingsRowGroup({ children }: { readonly children: ReactNode }) {
   return <div className="flex flex-col">{children}</div>;
+}
+
+/**
+ * A Linear-style form field row: a label (and optional description) on the left
+ * with the editing control aligned to the right. Used by settings forms that
+ * mirror Linear's borderless, sectioned layout (Workspace, Team, Account).
+ */
+export function SettingsFieldRow({
+  label,
+  description,
+  htmlFor,
+  control,
+  align = "center",
+}: {
+  readonly label: ReactNode;
+  readonly description?: ReactNode;
+  readonly htmlFor?: string;
+  readonly control: ReactNode;
+  readonly align?: "center" | "start";
+}) {
+  return (
+    <div
+      className={cn(
+        "flex justify-between gap-6 border-border/60 border-b py-3.5 last:border-b-0",
+        align === "center" ? "items-center" : "items-start",
+      )}
+    >
+      <label className="flex min-w-0 flex-col gap-0.5 pt-px" htmlFor={htmlFor}>
+        <span className="font-medium text-foreground text-sm">{label}</span>
+        {description ? <span className="text-muted-foreground text-xs">{description}</span> : null}
+      </label>
+      <div className="flex w-full max-w-[17.5rem] shrink-0 flex-col items-stretch gap-1.5">
+        {control}
+      </div>
+    </div>
+  );
 }
 
 /**
