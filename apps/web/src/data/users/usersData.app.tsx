@@ -1,13 +1,13 @@
 import { api } from "@church-task/backend-old/convex/_generated/api";
-import type { User } from "@church-task/domain-old";
-import { useConvexQuery as useQuery } from "@/data/query-hooks";
 
-import { collectionFromQueryResult } from "@/data/convex-query-adapter";
+import { authClient } from "@/lib/auth-client";
 import { FilterKeys } from "@/shared/global-state";
 import { useFilterQuery } from "@/shared/hooks/useFilterQuery";
 
-export type UserCollectionItem = Pick<User, "id" | "name"> & {
-  readonly email: User["email"] | null;
+export type UserCollectionItem = {
+  readonly id: string;
+  readonly name: string | null;
+  readonly email: string | null;
   readonly image?: string | null;
   readonly createdAt?: number;
   readonly memberId?: string;
@@ -29,26 +29,30 @@ export function getUserDisplayName(user: Pick<UserCollectionItem, "id" | "name" 
 }
 
 export function useChurchUsersCollection(params: { readonly churchId: string | null }) {
-  const result = useQuery(
-    api.dashboard.listMembers,
-    params.churchId ? { organizationId: params.churchId } : "skip",
-  );
-  const state = collectionFromQueryResult(
-    result?.map((member) => ({
-      id: member.user.id,
-      name: member.user.name,
-      email: member.user.email,
-      image: null,
+  const { data: activeOrg, isPending: activeOrgPending } = authClient.useActiveOrganization();
+  const session = authClient.useSession();
+  const members = activeOrg?.id === params.churchId ? (activeOrg.members ?? []) : [];
+  const collection = members.map((member) => {
+    const user = "user" in member ? member.user : null;
+    const id = user?.id ?? member.userId;
+    const email = user?.email ?? (id === session.data?.user?.id ? session.data.user.email : null);
+    const name = user?.name ?? (id === session.data?.user?.id ? session.data.user.name : null);
+
+    return {
+      id,
+      name,
+      email,
+      image: user?.image ?? null,
       memberId: member.id,
       role: member.role,
       churches: [],
-    })) satisfies readonly UserCollectionItem[] | undefined,
-  );
+    } satisfies UserCollectionItem;
+  });
 
   return {
-    loading: params.churchId !== null && state.loading,
-    collection: state.collection,
-    usersCollection: state.collection,
+    loading: params.churchId !== null && (activeOrgPending || session.isPending),
+    collection,
+    usersCollection: collection,
   };
 }
 

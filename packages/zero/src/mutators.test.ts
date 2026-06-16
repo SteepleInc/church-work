@@ -1,9 +1,15 @@
-import { DEFAULT_WORKFLOW_STATUSES } from "@church-task/domain";
+import { DEFAULT_WORKFLOW_STATUSES, formatTaskIdentifier } from "@church-task/domain";
 import { getIdType } from "@church-task/shared/get-ids";
 import { mustGetMutator } from "@rocicorp/zero";
 import { describe, expect, test } from "vitest";
 
-import { team_memberships, teams, workflow_statuses, workflows } from "@church-task/db/schema";
+import {
+  tasks,
+  team_memberships,
+  teams,
+  workflow_statuses,
+  workflows,
+} from "@church-task/db/schema";
 
 import { mutators } from "./mutators";
 
@@ -307,5 +313,207 @@ describe("Zero Workflow mutators", () => {
     const archiveUpdate = updateCalls[2];
     expect(archiveUpdate).toBeDefined();
     expect((archiveUpdate!.set as { readonly deleted_by: string }).deleted_by).toBe("user_test");
+  });
+});
+
+describe("Zero Task mutators", () => {
+  const createServerTx = (selectResults: Array<unknown>) => {
+    const insertCalls: Array<{ readonly table: unknown; readonly values: unknown }> = [];
+    const updateCalls: Array<{
+      readonly table: unknown;
+      readonly set: unknown;
+      readonly where: unknown;
+    }> = [];
+    const nextSelectResult = async () => selectResults.shift() ?? [];
+
+    const tx = {
+      dbTransaction: {
+        wrappedTransaction: {
+          insert: (table: unknown) => ({
+            values: async (values: unknown) => {
+              insertCalls.push({ table, values });
+            },
+          }),
+          select: () => ({
+            from: () => ({
+              leftJoin: () => ({
+                where: nextSelectResult,
+              }),
+              where: nextSelectResult,
+            }),
+          }),
+          update: (table: unknown) => ({
+            set: (set: unknown) => ({
+              where: async (where: unknown) => {
+                updateCalls.push({ table, set, where });
+              },
+            }),
+          }),
+        },
+      },
+      location: "server",
+    } as never;
+
+    return { insertCalls, tx, updateCalls };
+  };
+
+  test("creates Tasks with per-Team numbers, board order, and URL-facing identifiers", async () => {
+    const { insertCalls, tx, updateCalls } = createServerTx([
+      [{ id: "workflowstatus_todo", task_state: "todo", workflow_id: "workflow_production" }],
+      [{ id: "team_production", identifier: "PRO", next_task_number: 7 }],
+      [{ id: "workflow_production" }],
+      [{ board_order: "a1" }, { board_order: "a3" }],
+    ]);
+
+    await mustGetMutator(mutators, "tasks.create").fn({
+      args: {
+        church_id: "org_test",
+        team_id: "team_production",
+        title: "Prepare stage cues",
+        workflow_status_id: "workflowstatus_todo",
+      },
+      ctx: signedInContext,
+      tx,
+    });
+
+    const taskInsert = insertCalls.find((call) => call.table === tasks)?.values as {
+      readonly board_order: string;
+      readonly id: string;
+      readonly number: number;
+      readonly task_state: string;
+      readonly title: string;
+    };
+    const teamUpdate = updateCalls.find((call) => call.table === teams)?.set as {
+      readonly next_task_number: number;
+    };
+
+    expect(getIdType(taskInsert.id)).toBe("task");
+    expect(taskInsert).toMatchObject({
+      board_order: "a4",
+      number: 7,
+      task_state: "todo",
+      title: "Prepare stage cues",
+    });
+    expect(teamUpdate.next_task_number).toBe(8);
+    expect(formatTaskIdentifier("PRO", taskInsert.number)).toBe("PRO-7");
+  });
+
+  test("updates board order through the batch Task path", async () => {
+    const { tx, updateCalls } = createServerTx([
+      [
+        {
+          board_order: "a1",
+          church_id: "org_test",
+          deleted_at: null,
+          finished_at: null,
+          id: "task_one",
+          label_ids: "[]",
+          number: 1,
+          previous_identifiers: "[]",
+          task_state: "todo",
+          team_id: "team_production",
+          team_identifier: "PRO",
+          workflow_id: "workflow_production",
+          workflow_status_id: "workflowstatus_todo",
+        },
+      ],
+      [
+        {
+          board_order: "a2",
+          church_id: "org_test",
+          deleted_at: null,
+          finished_at: null,
+          id: "task_two",
+          label_ids: "[]",
+          number: 2,
+          previous_identifiers: "[]",
+          task_state: "todo",
+          team_id: "team_production",
+          team_identifier: "PRO",
+          workflow_id: "workflow_production",
+          workflow_status_id: "workflowstatus_todo",
+        },
+      ],
+    ]);
+
+    await mustGetMutator(mutators, "tasks.update_batch").fn({
+      args: {
+        church_id: "org_test",
+        updates: [
+          { fields: { board_order: "a2" }, task_id: "task_one" },
+          { fields: { board_order: "a1" }, task_id: "task_two" },
+        ],
+      },
+      ctx: signedInContext,
+      tx,
+    });
+
+    expect(updateCalls.map((call) => call.table)).toEqual([tasks, tasks]);
+    expect(
+      updateCalls.map((call) => (call.set as { readonly board_order: string }).board_order),
+    ).toEqual(["a2", "a1"]);
+  });
+
+  test("complete and reopen move Tasks through workflow statuses", async () => {
+    const { tx, updateCalls } = createServerTx([
+      [
+        {
+          board_order: "a1",
+          church_id: "org_test",
+          deleted_at: null,
+          finished_at: null,
+          id: "task_one",
+          label_ids: "[]",
+          number: 1,
+          previous_identifiers: "[]",
+          task_state: "todo",
+          team_id: "team_production",
+          team_identifier: "PRO",
+          workflow_id: "workflow_production",
+          workflow_status_id: "workflowstatus_todo",
+        },
+      ],
+      [{ id: "workflowstatus_done" }],
+      [
+        {
+          board_order: "a1",
+          church_id: "org_test",
+          deleted_at: null,
+          finished_at: new Date("2026-01-01T00:00:00.000Z"),
+          id: "task_one",
+          label_ids: "[]",
+          number: 1,
+          previous_identifiers: "[]",
+          task_state: "done",
+          team_id: "team_production",
+          team_identifier: "PRO",
+          workflow_id: "workflow_production",
+          workflow_status_id: "workflowstatus_done",
+        },
+      ],
+      [{ id: "workflowstatus_todo" }],
+    ]);
+
+    await mustGetMutator(mutators, "tasks.complete").fn({
+      args: { church_id: "org_test", task_id: "task_one" },
+      ctx: signedInContext,
+      tx,
+    });
+    await mustGetMutator(mutators, "tasks.reopen").fn({
+      args: { church_id: "org_test", task_id: "task_one" },
+      ctx: signedInContext,
+      tx,
+    });
+
+    expect(updateCalls.map((call) => call.table)).toEqual([tasks, tasks]);
+    expect(updateCalls[0]?.set).toMatchObject({
+      task_state: "done",
+      workflow_status_id: "workflowstatus_done",
+    });
+    expect(updateCalls[1]?.set).toMatchObject({
+      finished_at: null,
+      task_state: "todo",
+      workflow_status_id: "workflowstatus_todo",
+    });
   });
 });

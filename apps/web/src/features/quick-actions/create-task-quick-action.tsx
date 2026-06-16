@@ -192,10 +192,11 @@ export function CreateTaskQuickAction() {
   const isLoading =
     workflows.loading ||
     workflowStatusesCollection.loading ||
-    usersCollection.loading ||
     teamsCollection.loading ||
     teamMemberships.loading ||
     !activeChurch;
+  const areUsersLoading = usersCollection.loading;
+  const areLabelsLoading = labelsCollection.loading;
 
   const form = useAppForm({
     defaultValues: {
@@ -604,7 +605,7 @@ export function CreateTaskQuickAction() {
                     <AssigneeComboboxSelector
                       align="start"
                       currentUserId={currentUserId}
-                      disabled={isLoading}
+                      disabled={isLoading || areUsersLoading}
                       onValueChange={(next) => form.setFieldValue("assignedUserId", next)}
                       openRef={assigneeOpenRef}
                       options={assigneeOptions}
@@ -656,7 +657,7 @@ export function CreateTaskQuickAction() {
                     .filter((option) => option !== undefined);
                   return (
                     <LabelsComboboxSelector
-                      disabled={isLoading}
+                      disabled={isLoading || areLabelsLoading}
                       onCreateLabel={(name) => void handleCreateLabel(name)}
                       onValueChange={(next) => form.setFieldValue("labels", next)}
                       openRef={labelsOpenRef}
