@@ -1,4 +1,3 @@
-import refs from "@church-task/backend/confect/_generated/refs";
 import { Settings01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { createSequenceMatcher } from "@tanstack/hotkeys";
@@ -38,7 +37,6 @@ import { useCreateOrg } from "@/data/useCreateOrg";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { type OrgCollectionItem, useUserOrgsCollection } from "@/data/orgs/orgsData.app";
 import { useOrgId } from "@/data/useOrgId";
-import { QueryResult, useQuery } from "@/data/query-hooks";
 import { clearIntentionalSignOut, markIntentionalSignOut } from "@/features/auth/sign-out-routing";
 import { authClient } from "@/lib/auth-client";
 
@@ -64,8 +62,6 @@ export function OrgSwitcher() {
   const { createOrg } = useCreateOrg();
   const { setOpenMobile } = useSidebar();
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const userResult = useQuery(refs.public.auth.getCurrentUser);
-  const currentUser = QueryResult.isSuccess(userResult) ? userResult.value : null;
   const filteredOrgs = getFilteredOrgSwitcherItems({ orgs: orgsCollection, search });
 
   const goToSettings = () => {
@@ -188,6 +184,8 @@ export function OrgSwitcher() {
               </DropdownMenuShortcut>
             </DropdownMenuItem>
 
+            <DropdownMenuSeparator />
+
             <DropdownMenuSub onOpenChange={setSwitchOpen} open={switchOpen}>
               <DropdownMenuSubTrigger>
                 <span>Switch Church</span>
@@ -198,12 +196,6 @@ export function OrgSwitcher() {
                 </DropdownMenuShortcut>
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="flex max-h-80 w-64 flex-col p-0">
-                {currentUser?.email ? (
-                  <DropdownMenuLabel className="shrink-0 text-muted-foreground text-xs">
-                    {currentUser.email}
-                  </DropdownMenuLabel>
-                ) : null}
-
                 {orgsCollection.length > 5 ? (
                   <Input
                     className="shrink-0"
