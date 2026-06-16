@@ -89,7 +89,7 @@ issue_context() {
 for ((i = 1; i <= iterations; i++)); do
   context="$(issue_context)"
 
-  result="$(opencode --model openai/gpt-5.5 run "
+  result="$(opencode --model openai/gpt-5.5-fast run "
 ${context}
 
 You are working in ${repo}.
