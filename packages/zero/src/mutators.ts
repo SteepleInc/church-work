@@ -147,7 +147,7 @@ export const mutators = defineMutators({
   teams: {
     create: defineChurchTaskMutator(CreateTeamArgs, async ({ args, ctx, tx }) => {
       if (tx.location !== "server") {
-        throw new Error("teams.create must run on the server");
+        return;
       }
 
       const session = requireTeamManager(ctx, args.church_id);
@@ -234,7 +234,7 @@ export const mutators = defineMutators({
     }),
     rename: defineChurchTaskMutator(RenameTeamArgs, async ({ args, ctx, tx }) => {
       if (tx.location !== "server") {
-        throw new Error("teams.rename must run on the server");
+        return;
       }
 
       const session = requireTeamManager(ctx, args.church_id);
@@ -260,7 +260,7 @@ export const mutators = defineMutators({
     }),
     set_identifier: defineChurchTaskMutator(SetTeamIdentifierArgs, async ({ args, ctx, tx }) => {
       if (tx.location !== "server") {
-        throw new Error("teams.set_identifier must run on the server");
+        return;
       }
 
       const session = requireTeamManager(ctx, args.church_id);
@@ -333,7 +333,7 @@ export const mutators = defineMutators({
     }),
     delete: defineChurchTaskMutator(DeleteTeamArgs, async ({ args, ctx, tx }) => {
       if (tx.location !== "server") {
-        throw new Error("teams.delete must run on the server");
+        return;
       }
 
       const session = requireTeamManager(ctx, args.church_id);
@@ -408,7 +408,7 @@ export const mutators = defineMutators({
     }),
     reorder: defineChurchTaskMutator(ReorderTeamsArgs, async ({ args, ctx, tx }) => {
       if (tx.location !== "server") {
-        throw new Error("teams.reorder must run on the server");
+        return;
       }
 
       const session = requireTeamManager(ctx, args.church_id);
@@ -436,7 +436,7 @@ export const mutators = defineMutators({
     }),
     add_member: defineChurchTaskMutator(TeamMemberArgs, async ({ args, ctx, tx }) => {
       if (tx.location !== "server") {
-        throw new Error("teams.add_member must run on the server");
+        return;
       }
 
       const session = requireTeamManager(ctx, args.church_id);
@@ -477,7 +477,7 @@ export const mutators = defineMutators({
     }),
     remove_member: defineChurchTaskMutator(TeamMemberArgs, async ({ args, ctx, tx }) => {
       if (tx.location !== "server") {
-        throw new Error("teams.remove_member must run on the server");
+        return;
       }
 
       requireTeamManager(ctx, args.church_id);
@@ -501,7 +501,7 @@ export const mutators = defineMutators({
   workflows: {
     rename: defineChurchTaskMutator(RenameWorkflowArgs, async ({ args, ctx, tx }) => {
       if (tx.location !== "server") {
-        throw new Error("workflows.rename must run on the server");
+        return;
       }
 
       const session = requireTeamManager(ctx, args.church_id);
@@ -527,7 +527,7 @@ export const mutators = defineMutators({
     }),
     reorder: defineChurchTaskMutator(ReorderWorkflowsArgs, async ({ args, ctx, tx }) => {
       if (tx.location !== "server") {
-        throw new Error("workflows.reorder must run on the server");
+        return;
       }
 
       const session = requireTeamManager(ctx, args.church_id);
@@ -576,7 +576,7 @@ export const mutators = defineMutators({
     }),
     archive: defineChurchTaskMutator(ArchiveWorkflowArgs, async ({ args, ctx, tx }) => {
       if (tx.location !== "server") {
-        throw new Error("workflows.archive must run on the server");
+        return;
       }
 
       requireTeamManager(ctx, args.church_id);
@@ -601,7 +601,7 @@ export const mutators = defineMutators({
     }),
     add_status: defineChurchTaskMutator(AddWorkflowStatusArgs, async ({ args, ctx, tx }) => {
       if (tx.location !== "server") {
-        throw new Error("workflows.add_status must run on the server");
+        return;
       }
 
       const session = requireTeamManager(ctx, args.church_id);
@@ -652,7 +652,7 @@ export const mutators = defineMutators({
     }),
     rename_status: defineChurchTaskMutator(RenameWorkflowStatusArgs, async ({ args, ctx, tx }) => {
       if (tx.location !== "server") {
-        throw new Error("workflows.rename_status must run on the server");
+        return;
       }
 
       const session = requireTeamManager(ctx, args.church_id);
@@ -680,7 +680,7 @@ export const mutators = defineMutators({
       ReorderWorkflowStatusesArgs,
       async ({ args, ctx, tx }) => {
         if (tx.location !== "server") {
-          throw new Error("workflows.reorder_statuses must run on the server");
+          return;
         }
 
         const session = requireTeamManager(ctx, args.church_id);
@@ -712,7 +712,7 @@ export const mutators = defineMutators({
       ArchiveWorkflowStatusArgs,
       async ({ args, ctx, tx }) => {
         if (tx.location !== "server") {
-          throw new Error("workflows.archive_status must run on the server");
+          return;
         }
 
         const session = requireTeamManager(ctx, args.church_id);

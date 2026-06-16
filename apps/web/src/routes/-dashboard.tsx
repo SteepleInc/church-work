@@ -44,12 +44,9 @@ import { QueryResult, useQuery as useConfectQuery } from "@/data/query-hooks";
 import { normalizeTeamIdentifier } from "@church-task/domain-old/Team";
 import { revalidateLogic } from "@tanstack/react-form";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Authenticated, Unauthenticated } from "convex/react";
 import { Schema } from "effect";
 import { useEffect, useRef, useState } from "react";
 
-import SignInForm from "@/components/sign-in-form";
-import SignUpForm from "@/components/sign-up-form";
 import { TaskExecutionSurface } from "@/components/tasks/task-execution-surface";
 import {
   resolveInsightsState,
@@ -2115,16 +2112,5 @@ function ChurchOnboardingGate({ activePanel }: { activePanel: ActiveDashboardPan
 }
 
 export function DashboardPage({ activePanel }: { activePanel: ActiveDashboardPanel }) {
-  const [showSignIn, setShowSignIn] = useState(false);
-
-  return (
-    <>
-      <Authenticated>
-        <ChurchOnboardingGate activePanel={activePanel} />
-      </Authenticated>
-      <Unauthenticated>
-        {showSignIn ? <SignInForm /> : <SignUpForm onSwitchToSignIn={() => setShowSignIn(true)} />}
-      </Unauthenticated>
-    </>
-  );
+  return <ChurchOnboardingGate activePanel={activePanel} />;
 }
