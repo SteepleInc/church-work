@@ -14,7 +14,10 @@
   },
   "dependencies": {
     "@church-task/db": "workspace:*",
+    "@church-task/domain": "workspace:*",
+    "@church-task/shared": "workspace:*",
     "@rocicorp/zero": "catalog:",
+    "drizzle-orm": "catalog:",
     "drizzle-zero": "catalog:",
     "effect": "catalog:"
   },

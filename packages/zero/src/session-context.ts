@@ -27,3 +27,13 @@ export const requireAppAdminSession = (ctx: OptionalZeroSessionContext) => {
 
   return session;
 };
+
+export const requireActiveChurchAccess = (ctx: OptionalZeroSessionContext, church_id: string) => {
+  const session = requireSignedInSession(ctx);
+
+  if (!session.is_app_admin && session.active_church_id !== church_id) {
+    throw new Error("Active Church access required.");
+  }
+
+  return session;
+};

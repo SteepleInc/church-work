@@ -139,6 +139,111 @@ export const organization = pgTable(
   (table) => [index("organization_slug_idx").on(table.slug)],
 );
 
+export const teams = pgTable(
+  "teams",
+  {
+    id: text("id").primaryKey(),
+    ...baseEntityFields,
+    church_id: text("church_id").notNull(),
+    name: text("name").notNull(),
+    identifier: text("identifier").notNull(),
+    previous_identifiers: text("previous_identifiers").notNull().default("[]"),
+    color: text("color").notNull(),
+    sort_order: doublePrecision("sort_order").notNull(),
+  },
+  (table) => [
+    index("teams_church_id_idx").on(table.church_id),
+    uniqueIndex("teams_church_identifier_live_idx")
+      .on(table.church_id, table.identifier)
+      .where(sql`${table.deleted_at} IS NULL`),
+  ],
+);
+
+export const team_memberships = pgTable(
+  "team_memberships",
+  {
+    id: text("id").primaryKey(),
+    _tag: text("_tag").notNull().default("teammembership"),
+    church_id: text("church_id").notNull(),
+    team_id: text("team_id").notNull(),
+    user_id: text("user_id").notNull(),
+    created_at: utcTimestamp("created_at").notNull().defaultNow(),
+    created_by: text("created_by"),
+    updated_at: utcTimestamp("updated_at")
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+    updated_by: text("updated_by"),
+  },
+  (table) => [
+    index("team_memberships_church_id_idx").on(table.church_id),
+    index("team_memberships_team_id_idx").on(table.team_id),
+    index("team_memberships_user_id_idx").on(table.user_id),
+    uniqueIndex("team_memberships_team_user_idx").on(table.team_id, table.user_id),
+  ],
+);
+
+export const workflows = pgTable(
+  "workflows",
+  {
+    id: text("id").primaryKey(),
+    ...baseEntityFields,
+    church_id: text("church_id").notNull(),
+    team_id: text("team_id").notNull(),
+    name: text("name").notNull(),
+  },
+  (table) => [
+    index("workflows_church_id_idx").on(table.church_id),
+    index("workflows_team_id_idx").on(table.team_id),
+    uniqueIndex("workflows_team_live_idx")
+      .on(table.team_id)
+      .where(sql`${table.deleted_at} IS NULL`),
+  ],
+);
+
+export const workflow_statuses = pgTable(
+  "workflow_statuses",
+  {
+    id: text("id").primaryKey(),
+    ...baseEntityFields,
+    church_id: text("church_id").notNull(),
+    workflow_id: text("workflow_id").notNull(),
+    key: text("key").notNull(),
+    name: text("name").notNull(),
+    task_state: text("task_state").notNull(),
+    sort_order: doublePrecision("sort_order").notNull(),
+  },
+  (table) => [
+    index("workflow_statuses_church_id_idx").on(table.church_id),
+    index("workflow_statuses_workflow_id_idx").on(table.workflow_id),
+    uniqueIndex("workflow_statuses_workflow_key_live_idx")
+      .on(table.workflow_id, table.key)
+      .where(sql`${table.deleted_at} IS NULL`),
+  ],
+);
+
+export const labels = pgTable(
+  "labels",
+  {
+    id: text("id").primaryKey(),
+    ...baseEntityFields,
+    church_id: text("church_id").notNull(),
+    team_id: text("team_id"),
+    name: text("name").notNull(),
+    color: text("color").notNull(),
+  },
+  (table) => [
+    index("labels_church_id_idx").on(table.church_id),
+    index("labels_team_id_idx").on(table.team_id),
+    uniqueIndex("labels_church_scope_name_live_idx")
+      .on(table.church_id, sql`lower(${table.name})`)
+      .where(sql`${table.team_id} IS NULL AND ${table.deleted_at} IS NULL`),
+    uniqueIndex("labels_team_scope_name_live_idx")
+      .on(table.team_id, sql`lower(${table.name})`)
+      .where(sql`${table.team_id} IS NOT NULL AND ${table.deleted_at} IS NULL`),
+  ],
+);
+
 export const member = pgTable(
   "member",
   {
@@ -187,11 +292,16 @@ export const schema = {
   account,
   demo_items,
   invitation,
+  labels,
   member,
   organization,
   session,
+  team_memberships,
+  teams,
   user,
   verification,
+  workflow_statuses,
+  workflows,
 };
 
 export type DemoItem = typeof demo_items.$inferSelect;

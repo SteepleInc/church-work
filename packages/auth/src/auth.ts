@@ -1,4 +1,4 @@
-import { createDb } from "@church-task/db";
+import { bootstrapChurchOnboarding, createDb } from "@church-task/db";
 import {
   getAccountId,
   getChurchInvitationId,
@@ -178,6 +178,18 @@ export const createAuthOptions = (
         sendVerificationOTP: otpStore.sendVerificationOTP,
       }),
       organization({
+        organizationHooks: {
+          afterCreateOrganization: async ({
+            member: creatorMember,
+            organization: createdOrg,
+            user,
+          }) => {
+            await bootstrapChurchOnboarding(db, {
+              church_id: createdOrg.id,
+              user_id: creatorMember?.userId ?? user.id,
+            });
+          },
+        },
         organizationCreation: { disabled: false },
         schema: {
           invitation: { modelName: "invitation" },

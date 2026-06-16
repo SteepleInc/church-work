@@ -1,13 +1,18 @@
 import { defineQueries, defineQueryWithType } from "@rocicorp/zero";
 import { Schema } from "effect";
 
-import { isAppAdminSession, requireAppAdminSession } from "./session-context";
+import {
+  isAppAdminSession,
+  requireActiveChurchAccess,
+  requireAppAdminSession,
+} from "./session-context";
 import { zql } from "./zero-schema.gen";
 
 import type { OptionalZeroSessionContext } from "./session-context";
 import type { Schema as ZeroSchema } from "./zero-schema.gen";
 
 const DemoItemByIdArgs = Schema.standardSchemaV1(Schema.Struct({ id: Schema.String }));
+const ChurchScopedArgs = Schema.standardSchemaV1(Schema.Struct({ church_id: Schema.String }));
 
 const defineChurchTaskQuery = defineQueryWithType<ZeroSchema, OptionalZeroSessionContext>();
 
@@ -38,5 +43,13 @@ export const queries = defineQueries({
         .where("deleted_at", "IS", null)
         .one(),
     ),
+  },
+  teams: {
+    by_church: defineChurchTaskQuery(ChurchScopedArgs, ({ args, ctx }) => {
+      requireActiveChurchAccess(ctx, args.church_id);
+      const scoped = zql.teams.where("church_id", args.church_id);
+
+      return scoped.where("deleted_at", "IS", null).orderBy("sort_order", "asc");
+    }),
   },
 });

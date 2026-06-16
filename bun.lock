@@ -207,6 +207,7 @@
       "name": "@church-task/db",
       "version": "0.0.0",
       "dependencies": {
+        "@church-task/domain": "workspace:*",
         "@church-task/shared": "workspace:*",
         "@handfish/drizzle-effect": "catalog:",
         "drizzle-orm": "catalog:",
@@ -294,7 +295,10 @@
       "version": "0.0.0",
       "dependencies": {
         "@church-task/db": "workspace:*",
+        "@church-task/domain": "workspace:*",
+        "@church-task/shared": "workspace:*",
         "@rocicorp/zero": "catalog:",
+        "drizzle-orm": "catalog:",
         "drizzle-zero": "catalog:",
         "effect": "catalog:",
       },

@@ -16,5 +16,10 @@ export default drizzleZeroConfig(drizzleSchema, {
       updated_at: true,
       updated_by: true,
     },
+    labels: true,
+    team_memberships: true,
+    teams: true,
+    workflow_statuses: true,
+    workflows: true,
   },
 });

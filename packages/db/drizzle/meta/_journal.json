@@ -15,6 +15,13 @@
       "when": 1781637789585,
       "tag": "0001_bright_dazzler",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781638814183,
+      "tag": "0002_reflective_marauders",
+      "breakpoints": true
     }
   ]
 }
