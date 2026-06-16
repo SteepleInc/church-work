@@ -13,3 +13,9 @@ Schema conventions for product tables:
 - UTC instant columns use Drizzle `timestamp with time zone` with `mode: "date"` on the server. Zero/app-facing timestamp values are generated as numeric milliseconds.
 
 Better Auth-owned tables may keep Better Auth-compatible TypeScript field names while still mapping to snake_case Postgres columns. Product tables should not copy that exception.
+
+## Seed And Reset Helpers
+
+`seedDatabase`, `resetSeededData`, and `resetAndSeedDatabase` provide the shared Drizzle seed primitives for local dev scripts and E2E harness code. The current profiles are `empty`, `app`, and `admin`; they use deterministic names, emails, and slugs while generating TypeIDs through `@church-task/shared/get-ids`.
+
+Resets truncate the current migrated tables directly through Drizzle. This keeps local/E2E reset independent from domain service code and lets a running Zero process continue watching the same Postgres database across reset/reseed cycles.
