@@ -1,4 +1,4 @@
-import { getLabelColorForName, isLabelColor, type LabelColor } from "@church-task/domain-old/Label";
+import { getLabelColorForName, isLabelColor, type LabelColor } from "@church-task/domain";
 import {
   Ban,
   CircleAlert,

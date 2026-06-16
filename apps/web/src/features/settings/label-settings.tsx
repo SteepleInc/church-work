@@ -3,7 +3,7 @@ import {
   isLabelColor,
   LABEL_COLORS,
   type LabelColor,
-} from "@church-task/domain-old/Label";
+} from "@church-task/domain";
 import type { ColumnDef } from "@tanstack/react-table";
 import { format, formatDistanceToNow } from "date-fns";
 import { Check, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";

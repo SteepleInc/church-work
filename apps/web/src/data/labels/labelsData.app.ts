@@ -1,14 +1,7 @@
-import { api } from "@church-task/backend-old/convex/_generated/api";
-import { getLabelColorForName } from "@church-task/domain-old/Label";
-import { useMutation } from "convex/react";
-import { useConvexQuery as useQuery } from "@/data/query-hooks";
-
-import { appendItem, removeById } from "@/data/collection-ops";
-import { successfulResponseCollection } from "@/data/convex-query-adapter";
-import {
-  collectionItemOptimisticUpdate,
-  collectionListOptimisticUpdate,
-} from "@/data/optimistic-collection";
+import { getLabelColorForName } from "@church-task/domain";
+import { getLabelId } from "@church-task/shared/get-ids";
+import { mutators, queries, type Label, type Task } from "@church-task/zero";
+import { useQuery, useZero } from "@rocicorp/zero/react";
 
 export type LabelItem = {
   readonly id: string;
@@ -24,81 +17,142 @@ export type LabelItem = {
   readonly lastAppliedAt: string | null;
 };
 
-function optimisticId(): string {
-  return `optimistic-label-${Math.random().toString(36).slice(2)}`;
-}
+type LabelMutationResult<Data = undefined> = Promise<
+  | { readonly ok: true; readonly data: Data }
+  | { readonly ok: false; readonly error: { readonly message: string } }
+>;
+type ZeroMutationResult = {
+  readonly server: Promise<
+    | { readonly type: "success" }
+    | { readonly type: "error"; readonly error: { readonly message: string } }
+  >;
+};
+
+const parseStringArray = (value: string | null | undefined): readonly string[] => {
+  try {
+    const parsed = JSON.parse(value ?? "[]") as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === "string")
+      : [];
+  } catch {
+    return [];
+  }
+};
+
+const mutationResult = async (run: () => ZeroMutationResult): LabelMutationResult => {
+  try {
+    const result = await run().server;
+    if (result.type === "error") {
+      return { error: { message: result.error.message }, ok: false };
+    }
+
+    return { data: undefined, ok: true };
+  } catch (error) {
+    return {
+      error: { message: error instanceof Error ? error.message : "Could not update Labels." },
+      ok: false,
+    };
+  }
+};
+
+const mapLabel = (label: Label, tasks: readonly Task[]): LabelItem => {
+  const matchingTasks = tasks.filter((task) => parseStringArray(task.label_ids).includes(label.id));
+
+  return {
+    churchId: label.church_id,
+    color: label.color,
+    createdAt: label.created_at ?? 0,
+    id: label.id,
+    lastAppliedAt: null,
+    name: label.name,
+    taskCount: matchingTasks.length,
+    teamId: label.team_id ?? null,
+  };
+};
 
 /**
  * Church Labels ride along on the work-defaults read (like Workflows), so the
  * picker, cards, and settings page share one cached query.
  */
 export function useLabelsCollection(params: { readonly churchId: string | null }) {
-  const result = useQuery(
-    api.workDefaults.readForChurch,
-    params.churchId ? { churchId: params.churchId } : "skip",
+  const [labelRows] = useQuery(
+    queries.labels.by_church({ church_id: params.churchId ?? "__no_church__" }),
   );
-  const state = successfulResponseCollection(
-    result,
-    (response) => response.data.labels as readonly LabelItem[],
+  const [taskRows] = useQuery(
+    queries.tasks.by_church({ church_id: params.churchId ?? "__no_church__" }),
   );
+  const collection =
+    params.churchId === null ? [] : labelRows.map((label) => mapLabel(label, taskRows));
 
   return {
-    loading: params.churchId !== null && state.loading,
-    collection: state.collection,
-    labelsCollection: state.collection,
+    collection,
+    labelsCollection: collection,
+    loading: false,
   };
 }
 
 export function useCreateLabelMutation() {
-  return useMutation(api.labels.createForChurch).withOptimisticUpdate(
-    collectionListOptimisticUpdate({
-      query: api.workDefaults.readForChurch,
-      collectionKey: "labels",
-      patch: (
-        labels: readonly LabelItem[],
-        args: { readonly churchId: string; readonly name: string },
-      ) =>
-        appendItem(labels, {
-          id: optimisticId(),
-          churchId: args.churchId,
-          teamId: null,
-          name: args.name,
-          color: getLabelColorForName(args.name),
-          createdAt: Date.now(),
-          taskCount: 0,
-          lastAppliedAt: null,
+  const zero = useZero();
+
+  return async (params: { readonly churchId: string; readonly name: string }) => {
+    const labelId = getLabelId();
+    const result = await mutationResult(() =>
+      zero.mutate(
+        mutators.labels.create({
+          church_id: params.churchId,
+          label_id: labelId,
+          name: params.name,
         }),
-    }),
-  );
+      ),
+    );
+    if (!result.ok) return result;
+
+    return {
+      data: {
+        labels: [
+          {
+            churchId: params.churchId,
+            color: getLabelColorForName(params.name),
+            createdAt: Date.now(),
+            id: labelId,
+            lastAppliedAt: null,
+            name: params.name,
+            taskCount: 0,
+            teamId: null,
+          },
+        ],
+      },
+      ok: true as const,
+    };
+  };
 }
 
 export function useUpdateLabelMutation() {
-  return useMutation(api.labels.updateForChurch).withOptimisticUpdate(
-    collectionItemOptimisticUpdate({
-      query: api.workDefaults.readForChurch,
-      collectionKey: "labels",
-      patch: (
-        label: LabelItem,
-        args: { readonly labelId: string; readonly name?: string; readonly color?: string },
-      ) =>
-        label.id === args.labelId
-          ? {
-              ...label,
-              ...(args.name !== undefined ? { name: args.name } : {}),
-              ...(args.color !== undefined ? { color: args.color } : {}),
-            }
-          : undefined,
-    }),
-  );
+  const zero = useZero();
+
+  return (params: {
+    readonly churchId: string;
+    readonly labelId: string;
+    readonly name?: string;
+    readonly color?: string;
+  }) =>
+    mutationResult(() =>
+      zero.mutate(
+        mutators.labels.update({
+          church_id: params.churchId,
+          color: params.color,
+          label_id: params.labelId,
+          name: params.name,
+        }),
+      ),
+    );
 }
 
 export function useDeleteLabelMutation() {
-  return useMutation(api.labels.deleteForChurch).withOptimisticUpdate(
-    collectionListOptimisticUpdate({
-      query: api.workDefaults.readForChurch,
-      collectionKey: "labels",
-      patch: (labels: readonly LabelItem[], args: { readonly labelId: string }) =>
-        removeById(labels, args.labelId),
-    }),
-  );
+  const zero = useZero();
+
+  return (params: { readonly churchId: string; readonly labelId: string }) =>
+    mutationResult(() =>
+      zero.mutate(mutators.labels.delete({ church_id: params.churchId, label_id: params.labelId })),
+    );
 }

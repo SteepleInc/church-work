@@ -58,6 +58,7 @@ const CreateLabelArgs = Schema.standardSchemaV1(
   Schema.Struct({
     church_id: Schema.String,
     color: Schema.optional(Schema.String),
+    label_id: Schema.optional(Schema.String),
     name: Schema.String,
     team_id: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
   }),
@@ -884,6 +885,7 @@ export const mutators = defineMutators({
       const existingLabels = await getChurchLabels(db, args.church_id);
       ensureUniqueLabelName(existingLabels, { name, team_id: teamId });
       const now = new Date();
+      const labelId = args.label_id ?? getLabelId();
 
       await db.insert(labels).values({
         _tag: "label",
@@ -891,7 +893,7 @@ export const mutators = defineMutators({
         color: args.color ?? getLabelColorForName(name),
         created_at: now,
         created_by: session.user_id,
-        id: getLabelId(),
+        id: labelId,
         name,
         team_id: teamId,
         updated_at: now,

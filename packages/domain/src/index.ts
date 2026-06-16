@@ -11,6 +11,10 @@ export const TEAM_COLORS = [
 
 export type TeamColor = (typeof TEAM_COLORS)[number];
 
+export const LABEL_COLORS = TEAM_COLORS;
+
+export type LabelColor = (typeof LABEL_COLORS)[number];
+
 export const STARTER_TEAM_NAMES = ["Leadership", "Worship", "Kids & Youth"] as const;
 
 export const STARTER_LABELS = [
@@ -54,6 +58,9 @@ export const getTeamColorForName = (name: string): TeamColor => {
 };
 
 export const getLabelColorForName = (name: string): TeamColor => getTeamColorForName(name);
+
+export const isLabelColor = (value: unknown): value is LabelColor =>
+  typeof value === "string" && (LABEL_COLORS as readonly string[]).includes(value);
 
 export const normalizeTeamIdentifier = (value: string): string => value.trim().toUpperCase();
 
