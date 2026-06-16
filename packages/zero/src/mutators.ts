@@ -4,26 +4,28 @@ import { Schema } from "effect";
 
 import { demo_items } from "@church-task/db/schema";
 
-import type { OptionalTracerSessionContext } from "./session-context";
+import { requireSignedInSession } from "./session-context";
+
+import type { OptionalZeroSessionContext } from "./session-context";
 import type { Schema as ZeroSchema } from "./zero-schema.gen";
 
 const CreateDemoItemArgs = Schema.standardSchemaV1(Schema.Struct({ name: Schema.String }));
 
-const defineTracerMutator = defineMutatorWithType<
+const defineChurchTaskMutator = defineMutatorWithType<
   ZeroSchema,
-  OptionalTracerSessionContext,
+  OptionalZeroSessionContext,
   unknown
 >();
 
 export const mutators = defineMutators({
   demo_items: {
-    create: defineTracerMutator(CreateDemoItemArgs, async ({ args, ctx, tx }) => {
+    create: defineChurchTaskMutator(CreateDemoItemArgs, async ({ args, ctx, tx }) => {
       if (tx.location !== "server") {
         throw new Error("demo_items.create must run on the server");
       }
 
+      const session = requireSignedInSession(ctx);
       const now = new Date();
-      const userId = ctx?.user_id ?? null;
 
       const serverTx = tx as typeof tx & {
         readonly dbTransaction: {
@@ -34,12 +36,12 @@ export const mutators = defineMutators({
       await serverTx.dbTransaction.wrappedTransaction.insert(demo_items).values({
         _tag: "demo_item",
         created_at: now,
-        created_by: userId,
+        created_by: session.user_id,
         id: getDemoItemId(),
         name: args.name,
-        owner_user_id: userId,
+        owner_user_id: session.user_id,
         updated_at: now,
-        updated_by: userId,
+        updated_by: session.user_id,
       });
     }),
   },
