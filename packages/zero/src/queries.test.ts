@@ -21,4 +21,19 @@ describe("Zero product queries", () => {
       }),
     ).toThrow("Authentication required.");
   });
+
+  test("fails closed for unauthenticated server-side Workflow queries", () => {
+    for (const name of [
+      "team_memberships.by_church",
+      "workflows.by_church",
+      "workflow_statuses.by_church",
+    ] as const) {
+      expect(() =>
+        mustGetQuery(queries, name).fn({
+          args: { church_id: "org_missing" },
+          ctx: { authenticated: false, runtime: "server" },
+        }),
+      ).toThrow("Authentication required.");
+    }
+  });
 });

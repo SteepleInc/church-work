@@ -59,4 +59,45 @@ export const queries = defineQueries({
       return scoped.where("deleted_at", "IS", null).orderBy("sort_order", "asc");
     }),
   },
+  team_memberships: {
+    by_church: defineChurchTaskQuery(ChurchScopedArgs, ({ args, ctx }) => {
+      const scoped = zql.team_memberships.where("church_id", args.church_id);
+
+      if (!hasActiveChurchAccess(ctx, args.church_id)) {
+        if (isServerContext(ctx)) requireActiveChurchAccess(ctx, args.church_id);
+
+        return zql.team_memberships.where("id", "__unauthorized__");
+      }
+
+      return scoped.orderBy("created_at", "asc");
+    }),
+  },
+  workflows: {
+    by_church: defineChurchTaskQuery(ChurchScopedArgs, ({ args, ctx }) => {
+      const scoped = zql.workflows.where("church_id", args.church_id);
+
+      if (!hasActiveChurchAccess(ctx, args.church_id)) {
+        if (isServerContext(ctx)) requireActiveChurchAccess(ctx, args.church_id);
+
+        return zql.workflows.where("id", "__unauthorized__").where("deleted_at", "IS", null);
+      }
+
+      return scoped.where("deleted_at", "IS", null).orderBy("created_at", "asc");
+    }),
+  },
+  workflow_statuses: {
+    by_church: defineChurchTaskQuery(ChurchScopedArgs, ({ args, ctx }) => {
+      const scoped = zql.workflow_statuses.where("church_id", args.church_id);
+
+      if (!hasActiveChurchAccess(ctx, args.church_id)) {
+        if (isServerContext(ctx)) requireActiveChurchAccess(ctx, args.church_id);
+
+        return zql.workflow_statuses
+          .where("id", "__unauthorized__")
+          .where("deleted_at", "IS", null);
+      }
+
+      return scoped.where("deleted_at", "IS", null).orderBy("sort_order", "asc");
+    }),
+  },
 });
