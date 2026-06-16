@@ -1,6 +1,8 @@
 import { defineQueries, defineQueryWithType } from "@rocicorp/zero";
 import { Schema } from "effect";
 
+import { parseTaskIdentifier } from "@church-task/domain";
+
 import {
   hasActiveChurchAccess,
   isAppAdminSession,
@@ -15,6 +17,9 @@ import type { Schema as ZeroSchema } from "./zero-schema.gen";
 
 const DemoItemByIdArgs = Schema.standardSchemaV1(Schema.Struct({ id: Schema.String }));
 const ChurchScopedArgs = Schema.standardSchemaV1(Schema.Struct({ church_id: Schema.String }));
+const TaskByIdentifierArgs = Schema.standardSchemaV1(
+  Schema.Struct({ church_id: Schema.String, identifier: Schema.String }),
+);
 
 const defineChurchTaskQuery = defineQueryWithType<ZeroSchema, OptionalZeroSessionContext>();
 
@@ -98,6 +103,35 @@ export const queries = defineQueries({
       }
 
       return scoped.where("deleted_at", "IS", null).orderBy("sort_order", "asc");
+    }),
+  },
+  tasks: {
+    by_church: defineChurchTaskQuery(ChurchScopedArgs, ({ args, ctx }) => {
+      const scoped = zql.tasks.where("church_id", args.church_id);
+
+      if (!hasActiveChurchAccess(ctx, args.church_id)) {
+        if (isServerContext(ctx)) requireActiveChurchAccess(ctx, args.church_id);
+
+        return zql.tasks.where("id", "__unauthorized__").where("deleted_at", "IS", null);
+      }
+
+      return scoped.where("deleted_at", "IS", null).orderBy("created_at", "desc");
+    }),
+    by_identifier: defineChurchTaskQuery(TaskByIdentifierArgs, ({ args, ctx }) => {
+      const parsed = parseTaskIdentifier(args.identifier);
+      if (!parsed)
+        return zql.tasks.where("id", "__invalid_identifier__").where("deleted_at", "IS", null);
+
+      if (!hasActiveChurchAccess(ctx, args.church_id)) {
+        if (isServerContext(ctx)) requireActiveChurchAccess(ctx, args.church_id);
+
+        return zql.tasks.where("id", "__unauthorized__").where("deleted_at", "IS", null);
+      }
+
+      return zql.tasks
+        .where("church_id", args.church_id)
+        .where("number", parsed.taskNumber)
+        .where("deleted_at", "IS", null);
     }),
   },
 });

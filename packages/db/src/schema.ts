@@ -3,6 +3,7 @@ import {
   boolean,
   doublePrecision,
   index,
+  integer,
   pgTable,
   text,
   timestamp,
@@ -147,6 +148,7 @@ export const teams = pgTable(
     church_id: text("church_id").notNull(),
     name: text("name").notNull(),
     identifier: text("identifier").notNull(),
+    next_task_number: integer("next_task_number").notNull().default(1),
     previous_identifiers: text("previous_identifiers").notNull().default("[]"),
     color: text("color").notNull(),
     sort_order: doublePrecision("sort_order").notNull(),
@@ -155,6 +157,44 @@ export const teams = pgTable(
     index("teams_church_id_idx").on(table.church_id),
     uniqueIndex("teams_church_identifier_live_idx")
       .on(table.church_id, table.identifier)
+      .where(sql`${table.deleted_at} IS NULL`),
+  ],
+);
+
+export const tasks = pgTable(
+  "tasks",
+  {
+    id: text("id").primaryKey(),
+    ...baseEntityFields,
+    church_id: text("church_id").notNull(),
+    title: text("title").notNull(),
+    description: text("description"),
+    team_id: text("team_id").notNull(),
+    number: integer("number").notNull(),
+    previous_identifiers: text("previous_identifiers").notNull().default("[]"),
+    assigned_user_id: text("assigned_user_id"),
+    created_by_user_id: text("created_by_user_id"),
+    cycle_id: text("cycle_id"),
+    due_date: text("due_date"),
+    parent_task_id: text("parent_task_id"),
+    label_ids: text("label_ids").notNull().default("[]"),
+    workflow_id: text("workflow_id").notNull(),
+    workflow_status_id: text("workflow_status_id").notNull(),
+    task_state: text("task_state").notNull(),
+    estimate: text("estimate"),
+    board_order: text("board_order").notNull(),
+    finished_at: utcTimestamp("finished_at"),
+    source_template_id: text("source_template_id"),
+    source_template_task_id: text("source_template_task_id"),
+    source_template_cycle_id: text("source_template_cycle_id"),
+    source_template_sync_enabled: boolean("source_template_sync_enabled").notNull().default(false),
+  },
+  (table) => [
+    index("tasks_church_id_idx").on(table.church_id),
+    index("tasks_team_id_idx").on(table.team_id),
+    index("tasks_workflow_status_id_idx").on(table.workflow_status_id),
+    uniqueIndex("tasks_team_number_live_idx")
+      .on(table.team_id, table.number)
       .where(sql`${table.deleted_at} IS NULL`),
   ],
 );
@@ -298,6 +338,7 @@ export const schema = {
   session,
   team_memberships,
   teams,
+  tasks,
   user,
   verification,
   workflow_statuses,

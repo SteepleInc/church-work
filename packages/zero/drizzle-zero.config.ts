@@ -19,6 +19,7 @@ export default drizzleZeroConfig(drizzleSchema, {
     labels: true,
     team_memberships: true,
     teams: true,
+    tasks: true,
     workflow_statuses: true,
     workflows: true,
   },

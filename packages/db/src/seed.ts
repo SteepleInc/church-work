@@ -27,6 +27,7 @@ export type SeedResult = {
 };
 
 const tableNames = [
+  "tasks",
   "workflow_statuses",
   "workflows",
   "team_memberships",

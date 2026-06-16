@@ -31,6 +31,17 @@ export const DEFAULT_WORKFLOW_STATUSES = [
 
 export const TEAM_IDENTIFIER_MAX_LENGTH = 7;
 
+export const TaskStatus = {
+  todo: "todo",
+  inProgress: "in_progress",
+  done: "done",
+  canceled: "canceled",
+} as const;
+
+export type TaskStatus = (typeof TaskStatus)[keyof typeof TaskStatus];
+
+export type TaskEstimate = "xs" | "s" | "m" | "l" | "xl";
+
 export const getTeamColorForName = (name: string): TeamColor => {
   const normalized = name.trim().toLowerCase();
   let hash = 0;
@@ -65,4 +76,26 @@ export const generateTeamIdentifier = (
     const candidate = base.slice(0, TEAM_IDENTIFIER_MAX_LENGTH - suffix.length) + suffix;
     if (!taken.has(candidate)) return candidate;
   }
+};
+
+export const formatTaskIdentifier = (teamIdentifier: string, taskNumber: number): string =>
+  `${teamIdentifier.trim().toUpperCase()}-${taskNumber}`;
+
+const TASK_IDENTIFIER_PATTERN = new RegExp(
+  `^([A-Za-z0-9]{1,${TEAM_IDENTIFIER_MAX_LENGTH}})-([0-9]+)$`,
+);
+
+export type ParsedTaskIdentifier = {
+  readonly teamIdentifier: string;
+  readonly taskNumber: number;
+};
+
+export const parseTaskIdentifier = (value: string): ParsedTaskIdentifier | null => {
+  const match = TASK_IDENTIFIER_PATTERN.exec(value.trim());
+  if (!match) return null;
+
+  const taskNumber = Number.parseInt(match[2]!, 10);
+  if (!Number.isSafeInteger(taskNumber) || taskNumber < 1) return null;
+
+  return { teamIdentifier: match[1]!.toUpperCase(), taskNumber };
 };

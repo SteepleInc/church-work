@@ -1,5 +1,6 @@
 import {
   DEFAULT_WORKFLOW_STATUSES,
+  formatTaskIdentifier,
   generateTeamIdentifier,
   getTeamColorForName,
   normalizeTeamIdentifier,
@@ -7,6 +8,7 @@ import {
 } from "@church-task/domain";
 import {
   getDemoItemId,
+  getTaskId,
   getTeamId,
   getTeamMembershipId,
   getWorkflowId,
@@ -18,6 +20,7 @@ import { Schema } from "effect";
 
 import {
   demo_items,
+  tasks,
   team_memberships,
   teams,
   workflow_statuses,
@@ -82,6 +85,51 @@ const ReorderWorkflowStatusesArgs = Schema.standardSchemaV1(
 const ArchiveWorkflowStatusArgs = Schema.standardSchemaV1(
   Schema.Struct({ church_id: Schema.String, status_id: Schema.String }),
 );
+const TaskEstimateArg = Schema.Union(
+  Schema.Literal("xs"),
+  Schema.Literal("s"),
+  Schema.Literal("m"),
+  Schema.Literal("l"),
+  Schema.Literal("xl"),
+  Schema.Null,
+);
+const TaskFieldsArg = Schema.Struct({
+  assigned_user_id: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
+  board_order: Schema.optional(Schema.String),
+  due_date: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
+  estimate: Schema.optional(TaskEstimateArg),
+  label_ids: Schema.optional(Schema.Array(Schema.String)),
+  parent_task_id: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
+  team_id: Schema.optional(Schema.String),
+  title: Schema.optional(Schema.String),
+  workflow_status_id: Schema.optional(Schema.String),
+});
+const CreateTaskArgs = Schema.standardSchemaV1(
+  Schema.Struct({
+    assigned_user_id: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
+    church_id: Schema.String,
+    description: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
+    due_date: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
+    estimate: Schema.optional(TaskEstimateArg),
+    label_ids: Schema.optional(Schema.Array(Schema.String)),
+    parent_task_id: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
+    team_id: Schema.String,
+    title: Schema.String,
+    workflow_status_id: Schema.String,
+  }),
+);
+const UpdateTaskArgs = Schema.standardSchemaV1(
+  Schema.Struct({ church_id: Schema.String, fields: TaskFieldsArg, task_id: Schema.String }),
+);
+const UpdateTasksBatchArgs = Schema.standardSchemaV1(
+  Schema.Struct({
+    church_id: Schema.String,
+    updates: Schema.Array(Schema.Struct({ fields: TaskFieldsArg, task_id: Schema.String })),
+  }),
+);
+const TaskTransitionArgs = Schema.standardSchemaV1(
+  Schema.Struct({ church_id: Schema.String, task_id: Schema.String }),
+);
 
 const defineChurchTaskMutator = defineMutatorWithType<
   ZeroSchema,
@@ -114,6 +162,202 @@ const parsePreviousIdentifiers = (value: string): readonly string[] => {
   } catch {
     return [];
   }
+};
+
+const serializeStringArray = (values: ReadonlyArray<string>) =>
+  JSON.stringify([...new Set(values)]);
+
+const appendBoardOrderKey = (lastKey: string | null): string => {
+  if (lastKey === null) return "a1";
+  const prefix = lastKey.match(/^[a-zA-Z]+/)?.[0] ?? "a";
+  const parsed = Number.parseFloat(
+    lastKey.startsWith(prefix) ? lastKey.slice(prefix.length) : lastKey,
+  );
+  return `${prefix}${Number.isFinite(parsed) ? parsed + 1 : 1}`;
+};
+
+type ServerTx = {
+  readonly dbTransaction: {
+    readonly wrappedTransaction: {
+      readonly insert: (table: unknown) => any;
+      readonly select: (fields?: unknown) => any;
+      readonly update: (table: unknown) => any;
+    };
+  };
+};
+
+const serverDb = (tx: { readonly location: string }) => {
+  if (tx.location !== "server") return null;
+  return (tx as typeof tx & ServerTx).dbTransaction.wrappedTransaction;
+};
+
+const getTaskWithTeamIdentifier = async (
+  db: ServerTx["dbTransaction"]["wrappedTransaction"],
+  task_id: string,
+  church_id: string,
+) => {
+  const rows = (await db
+    .select({
+      board_order: tasks.board_order,
+      church_id: tasks.church_id,
+      deleted_at: tasks.deleted_at,
+      finished_at: tasks.finished_at,
+      id: tasks.id,
+      label_ids: tasks.label_ids,
+      number: tasks.number,
+      previous_identifiers: tasks.previous_identifiers,
+      task_state: tasks.task_state,
+      team_id: tasks.team_id,
+      team_identifier: teams.identifier,
+      workflow_id: tasks.workflow_id,
+      workflow_status_id: tasks.workflow_status_id,
+    })
+    .from(tasks)
+    .leftJoin(teams, eq(tasks.team_id, teams.id))
+    .where(
+      and(eq(tasks.id, task_id), eq(tasks.church_id, church_id), isNull(tasks.deleted_at)),
+    )) as Array<{
+    readonly board_order: string;
+    readonly church_id: string;
+    readonly deleted_at: Date | null;
+    readonly finished_at: Date | null;
+    readonly id: string;
+    readonly label_ids: string;
+    readonly number: number;
+    readonly previous_identifiers: string;
+    readonly task_state: string;
+    readonly team_id: string;
+    readonly team_identifier: string | null;
+    readonly workflow_id: string;
+    readonly workflow_status_id: string;
+  }>;
+
+  return rows[0] ?? null;
+};
+
+const taskPatchForFields = async (
+  db: ServerTx["dbTransaction"]["wrappedTransaction"],
+  args: {
+    readonly church_id: string;
+    readonly fields: typeof TaskFieldsArg.Type;
+    readonly session_user_id: string;
+    readonly task_id: string;
+  },
+) => {
+  const task = await getTaskWithTeamIdentifier(db, args.task_id, args.church_id);
+  if (!task) throw new Error("Task not found.");
+
+  const now = new Date();
+  const patch: Record<string, unknown> = { updated_at: now, updated_by: args.session_user_id };
+
+  if (args.fields.title !== undefined) patch.title = args.fields.title.trim();
+  if (args.fields.assigned_user_id !== undefined)
+    patch.assigned_user_id = args.fields.assigned_user_id;
+  if (args.fields.due_date !== undefined) patch.due_date = args.fields.due_date;
+  if (args.fields.parent_task_id !== undefined) patch.parent_task_id = args.fields.parent_task_id;
+  if (args.fields.board_order !== undefined) patch.board_order = args.fields.board_order;
+  if (args.fields.label_ids !== undefined)
+    patch.label_ids = serializeStringArray(args.fields.label_ids);
+  if (args.fields.estimate !== undefined) patch.estimate = args.fields.estimate;
+
+  if (args.fields.workflow_status_id !== undefined) {
+    const statusRows = (await db
+      .select({
+        id: workflow_statuses.id,
+        task_state: workflow_statuses.task_state,
+        workflow_id: workflow_statuses.workflow_id,
+      })
+      .from(workflow_statuses)
+      .where(
+        and(
+          eq(workflow_statuses.id, args.fields.workflow_status_id),
+          eq(workflow_statuses.church_id, args.church_id),
+          isNull(workflow_statuses.deleted_at),
+        ),
+      )) as Array<{
+      readonly id: string;
+      readonly task_state: string;
+      readonly workflow_id: string;
+    }>;
+    const status = statusRows[0];
+    if (!status) throw new Error("Workflow Status not found.");
+    if (status.workflow_id !== task.workflow_id)
+      throw new Error("Workflow Status is not in this Task's Workflow.");
+    patch.workflow_status_id = status.id;
+    patch.task_state = status.task_state;
+    patch.finished_at =
+      status.task_state === "done" ? now : task.task_state === "done" ? null : task.finished_at;
+  }
+
+  if (args.fields.team_id !== undefined && args.fields.team_id !== task.team_id) {
+    const teamRows = (await db
+      .select({
+        id: teams.id,
+        identifier: teams.identifier,
+        next_task_number: teams.next_task_number,
+      })
+      .from(teams)
+      .where(
+        and(
+          eq(teams.id, args.fields.team_id),
+          eq(teams.church_id, args.church_id),
+          isNull(teams.deleted_at),
+        ),
+      )) as Array<{
+      readonly id: string;
+      readonly identifier: string;
+      readonly next_task_number: number;
+    }>;
+    const team = teamRows[0];
+    if (!team) throw new Error("Team not found.");
+    const workflowRows = (await db
+      .select({ id: workflows.id })
+      .from(workflows)
+      .where(
+        and(
+          eq(workflows.team_id, team.id),
+          eq(workflows.church_id, args.church_id),
+          isNull(workflows.deleted_at),
+        ),
+      )) as Array<{ readonly id: string }>;
+    const workflow = workflowRows[0];
+    if (!workflow) throw new Error("Team Workflow not found.");
+    const statusRows = (await db
+      .select({ id: workflow_statuses.id, task_state: workflow_statuses.task_state })
+      .from(workflow_statuses)
+      .where(
+        and(
+          eq(workflow_statuses.workflow_id, workflow.id),
+          eq(workflow_statuses.task_state, task.task_state),
+          isNull(workflow_statuses.deleted_at),
+        ),
+      )) as Array<{
+      readonly id: string;
+      readonly task_state: string;
+    }>;
+    const status = statusRows[0];
+    if (!status) throw new Error("Workflow Status remap failed.");
+
+    const previousIdentifier = formatTaskIdentifier(task.team_identifier ?? "TEAM", task.number);
+    patch.team_id = team.id;
+    patch.workflow_id = workflow.id;
+    patch.workflow_status_id = status.id;
+    patch.number = team.next_task_number;
+    patch.previous_identifiers = serializeStringArray([
+      ...parsePreviousIdentifiers(task.previous_identifiers),
+      previousIdentifier,
+    ]);
+    await db
+      .update(teams)
+      .set({
+        next_task_number: team.next_task_number + 1,
+        updated_at: now,
+        updated_by: args.session_user_id,
+      })
+      .where(eq(teams.id, team.id));
+  }
+
+  return patch;
 };
 
 export const mutators = defineMutators({
@@ -496,6 +740,258 @@ export const mutators = defineMutators({
             eq(team_memberships.user_id, args.user_id),
           ),
         );
+    }),
+  },
+  tasks: {
+    create: defineChurchTaskMutator(CreateTaskArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+
+      const session = requireActiveChurchAccess(ctx, args.church_id);
+      const title = args.title.trim();
+      if (!title) throw new Error("Task title is required.");
+
+      const statusRows = (await db
+        .select({
+          id: workflow_statuses.id,
+          task_state: workflow_statuses.task_state,
+          workflow_id: workflow_statuses.workflow_id,
+        })
+        .from(workflow_statuses)
+        .where(
+          and(
+            eq(workflow_statuses.id, args.workflow_status_id),
+            eq(workflow_statuses.church_id, args.church_id),
+            isNull(workflow_statuses.deleted_at),
+          ),
+        )) as Array<{
+        readonly id: string;
+        readonly task_state: string;
+        readonly workflow_id: string;
+      }>;
+      const status = statusRows[0];
+      if (!status) throw new Error("Workflow Status not found.");
+
+      const teamRows = (await db
+        .select({
+          id: teams.id,
+          identifier: teams.identifier,
+          next_task_number: teams.next_task_number,
+        })
+        .from(teams)
+        .where(
+          and(
+            eq(teams.id, args.team_id),
+            eq(teams.church_id, args.church_id),
+            isNull(teams.deleted_at),
+          ),
+        )) as Array<{
+        readonly id: string;
+        readonly identifier: string;
+        readonly next_task_number: number;
+      }>;
+      const team = teamRows[0];
+      if (!team) throw new Error("Team not found.");
+
+      const workflowRows = (await db
+        .select({ id: workflows.id })
+        .from(workflows)
+        .where(
+          and(
+            eq(workflows.id, status.workflow_id),
+            eq(workflows.team_id, team.id),
+            eq(workflows.church_id, args.church_id),
+            isNull(workflows.deleted_at),
+          ),
+        )) as Array<{ readonly id: string }>;
+      if (workflowRows.length === 0)
+        throw new Error("Workflow Status is not in the Team Workflow.");
+
+      const boardRows = (await db
+        .select({ board_order: tasks.board_order })
+        .from(tasks)
+        .where(and(eq(tasks.workflow_status_id, status.id), isNull(tasks.deleted_at)))) as Array<{
+        readonly board_order: string;
+      }>;
+      const boardOrder = appendBoardOrderKey(
+        boardRows.reduce<string | null>(
+          (max, task) => (max === null || task.board_order > max ? task.board_order : max),
+          null,
+        ),
+      );
+      const now = new Date();
+      const taskId = getTaskId();
+
+      await db.insert(tasks).values({
+        _tag: "task",
+        assigned_user_id: args.assigned_user_id ?? null,
+        board_order: boardOrder,
+        church_id: args.church_id,
+        created_at: now,
+        created_by: session.user_id,
+        created_by_user_id: session.user_id,
+        cycle_id: null,
+        description: args.description ?? null,
+        due_date: args.due_date ?? null,
+        estimate: args.estimate ?? null,
+        finished_at: status.task_state === "done" ? now : null,
+        id: taskId,
+        label_ids: serializeStringArray(args.label_ids ?? []),
+        number: team.next_task_number,
+        parent_task_id: args.parent_task_id ?? null,
+        previous_identifiers: "[]",
+        source_template_cycle_id: null,
+        source_template_id: null,
+        source_template_sync_enabled: false,
+        source_template_task_id: null,
+        task_state: status.task_state,
+        team_id: team.id,
+        title,
+        updated_at: now,
+        updated_by: session.user_id,
+        workflow_id: status.workflow_id,
+        workflow_status_id: status.id,
+      });
+
+      await db
+        .update(teams)
+        .set({
+          next_task_number: team.next_task_number + 1,
+          updated_at: now,
+          updated_by: session.user_id,
+        })
+        .where(eq(teams.id, team.id));
+    }),
+    update: defineChurchTaskMutator(UpdateTaskArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+
+      const session = requireActiveChurchAccess(ctx, args.church_id);
+      const patch = await taskPatchForFields(db, {
+        church_id: args.church_id,
+        fields: args.fields,
+        session_user_id: session.user_id,
+        task_id: args.task_id,
+      });
+
+      await db
+        .update(tasks)
+        .set(patch)
+        .where(
+          and(
+            eq(tasks.id, args.task_id),
+            eq(tasks.church_id, args.church_id),
+            isNull(tasks.deleted_at),
+          ),
+        );
+    }),
+    update_batch: defineChurchTaskMutator(UpdateTasksBatchArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+
+      const session = requireActiveChurchAccess(ctx, args.church_id);
+      for (const update of args.updates) {
+        const patch = await taskPatchForFields(db, {
+          church_id: args.church_id,
+          fields: update.fields,
+          session_user_id: session.user_id,
+          task_id: update.task_id,
+        });
+        await db
+          .update(tasks)
+          .set(patch)
+          .where(
+            and(
+              eq(tasks.id, update.task_id),
+              eq(tasks.church_id, args.church_id),
+              isNull(tasks.deleted_at),
+            ),
+          );
+      }
+    }),
+    complete: defineChurchTaskMutator(TaskTransitionArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+
+      const session = requireActiveChurchAccess(ctx, args.church_id);
+      const task = await getTaskWithTeamIdentifier(db, args.task_id, args.church_id);
+      if (!task) throw new Error("Task not found.");
+      const rows = (await db
+        .select({ id: workflow_statuses.id })
+        .from(workflow_statuses)
+        .where(
+          and(
+            eq(workflow_statuses.workflow_id, task.workflow_id),
+            eq(workflow_statuses.task_state, "done"),
+            isNull(workflow_statuses.deleted_at),
+          ),
+        )) as Array<{ readonly id: string }>;
+      const status = rows[0];
+      if (!status) throw new Error("Done Workflow Status not found.");
+      const now = new Date();
+      await db
+        .update(tasks)
+        .set({
+          finished_at: now,
+          task_state: "done",
+          updated_at: now,
+          updated_by: session.user_id,
+          workflow_status_id: status.id,
+        })
+        .where(eq(tasks.id, args.task_id));
+    }),
+    cancel: defineChurchTaskMutator(TaskTransitionArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+
+      const session = requireActiveChurchAccess(ctx, args.church_id);
+      const now = new Date();
+      await db
+        .update(tasks)
+        .set({
+          finished_at: now,
+          task_state: "canceled",
+          updated_at: now,
+          updated_by: session.user_id,
+        })
+        .where(
+          and(
+            eq(tasks.id, args.task_id),
+            eq(tasks.church_id, args.church_id),
+            isNull(tasks.deleted_at),
+          ),
+        );
+    }),
+    reopen: defineChurchTaskMutator(TaskTransitionArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+
+      const session = requireActiveChurchAccess(ctx, args.church_id);
+      const task = await getTaskWithTeamIdentifier(db, args.task_id, args.church_id);
+      if (!task) throw new Error("Task not found.");
+      const rows = (await db
+        .select({ id: workflow_statuses.id })
+        .from(workflow_statuses)
+        .where(
+          and(
+            eq(workflow_statuses.workflow_id, task.workflow_id),
+            eq(workflow_statuses.task_state, "todo"),
+            isNull(workflow_statuses.deleted_at),
+          ),
+        )) as Array<{ readonly id: string }>;
+      const status = rows[0];
+      if (!status) throw new Error("To Do Workflow Status not found.");
+      const now = new Date();
+      await db
+        .update(tasks)
+        .set({
+          finished_at: null,
+          task_state: "todo",
+          updated_at: now,
+          updated_by: session.user_id,
+          workflow_status_id: status.id,
+        })
+        .where(eq(tasks.id, args.task_id));
     }),
   },
   workflows: {
