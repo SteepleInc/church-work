@@ -1,177 +1,256 @@
-import { api } from "@church-task/backend-old/convex/_generated/api";
-import type { TaskStatus } from "@church-task/domain-old";
-import { useMutation } from "convex/react";
-import { useConvexQuery as useQuery } from "@/data/query-hooks";
-
-import { appendItem, removeById, reorderBySortOrder } from "@/data/collection-ops";
-import { successfulResponseCollection } from "@/data/convex-query-adapter";
 import {
-  collectionItemOptimisticUpdate,
-  collectionListOptimisticUpdate,
-} from "@/data/optimistic-collection";
+  mutators,
+  queries,
+  type Team,
+  type Workflow,
+  type WorkflowStatus,
+} from "@church-task/zero";
+import { useQuery, useZero } from "@rocicorp/zero/react";
+
+type TaskStatus = "todo" | "in_progress" | "done" | "canceled";
 
 type WorkflowItem = {
   readonly id: string;
   // Every Team owns its Workflow (ADR 0013): the owning Team's id.
   readonly teamId: string;
+  readonly key: string;
   readonly name: string;
   readonly sortOrder: number;
+  readonly archivedAt: string | null;
 };
 
 type WorkflowStatusItem = {
   readonly id: string;
   readonly workflowId: string;
+  readonly key: string;
   readonly name: string;
   readonly taskState: TaskStatus;
   readonly sortOrder: number;
+  readonly archivedAt: string | null;
 };
 
-function optimisticId(prefix: string): string {
-  return `optimistic-${prefix}-${Math.random().toString(36).slice(2)}`;
-}
+type MutationResult = Promise<
+  { readonly ok: true } | { readonly ok: false; readonly error: { readonly message: string } }
+>;
+type ZeroMutationResult = {
+  readonly server: Promise<
+    | { readonly type: "success" }
+    | { readonly type: "error"; readonly error: { readonly message: string } }
+  >;
+};
+
+const mutationResult = async (run: () => ZeroMutationResult): MutationResult => {
+  try {
+    const result = await run().server;
+
+    if (result.type === "error") {
+      return { error: { message: result.error.message }, ok: false };
+    }
+
+    return { ok: true };
+  } catch (error) {
+    return {
+      error: { message: error instanceof Error ? error.message : "Could not update Workflows." },
+      ok: false,
+    };
+  }
+};
+
+const workflowKey = (workflow: Workflow): string => workflow.team_id;
+
+const taskStatus = (value: string): TaskStatus => {
+  if (value === "todo" || value === "in_progress" || value === "done" || value === "canceled") {
+    return value;
+  }
+
+  return "todo";
+};
+
+const deletedAt = (value: number | null | undefined): string | null =>
+  typeof value === "number" ? new Date(value).toISOString() : null;
+
+const mapWorkflow = (workflow: Workflow, teamsById: ReadonlyMap<string, Team>): WorkflowItem => ({
+  archivedAt: deletedAt(workflow.deleted_at),
+  id: workflow.id,
+  key: workflowKey(workflow),
+  name: workflow.name,
+  sortOrder: teamsById.get(workflow.team_id)?.sort_order ?? 0,
+  teamId: workflow.team_id,
+});
+
+const mapWorkflowStatus = (status: WorkflowStatus): WorkflowStatusItem => ({
+  archivedAt: deletedAt(status.deleted_at),
+  id: status.id,
+  key: status.key,
+  name: status.name,
+  sortOrder: status.sort_order,
+  taskState: taskStatus(status.task_state),
+  workflowId: status.workflow_id,
+});
 
 export function useWorkflowsCollection(params: { readonly churchId: string | null }) {
-  const result = useQuery(
-    api.workDefaults.readForChurch,
-    params.churchId ? { churchId: params.churchId } : "skip",
+  const [workflowRows] = useQuery(
+    queries.workflows.by_church({ church_id: params.churchId ?? "__no_church__" }),
   );
-  const state = successfulResponseCollection(result, (response) => response.data.workflows);
+  const [teamRows] = useQuery(
+    queries.teams.by_church({ church_id: params.churchId ?? "__no_church__" }),
+  );
+  const teamsById = new Map(teamRows.map((team) => [team.id, team]));
+  const collection =
+    params.churchId === null
+      ? []
+      : workflowRows
+          .map((workflow) => mapWorkflow(workflow, teamsById))
+          .sort((left, right) => left.sortOrder - right.sortOrder);
 
   return {
-    loading: params.churchId !== null && state.loading,
-    collection: state.collection,
-    workflowsCollection: state.collection,
+    loading: false,
+    collection,
+    workflowsCollection: collection,
   };
 }
 
 export function useWorkflowStatusesCollection(params: { readonly churchId: string | null }) {
-  const result = useQuery(
-    api.workDefaults.readForChurch,
-    params.churchId ? { churchId: params.churchId } : "skip",
+  const [rows] = useQuery(
+    queries.workflow_statuses.by_church({ church_id: params.churchId ?? "__no_church__" }),
   );
-  const state = successfulResponseCollection(result, (response) => response.data.workflowStatuses);
+  const collection = params.churchId === null ? [] : rows.map(mapWorkflowStatus);
 
   return {
-    loading: params.churchId !== null && state.loading,
-    collection: state.collection,
-    workflowStatusesCollection: state.collection,
+    loading: false,
+    collection,
+    workflowStatusesCollection: collection,
   };
 }
 
 export function useRenameWorkflowMutation() {
-  return useMutation(api.workflows.renameForChurch).withOptimisticUpdate(
-    collectionItemOptimisticUpdate({
-      query: api.workDefaults.readForChurch,
-      collectionKey: "workflows",
-      patch: (
-        workflow: WorkflowItem,
-        args: { readonly workflowId: string; readonly name: string },
-      ) => (workflow.id === args.workflowId ? { ...workflow, name: args.name } : undefined),
-    }),
-  );
+  const zero = useZero();
+
+  return (params: {
+    readonly churchId: string;
+    readonly name: string;
+    readonly workflowId: string;
+  }) =>
+    mutationResult(() =>
+      zero.mutate(
+        mutators.workflows.rename({
+          church_id: params.churchId,
+          name: params.name,
+          workflow_id: params.workflowId,
+        }),
+      ),
+    );
 }
 
 export function useReorderWorkflowsMutation() {
-  return useMutation(api.workflows.reorderForChurch).withOptimisticUpdate(
-    collectionListOptimisticUpdate({
-      query: api.workDefaults.readForChurch,
-      collectionKey: "workflows",
-      patch: (
-        workflows: readonly WorkflowItem[],
-        args: { readonly workflowIds: readonly string[] },
-      ) => reorderBySortOrder(workflows, args.workflowIds),
-    }),
-  );
+  const zero = useZero();
+
+  return (params: { readonly churchId: string; readonly workflowIds: readonly string[] }) =>
+    mutationResult(() =>
+      zero.mutate(
+        mutators.workflows.reorder({
+          church_id: params.churchId,
+          workflow_ids: [...params.workflowIds],
+        }),
+      ),
+    );
 }
 
 export function useArchiveWorkflowMutation() {
-  return useMutation(api.workflows.archiveForChurch).withOptimisticUpdate(
-    collectionListOptimisticUpdate({
-      query: api.workDefaults.readForChurch,
-      collectionKey: "workflows",
-      patch: (workflows: readonly WorkflowItem[], args: { readonly workflowId: string }) =>
-        removeById(workflows, args.workflowId),
-    }),
-  );
+  const zero = useZero();
+
+  return (params: { readonly churchId: string; readonly workflowId: string }) =>
+    mutationResult(() =>
+      zero.mutate(
+        mutators.workflows.archive({
+          church_id: params.churchId,
+          workflow_id: params.workflowId,
+        }),
+      ),
+    );
 }
 
 export function useAddWorkflowStatusMutation() {
-  return useMutation(api.workflows.addStatus).withOptimisticUpdate(
-    collectionListOptimisticUpdate({
-      query: api.workDefaults.readForChurch,
-      collectionKey: "workflowStatuses",
-      patch: (
-        statuses: readonly WorkflowStatusItem[],
-        args: {
-          readonly workflowId: string;
-          readonly status: { readonly name: string; readonly taskState: TaskStatus };
-        },
-      ) =>
-        appendItem(statuses, {
-          id: optimisticId("status"),
-          workflowId: args.workflowId,
-          name: args.status.name,
-          taskState: args.status.taskState,
-          sortOrder:
-            statuses
-              .filter((status) => status.workflowId === args.workflowId)
-              .reduce((max, status) => Math.max(max, status.sortOrder ?? -1), -1) + 1,
+  const zero = useZero();
+
+  return (params: {
+    readonly churchId: string;
+    readonly workflowId: string;
+    readonly status: {
+      readonly key: string;
+      readonly name: string;
+      readonly taskState: TaskStatus;
+      readonly sortOrder: number;
+    };
+  }) =>
+    mutationResult(() =>
+      zero.mutate(
+        mutators.workflows.add_status({
+          church_id: params.churchId,
+          status: {
+            key: params.status.key,
+            name: params.status.name,
+            sort_order: params.status.sortOrder,
+            task_state: params.status.taskState,
+          },
+          workflow_id: params.workflowId,
         }),
-    }),
-  );
+      ),
+    );
 }
 
 export function useRenameWorkflowStatusMutation() {
-  return useMutation(api.workflows.renameStatus).withOptimisticUpdate(
-    collectionItemOptimisticUpdate({
-      query: api.workDefaults.readForChurch,
-      collectionKey: "workflowStatuses",
-      patch: (status: WorkflowStatusItem, args: { readonly n: string; readonly name: string }) =>
-        status.id === args.n ? { ...status, name: args.name } : undefined,
-    }),
-  );
+  const zero = useZero();
+
+  return (params: {
+    readonly churchId: string;
+    readonly name: string;
+    readonly statusId: string;
+  }) =>
+    mutationResult(() =>
+      zero.mutate(
+        mutators.workflows.rename_status({
+          church_id: params.churchId,
+          name: params.name,
+          status_id: params.statusId,
+        }),
+      ),
+    );
 }
 
 export function useReorderWorkflowStatusesMutation() {
-  return useMutation(api.workflows.reorderStatuses).withOptimisticUpdate(
-    collectionListOptimisticUpdate({
-      query: api.workDefaults.readForChurch,
-      collectionKey: "workflowStatuses",
-      patch: (statuses: readonly WorkflowStatusItem[], args: { readonly ns: readonly string[] }) =>
-        reorderStatusesByIds(statuses, args.ns),
-    }),
-  );
+  const zero = useZero();
+
+  return (params: {
+    readonly churchId: string;
+    readonly statusIds: readonly string[];
+    readonly workflowId: string;
+  }) =>
+    mutationResult(() =>
+      zero.mutate(
+        mutators.workflows.reorder_statuses({
+          church_id: params.churchId,
+          status_ids: [...params.statusIds],
+          workflow_id: params.workflowId,
+        }),
+      ),
+    );
 }
 
 export function useArchiveWorkflowStatusMutation() {
-  return useMutation(api.workflows.archiveStatus).withOptimisticUpdate(
-    collectionListOptimisticUpdate({
-      query: api.workDefaults.readForChurch,
-      collectionKey: "workflowStatuses",
-      patch: (statuses: readonly WorkflowStatusItem[], args: { readonly n: string }) =>
-        removeById(statuses, args.n),
-    }),
-  );
-}
+  const zero = useZero();
 
-/**
- * Reorder only the statuses referenced by `orderedIds` (a single Workflow's
- * statuses), assigning each its new 0-based `sortOrder`, while leaving statuses
- * from other Workflows untouched in place.
- */
-function reorderStatusesByIds(
-  statuses: readonly WorkflowStatusItem[],
-  orderedIds: readonly string[],
-): readonly WorkflowStatusItem[] {
-  const reordered = orderedIds
-    .map((id) => statuses.find((status) => status.id === id))
-    .filter((status): status is WorkflowStatusItem => status !== undefined);
-  if (reordered.length !== orderedIds.length) return statuses;
-
-  const newOrderById = new Map(orderedIds.map((id, index) => [id, index]));
-  return statuses.map((status) => {
-    const nextSortOrder = newOrderById.get(status.id);
-    if (nextSortOrder === undefined || status.sortOrder === nextSortOrder) return status;
-    return { ...status, sortOrder: nextSortOrder };
-  });
+  return (params: {
+    readonly archivedAt?: string;
+    readonly churchId: string;
+    readonly statusId: string;
+  }) =>
+    mutationResult(() =>
+      zero.mutate(
+        mutators.workflows.archive_status({
+          church_id: params.churchId,
+          status_id: params.statusId,
+        }),
+      ),
+    );
 }

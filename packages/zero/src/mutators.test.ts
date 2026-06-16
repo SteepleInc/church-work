@@ -160,3 +160,152 @@ describe("Zero Team mutators", () => {
     expect(deleteCalls.map((call) => call.table)).toEqual([team_memberships]);
   });
 });
+
+describe("Zero Workflow mutators", () => {
+  test("renames Workflows and Workflow Statuses", async () => {
+    const updateCalls: Array<{ readonly table: unknown; readonly set: unknown }> = [];
+    const tx = {
+      dbTransaction: {
+        wrappedTransaction: {
+          update: (table: unknown) => ({
+            set: (set: unknown) => ({
+              where: async () => {
+                updateCalls.push({ table, set });
+              },
+            }),
+          }),
+        },
+      },
+      location: "server",
+    } as never;
+
+    await mustGetMutator(mutators, "workflows.rename").fn({
+      args: { church_id: "org_test", name: "Planning", workflow_id: "workflow_test" },
+      ctx: signedInContext,
+      tx,
+    });
+    await mustGetMutator(mutators, "workflows.rename_status").fn({
+      args: { church_id: "org_test", name: "Queued", status_id: "workflowstatus_test" },
+      ctx: signedInContext,
+      tx,
+    });
+
+    expect(updateCalls.map((call) => call.table)).toEqual([workflows, workflow_statuses]);
+    expect(updateCalls.map((call) => (call.set as { readonly name: string }).name)).toEqual([
+      "Planning",
+      "Queued",
+    ]);
+  });
+
+  test("reorders Workflows by updating their owning Teams", async () => {
+    const updateCalls: Array<{ readonly table: unknown; readonly set: unknown }> = [];
+    const tx = {
+      dbTransaction: {
+        wrappedTransaction: {
+          select: () => ({
+            from: () => ({
+              where: async () => [
+                { id: "workflow_two", team_id: "team_two" },
+                { id: "workflow_one", team_id: "team_one" },
+              ],
+            }),
+          }),
+          update: (table: unknown) => ({
+            set: (set: unknown) => ({
+              where: async () => {
+                updateCalls.push({ table, set });
+              },
+            }),
+          }),
+        },
+      },
+      location: "server",
+    } as never;
+
+    await mustGetMutator(mutators, "workflows.reorder").fn({
+      args: { church_id: "org_test", workflow_ids: ["workflow_two", "workflow_one"] },
+      ctx: signedInContext,
+      tx,
+    });
+
+    expect(updateCalls.map((call) => call.table)).toEqual([teams, teams]);
+    expect(
+      updateCalls.map((call) => (call.set as { readonly sort_order: number }).sort_order),
+    ).toEqual([0, 1]);
+  });
+
+  test("adds, reorders, and archives Workflow Statuses", async () => {
+    const insertCalls: Array<{ readonly table: unknown; readonly values: unknown }> = [];
+    const updateCalls: Array<{ readonly table: unknown; readonly set: unknown }> = [];
+    const tx = {
+      dbTransaction: {
+        wrappedTransaction: {
+          insert: (table: unknown) => ({
+            values: async (values: unknown) => {
+              insertCalls.push({ table, values });
+            },
+          }),
+          select: () => ({
+            from: () => ({
+              where: async () => [{ id: "workflow_test" }],
+            }),
+          }),
+          update: (table: unknown) => ({
+            set: (set: unknown) => ({
+              where: async () => {
+                updateCalls.push({ table, set });
+              },
+            }),
+          }),
+        },
+      },
+      location: "server",
+    } as never;
+
+    await mustGetMutator(mutators, "workflows.add_status").fn({
+      args: {
+        church_id: "org_test",
+        status: { key: "review", name: "Review", sort_order: 3, task_state: "in_progress" },
+        workflow_id: "workflow_test",
+      },
+      ctx: signedInContext,
+      tx,
+    });
+    await mustGetMutator(mutators, "workflows.reorder_statuses").fn({
+      args: {
+        church_id: "org_test",
+        status_ids: ["workflowstatus_two", "workflowstatus_one"],
+        workflow_id: "workflow_test",
+      },
+      ctx: signedInContext,
+      tx,
+    });
+    await mustGetMutator(mutators, "workflows.archive_status").fn({
+      args: { church_id: "org_test", status_id: "workflowstatus_two" },
+      ctx: signedInContext,
+      tx,
+    });
+
+    const statusInsert = insertCalls.find((call) => call.table === workflow_statuses)?.values as {
+      readonly id: string;
+      readonly key: string;
+      readonly task_state: string;
+    };
+
+    expect(getIdType(statusInsert.id)).toBe("workflowstatus");
+    expect(statusInsert).toMatchObject({ key: "review", task_state: "in_progress" });
+    expect(updateCalls.map((call) => call.table)).toEqual([
+      workflow_statuses,
+      workflow_statuses,
+      workflow_statuses,
+    ]);
+    expect(
+      updateCalls
+        .slice(0, 2)
+        .map((call) => (call.set as { readonly sort_order: number }).sort_order),
+    ).toEqual([0, 1]);
+    const archiveUpdate = updateCalls[2];
+    expect(archiveUpdate).toBeDefined();
+    expect((archiveUpdate!.set as { readonly deleted_by: string }).deleted_by).toBe("user_test");
+  });
+});
