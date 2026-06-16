@@ -1,4 +1,4 @@
-import { createAuth } from "@church-task/auth";
+import { createAuth, createLocalOtpStore } from "@church-task/auth";
 import { createDb } from "@church-task/db";
 import { demo_items } from "@church-task/db/schema";
 import { mutators, queries, schema } from "@church-task/zero";
@@ -37,7 +37,8 @@ const getSessionContext = async (
 
 export const createTracerApi = (databaseUrl: string) => {
   const { db, pool } = createDb(databaseUrl);
-  const authRuntime = createAuth(databaseUrl);
+  const otpStore = createLocalOtpStore();
+  const authRuntime = createAuth(databaseUrl, otpStore);
   const zeroDb = zeroDrizzle(schema, db);
 
   const handleHealth = () =>
@@ -110,19 +111,40 @@ export const createTracerApi = (databaseUrl: string) => {
         ).then((body) => Response.json(body)),
     });
 
+  const handleTestOtp = (request: Request) =>
+    Effect.sync(() => {
+      const url = new URL(request.url);
+      const email = url.searchParams.get("email")?.trim();
+
+      if (!email) {
+        return Response.json({ ok: false, otp: null }, { status: 400 });
+      }
+
+      const captured = otpStore.getLatestOtp(email, "sign-in");
+
+      if (!captured) {
+        return Response.json({ ok: false, otp: null }, { status: 404 });
+      }
+
+      return Response.json({ ok: true, email, otp: captured.otp });
+    });
+
   const fetch = async (request: Request) => {
     const url = new URL(request.url);
 
-    const effect =
-      url.pathname === "/api/tracer" && request.method === "GET"
-        ? handleHealth()
-        : url.pathname === "/api/tracer/demo-items" && request.method === "POST"
-          ? handleCreateDemoItem(request)
-          : url.pathname === "/api/zero/query" && request.method === "POST"
-            ? handleZeroQuery(request)
-            : url.pathname === "/api/zero/mutate" && request.method === "POST"
-              ? handleZeroMutate(request)
-              : Effect.succeed(Response.json({ error: "Not found" }, { status: 404 }));
+    const effect = url.pathname.startsWith("/api/auth/")
+      ? Effect.promise(() => authRuntime.auth.handler(request))
+      : url.pathname === "/api/test/otp" && request.method === "GET"
+        ? handleTestOtp(request)
+        : url.pathname === "/api/tracer" && request.method === "GET"
+          ? handleHealth()
+          : url.pathname === "/api/tracer/demo-items" && request.method === "POST"
+            ? handleCreateDemoItem(request)
+            : url.pathname === "/api/zero/query" && request.method === "POST"
+              ? handleZeroQuery(request)
+              : url.pathname === "/api/zero/mutate" && request.method === "POST"
+                ? handleZeroMutate(request)
+                : Effect.succeed(Response.json({ error: "Not found" }, { status: 404 }));
 
     return Effect.runPromise(effect).catch((cause) =>
       Response.json(

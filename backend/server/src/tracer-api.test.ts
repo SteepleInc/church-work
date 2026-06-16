@@ -15,6 +15,35 @@ const getCookieHeader = (response: Response) => {
 };
 
 describe("tracer API", () => {
+  test("captures email OTPs through the local Better Auth route", async () => {
+    const harness = await startPostgresHarness();
+    const api = createTracerApi(harness.connectionString);
+
+    try {
+      const email = "new-stack-otp@church-task.test";
+      const sendResponse = await api.fetch(
+        new Request("http://127.0.0.1/api/auth/email-otp/send-verification-otp", {
+          body: JSON.stringify({ email, type: "sign-in" }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        }),
+      );
+
+      expect(sendResponse.ok).toBe(true);
+
+      const otpResponse = await api.fetch(
+        new Request(`http://127.0.0.1/api/test/otp?email=${encodeURIComponent(email)}`),
+      );
+      const body = (await otpResponse.json()) as { otp?: string | null };
+
+      expect(otpResponse.ok).toBe(true);
+      expect(body.otp).toMatch(/^\d{6}$/);
+    } finally {
+      await api.close();
+      await harness.stop();
+    }
+  }, 60_000);
+
   test("creates a demo item through the signed-in Zero mutator path", async () => {
     const harness = await startPostgresHarness();
     const api = createTracerApi(harness.connectionString);

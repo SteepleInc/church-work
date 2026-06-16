@@ -8,6 +8,24 @@ export const getConvexSiteUrl = () => {
   return siteUrl;
 };
 
+export const getE2eApiUrl = () => {
+  const explicitApiUrl = process.env.CHURCH_TASK_E2E_API_URL;
+  if (explicitApiUrl) return explicitApiUrl;
+
+  const siteUrl = process.env.VITE_CONVEX_SITE_URL ?? process.env.CONVEX_SITE_URL;
+  if (siteUrl) return siteUrl;
+
+  if (process.env.DATABASE_URL) {
+    return (
+      process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${process.env.E2E_WEB_PORT ?? 2101}`
+    );
+  }
+
+  throw new Error(
+    "CHURCH_TASK_E2E_API_URL, VITE_CONVEX_SITE_URL, CONVEX_SITE_URL, or DATABASE_URL must be set for e2e OTP tests.",
+  );
+};
+
 export async function waitForOtp(page: Page, email: string) {
   const encodedEmail = encodeURIComponent(email);
 
@@ -15,7 +33,7 @@ export async function waitForOtp(page: Page, email: string) {
     .poll(
       async () => {
         const response = await page.request.get(
-          `${getConvexSiteUrl()}/api/test/otp?email=${encodedEmail}`,
+          `${getE2eApiUrl()}/api/test/otp?email=${encodedEmail}`,
         );
         if (!response.ok()) return null;
 
@@ -26,9 +44,7 @@ export async function waitForOtp(page: Page, email: string) {
     )
     .toMatch(/^\d{6}$/);
 
-  const response = await page.request.get(
-    `${getConvexSiteUrl()}/api/test/otp?email=${encodedEmail}`,
-  );
+  const response = await page.request.get(`${getE2eApiUrl()}/api/test/otp?email=${encodedEmail}`);
   const body = (await response.json()) as { otp: string };
   return body.otp;
 }

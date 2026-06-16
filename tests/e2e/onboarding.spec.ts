@@ -1,39 +1,11 @@
 import { expect, type Page, test } from "@playwright/test";
 
+import { getE2eApiUrl, waitForOtp } from "./helpers";
+
 test.skip(
   process.env.CHURCH_TASK_E2E_READY !== "1",
   process.env.CHURCH_TASK_E2E_SKIP_REASON ?? "E2E environment is not configured.",
 );
-
-const getConvexSiteUrl = () => {
-  const siteUrl = process.env.VITE_CONVEX_SITE_URL ?? process.env.CONVEX_SITE_URL;
-  if (!siteUrl) {
-    throw new Error("VITE_CONVEX_SITE_URL or CONVEX_SITE_URL must be set for onboarding e2e.");
-  }
-  return siteUrl;
-};
-
-async function waitForOtp(page: Page, email: string) {
-  const siteUrl = getConvexSiteUrl();
-  const encodedEmail = encodeURIComponent(email);
-
-  await expect
-    .poll(
-      async () => {
-        const response = await page.request.get(`${siteUrl}/api/test/otp?email=${encodedEmail}`);
-        if (!response.ok()) return null;
-
-        const body = (await response.json()) as { otp?: string | null };
-        return body.otp ?? null;
-      },
-      { timeout: 10_000 },
-    )
-    .toMatch(/^\d{6}$/);
-
-  const response = await page.request.get(`${siteUrl}/api/test/otp?email=${encodedEmail}`);
-  const body = (await response.json()) as { otp: string };
-  return body.otp;
-}
 
 async function signInWithOtp(page: Page, email: string) {
   await page.goto("/sign-in");
@@ -55,7 +27,7 @@ async function createTestInvitation(
 
   expect(sessionToken).toEqual(expect.any(String));
 
-  const response = await page.request.post(`${getConvexSiteUrl()}/api/test/invitations`, {
+  const response = await page.request.post(`${getE2eApiUrl()}/api/test/invitations`, {
     data: invitation,
     headers: { Authorization: `Bearer ${sessionToken}` },
   });
@@ -376,7 +348,7 @@ test("toggles cleanly between Find Your Church search and manual entry", async (
 test("Create Church clears active Church for onboarding and completed Church switching returns to My Work", async ({
   page,
 }, testInfo) => {
-  const clearOrgEndpoint = `${getConvexSiteUrl()}/api/auth/clear-org-for-onboarding`;
+  const clearOrgEndpoint = `${getE2eApiUrl()}/api/auth/clear-org-for-onboarding`;
   const endpointProbe = await page.request.post(clearOrgEndpoint, { failOnStatusCode: false });
   test.skip(
     endpointProbe.status() === 404,
