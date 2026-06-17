@@ -27,7 +27,8 @@ The package manager is Bun (`bun@1.3.13`). Prefer Bun commands for this repo unl
 Current contents:
 
 - `.reference/drizzle` is the Drizzle source. Use it when checking Drizzle beta APIs and the Effect integration.
-- `.reference/zero` is the Zero source/docs/examples. Use it when checking Zero, drizzle-zero, sync, mutators, and query patterns.
+- `.reference/drizzle-zero` is the drizzle-zero source. Use it when checking beta Drizzle-to-Zero schema generation and integration patterns.
+- `.reference/zero` is the Rocicorp mono source/docs/examples. Use it when checking Zero, zero-cache, sync, mutators, and query patterns.
 - `.reference/zero-docs` is the Rocicorp Zero documentation source. Use it when checking current Zero docs, guides, and deployment patterns.
 - `.reference/devcontainer-templates` is the Rocicorp devcontainer templates source. Use it when checking Rocicorp development container setup patterns.
 - `.reference/devcontainer-features` is the Rocicorp devcontainer features source. Use it when checking reusable devcontainer feature implementations.
