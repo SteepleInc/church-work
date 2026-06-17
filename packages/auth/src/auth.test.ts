@@ -13,6 +13,7 @@ import { createAuthClient } from "better-auth/client";
 import { organizationClient } from "better-auth/client/plugins";
 import { parseSetCookieHeader } from "better-auth/cookies";
 import { betterAuth } from "better-auth/minimal";
+import { eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { describe, expect, test } from "vitest";
 
@@ -196,6 +197,104 @@ describe("Better Auth Postgres foundation", () => {
       await expect(db.select().from(teams)).resolves.toHaveLength(3);
       await expect(db.select().from(team_memberships)).resolves.toHaveLength(3);
       await expect(db.select().from(labels)).resolves.toHaveLength(7);
+    } finally {
+      await pool.end();
+      await container.stop();
+    }
+  }, 60_000);
+
+  test("updates and removes Church members through the Better Auth organization API", async () => {
+    const container = await new PostgreSqlContainer("postgres:16-alpine").start();
+    const { db, pool } = createDb(container.getConnectionUri());
+
+    try {
+      await migrate(db, {
+        migrationsFolder: new URL("../../db/drizzle", import.meta.url).pathname,
+      });
+
+      const auth = betterAuth(createAuthOptions(db));
+      const ownerCookieHeaders = new Headers();
+      const authClient = createAuthClient({
+        baseURL: "http://localhost:3000",
+        fetchOptions: {
+          customFetchImpl: async (input, init) => auth.handler(new Request(input, init)),
+        },
+        plugins: [
+          organizationClient({
+            schema: {
+              organization: {
+                additionalFields: {
+                  churchTimeZone: { required: true, type: "string" },
+                  completedOnboarding: { required: false, type: "boolean" },
+                },
+              },
+            },
+          }),
+        ],
+      });
+
+      await authClient.signUp.email({
+        email: "owner@church-task.test",
+        fetchOptions: {
+          onSuccess: (context) => {
+            const cookies = parseSetCookieHeader(context.response.headers.get("set-cookie") ?? "");
+            const sessionCookie = cookies.get("better-auth.session_token")?.value;
+            if (sessionCookie) {
+              ownerCookieHeaders.set("cookie", `better-auth.session_token=${sessionCookie}`);
+            }
+          },
+        },
+        name: "Owner",
+        password: "password-12345678",
+      });
+
+      const created = await authClient.organization.create({
+        churchTimeZone: "America/Chicago",
+        completedOnboarding: true,
+        fetchOptions: { headers: ownerCookieHeaders },
+        name: "Membership Church",
+        slug: "membership-church",
+      });
+
+      expect(created.error).toBeNull();
+      const organizationId = created.data?.id;
+      expect(organizationId).toEqual(expect.stringMatching(/^org_/));
+
+      const memberUserId = getUserId();
+      const memberId = getOrgUserId();
+      await db.insert(user).values({
+        email: "member@church-task.test",
+        emailVerified: true,
+        id: memberUserId,
+        name: "Member",
+      });
+      await db.insert(member).values({
+        id: memberId,
+        organizationId: organizationId!,
+        role: "member",
+        userId: memberUserId,
+      });
+
+      const updated = await authClient.organization.updateMemberRole({
+        fetchOptions: { headers: ownerCookieHeaders },
+        memberId,
+        organizationId: organizationId!,
+        role: "admin",
+      });
+
+      expect(updated.error).toBeNull();
+      await expect(db.select().from(member).where(eq(member.id, memberId))).resolves.toMatchObject([
+        { id: memberId, role: "admin" },
+      ]);
+
+      const removed = await authClient.organization.removeMember({
+        fetchOptions: { headers: ownerCookieHeaders },
+        memberIdOrEmail: memberId,
+        organizationId: organizationId!,
+      });
+
+      expect(removed.error).toBeNull();
+      await expect(db.select().from(member).where(eq(member.id, memberId))).resolves.toEqual([]);
     } finally {
       await pool.end();
       await container.stop();
