@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Kbd } from "@/components/ui/kbd";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { EllipsisIcon, PlusIcon, Tag, Triangle } from "lucide-react";
@@ -358,9 +359,16 @@ export function TaskKanbanBoard({
       }}
     >
       {/* Grid items stretch by default, so every Board Column fills the full
-          board height; each column scrolls its own cards internally. */}
-      <KanbanBoard className="grid min-h-0 flex-1 auto-cols-[minmax(17rem,20rem)] grid-flow-col gap-2 overflow-x-auto pb-2 sm:grid-cols-none">
-        {columns.map((column) => (
+          board height; each column scrolls its own cards internally. The
+          ScrollArea provides horizontal scrolling across the row of columns. */}
+      <ScrollArea
+        className="min-h-0 flex-1"
+        viewportClassName="[&>[data-slot=scroll-area-content]]:h-full"
+        maskHeight={0}
+        clampContentMinWidth={false}
+      >
+        <KanbanBoard className="grid h-full min-h-0 w-max auto-cols-[minmax(17rem,20rem)] grid-flow-col gap-2 pb-2 sm:grid-cols-none">
+          {columns.map((column) => (
           <TaskKanbanColumn
             key={column.id}
             column={column}
@@ -386,10 +394,11 @@ export function TaskKanbanBoard({
             onToggleTaskSelected={toggleTaskSelected}
           />
         ))}
-        {hiddenColumns.length > 0 ? (
-          <HiddenColumnsChip hiddenColumns={hiddenColumns} onShowColumn={onToggleColumnHidden} />
-        ) : null}
-      </KanbanBoard>
+          {hiddenColumns.length > 0 ? (
+            <HiddenColumnsChip hiddenColumns={hiddenColumns} onShowColumn={onToggleColumnHidden} />
+          ) : null}
+        </KanbanBoard>
+      </ScrollArea>
       <KanbanOverlay>
         {({ value }) => {
           const task = tasksById.get(String(value));
