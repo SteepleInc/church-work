@@ -38,6 +38,11 @@
       "dependsOn": ["@church-task/infra-db#health-check"],
       "persistent": true
     },
+    "@church-task/db#dev": {
+      "cache": false,
+      "dependsOn": ["@church-task/infra-db#health-check"],
+      "persistent": true
+    },
     "@church-task/zero#health-check": {
       "cache": false
     },

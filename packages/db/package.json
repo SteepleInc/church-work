@@ -9,6 +9,7 @@
   },
   "scripts": {
     "check-types": "tsc --noEmit",
+    "dev": "drizzle-kit studio",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "test": "vitest run"
