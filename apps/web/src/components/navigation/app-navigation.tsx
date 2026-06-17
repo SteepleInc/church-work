@@ -12,6 +12,7 @@ import { OrgSwitcher } from "@/components/org-switcher";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -88,72 +89,74 @@ function AppNavigationBody() {
   const canAccessInternalNav = isAppAdministrator;
 
   return (
-    <SidebarContent
-      className="h-full"
-      scrollAreaClassName="mr-1 flex-1"
-      scrollAreaMaskClassName="before:from-sidebar after:from-sidebar"
-      scrollAreaViewportClassName="pl-2 pr-1"
-    >
-      <SidebarGroup>
-        <SidebarGroupLabel>Workspace</SidebarGroupLabel>
-        <SidebarMenu>
-          {workspaceNavItems.map((item) => (
-            <SideBarItem key={item.to} {...item} />
-          ))}
-        </SidebarMenu>
-      </SidebarGroup>
+    <>
+      <SidebarContent
+        className="h-full"
+        scrollAreaClassName="mr-1 flex-1"
+        scrollAreaMaskClassName="before:from-sidebar after:from-sidebar"
+        scrollAreaViewportClassName="pl-2 pr-1"
+      >
+        <SidebarGroup>
+          <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+          <SidebarMenu>
+            {workspaceNavItems.map((item) => (
+              <SideBarItem key={item.to} {...item} />
+            ))}
+          </SidebarMenu>
+        </SidebarGroup>
 
-      <SidebarGroup>
-        <SidebarGroupLabel>Your teams</SidebarGroupLabel>
-        {activeChurch ? (
-          <YourTeamsAddMenu
-            churchId={activeChurch.id}
-            currentUserId={currentUserId}
-            joinableTeams={joinableTeams}
-          />
-        ) : null}
-        <SidebarMenu>
-          {teamMemberships.loading || teams.loading ? (
-            <>
-              <SidebarMenuItem>
-                <SidebarMenuSkeleton showIcon />
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuSkeleton showIcon />
-              </SidebarMenuItem>
-            </>
-          ) : memberTeams.length > 0 && activeChurch ? (
-            <TeamNavList
+        <SidebarGroup>
+          <SidebarGroupLabel>Your teams</SidebarGroupLabel>
+          {activeChurch ? (
+            <YourTeamsAddMenu
               churchId={activeChurch.id}
               currentUserId={currentUserId}
-              teams={memberTeams}
+              joinableTeams={joinableTeams}
             />
-          ) : (
-            <SidebarMenuItem>
-              <SidebarMenuButton disabled type="button">
-                <span>No Team memberships</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          )}
-        </SidebarMenu>
-      </SidebarGroup>
+          ) : null}
+          <SidebarMenu>
+            {teamMemberships.loading || teams.loading ? (
+              <>
+                <SidebarMenuItem>
+                  <SidebarMenuSkeleton showIcon />
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuSkeleton showIcon />
+                </SidebarMenuItem>
+              </>
+            ) : memberTeams.length > 0 && activeChurch ? (
+              <TeamNavList
+                churchId={activeChurch.id}
+                currentUserId={currentUserId}
+                teams={memberTeams}
+              />
+            ) : (
+              <SidebarMenuItem>
+                <SidebarMenuButton disabled type="button">
+                  <span>No Team memberships</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
+          </SidebarMenu>
+        </SidebarGroup>
 
-      {canAccessInternalNav ? (
-        <>
-          <AdminNav />
+        {canAccessInternalNav ? (
+          <>
+            <AdminNav />
 
-          <SidebarGroup>
-            <SidebarGroupLabel>Dev</SidebarGroupLabel>
-            <SidebarMenu>
-              {devNavItems.map((item) => (
-                <SideBarItem key={item.to} {...item} />
-              ))}
-            </SidebarMenu>
-          </SidebarGroup>
-        </>
-      ) : null}
+            <SidebarGroup>
+              <SidebarGroupLabel>Dev</SidebarGroupLabel>
+              <SidebarMenu>
+                {devNavItems.map((item) => (
+                  <SideBarItem key={item.to} {...item} />
+                ))}
+              </SidebarMenu>
+            </SidebarGroup>
+          </>
+        ) : null}
+      </SidebarContent>
 
-      <SidebarGroup className="mt-auto">
+      <SidebarFooter className="mx-2 px-2">
         <SidebarMenu>
           <DevMenu />
 
@@ -179,7 +182,7 @@ function AppNavigationBody() {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-      </SidebarGroup>
-    </SidebarContent>
+      </SidebarFooter>
+    </>
   );
 }
