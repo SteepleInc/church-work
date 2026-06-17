@@ -7,10 +7,18 @@ import { HeightWrapper } from "@/components/height-wrapper";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ZeroRuntimeProvider } from "@/lib/zero-runtime-provider";
+import { getSidebarOpen } from "@/shared/sidebar-cookie";
 
 import "../index.css";
 
 export const Route = createRootRoute({
+  // Read presentation-preference cookies up front so the SSR first paint
+  // matches the persisted state (e.g. sidebar expanded/collapsed) instead of
+  // flashing the default. This is a small framework-local concern, not a
+  // product-data Render Gate (ADR 0010).
+  beforeLoad: async () => ({
+    sidebarOpen: await getSidebarOpen(),
+  }),
   component: RootComponent,
   head: () => ({
     meta: [

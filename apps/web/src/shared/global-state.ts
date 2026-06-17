@@ -1,8 +1,15 @@
 import { Match, pipe } from "effect";
-import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 
-export const detailsPaneStickyAtom = atom(false);
+import { atomWithCookie } from "@/shared/atom-with-cookie";
+
+/**
+ * Whether the details pane is pinned next to the content (true) or shown as an
+ * overlay/modal with a backdrop (false). Local-device presentation state only,
+ * persisted in a cookie so the choice survives a page reload (and is readable
+ * during SSR, matching the sidebar's `sidebar_state` cookie).
+ */
+export const detailsPaneStickyAtom = atomWithCookie<boolean>("details-pane-sticky", false);
 
 export enum FilterKeys {
   Orgs = "orgs-filters",

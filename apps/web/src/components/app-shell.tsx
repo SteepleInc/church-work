@@ -1,4 +1,4 @@
-import { Outlet, useLocation } from "@tanstack/react-router";
+import { Outlet, useLocation, useRouteContext } from "@tanstack/react-router";
 
 import { getBreadcrumbLabel } from "@/components/app-shell-utils";
 import { ModeToggle } from "@/components/mode-toggle";
@@ -27,8 +27,12 @@ import { BigActions } from "@/features/big-actions/big-actions";
 export function AppShell() {
   useAuthGuard({ requireAuth: true, requireOnboarding: true });
 
+  // Seed the sidebar's initial open/collapsed state from the cookie read in the
+  // root route's beforeLoad, so SSR renders the persisted state on first paint.
+  const sidebarOpen = useRouteContext({ from: "__root__", select: (ctx) => ctx.sidebarOpen });
+
   return (
-    <SidebarProvider defaultOpen id="app-sidebar-provider">
+    <SidebarProvider defaultOpen={sidebarOpen} id="app-sidebar-provider">
       <AppNavigation />
       <SidebarInset className="overflow-hidden md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-0">
         <header className="flex h-16 shrink-0 items-center gap-4 px-4">
