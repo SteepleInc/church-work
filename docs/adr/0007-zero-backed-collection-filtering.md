@@ -9,7 +9,7 @@ Text search uses the PreachX-style `ILIKE` pattern. Full-text search, trigram in
 ## Considered Options
 
 - **Client-side filtering/sorting in TanStack Table.** Rejected for core Collections because it does not scale and hides access-control mistakes.
-- **Convex search indexes.** Obsolete because Convex is no longer part of the target architecture.
+- **Old-stack search indexes.** Obsolete because they are no longer part of the target architecture.
 - **Full-text search from the start.** Deferred. `ILIKE` search is sufficient for the migration and keeps search and sort composition close to PreachX.
 
 ## Consequences

@@ -95,7 +95,7 @@ function DevDataContent() {
 
   return (
     <InternalPageFrame
-      description="Check Convex-backed adapter collections used by the copied UI scaffolding."
+      description="Check Postgres-backed adapter collections used by the copied UI scaffolding."
       eyebrow="Dev"
       title="Data Adapters"
     >

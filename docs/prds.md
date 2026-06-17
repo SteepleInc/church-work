@@ -2,7 +2,7 @@
 
 This document lists the first high-level PRDs for Church Task. Each entry is intentionally limited to a title and three-sentence description; deeper PRDs and GitHub Projects can expand from these once the roadmap shape is stable.
 
-Current-truth architecture is defined by [PRD #164](https://github.com/SteepleInc/church-task/issues/164) and the ADRs in `docs/adr/`: Postgres/Drizzle is the source-of-truth data layer, Zero backs product data and Collections, Better Auth uses Postgres, TanStack Start owns the web/runtime shell, and Effect owns typed server/CLI/MCP/scheduled work. Earlier PRDs below may preserve historical scope language, but Convex, Confect, Polar billing, and old package references are not implementation guidance for new work.
+Current-truth architecture is defined by [PRD #164](https://github.com/SteepleInc/church-task/issues/164) and the ADRs in `docs/adr/`: Postgres/Drizzle is the source-of-truth data layer, Zero backs product data and Collections, Better Auth uses Postgres, TanStack Start owns the web/runtime shell, and Effect owns typed server/CLI/MCP/scheduled work. Earlier PRDs below may preserve historical scope language, but old-stack persistence/runtime, starter billing, and old package references are not implementation guidance for new work.
 
 ## 1. Agent CLI and MCP Foundation
 

@@ -527,7 +527,7 @@ export function TaskExecutionSurface({
                 downloadCsv(csv, "insights.csv");
               }}
               onRefresh={() => {
-                // Data is live (Convex subscriptions); Refresh is a no-op re-render
+                // Data is live through synced collections; Refresh is a no-op re-render.
                 // hook kept for parity with Linear's menu.
                 onInsightsChange({ ...insightsState });
               }}

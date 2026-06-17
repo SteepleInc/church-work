@@ -1,6 +1,6 @@
 # Postgres, Drizzle, and Zero data access
 
-Church Task's persisted data model is Postgres-first. Drizzle table definitions are the source of truth for persisted row shape, Drizzle migrations are committed, and Zero schema is generated from the Drizzle schema and committed. Confect and Convex are no longer part of the target data-access architecture.
+Church Task's persisted data model is Postgres-first. Drizzle table definitions are the source of truth for persisted row shape, Drizzle migrations are committed, and Zero schema is generated from the Drizzle schema and committed. Old-stack persistence/runtime packages are no longer part of the target data-access architecture.
 
 Postgres and Zero data contracts use snake_case names. Drizzle table names, column names, Zero query/mutator args, and Zero row fields are snake_case. App code that consumes Zero data uses those snake_case fields directly; there is no permanent camelCase adapter layer. Snake_case is a data-contract rule, not a rule for local UI state or route search params.
 
@@ -28,5 +28,5 @@ Better Auth uses Postgres/Drizzle. Auth-owned ephemeral tables stay close to Bet
 
 - The domain package narrows to API contracts, tagged errors, pure domain logic, and constants. Duplicated Effect table-field schemas are removed where Drizzle/Zero now provide the row shape.
 - New files use kebab-case filenames and package subpath exports where practical; existing files are not mass-renamed.
-- Vitest and Playwright replace Convex-specific test harnesses. E2E uses Testcontainers Postgres, Drizzle migrations, a Zero process pointed at the test DB, the TanStack Start app, and Drizzle seed helpers.
+- Vitest and Playwright use Testcontainers Postgres, Drizzle migrations, a Zero process pointed at the test DB, the TanStack Start app, and Drizzle seed helpers.
 - Production hosting, billing, and observability expansion are separate future decisions.

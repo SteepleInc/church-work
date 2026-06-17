@@ -1,18 +1,6 @@
-import { createTracerApi } from "@church-task/server";
 import { createFileRoute } from "@tanstack/react-router";
 
-const tracerApi = process.env.DATABASE_URL ? createTracerApi(process.env.DATABASE_URL) : null;
-
-const handleApiRequest = (request: Request) => {
-  if (!tracerApi) {
-    return Response.json(
-      { error: "DATABASE_URL is required to handle API requests." },
-      { status: 500 },
-    );
-  }
-
-  return tracerApi.fetch(request);
-};
+import { handleApiRequest } from "./-runtime";
 
 export const Route = createFileRoute("/api/$")({
   server: {

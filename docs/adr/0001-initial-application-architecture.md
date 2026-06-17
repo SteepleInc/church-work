@@ -13,8 +13,8 @@ The target workspace packages are:
 - `backend/server`: Effect API implementation imported by `apps/web` for `/api/$`.
 - a test harness package for Vitest, Playwright, Testcontainers, local Postgres, Zero, and seed lifecycle helpers.
 
-The old Convex/Confect-era packages were temporary source references during the migration and are no longer part of the workspace. New code must use the Postgres/Drizzle/Zero/Better Auth/Effect packages above.
+The old-stack packages were temporary source references during the migration and are no longer part of the workspace. New code must use the Postgres/Drizzle/Zero/Better Auth/Effect packages above.
 
-Convex, Confect, and starter billing integrations are not part of the architecture. There is no Convex data migration because there were no production users or data to preserve. Current Church Task domain language remains stable; this was a persistence/runtime migration, not a domain-model rewrite.
+Old-stack persistence/runtime packages and starter billing integrations are not part of the architecture. There is no data migration because there were no production users or data to preserve. Current Church Task domain language remains stable; this was a persistence/runtime migration, not a domain-model rewrite.
 
 Production deployment topology, billing, and observability expansion are out of scope for the architecture reset. Local development and CI must support the new stack, including local Postgres, Zero, Drizzle migrations, and E2E tests.

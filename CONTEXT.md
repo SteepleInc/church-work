@@ -78,7 +78,7 @@ _Avoid_: Card when referring to the domain concept; one-off task, manual task, t
 
 **Task Identifier**:
 The human-readable key of a Task, formed from its Team's Team Identifier and a per-Team sequence number, such as PRD-48. The Task Identifier is how a Task is referenced in URLs and across product surfaces; matching is case-insensitive and the canonical form is uppercase. A Task is numbered within its Team; moving a Task to another Team issues a new Task Identifier from the destination Team's sequence, and the Task's previous Task Identifiers remain resolvable so existing links keep working.
-_Avoid_: Task number alone, Convex id as a user-facing reference, TASK- prefix
+_Avoid_: Task number alone, storage id as a user-facing reference, TASK- prefix
 
 **Subtask**:
 A Task that belongs to a parent Task. A Subtask may belong to a different Cycle than its parent Task; parent Task completion is independent from Subtask completion.

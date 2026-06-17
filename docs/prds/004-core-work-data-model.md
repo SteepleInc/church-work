@@ -1,6 +1,6 @@
 # Core Work Data Model
 
-> Historical PRD note: this PRD predated the Postgres/Drizzle/Zero migration in PRD #164. Keep its Church Task domain decisions, invariants, and workflow language, but implement persistence and operations through the current Postgres/Drizzle/Zero/Better Auth/Effect architecture. Convex and Confect references below are historical context, not current implementation guidance.
+> Historical PRD note: this PRD predated the Postgres/Drizzle/Zero migration in PRD #164. Keep its Church Task domain decisions, invariants, and workflow language, but implement persistence and operations through the current Postgres/Drizzle/Zero/Better Auth/Effect architecture. Old-stack references below are historical context, not current implementation guidance.
 
 ## Problem Statement
 

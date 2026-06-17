@@ -8,4 +8,4 @@ For PRD #164 implementation work, treat these local checkouts as the preferred i
 - `.reference/effect-smol` for the Effect v4 / effect-smol API shape used by Drizzle integration experiments.
 - `/Users/izakfilmalter/Projects/PreachX/preach-x` for package shape, Better Auth session/plugin patterns, Zero endpoint mounting, and local test ergonomics.
 
-Legacy Convex/Confect checkouts, if present locally, are old-stack behavior references only. New code must not import them or use them as target architecture examples.
+Legacy source checkouts, if present locally, are old-stack behavior references only. New code must not import them or use them as target architecture examples.

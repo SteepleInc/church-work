@@ -1,6 +1,6 @@
 # Agent CLI and MCP Foundation
 
-> Historical PRD note: this PRD predated the Postgres/Drizzle/Zero migration in PRD #164. Keep the agent-first product interface, Effect runtime, Better Auth token, and CLI/MCP behavior decisions, but implement new work through the current typed server/domain, Drizzle, Better Auth on Postgres, and Effect stack. Convex and Confect references below are historical context, not current implementation guidance.
+> Historical PRD note: this PRD predated the Postgres/Drizzle/Zero migration in PRD #164. Keep the agent-first product interface, Effect runtime, Better Auth token, and CLI/MCP behavior decisions, but implement new work through the current typed server/domain, Drizzle, Better Auth on Postgres, and Effect stack. Old-stack references below are historical context, not current implementation guidance.
 
 ## Problem Statement
 

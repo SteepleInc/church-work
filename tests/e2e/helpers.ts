@@ -1,29 +1,26 @@
 import { expect, type Page, test } from "@playwright/test";
 
-export const getConvexSiteUrl = () => {
-  const siteUrl = process.env.VITE_CONVEX_SITE_URL ?? process.env.CONVEX_SITE_URL;
-  if (!siteUrl) {
-    throw new Error("VITE_CONVEX_SITE_URL or CONVEX_SITE_URL must be set for e2e tests.");
-  }
-  return siteUrl;
-};
-
 export const getE2eApiUrl = () => {
-  const siteUrl = process.env.VITE_CONVEX_SITE_URL ?? process.env.CONVEX_SITE_URL;
-  if (siteUrl) return siteUrl;
-
   if (process.env.DATABASE_URL) {
     return (
       process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${process.env.E2E_WEB_PORT ?? 2101}`
     );
   }
 
-  throw new Error(
-    "VITE_CONVEX_SITE_URL, CONVEX_SITE_URL, or DATABASE_URL must be set for e2e OTP tests.",
-  );
+  throw new Error("DATABASE_URL must be set for e2e API tests.");
 };
 
-export async function waitForOtp(page: Page, email: string) {
+async function getLatestOtp(page: Page, email: string) {
+  const encodedEmail = encodeURIComponent(email);
+
+  const response = await page.request.get(`${getE2eApiUrl()}/api/test/otp?email=${encodedEmail}`);
+  if (!response.ok()) return null;
+
+  const body = (await response.json()) as { otp?: string | null };
+  return body.otp ?? null;
+}
+
+export async function waitForOtp(page: Page, email: string, previousOtp?: string | null) {
   const encodedEmail = encodeURIComponent(email);
 
   await expect
@@ -35,29 +32,41 @@ export async function waitForOtp(page: Page, email: string) {
         if (!response.ok()) return null;
 
         const body = (await response.json()) as { otp?: string | null };
-        return body.otp ?? null;
+        const otp = body.otp ?? null;
+        return otp && otp !== previousOtp ? otp : null;
       },
       { timeout: 10_000 },
     )
     .toMatch(/^\d{6}$/);
 
-  const response = await page.request.get(`${getE2eApiUrl()}/api/test/otp?email=${encodedEmail}`);
-  const body = (await response.json()) as { otp: string };
-  return body.otp;
+  const otp = await getLatestOtp(page, email);
+  if (!otp || otp === previousOtp) {
+    throw new Error(`Could not read fresh OTP for ${email}.`);
+  }
+
+  return otp;
 }
 
 export async function signInWithOtp(page: Page, email: string) {
   await page.goto("/sign-in");
   await expect(page).toHaveURL(/\/sign-in$/, { timeout: 20_000 });
   const emailField = page.getByLabel("Email address");
-  if (!(await emailField.isVisible({ timeout: 20_000 }).catch(() => false))) {
+  if (
+    !(await expect(emailField)
+      .toBeVisible({ timeout: 20_000 })
+      .then(
+        () => true,
+        () => false,
+      ))
+  ) {
     throw new Error(
       `Sign-in email field did not render at ${page.url()}. Body: ${await page.locator("body").innerText()}`,
     );
   }
   await emailField.fill(email);
+  const previousOtp = await getLatestOtp(page, email);
   await page.locator('button[data-loading="false"]', { hasText: "Continue" }).click();
-  await page.getByLabel("Verification Code").fill(await waitForOtp(page, email));
+  await page.getByLabel("Verification Code").fill(await waitForOtp(page, email, previousOtp));
   await expect(page).toHaveURL(/\/(my-work|onboarding)$/, { timeout: 20_000 });
 }
 

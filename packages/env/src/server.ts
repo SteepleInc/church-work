@@ -7,7 +7,6 @@ export const serverEnv = createEnv({
   server: {
     BETTER_AUTH_SECRET: z.string().optional(),
     CHURCH_INVITATION_EMAIL_FROM: z.email().optional(),
-    CONVEX_SITE_URL: z.url().optional(),
     E2E_SITE_URL: z.url().optional(),
     GOOGLE_PLACES_API_KEY: z.string().optional(),
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),

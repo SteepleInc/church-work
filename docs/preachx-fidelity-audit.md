@@ -5,7 +5,7 @@ Parent PRD: #74
 
 This audit compares Church Task's copied PreachX surfaces against the canonical local PreachX repository at `/Users/izakfilmalter/Projects/PreachX/preach-x`.
 
-Current-truth note: this audit predates PRD #164's Postgres/Drizzle/Zero migration. Visual and product-language comparisons remain useful, but Convex-era data/auth notes below are historical and are not current implementation guidance.
+Current-truth note: this audit predates PRD #164's Postgres/Drizzle/Zero migration. Visual and product-language comparisons remain useful, but old-stack data/auth notes below are historical and are not current implementation guidance.
 
 Verdict summary:
 
