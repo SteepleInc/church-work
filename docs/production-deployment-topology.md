@@ -6,6 +6,8 @@ Issue: [#184](https://github.com/SteepleInc/church-task/issues/184)
 
 Human decision pending. The local architecture has been proven by #166, so the remaining work is choosing production providers and turning this brief into concrete infrastructure tasks.
 
+This issue is not agent-completable until a human records the selected Postgres provider, Zero host, app host, production region, and operational owner in #184.
+
 ## Recommendation To Approve
 
 Use this topology unless a human chooses a different operational tradeoff:
