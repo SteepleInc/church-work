@@ -11,7 +11,7 @@
     "check-types": "tsc --noEmit",
     "generate": "drizzle-zero generate -s drizzle-zero.config.ts -o src/zero-schema.gen.ts",
     "health-check": "./health-check.sh 30",
-    "infra": "set -a; . ../../.env.local; set +a; NODE_TLS_REJECT_UNAUTHORIZED=0 zero-cache-dev",
+    "infra": "node scripts/run-zero-cache-dev.mjs",
     "test": "vitest run"
   },
   "dependencies": {
