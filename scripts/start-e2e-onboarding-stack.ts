@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import { resolve } from "node:path";
 
 import { createTracerApi } from "@church-task/server";
+import type { SeedProfile } from "@church-task/db";
 import { startPostgresHarness, startZeroCacheHarness } from "@church-task/test-harness";
 
 const rootDir = resolve(import.meta.dirname, "..");
@@ -11,6 +12,14 @@ const apiPort = Number(process.env.E2E_API_PORT ?? 2103);
 const webPort = Number(process.env.E2E_WEB_PORT ?? 2101);
 const apiUrl = `http://127.0.0.1:${apiPort}`;
 const webUrl = `http://127.0.0.1:${webPort}`;
+const seedProfiles = new Set<SeedProfile>(["empty", "app", "admin"]);
+
+const getSeedProfile = (): SeedProfile => {
+  const profile = process.env.E2E_SEED_PROFILE ?? "empty";
+  if (seedProfiles.has(profile as SeedProfile)) return profile as SeedProfile;
+
+  throw new Error(`Unsupported E2E_SEED_PROFILE ${profile}. Expected empty, app, or admin.`);
+};
 
 const waitForHttpOk = async (url: string, timeoutMs: number) => {
   const deadline = Date.now() + timeoutMs;
@@ -57,8 +66,9 @@ const runChild = (
   return child;
 };
 
-console.info("Starting onboarding E2E Postgres harness");
-const postgres = await startPostgresHarness();
+const seedProfile = getSeedProfile();
+console.info(`Starting onboarding E2E Postgres harness with ${seedProfile} seed profile`);
+const postgres = await startPostgresHarness({ seedProfile });
 process.env.E2E_SITE_URL = webUrl;
 process.env.BETTER_AUTH_URL = webUrl;
 process.env.SITE_URL = webUrl;

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createDb } from "@church-task/db";
+import { createDb, resetAndSeedDatabase, type SeedProfile } from "@church-task/db";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 
@@ -53,7 +53,9 @@ const getZeroCacheCliPath = () => {
   return join(zeroEntry, "..", "cli.js");
 };
 
-export const startPostgresHarness = async () => {
+export const startPostgresHarness = async (
+  options: { readonly seedProfile?: SeedProfile } = {},
+) => {
   const container = await new PostgreSqlContainer("postgres:16-alpine")
     .withCommand(["postgres", "-c", "wal_level=logical"])
     .start();
@@ -61,6 +63,7 @@ export const startPostgresHarness = async () => {
   const { db, pool } = createDb(connectionString);
 
   await migrate(db, { migrationsFolder: new URL("../../db/drizzle", import.meta.url).pathname });
+  await resetAndSeedDatabase(db, options.seedProfile ?? "empty");
 
   return {
     connectionString,
