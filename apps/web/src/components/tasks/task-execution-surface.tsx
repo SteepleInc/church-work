@@ -354,8 +354,8 @@ export function TaskExecutionSurface({
       <TaskContextMenuBridge config={contextMenuConfig}>
         {/* Insights is a right-hand side pane (Linear): the Board/List keeps the
             remaining width, the pane scrolls independently. */}
-        <section className="flex min-h-0 flex-1 gap-4">
-          <div className="flex min-h-0 flex-1 flex-col gap-4">
+        <section className="flex min-h-0 min-w-0 flex-1 gap-4">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
             {isLoading && !showBoard ? <TaskBoardSkeleton /> : null}
 
             {showBoard && resolvedView.mode === "list" ? (

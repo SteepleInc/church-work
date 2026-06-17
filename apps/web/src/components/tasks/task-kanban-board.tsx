@@ -344,7 +344,7 @@ export function TaskKanbanBoard({
       onValueChange={setColumnTasks}
       getItemValue={(task) => task.id}
       onMove={handleMove}
-      className={cn("group/kanban-root flex min-h-0 flex-col", className)}
+      className={cn("group/kanban-root flex min-h-0 w-full min-w-0 flex-col", className)}
       onClick={(event: ReactMouseEvent<HTMLElement>) => {
         // Click-away clears the selection, but only for true background
         // clicks. React bubbles portaled popup clicks (e.g. the column's
@@ -362,7 +362,7 @@ export function TaskKanbanBoard({
           board height; each column scrolls its own cards internally. The
           ScrollArea provides horizontal scrolling across the row of columns. */}
       <ScrollArea
-        className="min-h-0 flex-1"
+        className="min-h-0 w-full min-w-0 flex-1"
         viewportClassName="[&>[data-slot=scroll-area-content]]:h-full"
         maskHeight={0}
         clampContentMinWidth={false}
