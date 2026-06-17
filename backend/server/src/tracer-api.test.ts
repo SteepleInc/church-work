@@ -233,6 +233,29 @@ describe("tracer API", () => {
         operation: "currentUser",
       });
 
+      const createApiKeyResponse = await api.fetch(
+        new Request("http://127.0.0.1/api/auth/api-key/create", {
+          body: JSON.stringify({ name: "Agent CLI Test Credential" }),
+          headers: { "content-type": "application/json", cookie },
+          method: "POST",
+        }),
+      );
+      expect(createApiKeyResponse.ok).toBe(true);
+      const createdApiKey = (await createApiKeyResponse.json()) as { id?: string; key?: string };
+      expect(createdApiKey.id).toMatch(/^apikey_/);
+      expect(createdApiKey.key).toMatch(/^ctcli_/);
+
+      const apiKeyCurrentUserResponse = await api.fetch(
+        new Request("http://127.0.0.1/api/agent/current-user", {
+          headers: { authorization: `Bearer ${createdApiKey.key}` },
+        }),
+      );
+      await expect(apiKeyCurrentUserResponse.json()).resolves.toMatchObject({
+        data: { user: { email: "agent-api@church-task.test", name: "Agent API User" } },
+        ok: true,
+        operation: "currentUser",
+      });
+
       const activeChurchResponse = await api.fetch(
         new Request("http://127.0.0.1/api/agent/active-church", {
           body: JSON.stringify({ churchId: org?.id }),
@@ -354,6 +377,25 @@ describe("tracer API", () => {
           expect.objectContaining({ entity_id: created.task?.id, event_type: "task.status_moved" }),
         ]),
       );
+
+      const revokeApiKeyResponse = await api.fetch(
+        new Request("http://127.0.0.1/api/auth/api-key/delete", {
+          body: JSON.stringify({ keyId: createdApiKey.id }),
+          headers: {
+            authorization: `Bearer ${createdApiKey.key}`,
+            "content-type": "application/json",
+          },
+          method: "POST",
+        }),
+      );
+      await expect(revokeApiKeyResponse.json()).resolves.toMatchObject({ success: true });
+
+      const revokedApiKeyResponse = await api.fetch(
+        new Request("http://127.0.0.1/api/agent/current-user", {
+          headers: { authorization: `Bearer ${createdApiKey.key}` },
+        }),
+      );
+      expect(revokedApiKeyResponse.ok).toBe(false);
     } finally {
       await authRuntime.pool.end();
       await api.close();

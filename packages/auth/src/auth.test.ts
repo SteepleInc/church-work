@@ -43,6 +43,8 @@ describe("Better Auth Postgres foundation", () => {
         "email-otp",
         "organization",
         "admin",
+        "api-key",
+        "bearer",
         "custom-session",
       ]);
 

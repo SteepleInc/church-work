@@ -43,6 +43,13 @@
       "when": 1781655161022,
       "tag": "0005_tearful_captain_flint",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781657595573,
+      "tag": "0006_amazing_scarlet_spider",
+      "breakpoints": true
     }
   ]
 }

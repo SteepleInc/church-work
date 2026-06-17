@@ -8,6 +8,7 @@ export const getOrgId = () => getEntityId("org");
 export const getUserId = () => getEntityId("user");
 export const getSessionId = () => getEntityId("session");
 export const getAccountId = () => getEntityId("account");
+export const getApiKeyId = () => getEntityId("apikey");
 export const getVerificationId = () => getEntityId("verification");
 export const getOrgUserId = () => getEntityId("orguser");
 export const getTeamId = () => getEntityId("team");

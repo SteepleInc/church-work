@@ -1,6 +1,7 @@
 import { bootstrapChurchOnboarding, createDb } from "@church-task/db";
 import {
   getAccountId,
+  getApiKeyId,
   getChurchInvitationId,
   getOrgId,
   getOrgUserId,
@@ -8,6 +9,7 @@ import {
   getUserId,
   getVerificationId,
 } from "@church-task/shared/get-ids";
+import { apiKey } from "@better-auth/api-key";
 import { and, eq } from "drizzle-orm";
 import type { BetterAuthOptions } from "better-auth";
 import { betterAuth } from "better-auth/minimal";
@@ -16,6 +18,7 @@ import { admin, bearer, customSession, emailOTP, organization } from "better-aut
 
 import {
   account,
+  apikey,
   invitation,
   member,
   organization as organizationTable,
@@ -52,6 +55,7 @@ export const createLocalOtpStore = (): LocalOtpStore => {
 
 const modelIds = {
   account: getAccountId,
+  apikey: getApiKeyId,
   invitation: getChurchInvitationId,
   member: getOrgUserId,
   organization: getOrgId,
@@ -148,6 +152,7 @@ export const createAuthOptions = (
       provider: "pg",
       schema: {
         account,
+        apikey,
         invitation,
         member,
         organization: organizationTable,
@@ -224,6 +229,22 @@ export const createAuthOptions = (
         sendInvitationEmail: async () => {},
       }),
       admin(),
+      apiKey({
+        apiKeyHeaders: "authorization",
+        customAPIKeyGetter: (ctx) => {
+          const authorization = ctx.headers?.get("authorization");
+          const token = authorization?.startsWith("Bearer ")
+            ? authorization.slice("Bearer ".length)
+            : null;
+
+          return token?.startsWith("ctcli_") ? token : null;
+        },
+        defaultPrefix: "ctcli_",
+        enableSessionForAPIKeys: true,
+        maximumNameLength: 80,
+        rateLimit: { enabled: false },
+        requireName: true,
+      }),
       bearer(),
       customSession(async ({ session: authSession, user: sessionUser }) => {
         const sessionWithChurch = authSession as typeof authSession & {

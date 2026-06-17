@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@better-auth/api-key": "catalog:",
     "@church-task/db": "workspace:*",
     "@church-task/shared": "workspace:*",
     "better-auth": "catalog:",
