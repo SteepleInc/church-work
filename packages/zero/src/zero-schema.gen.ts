@@ -6,1539 +6,1539 @@ import type { Row } from "@rocicorp/zero";
 import { createBuilder } from "@rocicorp/zero";
 
 const activitiesTable = {
-    "name": "activities",
-    "columns": {
-        "id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "_tag": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "created_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "created_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "updated_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "updated_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "deleted_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "deleted_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "church_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "entity_type": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "entity_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "event_type": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "actor_type": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "actor_id": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "occurred_at": {
-            "type": "number",
-            "optional": false,
-            "customType": null as unknown as number
-        },
-        "cycle_id": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "metadata": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        }
+  name: "activities",
+  columns: {
+    id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
     },
-    "primaryKey": ["id"]
+    _tag: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    created_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    created_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    updated_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    updated_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    deleted_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    deleted_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    church_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    entity_type: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    entity_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    event_type: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    actor_type: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    actor_id: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    occurred_at: {
+      type: "number",
+      optional: false,
+      customType: null as unknown as number,
+    },
+    cycle_id: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    metadata: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+  },
+  primaryKey: ["id"],
 } as const;
 const cycleAdjustmentsTable = {
-    "name": "cycle_adjustments",
-    "columns": {
-        "id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "_tag": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "created_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "created_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "updated_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "updated_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "deleted_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "deleted_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "church_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "cycle_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "template_task_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "lifecycle": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "overrides": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        }
+  name: "cycle_adjustments",
+  columns: {
+    id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
     },
-    "primaryKey": ["id"]
+    _tag: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    created_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    created_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    updated_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    updated_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    deleted_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    deleted_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    church_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    cycle_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    template_task_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    lifecycle: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    overrides: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+  },
+  primaryKey: ["id"],
 } as const;
 const cyclesTable = {
-    "name": "cycles",
-    "columns": {
-        "id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "_tag": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "created_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "created_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "updated_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "updated_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "deleted_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "deleted_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "church_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "start_date": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "end_date": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "starts_at": {
-            "type": "number",
-            "optional": false,
-            "customType": null as unknown as number
-        },
-        "ends_at": {
-            "type": "number",
-            "optional": false,
-            "customType": null as unknown as number
-        },
-        "church_time_zone": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        }
+  name: "cycles",
+  columns: {
+    id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
     },
-    "primaryKey": ["id"]
+    _tag: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    created_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    created_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    updated_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    updated_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    deleted_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    deleted_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    church_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    start_date: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    end_date: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    starts_at: {
+      type: "number",
+      optional: false,
+      customType: null as unknown as number,
+    },
+    ends_at: {
+      type: "number",
+      optional: false,
+      customType: null as unknown as number,
+    },
+    church_time_zone: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+  },
+  primaryKey: ["id"],
 } as const;
 const demoItemsTable = {
-    "name": "demo_items",
-    "columns": {
-        "id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "_tag": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "created_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "created_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "updated_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "updated_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "deleted_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "deleted_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "name": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "owner_user_id": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        }
+  name: "demo_items",
+  columns: {
+    id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
     },
-    "primaryKey": ["id"]
+    _tag: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    created_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    created_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    updated_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    updated_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    deleted_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    deleted_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    name: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    owner_user_id: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+  },
+  primaryKey: ["id"],
 } as const;
 const focusWindowsTable = {
-    "name": "focus_windows",
-    "columns": {
-        "id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "_tag": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "created_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "created_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "updated_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "updated_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "deleted_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "deleted_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "church_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "template_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "key": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "name": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "type": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "start_date": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "end_date": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "anchor_date": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "key_date_id": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        }
+  name: "focus_windows",
+  columns: {
+    id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
     },
-    "primaryKey": ["id"]
+    _tag: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    created_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    created_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    updated_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    updated_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    deleted_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    deleted_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    church_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    template_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    key: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    name: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    type: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    start_date: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    end_date: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    anchor_date: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    key_date_id: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+  },
+  primaryKey: ["id"],
 } as const;
 const invitationTable = {
-    "name": "invitation",
-    "columns": {
-        "id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "_tag": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "organizationId": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string,
-            "serverName": "organization_id"
-        },
-        "email": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "role": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "status": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "expiresAt": {
-            "type": "number",
-            "optional": false,
-            "customType": null as unknown as number,
-            "serverName": "expires_at"
-        },
-        "inviterId": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string,
-            "serverName": "inviter_id"
-        },
-        "createdAt": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number,
-            "serverName": "created_at"
-        },
-        "updatedAt": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number,
-            "serverName": "updated_at"
-        }
+  name: "invitation",
+  columns: {
+    id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
     },
-    "primaryKey": ["id"]
+    _tag: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    organizationId: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+      serverName: "organization_id",
+    },
+    email: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    role: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    status: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    expiresAt: {
+      type: "number",
+      optional: false,
+      customType: null as unknown as number,
+      serverName: "expires_at",
+    },
+    inviterId: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+      serverName: "inviter_id",
+    },
+    createdAt: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+      serverName: "created_at",
+    },
+    updatedAt: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+      serverName: "updated_at",
+    },
+  },
+  primaryKey: ["id"],
 } as const;
 const keyDateOccurrencesTable = {
-    "name": "key_date_occurrences",
-    "columns": {
-        "id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "_tag": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "created_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "created_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "updated_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "updated_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "deleted_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "deleted_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "church_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "key_date_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "local_date": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "label": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        }
+  name: "key_date_occurrences",
+  columns: {
+    id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
     },
-    "primaryKey": ["id"]
+    _tag: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    created_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    created_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    updated_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    updated_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    deleted_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    deleted_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    church_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    key_date_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    local_date: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    label: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+  },
+  primaryKey: ["id"],
 } as const;
 const keyDatesTable = {
-    "name": "key_dates",
-    "columns": {
-        "id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "_tag": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "created_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "created_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "updated_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "updated_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "deleted_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "deleted_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "church_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "key": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "name": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "schedule": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        }
+  name: "key_dates",
+  columns: {
+    id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
     },
-    "primaryKey": ["id"]
+    _tag: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    created_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    created_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    updated_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    updated_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    deleted_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    deleted_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    church_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    key: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    name: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    schedule: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+  },
+  primaryKey: ["id"],
 } as const;
 const labelsTable = {
-    "name": "labels",
-    "columns": {
-        "id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "_tag": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "created_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "created_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "updated_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "updated_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "deleted_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "deleted_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "church_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "team_id": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "name": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "color": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        }
+  name: "labels",
+  columns: {
+    id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
     },
-    "primaryKey": ["id"]
+    _tag: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    created_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    created_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    updated_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    updated_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    deleted_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    deleted_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    church_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    team_id: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    name: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    color: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+  },
+  primaryKey: ["id"],
 } as const;
 const memberTable = {
-    "name": "member",
-    "columns": {
-        "id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "_tag": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "organizationId": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string,
-            "serverName": "organization_id"
-        },
-        "userId": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string,
-            "serverName": "user_id"
-        },
-        "role": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "createdAt": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number,
-            "serverName": "created_at"
-        },
-        "updatedAt": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number,
-            "serverName": "updated_at"
-        }
+  name: "member",
+  columns: {
+    id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
     },
-    "primaryKey": ["id"]
+    _tag: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    organizationId: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+      serverName: "organization_id",
+    },
+    userId: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+      serverName: "user_id",
+    },
+    role: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    createdAt: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+      serverName: "created_at",
+    },
+    updatedAt: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+      serverName: "updated_at",
+    },
+  },
+  primaryKey: ["id"],
 } as const;
 const organizationTable = {
-    "name": "organization",
-    "columns": {
-        "id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "_tag": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "name": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "slug": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "logo": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "metadata": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "churchTimeZone": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string,
-            "serverName": "church_time_zone"
-        },
-        "completedOnboarding": {
-            "type": "boolean",
-            "optional": true,
-            "customType": null as unknown as boolean,
-            "serverName": "completed_onboarding"
-        },
-        "url": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "street": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "city": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "state": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "zip": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "countryCode": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string,
-            "serverName": "country_code"
-        },
-        "latitude": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "longitude": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "size": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "createdAt": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number,
-            "serverName": "created_at"
-        },
-        "updatedAt": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number,
-            "serverName": "updated_at"
-        }
+  name: "organization",
+  columns: {
+    id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
     },
-    "primaryKey": ["id"]
+    _tag: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    name: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    slug: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    logo: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    metadata: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    churchTimeZone: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+      serverName: "church_time_zone",
+    },
+    completedOnboarding: {
+      type: "boolean",
+      optional: true,
+      customType: null as unknown as boolean,
+      serverName: "completed_onboarding",
+    },
+    url: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    street: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    city: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    state: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    zip: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    countryCode: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+      serverName: "country_code",
+    },
+    latitude: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    longitude: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    size: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    createdAt: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+      serverName: "created_at",
+    },
+    updatedAt: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+      serverName: "updated_at",
+    },
+  },
+  primaryKey: ["id"],
 } as const;
 const tasksTable = {
-    "name": "tasks",
-    "columns": {
-        "id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "_tag": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "created_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "created_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "updated_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "updated_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "deleted_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "deleted_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "church_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "title": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "description": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "team_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "number": {
-            "type": "number",
-            "optional": false,
-            "customType": null as unknown as number
-        },
-        "previous_identifiers": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "assigned_user_id": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "created_by_user_id": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "cycle_id": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "due_date": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "parent_task_id": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "label_ids": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "workflow_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "workflow_status_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "task_state": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "estimate": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "board_order": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "finished_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "source_template_id": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "source_template_task_id": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "source_template_cycle_id": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "source_template_sync_enabled": {
-            "type": "boolean",
-            "optional": true,
-            "customType": null as unknown as boolean
-        }
+  name: "tasks",
+  columns: {
+    id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
     },
-    "primaryKey": ["id"]
+    _tag: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    created_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    created_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    updated_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    updated_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    deleted_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    deleted_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    church_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    title: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    description: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    team_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    number: {
+      type: "number",
+      optional: false,
+      customType: null as unknown as number,
+    },
+    previous_identifiers: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    assigned_user_id: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    created_by_user_id: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    cycle_id: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    due_date: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    parent_task_id: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    label_ids: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    workflow_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    workflow_status_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    task_state: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    estimate: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    board_order: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    finished_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    source_template_id: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    source_template_task_id: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    source_template_cycle_id: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    source_template_sync_enabled: {
+      type: "boolean",
+      optional: true,
+      customType: null as unknown as boolean,
+    },
+  },
+  primaryKey: ["id"],
 } as const;
 const teamMembershipsTable = {
-    "name": "team_memberships",
-    "columns": {
-        "id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "_tag": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "church_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "team_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "user_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "created_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "created_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "updated_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "updated_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        }
+  name: "team_memberships",
+  columns: {
+    id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
     },
-    "primaryKey": ["id"]
+    _tag: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    church_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    team_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    user_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    created_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    created_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    updated_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    updated_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+  },
+  primaryKey: ["id"],
 } as const;
 const teamsTable = {
-    "name": "teams",
-    "columns": {
-        "id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "_tag": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "created_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "created_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "updated_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "updated_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "deleted_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "deleted_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "church_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "name": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "identifier": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "next_task_number": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "previous_identifiers": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "color": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "sort_order": {
-            "type": "number",
-            "optional": false,
-            "customType": null as unknown as number
-        }
+  name: "teams",
+  columns: {
+    id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
     },
-    "primaryKey": ["id"]
+    _tag: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    created_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    created_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    updated_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    updated_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    deleted_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    deleted_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    church_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    name: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    identifier: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    next_task_number: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    previous_identifiers: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    color: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    sort_order: {
+      type: "number",
+      optional: false,
+      customType: null as unknown as number,
+    },
+  },
+  primaryKey: ["id"],
 } as const;
 const templateTasksTable = {
-    "name": "template_tasks",
-    "columns": {
-        "id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "_tag": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "created_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "created_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "updated_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "updated_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "deleted_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "deleted_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "church_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "template_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "template_team_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "key": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "title": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "parent_template_task_id": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "scheduling_rule": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        }
+  name: "template_tasks",
+  columns: {
+    id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
     },
-    "primaryKey": ["id"]
+    _tag: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    created_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    created_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    updated_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    updated_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    deleted_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    deleted_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    church_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    template_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    template_team_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    key: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    title: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    parent_template_task_id: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    scheduling_rule: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+  },
+  primaryKey: ["id"],
 } as const;
 const templateTeamsTable = {
-    "name": "template_teams",
-    "columns": {
-        "id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "_tag": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "created_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "created_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "updated_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "updated_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "deleted_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "deleted_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "church_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "template_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "key": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "name": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "mapped_team_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        }
+  name: "template_teams",
+  columns: {
+    id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
     },
-    "primaryKey": ["id"]
+    _tag: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    created_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    created_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    updated_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    updated_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    deleted_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    deleted_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    church_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    template_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    key: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    name: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    mapped_team_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+  },
+  primaryKey: ["id"],
 } as const;
 const templatesTable = {
-    "name": "templates",
-    "columns": {
-        "id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "_tag": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "created_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "created_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "updated_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "updated_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "deleted_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "deleted_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "church_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "key": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "name": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "recurrence": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        }
+  name: "templates",
+  columns: {
+    id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
     },
-    "primaryKey": ["id"]
+    _tag: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    created_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    created_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    updated_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    updated_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    deleted_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    deleted_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    church_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    key: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    name: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    recurrence: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+  },
+  primaryKey: ["id"],
 } as const;
 const userTable = {
-    "name": "user",
-    "columns": {
-        "id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "name": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "email": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "emailVerified": {
-            "type": "boolean",
-            "optional": true,
-            "customType": null as unknown as boolean,
-            "serverName": "email_verified"
-        },
-        "image": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "role": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "banned": {
-            "type": "boolean",
-            "optional": true,
-            "customType": null as unknown as boolean
-        },
-        "banReason": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string,
-            "serverName": "ban_reason"
-        },
-        "banExpires": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number,
-            "serverName": "ban_expires"
-        },
-        "createdAt": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number,
-            "serverName": "created_at"
-        },
-        "updatedAt": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number,
-            "serverName": "updated_at"
-        }
+  name: "user",
+  columns: {
+    id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
     },
-    "primaryKey": ["id"]
+    name: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    email: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    emailVerified: {
+      type: "boolean",
+      optional: true,
+      customType: null as unknown as boolean,
+      serverName: "email_verified",
+    },
+    image: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    role: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    banned: {
+      type: "boolean",
+      optional: true,
+      customType: null as unknown as boolean,
+    },
+    banReason: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+      serverName: "ban_reason",
+    },
+    banExpires: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+      serverName: "ban_expires",
+    },
+    createdAt: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+      serverName: "created_at",
+    },
+    updatedAt: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+      serverName: "updated_at",
+    },
+  },
+  primaryKey: ["id"],
 } as const;
 const workflowStatusesTable = {
-    "name": "workflow_statuses",
-    "columns": {
-        "id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "_tag": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "created_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "created_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "updated_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "updated_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "deleted_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "deleted_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "church_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "workflow_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "key": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "name": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "task_state": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "sort_order": {
-            "type": "number",
-            "optional": false,
-            "customType": null as unknown as number
-        }
+  name: "workflow_statuses",
+  columns: {
+    id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
     },
-    "primaryKey": ["id"]
+    _tag: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    created_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    created_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    updated_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    updated_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    deleted_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    deleted_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    church_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    workflow_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    key: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    name: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    task_state: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    sort_order: {
+      type: "number",
+      optional: false,
+      customType: null as unknown as number,
+    },
+  },
+  primaryKey: ["id"],
 } as const;
 const workflowsTable = {
-    "name": "workflows",
-    "columns": {
-        "id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "_tag": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "created_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "created_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "updated_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "updated_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "deleted_at": {
-            "type": "number",
-            "optional": true,
-            "customType": null as unknown as number
-        },
-        "deleted_by": {
-            "type": "string",
-            "optional": true,
-            "customType": null as unknown as string
-        },
-        "church_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "team_id": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        },
-        "name": {
-            "type": "string",
-            "optional": false,
-            "customType": null as unknown as string
-        }
+  name: "workflows",
+  columns: {
+    id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
     },
-    "primaryKey": ["id"]
+    _tag: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    created_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    created_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    updated_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    updated_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    deleted_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    deleted_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    church_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    team_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    name: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+  },
+  primaryKey: ["id"],
 } as const;
 /**
  * The Zero schema object.
  * This type is auto-generated from your Drizzle schema definition.
  */
 export const schema = {
-    "tables": {
-        "activities": activitiesTable,
-        "cycle_adjustments": cycleAdjustmentsTable,
-        "cycles": cyclesTable,
-        "demo_items": demoItemsTable,
-        "focus_windows": focusWindowsTable,
-        "invitation": invitationTable,
-        "key_date_occurrences": keyDateOccurrencesTable,
-        "key_dates": keyDatesTable,
-        "labels": labelsTable,
-        "member": memberTable,
-        "organization": organizationTable,
-        "tasks": tasksTable,
-        "team_memberships": teamMembershipsTable,
-        "teams": teamsTable,
-        "template_tasks": templateTasksTable,
-        "template_teams": templateTeamsTable,
-        "templates": templatesTable,
-        "user": userTable,
-        "workflow_statuses": workflowStatusesTable,
-        "workflows": workflowsTable
-    },
-    "relationships": {},
-    "enableLegacyQueries": false,
-    "enableLegacyMutators": false
+  tables: {
+    activities: activitiesTable,
+    cycle_adjustments: cycleAdjustmentsTable,
+    cycles: cyclesTable,
+    demo_items: demoItemsTable,
+    focus_windows: focusWindowsTable,
+    invitation: invitationTable,
+    key_date_occurrences: keyDateOccurrencesTable,
+    key_dates: keyDatesTable,
+    labels: labelsTable,
+    member: memberTable,
+    organization: organizationTable,
+    tasks: tasksTable,
+    team_memberships: teamMembershipsTable,
+    teams: teamsTable,
+    template_tasks: templateTasksTable,
+    template_teams: templateTeamsTable,
+    templates: templatesTable,
+    user: userTable,
+    workflow_statuses: workflowStatusesTable,
+    workflows: workflowsTable,
+  },
+  relationships: {},
+  enableLegacyQueries: false,
+  enableLegacyMutators: false,
 } as const;
 
 /**
@@ -1659,4 +1659,8 @@ export const zql = createBuilder(schema);
 export const builder = zql;
 
 /** Defines the default types for Zero */
-declare module '@rocicorp/zero' { interface DefaultTypes { schema: Schema; } }
+declare module "@rocicorp/zero" {
+  interface DefaultTypes {
+    schema: Schema;
+  }
+}

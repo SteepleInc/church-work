@@ -45,7 +45,8 @@ const getSessionContext = async (
   };
 };
 
-const toResponse = (result: unknown) => (result instanceof Response ? result : Response.json(result));
+const toResponse = (result: unknown) =>
+  result instanceof Response ? result : Response.json(result);
 
 export const createTracerApi = (databaseUrl: string) => {
   const { db, pool } = createDb(databaseUrl);

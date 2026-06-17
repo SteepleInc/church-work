@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
 const apiRouteSource = await Bun.file(new URL("./routes/api/$.tsx", import.meta.url)).text();
-const apiRuntimeSource = await Bun.file(new URL("./routes/api/-runtime.ts", import.meta.url)).text();
+const apiRuntimeSource = await Bun.file(
+  new URL("./routes/api/-runtime.ts", import.meta.url),
+).text();
 const authRouteSource = await Bun.file(new URL("./routes/api/auth/$.tsx", import.meta.url)).text();
 const rootRouteSource = await Bun.file(new URL("./routes/__root.tsx", import.meta.url)).text();
 const serverSource = await Bun.file(new URL("./server.ts", import.meta.url)).text();
