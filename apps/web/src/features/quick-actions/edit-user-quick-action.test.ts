@@ -6,10 +6,10 @@ const editUserSource = await Bun.file(
 const quickActionsSource = await Bun.file(new URL("./quick-actions.tsx", import.meta.url)).text();
 
 describe("edit user quick action", () => {
-  test("prefills and saves editable User fields through the admin update mutation", () => {
+  test("prefills and saves editable User fields through the admin update endpoint", () => {
     expect(editUserSource).toContain("editUserQuickActionStateAtom");
-    expect(editUserSource).toContain("api.admin.getUser");
-    expect(editUserSource).toContain("api.admin.updateUser");
+    expect(editUserSource).toContain("useUserData({ userId })");
+    expect(editUserSource).toContain('fetch("/api/admin/users/update"');
     expect(editUserSource).toContain("name: user.name");
     expect(editUserSource).toContain('email: user.email ?? ""');
     expect(editUserSource).toContain('name: (value.name ?? "").trim()');

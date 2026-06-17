@@ -1,11 +1,15 @@
 import { nullOp } from "@church-task/shared/noOps";
-import { api } from "@church-task/backend-old/convex/_generated/api";
-import { useConvexQuery as useQuery } from "@/data/query-hooks";
+import { queries } from "@church-task/zero";
+import { useQuery } from "@rocicorp/zero/react";
 import type { ReactNode } from "react";
 
-import { recordFromCollection, recordFromQueryResult } from "@/data/convex-query-adapter";
+import { recordFromCollection } from "@/data/collection-query-state";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
-import { useChurchUsersCollection, type UserCollectionItem } from "@/data/users/usersData.app";
+import {
+  mapAdminUser,
+  useChurchUsersCollection,
+  type UserCollectionItem,
+} from "@/data/users/usersData.app";
 
 export function useCurrentUserOpt() {
   const { currentOrgOpt, loading: orgLoading } = useCurrentOrgOpt();
@@ -32,12 +36,17 @@ export function useUserOpt(params: { readonly churchId: string | null; readonly 
 }
 
 export function useUserData(params: { readonly userId: string }) {
-  const result = useQuery(api.admin.getUser, { userId: params.userId });
-  const state = recordFromQueryResult<UserCollectionItem>(result);
+  const [userRows] = useQuery(
+    queries.user.admin_list({ list_args: { limit: 1, selected_ids: [params.userId] } }),
+  );
+  const [memberRows] = useQuery(queries.member.admin_all());
+  const [orgRows] = useQuery(queries.organization.admin_list({ list_args: { limit: 500 } }));
+  const orgsById = new Map(orgRows.map((org) => [org.id, org]));
+  const user = userRows[0] ? mapAdminUser(userRows[0], memberRows, orgsById) : null;
 
   return {
-    loading: state.loading,
-    userOpt: state.record,
+    loading: false,
+    userOpt: user,
   };
 }
 

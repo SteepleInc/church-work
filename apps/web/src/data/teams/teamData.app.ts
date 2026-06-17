@@ -1,4 +1,4 @@
-import { recordFromCollection } from "@/data/convex-query-adapter";
+import { recordFromCollection } from "@/data/collection-query-state";
 import { useTeamsCollection } from "@/data/teams/teamsData.app";
 
 export function useTeamData(params: { readonly churchId: string | null; readonly teamId: string }) {

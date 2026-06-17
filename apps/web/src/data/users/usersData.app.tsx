@@ -61,7 +61,7 @@ const userColumnMap = {
   createdAt: "created_at",
 } as const;
 
-const mapUser = (
+export const mapAdminUser = (
   user: User,
   members: readonly Member[],
   orgsById: ReadonlyMap<string, Organization>,
@@ -95,7 +95,7 @@ export function useAllUsersCollectionWithFilters() {
   const [memberRows] = useQuery(queries.member.admin_all());
   const [orgRows] = useQuery(queries.organization.admin_list({ list_args: { limit: 500 } }));
   const orgsById = new Map(orgRows.map((org) => [org.id, org]));
-  const usersCollection = userRows.map((user) => mapUser(user, memberRows, orgsById));
+  const usersCollection = userRows.map((user) => mapAdminUser(user, memberRows, orgsById));
 
   return {
     canLoadMore: userRows.length >= limit,

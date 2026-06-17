@@ -1,30 +1,19 @@
 import "./telemetry";
 
-import { env } from "@church-task/env/web";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
-import { ConvexQueryCacheProvider } from "convex-helpers/react/cache";
-import { ConvexProvider, ConvexReactClient } from "convex/react";
 import ReactDOM from "react-dom/client";
 
 import { ZeroRuntimeProvider } from "./lib/zero-runtime-provider";
 import { routeTree } from "./routeTree.gen";
-const convex = new ConvexReactClient(env.VITE_CONVEX_URL);
 
 // No defaultPendingComponent and no route loaders: Render Gates are forbidden
-// (see docs/adr/0010-no-render-gates.md). The query cache keeps subscriptions
-// alive after unmount so revisited surfaces render synchronously from cache.
+// (see docs/adr/0010-no-render-gates.md). Zero owns synced product reads.
 const router = createRouter({
   routeTree,
   scrollRestoration: true,
   context: {},
   Wrap: function WrapComponent({ children }: { children: React.ReactNode }) {
-    return (
-      <ConvexProvider client={convex}>
-        <ConvexQueryCacheProvider>
-          <ZeroRuntimeProvider>{children}</ZeroRuntimeProvider>
-        </ConvexQueryCacheProvider>
-      </ConvexProvider>
-    );
+    return <ZeroRuntimeProvider>{children}</ZeroRuntimeProvider>;
   },
 });
 

@@ -5,10 +5,10 @@ import {
   recordFromCollection,
   recordFromQueryResult,
   successfulResponseCollection,
-} from "./convex-query-adapter";
+} from "./collection-query-state";
 
-describe("Convex data adapter helpers", () => {
-  test("reports plural collection hooks as loading until Convex returns", () => {
+describe("collection query state helpers", () => {
+  test("reports plural collection hooks as loading until rows return", () => {
     expect(collectionFromQueryResult<{ id: string }>(undefined)).toEqual({
       loading: true,
       collection: [],

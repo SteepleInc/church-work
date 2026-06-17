@@ -6,10 +6,10 @@ const editOrgSource = await Bun.file(
 const quickActionsSource = await Bun.file(new URL("./quick-actions.tsx", import.meta.url)).text();
 
 describe("edit org quick action", () => {
-  test("prefills and saves editable Church fields through the admin update mutation", () => {
+  test("prefills and saves editable Church fields through the admin update endpoint", () => {
     expect(editOrgSource).toContain("editOrgQuickActionStateAtom");
-    expect(editOrgSource).toContain("api.admin.getOrg");
-    expect(editOrgSource).toContain("api.admin.updateOrg");
+    expect(editOrgSource).toContain("useAdminOrgData({ orgId })");
+    expect(editOrgSource).toContain('fetch("/api/admin/orgs/update"');
     expect(editOrgSource).toContain("name: org.name");
     expect(editOrgSource).toContain('slug: org.slug ?? ""');
     expect(editOrgSource).toContain(

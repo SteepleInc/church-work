@@ -1,6 +1,12 @@
 import { createAuth, createLocalOtpStore } from "@church-task/auth";
 import { createDb } from "@church-task/db";
-import { demo_items, invitation, session as sessionTable, user } from "@church-task/db/schema";
+import {
+  demo_items,
+  invitation,
+  organization,
+  session as sessionTable,
+  user,
+} from "@church-task/db/schema";
 import { getChurchInvitationId } from "@church-task/shared/get-ids";
 import { anonymousServerContext, mutators, queries, schema } from "@church-task/zero";
 import { handleMutateRequest, handleQueryRequest } from "@rocicorp/zero/server";
@@ -299,6 +305,102 @@ export const createTracerApi = (databaseUrl: string) => {
       },
     });
 
+  const requireAppAdmin = async (request: Request) => {
+    const authSession = await authRuntime.auth.api.getSession({ headers: request.headers });
+
+    if (!authSession)
+      return { response: Response.json({ error: "Authentication required" }, { status: 401 }) };
+
+    const session = authSession.session as typeof authSession.session & {
+      readonly userRole?: string | null;
+    };
+
+    if (session.userRole !== "admin") {
+      return { response: Response.json({ error: "App administrator required" }, { status: 403 }) };
+    }
+
+    return { authSession, response: null };
+  };
+
+  const handleUpdateAdminUser = (request: Request) =>
+    Effect.tryPromise({
+      catch: (cause) => cause,
+      try: async () => {
+        const admin = await requireAppAdmin(request);
+        if (admin.response) return admin.response;
+
+        const body = (await request.json()) as { email?: string; name?: string; userId?: string };
+        const userId = body.userId?.trim();
+        const name = body.name?.trim();
+        const email = body.email?.trim().toLowerCase();
+
+        if (!userId || !name || !email) {
+          return Response.json({ error: "User id, name, and email are required" }, { status: 400 });
+        }
+
+        await db
+          .update(user)
+          .set({ email, name, updatedAt: new Date() })
+          .where(eq(user.id, userId));
+
+        return Response.json({ ok: true });
+      },
+    });
+
+  const handleUpdateAdminOrg = (request: Request) =>
+    Effect.tryPromise({
+      catch: (cause) => cause,
+      try: async () => {
+        const admin = await requireAppAdmin(request);
+        if (admin.response) return admin.response;
+
+        const body = (await request.json()) as {
+          churchTimeZone?: string;
+          city?: string | null;
+          completedOnboarding?: boolean;
+          countryCode?: string | null;
+          name?: string;
+          orgId?: string;
+          size?: string | null;
+          slug?: string | null;
+          state?: string | null;
+          street?: string | null;
+          url?: string | null;
+          zip?: string | null;
+        };
+        const orgId = body.orgId?.trim();
+        const name = body.name?.trim();
+        const churchTimeZone = body.churchTimeZone?.trim();
+
+        if (!orgId || !name || !churchTimeZone) {
+          return Response.json(
+            { error: "Church id, name, and Church Time Zone are required" },
+            { status: 400 },
+          );
+        }
+
+        await db
+          .update(organization)
+          .set({
+            churchTimeZone,
+            city: body.city ?? null,
+            completedOnboarding: Boolean(body.completedOnboarding),
+            countryCode: body.countryCode ?? null,
+            name,
+            size: body.size ?? null,
+            slug: body.slug ?? null,
+            state: body.state ?? null,
+            street: body.street ?? null,
+            updatedAt: new Date(),
+            url: body.url ?? null,
+            zip: body.zip ?? null,
+          })
+          .where(eq(organization.id, orgId));
+
+        return Response.json({ ok: true });
+      },
+    });
+
   const fetch = async (request: Request) => {
     const url = new URL(request.url);
     const agentResponse = await handleAgentRequest({ auth: authRuntime.auth, db }, request);
@@ -318,11 +420,15 @@ export const createTracerApi = (databaseUrl: string) => {
                 ? handleHealth()
                 : url.pathname === "/api/tracer/demo-items" && request.method === "POST"
                   ? handleCreateDemoItem(request)
-                  : url.pathname === "/api/zero/query" && request.method === "POST"
-                    ? handleZeroQuery(request)
-                    : url.pathname === "/api/zero/mutate" && request.method === "POST"
-                      ? handleZeroMutate(request)
-                      : Effect.succeed(Response.json({ error: "Not found" }, { status: 404 }));
+                  : url.pathname === "/api/admin/users/update" && request.method === "POST"
+                    ? handleUpdateAdminUser(request)
+                    : url.pathname === "/api/admin/orgs/update" && request.method === "POST"
+                      ? handleUpdateAdminOrg(request)
+                      : url.pathname === "/api/zero/query" && request.method === "POST"
+                        ? handleZeroQuery(request)
+                        : url.pathname === "/api/zero/mutate" && request.method === "POST"
+                          ? handleZeroMutate(request)
+                          : Effect.succeed(Response.json({ error: "Not found" }, { status: 404 }));
 
     return Effect.runPromise(effect).catch((cause) =>
       Response.json(

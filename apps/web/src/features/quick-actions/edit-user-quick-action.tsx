@@ -1,7 +1,4 @@
-import { api } from "@church-task/backend-old/convex/_generated/api";
 import { revalidateLogic } from "@tanstack/react-form";
-import { useMutation } from "convex/react";
-import { useConvexQuery as useQuery } from "@/data/query-hooks";
 import { Schema } from "effect";
 import { PencilIcon, UserRoundIcon } from "lucide-react";
 import { atom, useAtom } from "jotai";
@@ -12,6 +9,7 @@ import { useAppForm } from "@/components/form/ts-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
+import { useUserData } from "@/data/users/userData.app";
 import type { UserCollectionItem } from "@/data/users/usersData.app";
 import {
   QuickActionForm,
@@ -45,10 +43,6 @@ function getEditUserDefaultValues(user: UserCollectionItem) {
 
 export function EditUserQuickAction() {
   const [editUserState, setEditUserState] = useAtom(editUserQuickActionStateAtom);
-  const user = useQuery(
-    api.admin.getUser,
-    editUserState ? { userId: editUserState.userId } : "skip",
-  );
   const isOpen = editUserState !== null;
 
   return (
@@ -62,23 +56,36 @@ export function EditUserQuickAction() {
         </QuickActionsTitle>
         <QuickActionsDescription>Update account name and email fields.</QuickActionsDescription>
       </QuickActionsHeader>
-      {user === undefined ? (
-        <QuickActionFormSkeleton />
-      ) : user === null ? (
-        <Alert className="m-4 mt-0">
-          <AlertDescription>User details are unavailable.</AlertDescription>
-        </Alert>
-      ) : (
-        <EditUserForm
-          key={user.id}
-          user={user}
+      {editUserState ? (
+        <EditUserContent
+          userId={editUserState.userId}
           onUpdated={() => {
             setEditUserState(null);
             toast.success("User updated.");
           }}
         />
-      )}
+      ) : null}
     </QuickActionsWrapper>
+  );
+}
+
+function EditUserContent({
+  userId,
+  onUpdated,
+}: {
+  readonly userId: string;
+  readonly onUpdated: () => void;
+}) {
+  const { loading, userOpt: user } = useUserData({ userId });
+
+  return loading ? (
+    <QuickActionFormSkeleton />
+  ) : !user ? (
+    <Alert className="m-4 mt-0">
+      <AlertDescription>User details are unavailable.</AlertDescription>
+    </Alert>
+  ) : (
+    <EditUserForm key={user.id} user={user} onUpdated={onUpdated} />
   );
 }
 
@@ -89,7 +96,6 @@ function EditUserForm({
   readonly user: UserCollectionItem;
   readonly onUpdated: () => void;
 }) {
-  const updateUser = useMutation(api.admin.updateUser);
   const [editError, setEditError] = useState<string | null>(null);
   const form = useAppForm({
     defaultValues: getEditUserDefaultValues(user),
@@ -104,11 +110,21 @@ function EditUserForm({
       setEditError(null);
 
       try {
-        await updateUser({
-          userId: user.id,
-          name: (value.name ?? "").trim(),
-          email: (value.email ?? "").trim(),
+        const response = await fetch("/api/admin/users/update", {
+          body: JSON.stringify({
+            userId: user.id,
+            name: (value.name ?? "").trim(),
+            email: (value.email ?? "").trim(),
+          }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
         });
+
+        if (!response.ok) {
+          const body = (await response.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(body?.error ?? "Could not update User.");
+        }
+
         onUpdated();
       } catch (error) {
         setEditError(error instanceof Error ? error.message : "Could not update User.");

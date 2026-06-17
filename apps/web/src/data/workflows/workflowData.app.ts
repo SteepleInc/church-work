@@ -1,4 +1,4 @@
-import { recordFromCollection } from "@/data/convex-query-adapter";
+import { recordFromCollection } from "@/data/collection-query-state";
 import { useWorkflowsCollection } from "@/data/workflows/workflowsData.app";
 
 export function useWorkflowData(params: {

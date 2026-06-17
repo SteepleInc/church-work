@@ -1,9 +1,0 @@
-{
-  "compilerOptions": {
-    "paths": {
-      "@church-task/domain-old/*": ["./*"]
-    }
-  },
-  "extends": "@church-task/config/tsconfig.base.json",
-  "include": ["."]
-}

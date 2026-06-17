@@ -1,15 +1,16 @@
-import { api } from "@church-task/backend-old/convex/_generated/api";
 import { queries, type Member, type Organization, type Team } from "@church-task/zero";
-import type { Org } from "@church-task/domain-old";
 import { useQuery as useZeroQuery } from "@rocicorp/zero/react";
-import { useConvexQuery as useQuery } from "@/data/query-hooks";
 
-import { collectionFromQueryResult } from "@/data/convex-query-adapter";
+import { authClient } from "@/lib/auth-client";
 import { FilterKeys } from "@/shared/global-state";
 import { useZeroListArgs } from "@/shared/hooks/useZeroListArgs";
 
-export type OrgCollectionItem = Pick<Org, "id" | "name" | "slug" | "completedOnboarding"> & {
-  readonly churchTimeZone: Org["churchTimeZone"] | null;
+export type OrgCollectionItem = {
+  readonly id: string;
+  readonly name: string;
+  readonly slug: string | null;
+  readonly completedOnboarding: boolean;
+  readonly churchTimeZone: string | null;
   readonly createdAt?: number;
   readonly city?: string | null;
   readonly countryCode?: string | null;
@@ -26,13 +27,30 @@ export type OrgCollectionItem = Pick<Org, "id" | "name" | "slug" | "completedOnb
 };
 
 export function useUserOrgsCollection() {
-  const result = useQuery(api.dashboard.listOrganizations);
-  const state = collectionFromQueryResult<OrgCollectionItem>(result);
+  const { data: orgRows, isPending } = authClient.useListOrganizations();
+  const orgsCollection = (orgRows ?? []).map((org) => ({
+    id: org.id,
+    name: org.name,
+    slug: org.slug ?? null,
+    completedOnboarding: Boolean(org.completedOnboarding),
+    churchTimeZone: org.churchTimeZone ?? null,
+    city: org.city ?? null,
+    countryCode: org.countryCode ?? null,
+    createdAt: org.createdAt ? new Date(org.createdAt).getTime() : undefined,
+    latitude: org.latitude ?? null,
+    logo: org.logo ?? null,
+    longitude: org.longitude ?? null,
+    size: org.size ?? null,
+    state: org.state ?? null,
+    street: org.street ?? null,
+    url: org.url ?? null,
+    zip: org.zip ?? null,
+  }));
 
   return {
-    loading: state.loading,
-    collection: state.collection,
-    orgsCollection: state.collection,
+    loading: isPending,
+    collection: orgsCollection,
+    orgsCollection,
   };
 }
 
@@ -87,5 +105,21 @@ export function useAllOrgsCollectionWithFilters() {
     nextPage,
     orgsCollection,
     pageSize,
+  };
+}
+
+export function useAdminOrgData(params: { readonly orgId: string | null }) {
+  const [orgRows] = useZeroQuery(
+    queries.organization.admin_list({
+      list_args: params.orgId ? { limit: 1, selected_ids: [params.orgId] } : { limit: 0 },
+    }),
+  );
+  const [memberRows] = useZeroQuery(queries.member.admin_all());
+  const [teamRows] = useZeroQuery(queries.teams_admin.admin_all());
+  const org = orgRows[0] ? mapOrg(orgRows[0], memberRows, teamRows) : null;
+
+  return {
+    loading: false,
+    orgOpt: org,
   };
 }

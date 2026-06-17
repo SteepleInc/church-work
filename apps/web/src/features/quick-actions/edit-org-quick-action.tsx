@@ -1,7 +1,4 @@
-import { api } from "@church-task/backend-old/convex/_generated/api";
 import { revalidateLogic } from "@tanstack/react-form";
-import { useMutation } from "convex/react";
-import { useConvexQuery as useQuery } from "@/data/query-hooks";
 import { Schema } from "effect";
 import { Building2Icon, PencilIcon } from "lucide-react";
 import { atom, useAtom } from "jotai";
@@ -12,7 +9,7 @@ import { useAppForm } from "@/components/form/ts-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
-import type { OrgCollectionItem } from "@/data/orgs/orgsData.app";
+import { useAdminOrgData, type OrgCollectionItem } from "@/data/orgs/orgsData.app";
 import {
   QuickActionForm,
   QuickActionFormSkeleton,
@@ -90,7 +87,6 @@ const EditOrgSchema = Schema.Struct({
 
 export function EditOrgQuickAction() {
   const [editOrgState, setEditOrgState] = useAtom(editOrgQuickActionStateAtom);
-  const org = useQuery(api.admin.getOrg, editOrgState ? { orgId: editOrgState.orgId } : "skip");
   const isOpen = editOrgState !== null;
 
   return (
@@ -106,23 +102,36 @@ export function EditOrgQuickAction() {
           Update Church profile, address, size, website, and onboarding fields.
         </QuickActionsDescription>
       </QuickActionsHeader>
-      {org === undefined ? (
-        <QuickActionFormSkeleton fields={4} />
-      ) : org === null ? (
-        <Alert className="m-4 mt-0">
-          <AlertDescription>Church details are unavailable.</AlertDescription>
-        </Alert>
-      ) : (
-        <EditOrgForm
-          key={org.id}
-          org={org}
+      {editOrgState ? (
+        <EditOrgContent
+          orgId={editOrgState.orgId}
           onUpdated={() => {
             setEditOrgState(null);
             toast.success("Church updated.");
           }}
         />
-      )}
+      ) : null}
     </QuickActionsWrapper>
+  );
+}
+
+function EditOrgContent({
+  orgId,
+  onUpdated,
+}: {
+  readonly orgId: string;
+  readonly onUpdated: () => void;
+}) {
+  const { loading, orgOpt: org } = useAdminOrgData({ orgId });
+
+  return loading ? (
+    <QuickActionFormSkeleton fields={4} />
+  ) : !org ? (
+    <Alert className="m-4 mt-0">
+      <AlertDescription>Church details are unavailable.</AlertDescription>
+    </Alert>
+  ) : (
+    <EditOrgForm key={org.id} org={org} onUpdated={onUpdated} />
   );
 }
 
@@ -133,7 +142,6 @@ function EditOrgForm({
   readonly org: OrgCollectionItem;
   readonly onUpdated: () => void;
 }) {
-  const updateOrg = useMutation(api.admin.updateOrg);
   const [editError, setEditError] = useState<string | null>(null);
   const form = useAppForm({
     defaultValues: getEditOrgDefaultValues(org),
@@ -148,20 +156,30 @@ function EditOrgForm({
       setEditError(null);
 
       try {
-        await updateOrg({
-          orgId: org.id,
-          name: value.name.trim(),
-          slug: normalizeOptionalOrgValue(value.slug),
-          churchTimeZone: value.churchTimeZone,
-          street: normalizeOptionalOrgValue(value.street),
-          city: normalizeOptionalOrgValue(value.city),
-          state: normalizeOptionalOrgValue(value.state),
-          zip: normalizeOptionalOrgValue(value.zip),
-          countryCode: normalizeOptionalOrgValue(value.countryCode),
-          size: normalizeOptionalOrgValue(value.size),
-          url: normalizeOptionalOrgValue(value.url),
-          completedOnboarding: value.completedOnboarding,
+        const response = await fetch("/api/admin/orgs/update", {
+          body: JSON.stringify({
+            orgId: org.id,
+            name: value.name.trim(),
+            slug: normalizeOptionalOrgValue(value.slug),
+            churchTimeZone: value.churchTimeZone,
+            street: normalizeOptionalOrgValue(value.street),
+            city: normalizeOptionalOrgValue(value.city),
+            state: normalizeOptionalOrgValue(value.state),
+            zip: normalizeOptionalOrgValue(value.zip),
+            countryCode: normalizeOptionalOrgValue(value.countryCode),
+            size: normalizeOptionalOrgValue(value.size),
+            url: normalizeOptionalOrgValue(value.url),
+            completedOnboarding: value.completedOnboarding,
+          }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
         });
+
+        if (!response.ok) {
+          const body = (await response.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(body?.error ?? "Could not update Church.");
+        }
+
         onUpdated();
       } catch (error) {
         setEditError(error instanceof Error ? error.message : "Could not update Church.");

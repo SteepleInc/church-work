@@ -1,35 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
-import { config } from "dotenv";
-import { existsSync } from "node:fs";
 
-const e2eEnvFile = ".env.e2e";
-const hasE2eEnvFile = existsSync(e2eEnvFile);
 const tracerE2e = process.env.CHURCH_TASK_E2E_TRACER === "1";
 const onboardingStackE2e = process.env.CHURCH_TASK_E2E_ONBOARDING_STACK === "1";
 
-if (hasE2eEnvFile) {
-  config({ path: e2eEnvFile, quiet: true });
-}
-
-const requiredEnvNames = ["VITE_CONVEX_URL", "VITE_CONVEX_SITE_URL"] as const;
-const missingEnvNames = requiredEnvNames.filter((name) => !process.env[name]);
-const allowsProcessE2eEnv = Boolean(process.env.CI);
-const e2eEnvReady =
-  tracerE2e ||
-  onboardingStackE2e ||
-  (missingEnvNames.length === 0 && (hasE2eEnvFile || allowsProcessE2eEnv));
-const e2eSkipReason = hasE2eEnvFile
-  ? `Missing ${missingEnvNames.join(", ")} in ${e2eEnvFile}. E2E tests must not fall back to normal development Convex state.`
-  : allowsProcessE2eEnv
-    ? `Missing ${missingEnvNames.join(", ")} in the CI process environment. Export isolated Convex E2E values or copy .env.e2e.example to ${e2eEnvFile}.`
-    : `Missing ${e2eEnvFile}. Local E2E tests require an explicit isolated env file and must not fall back to normal development Convex state.`;
-
-if (!e2eEnvReady && process.env.CI) {
-  throw new Error(e2eSkipReason);
-}
-
-process.env.CHURCH_TASK_E2E_READY = e2eEnvReady ? "1" : "0";
-process.env.CHURCH_TASK_E2E_SKIP_REASON = e2eSkipReason;
+process.env.CHURCH_TASK_E2E_READY = "1";
+process.env.CHURCH_TASK_E2E_SKIP_REASON = "";
 
 const e2ePort = Number(process.env.E2E_WEB_PORT ?? 2101);
 const tracerPort = Number(process.env.E2E_TRACER_PORT ?? 2102);
@@ -52,10 +27,6 @@ const webServerEnv = {
   PATH: process.env.PATH ?? "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin",
   SHELL: process.env.SHELL ?? "/bin/zsh",
 };
-const convexUrl = process.env.VITE_CONVEX_URL;
-const convexSiteUrl = process.env.VITE_CONVEX_SITE_URL;
-const shouldStartLocalConvex =
-  !onboardingStackE2e && (convexUrl?.startsWith("http://127.0.0.1:") ?? false);
 const webServers = [
   ...(onboardingStackE2e
     ? [
@@ -69,18 +40,6 @@ const webServers = [
         },
       ]
     : []),
-  ...(shouldStartLocalConvex
-    ? [
-        {
-          command: "bun run dev:e2e",
-          cwd: `${repoRoot}/packages/backend`,
-          env: webServerEnv,
-          url: `${convexSiteUrl}/api/auth/get-session`,
-          reuseExistingServer: false,
-          timeout: 120_000,
-        },
-      ]
-    : []),
   ...(!onboardingStackE2e
     ? [
         {
@@ -91,7 +50,7 @@ const webServers = [
             VITE_PORT: String(e2ePort),
           },
           url: baseURL,
-          reuseExistingServer: !shouldStartLocalConvex && !process.env.CI,
+          reuseExistingServer: !process.env.CI,
           timeout: 120_000,
         },
       ]
@@ -100,8 +59,8 @@ const webServers = [
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  fullyParallel: tracerE2e || onboardingStackE2e ? false : !shouldStartLocalConvex,
-  workers: tracerE2e || onboardingStackE2e || shouldStartLocalConvex ? 1 : undefined,
+  fullyParallel: tracerE2e || onboardingStackE2e ? false : undefined,
+  workers: tracerE2e || onboardingStackE2e ? 1 : undefined,
   reporter: "list",
   use: {
     baseURL,
@@ -124,7 +83,7 @@ export default defineConfig({
           },
         ]),
   ],
-  ...(e2eEnvReady && !tracerE2e
+  ...(!tracerE2e
     ? {
         webServer: webServers,
       }

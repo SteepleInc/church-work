@@ -27,13 +27,13 @@ const getOpenPort = async () => {
   });
 };
 
-const waitForHttpOk = async (url: string, timeoutMs: number) => {
+const waitForHttpOk = async (url: string, timeoutMs: number, init?: RequestInit) => {
   const deadline = Date.now() + timeoutMs;
   let lastError: unknown;
 
   while (Date.now() < deadline) {
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, init);
       if (response.ok) {
         return;
       }
@@ -85,10 +85,13 @@ export const startZeroCacheHarness = async (options: {
   const tmpDir = await mkdtemp(join(tmpdir(), "church-task-zero-"));
   const replicaFile = join(tmpDir, "zero.db");
   const zeroUrl = `http://127.0.0.1:${port}`;
+  const adminPassword = "church-task-e2e-zero-admin-password";
+  const statzAuthorization = `Basic ${Buffer.from(`zero:${adminPassword}`).toString("base64")}`;
   const child = spawn(process.execPath, [getZeroCacheCliPath()], {
     env: {
       ...process.env,
       DO_NOT_TRACK: "1",
+      ZERO_ADMIN_PASSWORD: adminPassword,
       ZERO_APP_ID: options.appId ?? "tracer",
       ZERO_CHANGE_DB: options.databaseUrl,
       ZERO_CVR_DB: options.databaseUrl,
@@ -119,7 +122,9 @@ export const startZeroCacheHarness = async (options: {
 
   try {
     await Promise.race([
-      waitForHttpOk(`${zeroUrl}/statz`, 60_000),
+      waitForHttpOk(`${zeroUrl}/statz`, 60_000, {
+        headers: { authorization: statzAuthorization },
+      }),
       new Promise<never>((_, reject) => {
         child.once("exit", (code, signal) => {
           reject(

@@ -4,12 +4,7 @@
   "categories": {
     "correctness": "error"
   },
-  "ignorePatterns": [
-    "**/_generated/**",
-    "apps/web/src/routeTree.gen.ts",
-    "packages/backend-old/**",
-    "packages/domain-old/**"
-  ],
+  "ignorePatterns": ["**/_generated/**", "apps/web/src/routeTree.gen.ts"],
   "rules": {},
   "overrides": [
     {
@@ -42,36 +37,7 @@
     },
     {
       "files": ["apps/web/src/**"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "paths": [
-              {
-                "name": "convex/react",
-                "importNames": ["useQuery", "usePaginatedQuery", "useQueries"],
-                "message": "Import cache-backed query hooks from @/data/query-hooks instead (ADR 0011); direct convex/react query hooks bypass the query cache."
-              },
-              {
-                "name": "@confect/react",
-                "importNames": ["useQuery"],
-                "message": "Import useQuery from @/data/query-hooks instead (ADR 0011); @confect/react's useQuery bypasses the query cache."
-              },
-              {
-                "name": "convex-helpers/react/cache",
-                "importNames": ["useQuery", "usePaginatedQuery", "useQueries"],
-                "message": "Import query hooks from @/data/query-hooks instead (ADR 0011)."
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "files": ["apps/web/src/data/query-hooks.ts"],
-      "rules": {
-        "no-restricted-imports": "off"
-      }
+      "rules": {}
     }
   ],
   "env": {

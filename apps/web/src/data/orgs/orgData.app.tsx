@@ -1,7 +1,7 @@
 import { nullOp } from "@church-task/shared/noOps";
 import type { ReactNode } from "react";
 
-import { recordFromCollection } from "@/data/convex-query-adapter";
+import { recordFromCollection } from "@/data/collection-query-state";
 import { useUserOrgsCollection, type OrgCollectionItem } from "@/data/orgs/orgsData.app";
 import { authClient } from "@/lib/auth-client";
 
