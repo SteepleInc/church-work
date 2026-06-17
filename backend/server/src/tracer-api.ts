@@ -133,6 +133,108 @@ export const createTracerApi = (databaseUrl: string) => {
       return Response.json({ ok: true, email, otp: captured.otp });
     });
 
+  const handleCreateTestSession = (request: Request) =>
+    Effect.tryPromise({
+      catch: (cause) => cause,
+      try: async () => {
+        const body = (await request.json()) as {
+          churchName?: string;
+          email?: string;
+          role?: string | null;
+          userName?: string;
+        };
+        const email = body.email?.trim().toLowerCase();
+        const name = body.userName?.trim() || "E2E User";
+        const churchName = body.churchName?.trim() || "E2E Church";
+
+        if (!email) {
+          return Response.json({ error: "Email is required" }, { status: 400 });
+        }
+
+        const signUp = await authRuntime.auth.api.signUpEmail({
+          asResponse: true,
+          body: {
+            email,
+            name,
+            password: `church-task-e2e-${crypto.randomUUID()}`,
+          },
+        });
+        const signUpCookie = signUp.headers.get("set-cookie");
+
+        if (!signUp.ok || !signUpCookie) {
+          return Response.json({ error: "Could not create test user session" }, { status: 500 });
+        }
+
+        const org = await authRuntime.auth.api.createOrganization({
+          body: {
+            churchTimeZone: "America/Chicago",
+            name: churchName,
+            slug: `e2e-${crypto.randomUUID()}`,
+          },
+          headers: new Headers({ cookie: signUpCookie }),
+        });
+
+        if (!org?.id) {
+          return Response.json({ error: "Could not create test Church" }, { status: 500 });
+        }
+
+        const activeResponse = await authRuntime.auth.api.setActiveOrganization({
+          asResponse: true,
+          body: { organizationId: org.id },
+          headers: new Headers({ cookie: signUpCookie }),
+        });
+        const activeCookie = activeResponse.headers.get("set-cookie") ?? signUpCookie;
+
+        const completeResponse = await authRuntime.auth.handler(
+          new Request("http://127.0.0.1/api/auth/complete-onboarding", {
+            body: JSON.stringify({ orgId: org.id }),
+            headers: {
+              "content-type": "application/json",
+              cookie: activeCookie,
+              origin: process.env.E2E_SITE_URL ?? process.env.SITE_URL ?? "http://127.0.0.1",
+            },
+            method: "POST",
+          }),
+        );
+        const sessionCookie = completeResponse.headers.get("set-cookie") ?? activeCookie;
+
+        if (!completeResponse.ok) {
+          return Response.json(
+            {
+              detail: await completeResponse.text(),
+              error: "Could not complete test Church onboarding",
+            },
+            { status: 500 },
+          );
+        }
+
+        const authSession = await authRuntime.auth.api.getSession({
+          headers: new Headers({ cookie: sessionCookie }),
+        });
+
+        if (!authSession) {
+          return Response.json({ error: "Could not read test session" }, { status: 500 });
+        }
+
+        if (body.role === "admin") {
+          await db.update(user).set({ role: "admin" }).where(eq(user.id, authSession.user.id));
+          await db
+            .update(sessionTable)
+            .set({ userRole: "admin" })
+            .where(eq(sessionTable.id, authSession.session.id));
+        }
+
+        return Response.json(
+          {
+            church: { id: org.id, name: churchName },
+            ok: true,
+            user: { email, id: authSession.user.id, name },
+          },
+          { headers: { "set-cookie": sessionCookie } },
+        );
+      },
+    });
+
   const handlePromoteCurrentUserToAppAdmin = (request: Request) =>
     Effect.tryPromise({
       catch: (cause) => cause,
@@ -208,17 +310,19 @@ export const createTracerApi = (databaseUrl: string) => {
         ? handleTestOtp(request)
         : url.pathname === "/api/test/app-admin" && request.method === "POST"
           ? handlePromoteCurrentUserToAppAdmin(request)
-          : url.pathname === "/api/test/invitations" && request.method === "POST"
-            ? handleCreateTestInvitation(request)
-            : url.pathname === "/api/tracer" && request.method === "GET"
-              ? handleHealth()
-              : url.pathname === "/api/tracer/demo-items" && request.method === "POST"
-                ? handleCreateDemoItem(request)
-                : url.pathname === "/api/zero/query" && request.method === "POST"
-                  ? handleZeroQuery(request)
-                  : url.pathname === "/api/zero/mutate" && request.method === "POST"
-                    ? handleZeroMutate(request)
-                    : Effect.succeed(Response.json({ error: "Not found" }, { status: 404 }));
+          : url.pathname === "/api/test/session" && request.method === "POST"
+            ? handleCreateTestSession(request)
+            : url.pathname === "/api/test/invitations" && request.method === "POST"
+              ? handleCreateTestInvitation(request)
+              : url.pathname === "/api/tracer" && request.method === "GET"
+                ? handleHealth()
+                : url.pathname === "/api/tracer/demo-items" && request.method === "POST"
+                  ? handleCreateDemoItem(request)
+                  : url.pathname === "/api/zero/query" && request.method === "POST"
+                    ? handleZeroQuery(request)
+                    : url.pathname === "/api/zero/mutate" && request.method === "POST"
+                      ? handleZeroMutate(request)
+                      : Effect.succeed(Response.json({ error: "Not found" }, { status: 404 }));
 
     return Effect.runPromise(effect).catch((cause) =>
       Response.json(

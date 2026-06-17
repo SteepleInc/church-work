@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 
-import { signInAndCompleteOnboarding } from "./helpers";
+import { startAuthenticatedSession } from "./helpers";
 
 test.skip(
   process.env.CHURCH_TASK_E2E_ONBOARDING_STACK !== "1",
@@ -44,7 +44,7 @@ test("manages Teams and their owned Workflows on the local Postgres and Zero sta
   const teamIdentifier = `CW${testInfo.workerIndex}`;
 
   await runWithBrowserErrors(
-    () => signInAndCompleteOnboarding(page, { churchName, email, userName: "E2E Owner" }),
+    () => startAuthenticatedSession(page, { churchName, email, userName: "E2E Owner" }),
     browserErrors,
   );
 

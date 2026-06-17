@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 
-import { signInAndCompleteOnboarding } from "./helpers";
+import { startAuthenticatedSession } from "./helpers";
 
 test.skip(
   process.env.CHURCH_TASK_E2E_ONBOARDING_STACK !== "1",
@@ -46,7 +46,7 @@ test("creates, assigns, moves, and preserves Task board state on the local Postg
   const userName = "E2E Task Owner";
   const sharedTaskTitle = `Shared Board Task ${suffix}`;
 
-  await signInAndCompleteOnboarding(page, {
+  await startAuthenticatedSession(page, {
     churchName: `E2E Tasks Boards Church ${suffix}`,
     email,
     userName,

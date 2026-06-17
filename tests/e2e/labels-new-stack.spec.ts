@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 
-import { signInAndCompleteOnboarding } from "./helpers";
+import { startAuthenticatedSession } from "./helpers";
 
 test.skip(
   process.env.CHURCH_TASK_E2E_ONBOARDING_STACK !== "1",
@@ -32,7 +32,7 @@ test("manages Labels and applies them to Tasks on the local Postgres and Zero st
   const labelName = `Follow Up ${suffix}`;
   const taskTitle = `Labelled Task ${suffix}`;
 
-  await signInAndCompleteOnboarding(page, {
+  await startAuthenticatedSession(page, {
     churchName: `E2E Labels Church ${suffix}`,
     email,
     userName: "E2E Labels Owner",

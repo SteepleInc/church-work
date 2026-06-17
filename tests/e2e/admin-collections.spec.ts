@@ -2,9 +2,9 @@ import { expect, test } from "@playwright/test";
 
 import {
   promoteCurrentUserToAppAdmin,
-  signInAndCompleteOnboarding,
   signInWithOtp,
   signOut,
+  startAuthenticatedSession,
 } from "./helpers";
 
 test.skip(
@@ -21,14 +21,14 @@ test("App Administration collections show cross-Church data while normal members
   const primaryEmail = `collection-primary-${runId}@example.com`;
   const primaryChurch = `E2E Collection Primary ${runId}`;
 
-  await signInAndCompleteOnboarding(page, {
+  await startAuthenticatedSession(page, {
     churchName: otherChurch,
     email: otherEmail,
     userName: `Other Member ${runId}`,
   });
   await signOut(page);
 
-  await signInAndCompleteOnboarding(page, {
+  await startAuthenticatedSession(page, {
     churchName: primaryChurch,
     email: primaryEmail,
     userName: `Primary Member ${runId}`,

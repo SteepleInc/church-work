@@ -71,6 +71,26 @@ export async function signOut(page: Page) {
   });
 }
 
+export async function startAuthenticatedSession(
+  page: Page,
+  args: {
+    readonly churchName: string;
+    readonly email: string;
+    readonly role?: "admin";
+    readonly userName?: string;
+  },
+) {
+  const response = await page.request.post(`${getE2eApiUrl()}/api/test/session`, { data: args });
+
+  test.skip(response.status() === 404, "Test session helper is not deployed.");
+  if (!response.ok()) {
+    throw new Error(`Could not create test session: ${response.status()} ${await response.text()}`);
+  }
+
+  await page.goto("/my-work");
+  await expect(page).toHaveURL(/\/my-work$/, { timeout: 20_000 });
+}
+
 export async function promoteCurrentUserToAppAdmin(page: Page) {
   const response = await page.request.post(`${getE2eApiUrl()}/api/test/app-admin`);
 

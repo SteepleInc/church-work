@@ -198,6 +198,47 @@ describe("tracer API", () => {
     }
   }, 60_000);
 
+  test("creates a completed-onboarding test session", async () => {
+    const harness = await startPostgresHarness();
+    const api = createTracerApi(harness.connectionString);
+
+    try {
+      const response = await api.fetch(
+        new Request("http://127.0.0.1/api/test/session", {
+          body: JSON.stringify({
+            churchName: "Fast Session Church",
+            email: "fast-session@church-task.test",
+            userName: "Fast Session User",
+          }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        }),
+      );
+
+      expect(response.ok).toBe(true);
+      expect(response.headers.get("set-cookie")).toContain("better-auth.session_token");
+
+      const cookie = getCookieHeader(response);
+      const sessionResponse = await api.fetch(
+        new Request("http://127.0.0.1/api/auth/get-session", { headers: { cookie } }),
+      );
+      const sessionBody = (await sessionResponse.json()) as {
+        session?: { activeOrganizationId?: string; orgCompletedOnboarding?: boolean };
+        user?: { email?: string; name?: string };
+      };
+
+      expect(sessionBody.user).toMatchObject({
+        email: "fast-session@church-task.test",
+        name: "Fast Session User",
+      });
+      expect(sessionBody.session?.activeOrganizationId).toMatch(/^org_/);
+      expect(sessionBody.session?.orgCompletedOnboarding).toBe(true);
+    } finally {
+      await api.close();
+      await harness.stop();
+    }
+  }, 60_000);
+
   test("serves agent and MCP operations through the new Drizzle-backed HTTP API", async () => {
     const harness = await startPostgresHarness();
     const api = createTracerApi(harness.connectionString);
