@@ -22,6 +22,20 @@ The lowest-complexity first production shape is:
 
 Do not choose Vercel/serverless for the first production launch unless the implementation issue also includes a production `/zero` reverse proxy plan and validates that Better Auth, Zero header/cookie forwarding, and TanStack Start server behavior all work there.
 
+## Human Decision Checklist
+
+Record the final choice in #184 before opening infrastructure implementation issues:
+
+- **Postgres provider:** Neon, Supabase, or another managed Postgres provider with logical replication enabled.
+- **Primary production region:** the region where Postgres, `zero-cache`, and the app should be colocated.
+- **Zero host:** Fly.io, Railway, or another long-running host with persistent storage for the replica file.
+- **App host:** same host as `zero-cache`, or a separate Node/Bun-compatible host with a documented `/zero` proxy plan.
+- **Public Zero URL shape:** same-origin `/zero` preferred, or a separate origin with explicit CORS and cookie/header-forwarding validation.
+- **Migration owner:** the person or system responsible for running Drizzle migrations during deploys.
+- **Scheduled-work runner:** platform scheduler, separate worker, or manually triggered command path for launch.
+
+If the chosen app host differs from the `zero-cache` host, the first implementation issue must include reverse-proxy work and a production smoke test for auth cookies plus Zero query/mutate requests through that proxy.
+
 ## Required Production Contracts
 
 - Postgres must expose a direct connection string usable by Drizzle migrations, Better Auth, Effect services, and `zero-cache`.
@@ -60,3 +74,10 @@ Production infrastructure issues should account for at least:
 - Add a production `/zero` routing/proxy implementation if the app and `zero-cache` are not exposed from the same origin.
 - Add migration/deploy runbook documentation with exact commands for the chosen provider.
 - Add a production smoke checklist for Better Auth sign-in, onboarding, a Zero-backed read, a Zero-backed write, and scheduled cycle maintenance.
+
+Use this issue template shape for the follow-up implementation tickets:
+
+- **Decision:** the selected provider or topology this issue implements.
+- **Acceptance criteria:** deployed resource, required env vars/secrets, documented operational owner, and smoke-test evidence.
+- **Blocked by:** #184 and any provider-account access task.
+- **Verification:** provider-specific CLI output or deployment URL plus the production smoke checklist item covered by the change.
