@@ -1,0 +1,10 @@
+{
+  "name": "@church-task/infra-db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "health-check": "./health-check.sh 30",
+    "infra": "docker compose -f ./docker-compose.yml up"
+  }
+}

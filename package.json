@@ -5,7 +5,8 @@
     "packages": [
       "apps/*",
       "backend/*",
-      "packages/*"
+      "packages/*",
+      "infra/*"
     ],
     "catalog": {
       "@better-auth/api-key": "~1.6.9",
@@ -43,13 +44,14 @@
   },
   "type": "module",
   "scripts": {
-    "dev": "turbo dev",
+    "dev": "turbo run infra dev --continue",
     "build": "turbo build",
     "check-types": "turbo check-types",
     "dev:web": "turbo -F web dev",
     "dev:server": "turbo -F @church-task/server dev",
     "dev:server:e2e": "turbo -F @church-task/server dev:e2e",
     "dev:setup": "turbo -F @church-task/server dev:setup",
+    "db:migrate": "turbo -F @church-task/db db:migrate",
     "scheduled:cycle-maintenance": "turbo -F @church-task/server scheduled:cycle-maintenance",
     "test:cli": "turbo -F @church-task/cli test:cli",
     "test:e2e": "CHURCH_TASK_E2E_ONBOARDING_STACK=1 playwright test --workers=1",

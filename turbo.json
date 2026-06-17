@@ -21,6 +21,36 @@
       "dependsOn": ["^build"],
       "outputs": []
     },
+    "infra": {
+      "cache": false,
+      "persistent": true
+    },
+    "health-check": {
+      "cache": false
+    },
+    "web#dev": {
+      "cache": false,
+      "dependsOn": ["@church-task/infra-db#health-check", "@church-task/zero#health-check"],
+      "persistent": true
+    },
+    "@church-task/server#dev": {
+      "cache": false,
+      "dependsOn": ["@church-task/infra-db#health-check"],
+      "persistent": true
+    },
+    "@church-task/server#health-check": {
+      "cache": false,
+      "dependsOn": ["@church-task/infra-db#health-check"]
+    },
+    "@church-task/zero#infra": {
+      "cache": false,
+      "dependsOn": ["@church-task/infra-db#health-check", "@church-task/server#health-check"],
+      "persistent": true
+    },
+    "@church-task/zero#health-check": {
+      "cache": false,
+      "dependsOn": ["@church-task/server#health-check"]
+    },
     "dev": {
       "cache": false,
       "persistent": true
@@ -32,6 +62,9 @@
     "dev:e2e": {
       "cache": false,
       "persistent": true
+    },
+    "db:migrate": {
+      "cache": false
     }
   }
 }

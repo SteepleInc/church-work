@@ -1,0 +1,34 @@
+name: church-task
+
+services:
+  church_task_postgres:
+    image: postgres:16-alpine
+    network_mode: bridge
+    shm_size: 1g
+    user: postgres
+    restart: always
+    healthcheck:
+      test: "pg_isready -U postgres --dbname=church_task"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: church_task
+      POSTGRES_PASSWORD: postgres
+    command: |
+      postgres
+      -c wal_level=logical
+      -c max_wal_senders=10
+      -c max_replication_slots=5
+      -c hot_standby=on
+      -c hot_standby_feedback=on
+      -c max_connections=200
+    volumes:
+      - church_task_pgdata:/var/lib/postgresql/data
+
+volumes:
+  church_task_pgdata:
+    driver: local

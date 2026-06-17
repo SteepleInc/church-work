@@ -121,6 +121,7 @@
         "@church-task/zero": "workspace:*",
         "@effect/platform": "catalog:",
         "@rocicorp/zero": "catalog:",
+        "dotenv": "catalog:",
         "drizzle-orm": "catalog:",
         "effect": "catalog:",
       },
@@ -132,6 +133,10 @@
         "typescript": "catalog:",
         "vitest": "catalog:",
       },
+    },
+    "infra/db": {
+      "name": "@church-task/infra-db",
+      "version": "0.0.0",
     },
     "packages/auth": {
       "name": "@church-task/auth",
@@ -402,6 +407,8 @@
     "@church-task/domain": ["@church-task/domain@workspace:packages/domain"],
 
     "@church-task/env": ["@church-task/env@workspace:packages/env"],
+
+    "@church-task/infra-db": ["@church-task/infra-db@workspace:infra/db"],
 
     "@church-task/server": ["@church-task/server@workspace:backend/server"],
 
