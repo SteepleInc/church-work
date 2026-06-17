@@ -1,4 +1,4 @@
-import { createInsertSchema, createSelectSchema } from "@handfish/drizzle-effect";
+import { createInsertSchema, createSelectSchema } from "drizzle-orm/effect-schema";
 
 import { demo_items } from "./schema";
 

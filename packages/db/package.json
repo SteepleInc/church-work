@@ -16,7 +16,6 @@
   "dependencies": {
     "@church-task/domain": "workspace:*",
     "@church-task/shared": "workspace:*",
-    "@handfish/drizzle-effect": "catalog:",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
     "pg": "catalog:"
