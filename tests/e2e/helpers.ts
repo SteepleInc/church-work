@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
 export const getConvexSiteUrl = () => {
   const siteUrl = process.env.VITE_CONVEX_SITE_URL ?? process.env.CONVEX_SITE_URL;
@@ -62,6 +62,20 @@ export async function signInWithOtp(page: Page, email: string) {
   await page.locator('button[data-loading="false"]', { hasText: "Continue" }).click();
   await page.getByLabel("Verification Code").fill(await waitForOtp(page, email));
   await expect(page).toHaveURL(/\/(my-work|onboarding)$/, { timeout: 20_000 });
+}
+
+export async function signOut(page: Page) {
+  await page.evaluate(async () => {
+    const { authClient } = await import("/src/lib/auth-client.ts");
+    await authClient.signOut();
+  });
+}
+
+export async function promoteCurrentUserToAppAdmin(page: Page) {
+  const response = await page.request.post(`${getE2eApiUrl()}/api/test/app-admin`);
+
+  test.skip(response.status() === 404, "App Admin promotion helper is not deployed.");
+  expect(response.ok()).toBe(true);
 }
 
 export async function completeOnboarding(page: Page, churchName: string) {

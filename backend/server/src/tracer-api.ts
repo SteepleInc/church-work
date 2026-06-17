@@ -1,6 +1,6 @@
 import { createAuth, createLocalOtpStore } from "@church-task/auth";
 import { createDb } from "@church-task/db";
-import { demo_items } from "@church-task/db/schema";
+import { demo_items, session as sessionTable, user } from "@church-task/db/schema";
 import { anonymousServerContext, mutators, queries, schema } from "@church-task/zero";
 import { handleMutateRequest, handleQueryRequest } from "@rocicorp/zero/server";
 import { zeroDrizzle } from "@rocicorp/zero/server/adapters/drizzle";
@@ -131,6 +131,26 @@ export const createTracerApi = (databaseUrl: string) => {
       return Response.json({ ok: true, email, otp: captured.otp });
     });
 
+  const handlePromoteCurrentUserToAppAdmin = (request: Request) =>
+    Effect.tryPromise({
+      catch: (cause) => cause,
+      try: async () => {
+        const authSession = await authRuntime.auth.api.getSession({ headers: request.headers });
+
+        if (!authSession) {
+          return Response.json({ error: "Authentication required" }, { status: 401 });
+        }
+
+        await db.update(user).set({ role: "admin" }).where(eq(user.id, authSession.user.id));
+        await db
+          .update(sessionTable)
+          .set({ userRole: "admin" })
+          .where(eq(sessionTable.id, authSession.session.id));
+
+        return Response.json({ ok: true });
+      },
+    });
+
   const fetch = async (request: Request) => {
     const url = new URL(request.url);
 
@@ -138,15 +158,17 @@ export const createTracerApi = (databaseUrl: string) => {
       ? Effect.promise(() => authRuntime.auth.handler(request))
       : url.pathname === "/api/test/otp" && request.method === "GET"
         ? handleTestOtp(request)
-        : url.pathname === "/api/tracer" && request.method === "GET"
-          ? handleHealth()
-          : url.pathname === "/api/tracer/demo-items" && request.method === "POST"
-            ? handleCreateDemoItem(request)
-            : url.pathname === "/api/zero/query" && request.method === "POST"
-              ? handleZeroQuery(request)
-              : url.pathname === "/api/zero/mutate" && request.method === "POST"
-                ? handleZeroMutate(request)
-                : Effect.succeed(Response.json({ error: "Not found" }, { status: 404 }));
+        : url.pathname === "/api/test/app-admin" && request.method === "POST"
+          ? handlePromoteCurrentUserToAppAdmin(request)
+          : url.pathname === "/api/tracer" && request.method === "GET"
+            ? handleHealth()
+            : url.pathname === "/api/tracer/demo-items" && request.method === "POST"
+              ? handleCreateDemoItem(request)
+              : url.pathname === "/api/zero/query" && request.method === "POST"
+                ? handleZeroQuery(request)
+                : url.pathname === "/api/zero/mutate" && request.method === "POST"
+                  ? handleZeroMutate(request)
+                  : Effect.succeed(Response.json({ error: "Not found" }, { status: 404 }));
 
     return Effect.runPromise(effect).catch((cause) =>
       Response.json(

@@ -5,7 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { canAccessInternalNavigation } from "@/components/navigation/internal-navigation";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
-import { useUserOrgsCollection } from "@/data/orgs/orgsData.app";
+import { useAllOrgsCollectionWithFilters } from "@/data/orgs/orgsData.app";
 import { useTeamsCollection } from "@/data/teams/teamsData.app";
 import { useIsAppAdmin } from "@/data/users/adminData.app";
 import { useChurchUsersCollection } from "@/data/users/usersData.app";
@@ -130,7 +130,7 @@ export function AppAdminChurchesPanel() {
 }
 
 function AppAdminChurchesContent() {
-  const orgs = useUserOrgsCollection();
+  const orgs = useAllOrgsCollectionWithFilters();
 
   return (
     <InternalPageFrame
