@@ -17,6 +17,7 @@ import {
 } from "@church-task/db/schema";
 
 import {
+  buildCycleForInstant,
   buildCycleForLocalDate,
   cycleStartDateForLocalDate,
   runScheduledCycleMaintenance,
@@ -34,6 +35,18 @@ const baseEntity = (tag: string) => ({
 });
 
 describe("scheduled work", () => {
+  test("derives Week boundaries from the Church Time Zone around UTC date edges", () => {
+    const cycle = buildCycleForInstant({
+      churchTimeZone: "America/Los_Angeles",
+      instant: new Date("2026-06-22T06:30:00.000Z"),
+    });
+
+    expect(cycle.start_date).toBe("2026-06-15");
+    expect(cycle.end_date).toBe("2026-06-21");
+    expect(cycle.starts_at.toISOString()).toBe("2026-06-15T07:00:00.000Z");
+    expect(cycle.ends_at.toISOString()).toBe("2026-06-22T07:00:00.000Z");
+  });
+
   test("maintains cycles, rolls unfinished tasks, and projects Template work", async () => {
     const harness = await startPostgresHarness();
     const { db } = harness;
