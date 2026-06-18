@@ -20,6 +20,7 @@ export type TaskShortcutIntent =
   | { readonly kind: "none" }
   | { readonly kind: "open-help" }
   | { readonly kind: "toggle-layout" }
+  | { readonly kind: "toggle-panel" }
   | { readonly kind: "select-all" }
   | { readonly kind: "clear-selection" }
   | { readonly kind: "open-display-options" }
@@ -67,6 +68,8 @@ export function resolveSurfaceShortcut(
   if (mod) {
     if (key === "/" || key === "?") return { kind: "open-help" };
     if (key === "b" || key === "B") return { kind: "toggle-layout" };
+    // Cmd/Ctrl+I toggles the right-hand panel (Linear's panel shortcut).
+    if (key === "i" || key === "I") return { kind: "toggle-panel" };
     if (key === "a" || key === "A") return { kind: "select-all" };
     // Leave every other Cmd/Ctrl combo to the browser/app.
     return { kind: "none" };

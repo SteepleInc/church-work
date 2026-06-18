@@ -1,7 +1,5 @@
 import {
   CalendarRange,
-  ChartNoAxesColumn,
-  GaugeCircle,
   Kanban,
   List,
   ListFilter,
@@ -166,14 +164,11 @@ export function TaskViewTopBar({
             openRef={openDisplayOptionsRef}
             view={view}
           />
-          <InsightsToggleButton
+          <PanelToggleButton
             insightsOpen={insightsOpen}
             onToggleInsights={onToggleInsights}
             surface={surface}
           />
-          <Button aria-label="Breakdown panel" size="icon-sm" type="button" variant="ghost">
-            <PanelRight />
-          </Button>
         </div>
       </div>
 
@@ -189,13 +184,14 @@ export function TaskViewTopBar({
 }
 
 /**
- * The right-pane toggle in the top bar. On a Team Week board the pane is Week
- * Progress (a gauge of Started/Completed against Scope), so the affordance reads
- * "Week Progress" with a gauge glyph; everywhere else it is the chart-driven
- * Insights pane. The label, icon, and tooltip switch with the surface so the
- * button never promises a chart it will not show.
+ * The right-pane toggle in the top bar — the sidebar affordance (Linear's right
+ * panel). On a Team Week board the pane is Week Progress (a gauge of
+ * Started/Completed against Scope); everywhere else it is the chart-driven
+ * Insights pane. The label and tooltip switch with the surface so the button
+ * never promises a chart it will not show. Mirrors the Cmd/Ctrl+I shortcut the
+ * keyboard layer fires, surfaced in the tooltip like Linear.
  */
-function InsightsToggleButton({
+function PanelToggleButton({
   surface,
   insightsOpen,
   onToggleInsights,
@@ -204,9 +200,7 @@ function InsightsToggleButton({
   readonly insightsOpen: boolean;
   readonly onToggleInsights?: () => void;
 }) {
-  const isProgress = surface === "team_board";
-  const label = isProgress ? "Week Progress" : "Insights";
-  const Icon = isProgress ? GaugeCircle : ChartNoAxesColumn;
+  const label = surface === "team_board" ? "Week Progress" : "Insights";
   const tooltip = insightsOpen ? `Hide ${label}` : `Show ${label}`;
 
   return (
@@ -223,9 +217,14 @@ function InsightsToggleButton({
           />
         }
       >
-        <Icon />
+        <PanelRight />
       </TooltipTrigger>
-      <TooltipContent>{tooltip}</TooltipContent>
+      <TooltipContent className="flex items-center gap-1.5">
+        <span>{tooltip}</span>
+        <kbd className="bg-muted text-muted-foreground rounded px-1 text-[10px] font-medium">
+          ⌘ I
+        </kbd>
+      </TooltipContent>
     </Tooltip>
   );
 }

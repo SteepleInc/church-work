@@ -71,6 +71,7 @@ const SHORTCUT_SECTIONS: readonly ShortcutSection[] = [
     title: "View",
     shortcuts: [
       { label: "Toggle board / list layout", keys: ["⌘", "B"] },
+      { label: "Toggle side panel", keys: ["⌘", "I"] },
       { label: "Open display options", keys: ["⇧", "V"] },
       { label: "Open filters", keys: ["F"] },
     ],

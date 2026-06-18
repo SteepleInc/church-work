@@ -58,6 +58,9 @@ describe("resolveSurfaceShortcut", () => {
     expect(resolveSurfaceShortcut(keyEvent({ key: "b", metaKey: true }), false)).toEqual({
       kind: "toggle-layout",
     });
+    expect(resolveSurfaceShortcut(keyEvent({ key: "i", metaKey: true }), false)).toEqual({
+      kind: "toggle-panel",
+    });
     expect(resolveSurfaceShortcut(keyEvent({ key: "a", ctrlKey: true }), false)).toEqual({
       kind: "select-all",
     });

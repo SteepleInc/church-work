@@ -71,6 +71,7 @@ const EMPTY_SELECTION: ReadonlySet<string> = new Set();
  */
 export type TaskSurfaceKeyboardActions = {
   readonly onToggleLayout?: () => void;
+  readonly onTogglePanel?: () => void;
   readonly onOpenDisplayOptions?: () => void;
   // Returns the ids to select for Cmd/Ctrl+A (every non-canceled Task shown).
   readonly getSelectAllIds?: () => readonly string[];
@@ -178,6 +179,10 @@ export function TaskSurfaceKeyboardProvider({
         case "toggle-layout":
           event.preventDefault();
           actionsRef.current.onToggleLayout?.();
+          return;
+        case "toggle-panel":
+          event.preventDefault();
+          actionsRef.current.onTogglePanel?.();
           return;
         case "select-all": {
           const getSelectAllIds = actionsRef.current.getSelectAllIds;

@@ -431,6 +431,11 @@ export function TaskExecutionSurface({
 
   const keyboardActions: TaskSurfaceKeyboardActions = {
     onToggleLayout,
+    // Cmd/Ctrl+I toggles the right-hand panel, mirroring the top-bar button.
+    onTogglePanel:
+      insightsState && onInsightsChange
+        ? () => onInsightsChange({ ...insightsState, open: !insightsState.open })
+        : undefined,
     onOpenDisplayOptions,
     onOpenShortcutsHelp,
     // Cmd/Ctrl+A selects every non-canceled Task currently shown.
