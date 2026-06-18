@@ -108,6 +108,14 @@ describe("buildCycleTimeZoneAdjustments", () => {
     });
 
     expect(adjustments.map((adjustment) => adjustment.id)).toContain(futureTask.cycle_id);
+    expect(Object.keys(adjustments[0] ?? {}).sort()).toEqual([
+      "church_time_zone",
+      "end_date",
+      "ends_at",
+      "id",
+      "start_date",
+      "starts_at",
+    ]);
     expect(futureTask).toEqual({
       cycle_id: "future-cycle-id",
       due_date: "2026-07-04",
