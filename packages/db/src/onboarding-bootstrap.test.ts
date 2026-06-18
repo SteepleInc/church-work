@@ -17,6 +17,28 @@ import {
   workflows,
 } from "./schema";
 
+const addLocalDateDays = (localDate: string, days: number) => {
+  const [year, month, day] = localDate.split("-").map(Number) as [number, number, number];
+  const date = new Date(Date.UTC(year, month - 1, day + days));
+  return date.toISOString().slice(0, 10);
+};
+
+const currentCycleStartDate = (timeZone: string) => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone,
+    year: "numeric",
+  }).formatToParts(new Date());
+  const byType = Object.fromEntries(
+    parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]),
+  );
+  const localDate = `${byType.year}-${byType.month}-${byType.day}`;
+  const [year, month, day] = localDate.split("-").map(Number) as [number, number, number];
+  const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return addLocalDateDays(localDate, -((dayOfWeek + 6) % 7));
+};
+
 describe("onboarding product bootstrap", () => {
   test("creates starter Teams, memberships, Workflows, statuses, and Labels", async () => {
     const container = await new PostgreSqlContainer("postgres:16-alpine").start();
@@ -81,6 +103,10 @@ describe("onboarding product bootstrap", () => {
       await bootstrapChurchOnboarding(db, { church_id: churchId, user_id: userId });
       const secondCycleRows = await db.select().from(cycles).where(eq(cycles.church_id, churchId));
       expect(secondCycleRows).toHaveLength(2);
+      expect(secondCycleRows.map((cycle) => cycle.start_date).sort()).toEqual([
+        currentCycleStartDate("America/New_York"),
+        addLocalDateDays(currentCycleStartDate("America/New_York"), 7),
+      ]);
     } finally {
       await pool.end();
       await container.stop();
