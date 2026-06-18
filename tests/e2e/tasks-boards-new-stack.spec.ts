@@ -106,6 +106,17 @@ test("creates, assigns, moves, and preserves Task board state on the local Postg
     "data-active",
     "true",
   );
+  await expect(page.getByText("Nothing planned yet")).toBeVisible({ timeout: 20_000 });
+
+  const projectedWeekTaskTitle = `Projected Week Task ${suffix}`;
+  await page.getByRole("main").getByRole("button", { name: "Create Task" }).click();
+  const projectedWeekDialog = page.getByRole("dialog", { name: /New Task/ });
+  await expect(projectedWeekDialog).toBeVisible();
+  await expect(projectedWeekDialog.getByText("Week of")).toBeVisible();
+  await projectedWeekDialog.getByPlaceholder("Task title").fill(projectedWeekTaskTitle);
+  await projectedWeekDialog.getByRole("button", { name: "Create Task" }).click();
+  await expect(projectedWeekDialog).not.toBeVisible({ timeout: 20_000 });
+  await expect(taskCard(page, projectedWeekTaskTitle)).toBeVisible({ timeout: 20_000 });
 
   await sidebar.getByRole("link", { name: "Our Work" }).click();
   await expect(page).toHaveURL(/\/our-work$/);
