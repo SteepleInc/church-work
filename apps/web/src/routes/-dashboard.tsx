@@ -46,6 +46,7 @@ import { Schema } from "effect";
 import { useEffect, useRef, useState } from "react";
 
 import { TaskExecutionSurface } from "@/components/tasks/task-execution-surface";
+import { TeamWeeksIndex } from "@/components/weeks/team-weeks-index";
 import {
   resolveInsightsState,
   toInsightsSearchValue,
@@ -109,7 +110,8 @@ export type ActiveDashboardPanel =
   | "my_work"
   | "our_work"
   | "settings"
-  | { kind: "team"; teamIdentifier: string; weekCycleId?: string | null };
+  | { kind: "team"; teamIdentifier: string; weekCycleId?: string | null }
+  | { kind: "team_weeks"; teamIdentifier: string };
 
 function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboardPanel }) {
   const search = useSearch({ strict: false }) as DashboardSearch;
@@ -121,7 +123,7 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
 
     if (typeof panel === "object") {
       navigate({
-        to: "/team/$teamIdentifier",
+        to: panel.kind === "team_weeks" ? "/team/$teamIdentifier/weeks" : "/team/$teamIdentifier",
         params: { teamIdentifier: panel.teamIdentifier },
         search: routeSearch,
       });
@@ -161,7 +163,9 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
       : activePanel === "settings"
         ? ("my_work" as const)
         : activePanel;
-  const showTopBar = showCreateTask && (typeof activePanel !== "object" || selectedTeam !== null);
+  const showTopBar =
+    showCreateTask &&
+    (typeof activePanel !== "object" || (activePanel.kind === "team" && selectedTeam !== null));
   const activeTab = resolveTaskViewTab(surface, search.tab);
   const activeScope = surface === "team_board" ? undefined : (search.scope ?? "current_week");
   const activeView = resolveTaskViewOptions(search.view);
@@ -183,15 +187,39 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
     if (typeof activePanel !== "object" || canonicalTeamIdentifier === null) return;
 
     if (normalizeTeamIdentifier(activePanel.teamIdentifier) !== canonicalTeamIdentifier) {
-      const target = activePanel.weekCycleId
-        ? {
-            to: "/team/$teamIdentifier/weeks/$cycleId" as const,
-            params: { teamIdentifier: canonicalTeamIdentifier, cycleId: activePanel.weekCycleId },
+      let target:
+        | {
+            readonly to: "/team/$teamIdentifier/weeks";
+            readonly params: { readonly teamIdentifier: string };
           }
-        : {
-            to: "/team/$teamIdentifier" as const,
-            params: { teamIdentifier: canonicalTeamIdentifier },
+        | {
+            readonly to: "/team/$teamIdentifier/weeks/$cycleId";
+            readonly params: { readonly teamIdentifier: string; readonly cycleId: string };
+          }
+        | {
+            readonly to: "/team/$teamIdentifier";
+            readonly params: { readonly teamIdentifier: string };
           };
+
+      if (activePanel.kind === "team_weeks") {
+        target = {
+          to: "/team/$teamIdentifier/weeks",
+          params: { teamIdentifier: canonicalTeamIdentifier },
+        };
+      } else if (activePanel.weekCycleId) {
+        target = {
+          to: "/team/$teamIdentifier/weeks/$cycleId",
+          params: {
+            teamIdentifier: canonicalTeamIdentifier,
+            cycleId: activePanel.weekCycleId,
+          },
+        };
+      } else {
+        target = {
+          to: "/team/$teamIdentifier",
+          params: { teamIdentifier: canonicalTeamIdentifier },
+        };
+      }
 
       void navigate({
         ...target,
@@ -299,6 +327,21 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
             ))}
           </div>
         </section>
+      ) : activeChurchId &&
+        currentUserId &&
+        typeof activePanel === "object" &&
+        activePanel.kind === "team_weeks" &&
+        selectedTeam?.identifier ? (
+        <TeamWeeksIndex
+          churchId={activeChurchId}
+          currentUserId={currentUserId}
+          team={{
+            id: selectedTeam.id,
+            identifier: selectedTeam.identifier,
+            name: selectedTeam.name,
+            color: selectedTeam.color,
+          }}
+        />
       ) : activeChurchId && currentUserId ? (
         <TaskExecutionSurface
           churchId={activeChurchId}
@@ -310,7 +353,11 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
           view={search.view}
           scope={activeScope}
           week={search.week}
-          weekCycleId={typeof activePanel === "object" ? activePanel.weekCycleId : null}
+          weekCycleId={
+            typeof activePanel === "object" && activePanel.kind === "team"
+              ? activePanel.weekCycleId
+              : null
+          }
           insights={activeInsights}
           onInsightsChange={setInsights}
           onToggleLayout={toggleLayout}

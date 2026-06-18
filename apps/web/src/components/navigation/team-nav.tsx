@@ -131,6 +131,7 @@ function isWeekScope(value: string | undefined): value is WeekScope {
 
 export function getTeamChildHref(identifier: string, key: string): string {
   const href = teamHref(identifier);
+  if (key === "weeks") return `${href}/weeks`;
   if (isWeekScope(key)) return `${href}?week=${key}`;
   return href;
 }
@@ -148,9 +149,15 @@ export function resolveActiveTeamChild(args: {
   readonly pathname: string;
   readonly teamHref: string;
   readonly week: string | undefined;
-}): "tasks" | WeekScope | null {
+}): "tasks" | "weeks" | WeekScope | null {
   const onTeam = args.pathname === args.teamHref || args.pathname.startsWith(`${args.teamHref}/`);
   if (!onTeam) return null;
+  if (
+    args.pathname === `${args.teamHref}/weeks` ||
+    args.pathname.startsWith(`${args.teamHref}/weeks/`)
+  ) {
+    return "weeks";
+  }
   if (isWeekScope(args.week)) return args.week;
   return "tasks";
 }
@@ -230,7 +237,8 @@ function TeamNavItem({
   const expansionKey = `team:${team.id}`;
   // When a Week shortcut is the active surface, reveal it: open the Team and
   // its Weeks group so the highlighted item is visible without a manual expand.
-  const weekActive = activeChild === "current" || activeChild === "upcoming";
+  const weekActive =
+    activeChild === "weeks" || activeChild === "current" || activeChild === "upcoming";
   const isOpen = (expanded[expansionKey] ?? false) || weekActive;
 
   return (
@@ -330,7 +338,7 @@ function TeamChildItem({
   readonly parentKey: string;
   readonly expanded: Record<string, boolean>;
   readonly setExpanded: (key: string, open: boolean) => void;
-  readonly activeChild: "tasks" | WeekScope | null;
+  readonly activeChild: "tasks" | "weeks" | WeekScope | null;
   readonly weekActive: boolean;
 }) {
   const { setOpenMobile } = useSidebar();
@@ -372,6 +380,13 @@ function TeamChildItem({
         </CollapsibleTrigger>
         <CollapsibleContent>
           <SidebarMenuSub>
+            <ChildLink
+              href={getTeamChildHref(identifier, child.key)}
+              icon={child.icon}
+              isActive={activeChild === child.key}
+              label="All Weeks"
+              week={undefined}
+            />
             {child.children.map((grandchild) => (
               <ChildLink
                 key={grandchild.key}

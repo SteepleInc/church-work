@@ -1,6 +1,7 @@
 import { formatWeekDateRange } from "@/data/cycles/cyclesData.app";
 import { CalendarDays } from "lucide-react";
 
+import type { WeekCsvTask } from "./week-actions-data";
 import { WeekActionsMenu, type WeekActionsMenuCycle } from "./week-actions-menu";
 
 /**
@@ -12,9 +13,11 @@ import { WeekActionsMenu, type WeekActionsMenuCycle } from "./week-actions-menu"
 export function WeekHeader({
   churchId,
   cycle,
+  tasks,
 }: {
   readonly churchId: string;
   readonly cycle: WeekActionsMenuCycle;
+  readonly tasks?: readonly WeekCsvTask[];
 }) {
   const dateRange = formatWeekDateRange(cycle);
   const name = cycle.name?.trim() || null;
@@ -24,6 +27,7 @@ export function WeekHeader({
       <WeekActionsMenu
         churchId={churchId}
         cycle={cycle}
+        tasks={tasks}
         trigger={
           <button
             aria-label={name ? `Week: ${name}. Edit Week details` : "Name this Week"}

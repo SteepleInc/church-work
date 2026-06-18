@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 
 import { startAuthenticatedSession } from "./helpers";
 
@@ -59,6 +60,10 @@ test("creates, assigns, moves, and preserves Task board state on the local Postg
   const expandWorship = worshipTeamItem.getByRole("button", { name: "Expand Worship" });
   if (await expandWorship.isVisible()) await expandWorship.click();
   await worshipTeamItem.getByRole("button", { name: "Weeks" }).click();
+  await worshipTeamItem.getByRole("link", { name: "All Weeks" }).click();
+  await expect(page).toHaveURL(/\/team\/worship\/weeks$/);
+  await expect(page.getByRole("heading", { name: "Weeks" })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Church-wide Weeks for Worship")).toBeVisible();
   await worshipTeamItem.getByRole("link", { name: "Current" }).click();
   await expect(page).toHaveURL(/\/team\/worship\?week=current$/);
   await expect(worshipTeamItem.getByRole("link", { name: "Current" })).toHaveAttribute(
@@ -70,6 +75,8 @@ test("creates, assigns, moves, and preserves Task board state on the local Postg
   await expect(page).toHaveURL(/\/team\/worship\/weeks\/[^/?]+$/);
   const weekBreadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
   await expect(weekBreadcrumb).toContainText("Worship");
+  await weekBreadcrumb.getByRole("link", { name: "Weeks" }).click();
+  await expect(page).toHaveURL(/\/team\/worship\/weeks$/);
   await weekBreadcrumb.getByRole("link", { name: "Worship" }).click();
   await expect(page).toHaveURL(/\/team\/worship$/);
 
@@ -107,6 +114,31 @@ test("creates, assigns, moves, and preserves Task board state on the local Postg
   await createTask(page, sharedTaskTitle, { team: "Worship" });
   await expect(taskCard(page, sharedTaskTitle)).toBeVisible({ timeout: 20_000 });
   await expect(taskCard(page, sharedTaskTitle)).toContainText(/[A-Z0-9]+-\d+/);
+
+  await page.getByRole("button", { name: new RegExp(`Week: ${escapeRegExp(weekName)}`) }).click();
+  await expect(page.getByRole("menuitem", { name: /Export tasks as CSV\s+1/ })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Open in new tab" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Open in new window" })).toBeVisible();
+
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("menuitem", { name: /Export tasks as CSV\s+1/ }).click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/^week-\d{4}-\d{2}-\d{2}-tasks\.csv$/);
+  const downloadPath = await download.path();
+  expect(downloadPath).toBeTruthy();
+  const csv = await readFile(downloadPath!, "utf8");
+  expect(csv).toContain("Identifier,Title,Status,Task state,Assignee,Team,Due date");
+  expect(csv).toContain(sharedTaskTitle);
+  expect(csv).toContain("Worship");
+
+  await page.getByRole("button", { name: new RegExp(`Week: ${escapeRegExp(weekName)}`) }).click();
+  const [popup] = await Promise.all([
+    page.waitForEvent("popup"),
+    page.getByRole("menuitem", { name: "Open in new tab" }).click(),
+  ]);
+  await expect(popup).toHaveURL(page.url());
+  await popup.close();
 
   await chooseCardOption(taskCard(page, sharedTaskTitle), "Assign to", userName);
   await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "My Work" }).click();

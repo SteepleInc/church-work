@@ -12,6 +12,9 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -19,10 +22,26 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { formatWeekDateRange, useUpdateWeekDetailsMutation } from "@/data/cycles/cyclesData.app";
-import { Lock, MoreHorizontal, Pencil } from "lucide-react";
+import {
+  Download,
+  ExternalLink,
+  Lock,
+  MoreHorizontal,
+  Pencil,
+  SquareArrowOutUpRight,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { toast } from "sonner";
+
+import {
+  WEEK_ACTION_MENU_LABELS,
+  buildWeekTasksCsv,
+  getWeekCsvTasks,
+  type WeekCsvTask,
+} from "./week-actions-data";
+
+const [exportTasksLabel, openInNewTabLabel, openInNewWindowLabel] = WEEK_ACTION_MENU_LABELS;
 
 export type WeekActionsMenuCycle = {
   readonly id: string;
@@ -37,10 +56,12 @@ const NAME_MAX_LENGTH = 80;
 export function WeekActionsMenu({
   churchId,
   cycle,
+  tasks = [],
   trigger,
 }: {
   readonly churchId: string;
   readonly cycle: WeekActionsMenuCycle;
+  readonly tasks?: readonly WeekCsvTask[];
   // Optional custom trigger so callers can present the menu inline (e.g. a Week
   // header) while the default "⋯" button still works on its own.
   readonly trigger?: ReactElement;
@@ -86,6 +107,28 @@ export function WeekActionsMenu({
     setError(result.error.message);
   };
 
+  const weekUrl = typeof window === "undefined" ? "" : window.location.href;
+  const scopedTaskCount = getWeekCsvTasks({ cycleId: cycle.id, tasks }).length;
+  const weekLabel = cycle.name?.trim() || dateRange;
+
+  const exportTasks = () => {
+    const csv = buildWeekTasksCsv({ cycleId: cycle.id, tasks });
+    downloadCsv(csv, `week-${cycle.startDate}-tasks.csv`);
+    toast.success(
+      scopedTaskCount === 1
+        ? "Exported 1 Task as CSV."
+        : `Exported ${scopedTaskCount} Tasks as CSV.`,
+    );
+  };
+  const openInNewTab = () => {
+    if (!weekUrl) return;
+    window.open(weekUrl, "_blank", "noopener,noreferrer");
+  };
+  const openInNewWindow = () => {
+    if (!weekUrl) return;
+    window.open(weekUrl, "_blank", "noopener,noreferrer,width=1280,height=900");
+  };
+
   return (
     <>
       <DropdownMenu>
@@ -99,7 +142,32 @@ export function WeekActionsMenu({
             <MoreHorizontal className="size-4" />
           </DropdownMenuTrigger>
         )}
-        <DropdownMenuContent align="start" className="w-52">
+        <DropdownMenuContent align="start" className="w-56">
+          <DropdownMenuLabel className="truncate">{weekLabel}</DropdownMenuLabel>
+
+          <DropdownMenuItem disabled={scopedTaskCount === 0} onSelect={exportTasks}>
+            <Download className="size-4" />
+            <span className="truncate">{exportTasksLabel}</span>
+            {scopedTaskCount > 0 ? (
+              <DropdownMenuShortcut className="tabular-nums">
+                {scopedTaskCount}
+              </DropdownMenuShortcut>
+            ) : null}
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuItem onSelect={openInNewTab}>
+            <ExternalLink className="size-4" />
+            {openInNewTabLabel}
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={openInNewWindow}>
+            <SquareArrowOutUpRight className="size-4" />
+            {openInNewWindowLabel}
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+
           <DropdownMenuItem onSelect={() => setOpen(true)}>
             <Pencil className="size-4" />
             {cycle.name ? "Rename Week…" : "Name this Week…"}
@@ -186,4 +254,14 @@ export function WeekActionsMenu({
       </Dialog>
     </>
   );
+}
+
+function downloadCsv(csv: string, filename: string) {
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }

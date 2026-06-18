@@ -1,6 +1,7 @@
 import { useOpenTaskDetailsPaneUrl } from "@/components/details-pane/details-pane-helpers";
 import { WeekHeader } from "@/components/weeks/week-header";
 import { TeamWeekSelector } from "@/components/weeks/team-week-selector";
+import type { WeekCsvTask } from "@/components/weeks/week-actions-data";
 import { useCyclesCollection } from "@/data/cycles/cyclesData.app";
 import { useLabelsCollection } from "@/data/labels/labelsData.app";
 import { useTeamMembershipsCollection } from "@/data/teams/teamsData.app";
@@ -335,6 +336,25 @@ export function TaskExecutionSurface({
     id: user.id,
     label: getUserDisplayName(user),
   }));
+  const workflowStatusNamesById = new Map(
+    activeWorkflowStatuses.map((status) => [status.id, status.name] as const),
+  );
+  const assigneeNamesById = new Map(
+    assigneeOptions.map((assignee) => [assignee.id, assignee.label]),
+  );
+  const teamNamesById = new Map(teams.map((teamOption) => [teamOption.id, teamOption.name]));
+  const weekCsvTasks: readonly WeekCsvTask[] = boardTasks.map((task) => ({
+    identifier: task.identifier,
+    title: task.title,
+    taskState: task.taskState,
+    workflowStatusName: workflowStatusNamesById.get(task.workflowStatusId) ?? null,
+    assignedUserName: task.assignedUserId
+      ? (assigneeNamesById.get(task.assignedUserId) ?? null)
+      : null,
+    teamName: teamNamesById.get(task.teamId) ?? null,
+    dueDate: task.dueDate,
+    cycleId: task.cycleId,
+  }));
   const sharedSurfaceProps = {
     workflowStatuses: workflowStatuses.map(toBoardWorkflowStatus),
     tasks: boardTasks,
@@ -472,7 +492,7 @@ export function TaskExecutionSurface({
                   {surface === "team_board" && team ? (
                     <WeekBreadcrumb teamIdentifier={team.identifier} teamName={team.name} />
                   ) : null}
-                  <WeekHeader churchId={churchId} cycle={currentWeek} />
+                  <WeekHeader churchId={churchId} cycle={currentWeek} tasks={weekCsvTasks} />
                 </div>
                 {surface === "team_board" && team?.identifier ? (
                   <TeamWeekSelector
@@ -710,7 +730,18 @@ function WeekBreadcrumb({
         <span className="truncate">{teamName}</span>
       )}
       <ChevronRight aria-hidden className="size-3 shrink-0 opacity-60" />
-      <span className="font-medium text-foreground/80">Weeks</span>
+      {teamIdentifier ? (
+        <Link
+          to="/team/$teamIdentifier/weeks"
+          params={{ teamIdentifier }}
+          search={true}
+          className="rounded font-medium text-foreground/80 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Weeks
+        </Link>
+      ) : (
+        <span className="font-medium text-foreground/80">Weeks</span>
+      )}
     </nav>
   );
 }

@@ -13,6 +13,7 @@ describe("team navigation", () => {
 
   test("builds Team Tasks and Week shortcut destinations", () => {
     expect(getTeamChildHref("care", "tasks")).toBe("/team/care");
+    expect(getTeamChildHref("care", "weeks")).toBe("/team/care/weeks");
     expect(getTeamChildHref("care", "current")).toBe("/team/care?week=current");
     expect(getTeamChildHref("care", "upcoming")).toBe("/team/care?week=upcoming");
   });
@@ -22,6 +23,12 @@ describe("team navigation", () => {
 
     // The bare Team path is the Default Team View ("Tasks").
     expect(resolveActiveTeamChild({ pathname: teamHref, teamHref, week: undefined })).toBe("tasks");
+    expect(
+      resolveActiveTeamChild({ pathname: `${teamHref}/weeks`, teamHref, week: undefined }),
+    ).toBe("weeks");
+    expect(
+      resolveActiveTeamChild({ pathname: `${teamHref}/weeks/cycle-1`, teamHref, week: undefined }),
+    ).toBe("weeks");
 
     // The Week shortcuts share the Team path, scoped by the `week` param.
     expect(resolveActiveTeamChild({ pathname: teamHref, teamHref, week: "current" })).toBe(
