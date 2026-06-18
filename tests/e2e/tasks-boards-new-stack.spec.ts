@@ -54,6 +54,28 @@ test("creates, assigns, moves, and preserves Task board state on the local Postg
 
   await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Our Work" }).click();
   await expect(page).toHaveURL(/\/our-work$/);
+
+  await page.getByRole("button", { name: "Name this Week" }).click();
+  await page.getByRole("menuitem", { name: "Name this Week…" }).click();
+  const weekDialog = page.getByRole("dialog", { name: "Edit Week details" });
+  await expect(weekDialog).toBeVisible();
+  await expect(weekDialog.getByText("dates can't be changed")).toBeVisible();
+  const weekName = `Launch Week ${suffix}`;
+  const weekDescription = `Coordinate visible task-board work for ${suffix}.`;
+  await weekDialog.getByLabel("Name").fill(weekName);
+  await weekDialog.getByLabel("Description").fill(weekDescription);
+  await weekDialog.getByRole("button", { name: "Save Week" }).click();
+  await expect(weekDialog).not.toBeVisible({ timeout: 20_000 });
+  await expect(
+    page.getByRole("button", { name: new RegExp(`Week: ${escapeRegExp(weekName)}`) }),
+  ).toBeVisible({
+    timeout: 20_000,
+  });
+  await page.getByRole("button", { name: new RegExp(`Week: ${escapeRegExp(weekName)}`) }).click();
+  await page.getByRole("menuitem", { name: "Rename Week…" }).click();
+  await expect(weekDialog.getByLabel("Description")).toHaveValue(weekDescription);
+  await weekDialog.getByRole("button", { name: "Cancel" }).click();
+
   await createTask(page, sharedTaskTitle, { team: "Worship" });
   await expect(taskCard(page, sharedTaskTitle)).toBeVisible({ timeout: 20_000 });
   await expect(taskCard(page, sharedTaskTitle)).toContainText(/[A-Z0-9]+-\d+/);
