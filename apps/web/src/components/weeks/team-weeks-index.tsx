@@ -10,7 +10,7 @@ import { getUserDisplayName, useChurchUsersCollection } from "@/data/users/users
 import { cn } from "@/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { CalendarDays, ChevronRight, GaugeCircle } from "lucide-react";
-import { useId, type ComponentProps } from "react";
+import { useId, useMemo, type ComponentProps } from "react";
 
 import {
   buildTeamWeeksIndexRows,
@@ -41,6 +41,24 @@ const CLOSED_PROGRESS_CYCLE_ID = "closed";
 type TeamWeeksIndexProgressTask = ComponentProps<typeof WeekProgressPanel>["tasks"][number] & {
   readonly cycleId?: string | null;
 };
+
+function resolveExpandedCycleId({
+  progressCycleId,
+  rows,
+}: {
+  readonly progressCycleId?: string | null;
+  readonly rows: readonly TeamWeeksIndexRow[];
+}) {
+  if (progressCycleId === CLOSED_PROGRESS_CYCLE_ID) {
+    return null;
+  }
+
+  if (progressCycleId) {
+    return progressCycleId;
+  }
+
+  return rows.find((row) => row.status === "current")?.id ?? null;
+}
 
 export function TeamWeeksIndex({
   churchId,
@@ -78,10 +96,25 @@ export function TeamWeeksIndex({
   });
   const sections = groupTeamWeeksIndexRows(rows);
   const isLoading = cyclesCollection.loading || tasksCollection.loading;
-  const expandedCycleId =
-    progressCycleId === CLOSED_PROGRESS_CYCLE_ID
-      ? null
-      : (progressCycleId ?? rows.find((row) => row.status === "current")?.id ?? null);
+  const expandedCycleId = resolveExpandedCycleId({ progressCycleId, rows });
+  const tasksByCycleId = useMemo(() => {
+    const grouped = new Map<string, TeamWeeksIndexProgressTask[]>();
+
+    for (const task of tasksCollection.tasksCollection) {
+      if (!task.cycleId) {
+        continue;
+      }
+
+      const cycleTasks = grouped.get(task.cycleId);
+      if (cycleTasks) {
+        cycleTasks.push(task);
+      } else {
+        grouped.set(task.cycleId, [task]);
+      }
+    }
+
+    return grouped;
+  }, [tasksCollection.tasksCollection]);
   const progressMeta = {
     assignees: usersCollection.usersCollection.map((user) => ({
       id: user.id,
@@ -121,7 +154,7 @@ export function TeamWeeksIndex({
               expandedCycleId={expandedCycleId}
               onProgressCycleIdChange={onProgressCycleIdChange}
               progressMeta={progressMeta}
-              tasks={tasksCollection.tasksCollection}
+              tasksByCycleId={tasksByCycleId}
             />
           ))}
         </div>
@@ -160,7 +193,7 @@ function WeekSection({
   expandedCycleId,
   onProgressCycleIdChange,
   progressMeta,
-  tasks,
+  tasksByCycleId,
 }: {
   readonly status: TeamWeeksIndexStatus;
   readonly rows: readonly TeamWeeksIndexRow[];
@@ -168,7 +201,7 @@ function WeekSection({
   readonly expandedCycleId: string | null;
   readonly onProgressCycleIdChange?: (cycleId: string | null) => void;
   readonly progressMeta: ComponentProps<typeof WeekProgressPanel>["meta"];
-  readonly tasks: readonly TeamWeeksIndexProgressTask[];
+  readonly tasksByCycleId: ReadonlyMap<string, readonly TeamWeeksIndexProgressTask[]>;
 }) {
   return (
     <section className="flex flex-col gap-2">
@@ -189,7 +222,7 @@ function WeekSection({
                 expanded={row.id === expandedCycleId}
                 onProgressCycleIdChange={onProgressCycleIdChange}
                 progressMeta={progressMeta}
-                tasks={tasks.filter((task) => task.cycleId === row.id)}
+                tasks={tasksByCycleId.get(row.id) ?? []}
               />
             </li>
           ))}
