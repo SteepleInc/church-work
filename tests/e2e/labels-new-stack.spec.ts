@@ -49,6 +49,8 @@ test("manages Labels and applies them to Tasks on the local Postgres and Zero st
 
   await page.goto("/our-work");
   await expect(page).toHaveURL(/\/our-work$/);
+  await page.getByRole("button", { name: "All" }).click();
+  await expect(page).toHaveURL(/\/our-work\?scope=all$/);
   await createTask(page, taskTitle, { team: "Worship" });
 
   const taskCard = page.getByLabel(`Task card ${taskTitle}`);

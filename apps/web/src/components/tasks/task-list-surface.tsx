@@ -148,11 +148,12 @@ export function TaskListSurface({
     // headers stay crisp and fully opaque (the mask would fade the top edge
     // where headers pin).
     <ScrollArea className={cn("min-h-0 flex-1", className)} maskHeight={0} scrollFade={false}>
-      <div className="flex flex-col pb-4">
-        {columns.map((column) => (
+      <div className="flex flex-col">
+        {columns.map((column, index) => (
           <TaskListGroup
             key={column.id}
             column={column}
+            isLast={index === columns.length - 1}
             tasks={tasksByColumn[column.id] ?? []}
             workflowStatuses={workflowStatuses}
             assigneeOptions={assigneeOptions}
@@ -176,6 +177,7 @@ export function TaskListSurface({
 
 type TaskListGroupProps = {
   readonly column: TaskBoardGroupColumn;
+  readonly isLast: boolean;
   readonly tasks: readonly TaskBoardTask[];
   readonly workflowStatuses: readonly TaskBoardWorkflowStatus[];
   readonly assigneeOptions: readonly AssigneeOption[];
@@ -194,6 +196,7 @@ type TaskListGroupProps = {
 
 function TaskListGroup({
   column,
+  isLast,
   tasks,
   workflowStatuses,
   assigneeOptions,
@@ -218,9 +221,15 @@ function TaskListGroup({
     // Each group is a plain block; its sticky header is bounded by this block,
     // so the next group's header pushes it up as it scrolls past (pure-CSS
     // Linear-style sticky behavior — no scroll listeners).
-    <section aria-label={`${column.title} group`}>
+    <section
+      aria-label={`${column.title} group`}
+      className={cn(
+        "flex flex-col last:[&_[data-task-list-row]:last-child]:border-b-0",
+        !isLast && (collapsed || tasks.length === 0) && "mb-1",
+      )}
+    >
       <div
-        className="group/header sticky top-0 z-10 flex h-9 items-center justify-between gap-2 bg-muted/50 px-6 backdrop-blur-sm"
+        className="group/header sticky top-0 z-10 mx-3 flex h-9 items-center justify-between gap-2 rounded-md bg-muted px-3 backdrop-blur-sm"
         onDoubleClick={() => setCollapsed((value) => !value)}
       >
         <div className="flex min-w-0 items-center gap-1.5">
@@ -451,16 +460,17 @@ function TaskListRow({
   const row = (
     <div
       ref={rowRef}
+      aria-label={`Task card ${task.title}`}
+      data-task-list-row=""
       data-selected={isSelected || undefined}
       className={cn(
-        "flex h-11 items-center gap-2 border-border/60 border-b px-6 transition-colors",
+        "mx-3 my-0.5 flex h-9 items-center gap-2 rounded-md px-3 transition-colors",
         rowState === "canceled" && "opacity-70",
-        onOpenTask && "cursor-pointer hover:bg-accent/50",
-        isFocused && "bg-accent/60 ring-1 ring-primary/50 ring-inset",
+        onOpenTask && "cursor-pointer hover:bg-muted/70",
+        isFocused && "bg-accent/60",
         isSelected && "bg-primary/5",
       )}
       onClick={handleRowClick}
-      onPointerEnter={() => keyboard?.setFocusedTaskId(task.id)}
     >
       {showProperty("priority") ? (
         <form.Field name="priority">
