@@ -650,6 +650,7 @@ type TaskPatch = {
   readonly updated_at: Date;
   readonly updated_by: string;
   cycle_id?: string | null;
+  task_state?: string;
   [key: string]: unknown;
 };
 type ProjectionTaskInsert = {
@@ -860,7 +861,7 @@ const taskPatchForFields = async (
       status.task_state === "done" ? now : task.task_state === "done" ? null : task.finished_at;
   }
 
-  const effectiveTaskState = (patch.task_state as string | undefined) ?? task.task_state;
+  const effectiveTaskState = patch.task_state ?? task.task_state;
   const effectiveCycleId = Object.hasOwn(patch, "cycle_id") ? patch.cycle_id : task.cycle_id;
   if (effectiveTaskState !== "todo" && effectiveCycleId === null) {
     patch.cycle_id = await requireCurrentCycleId(db, args.church_id);
@@ -2107,15 +2108,16 @@ export const mutators = defineMutators({
       );
       const now = new Date();
       const taskId = getTaskId();
-      const cycleId = args.target_cycle
-        ? await ensureTargetCycle(db, {
-            church_id: args.church_id,
-            session_user_id: session.user_id,
-            target_cycle: args.target_cycle,
-          })
-        : status.task_state === "todo"
-          ? null
-          : await requireCurrentCycleId(db, args.church_id);
+      let cycleId: string | null = null;
+      if (args.target_cycle) {
+        cycleId = await ensureTargetCycle(db, {
+          church_id: args.church_id,
+          session_user_id: session.user_id,
+          target_cycle: args.target_cycle,
+        });
+      } else if (status.task_state !== "todo") {
+        cycleId = await requireCurrentCycleId(db, args.church_id);
+      }
 
       await db.insert(tasks).values({
         _tag: "task",
