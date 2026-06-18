@@ -2,6 +2,7 @@ import { useOpenTaskDetailsPaneUrl } from "@/components/details-pane/details-pan
 import { WeekHeader } from "@/components/weeks/week-header";
 import { TeamWeekSelector } from "@/components/weeks/team-week-selector";
 import type { WeekCsvTask } from "@/components/weeks/week-actions-data";
+import { buildProjectedWeekCycles } from "@/components/weeks/team-weeks-index-data";
 import { useCyclesCollection } from "@/data/cycles/cyclesData.app";
 import { useLabelsCollection } from "@/data/labels/labelsData.app";
 import { useTeamMembershipsCollection } from "@/data/teams/teamsData.app";
@@ -176,6 +177,7 @@ export function TaskExecutionSurface({
   scope,
   week,
   weekNumber,
+  churchTimeZone = "UTC",
   insights,
   onInsightsChange,
   onToggleLayout,
@@ -196,6 +198,7 @@ export function TaskExecutionSurface({
   readonly scope?: TaskWeekScope;
   readonly week?: WeekShortcut;
   readonly weekNumber?: number | null;
+  readonly churchTimeZone?: string;
   readonly insights?: ResolvedInsightsState;
   readonly onInsightsChange?: (next: ResolvedInsightsState) => void;
   // Surface-level keyboard shortcut targets, owned by the route.
@@ -223,7 +226,11 @@ export function TaskExecutionSurface({
     teamMembershipsCollection.teamMembershipsCollection,
   );
 
-  const cycles = cyclesCollection.cyclesCollection;
+  const cycles = buildProjectedWeekCycles({
+    churchTimeZone,
+    cycles: cyclesCollection.cyclesCollection,
+    today,
+  });
   const currentCycle = selectCurrentExecutionCycle(cycles, today);
   const scopedCycle = resolveExecutionCycleScope({ surface, week, weekNumber, cycles, today });
   const executionCycleId =
@@ -237,7 +244,10 @@ export function TaskExecutionSurface({
   // The selector returns only the date fields it needs; pull the full Week row
   // back out so the header can show its Church-wide name/description.
   const currentWeek = executionCycleId
-    ? (cycles.find((cycle) => cycle.id === executionCycleId) ?? null)
+    ? (() => {
+        const cycle = cycles.find((cycle) => cycle.id === executionCycleId);
+        return cycle ? { ...cycle, description: cycle.description ?? null } : null;
+      })()
     : null;
   // Every Team owns its Workflow (ADR 0013): a Team Board shows that
   // Workflow's statuses. Cross-team surfaces carry every active status so
@@ -412,6 +422,7 @@ export function TaskExecutionSurface({
         grouping: boardGrouping,
         columnId,
         defaults: getTaskCreationDefaults({ surface, currentUserId, teamId: team?.id ?? null }),
+        ...(scopedCycle ? { targetCycle: scopedCycle.targetCycle } : {}),
         unassignedColumnId: UNASSIGNED_COLUMN_ID,
       }),
     );
@@ -604,6 +615,7 @@ export function TaskExecutionSurface({
                     assignTo: defaults.assignedUserId,
                     teamId: defaults.teamId,
                     workflowStatusId,
+                    ...(scopedCycle ? { targetCycle: scopedCycle.targetCycle } : {}),
                   });
                 }}
                 onToggleColumnHidden={(workflowStatusId) => {

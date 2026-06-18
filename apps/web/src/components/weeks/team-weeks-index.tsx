@@ -16,6 +16,7 @@ import {
 
 import {
   buildTeamWeekBurndown,
+  buildProjectedWeekCycles,
   buildTeamWeeksTimelineRows,
   type TeamWeeksIndexStatus,
   type TeamWeeksTimelineRow,
@@ -69,6 +70,7 @@ export function TeamWeeksIndex({
   team,
   progressCycleId,
   onProgressCycleIdChange,
+  churchTimeZone = "UTC",
 }: {
   readonly churchId: string;
   readonly currentUserId: string;
@@ -80,6 +82,7 @@ export function TeamWeeksIndex({
   };
   readonly progressCycleId?: string | null;
   readonly onProgressCycleIdChange?: (cycleId: string | null) => void;
+  readonly churchTimeZone?: string;
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const cyclesCollection = useCyclesCollection({ churchId, currentUserId });
@@ -88,12 +91,18 @@ export function TeamWeeksIndex({
     currentUserId,
     filters: { teamId: team.id },
   });
-  const rows = buildTeamWeeksTimelineRows({
+  const cycles = buildProjectedWeekCycles({
+    churchTimeZone,
     cycles: cyclesCollection.cyclesCollection,
+    today,
+  });
+  const rows = buildTeamWeeksTimelineRows({
+    cycles,
     tasks: tasksCollection.tasksCollection,
     teamId: team.id,
     teamIdentifier: team.identifier,
     today,
+    churchTimeZone,
   });
   const isLoading = cyclesCollection.loading || tasksCollection.loading;
   const expandedCycleId = resolveExpandedCycleId({ progressCycleId, rows });

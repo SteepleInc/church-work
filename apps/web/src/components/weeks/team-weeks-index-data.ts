@@ -1,3 +1,9 @@
+import {
+  addLocalDateDays,
+  cycleStartDateForLocalDate,
+  localMidnightToUtcInstant,
+} from "@church-task/domain";
+
 import { formatWeekDateRange } from "@/data/cycles/cyclesData.app";
 
 export type TeamWeeksIndexStatus = "current" | "upcoming" | "completed";
@@ -8,11 +14,23 @@ export type TeamWeeksIndexCycle = {
   readonly endDate: string;
   readonly name: string | null;
   readonly description?: string | null;
+  readonly startsAt?: number;
+  readonly endsAt?: number;
+  readonly projected?: boolean;
+  readonly targetCycle?: TeamWeeksTargetCycle;
+};
+
+export type TeamWeeksTargetCycle = {
+  readonly churchTimeZone: string;
+  readonly startDate: string;
+  readonly endDate: string;
+  readonly startsAt: string;
+  readonly endsAt: string;
 };
 
 export type TeamWeeksIndexTask = {
   readonly id: string;
-  readonly cycleId: string;
+  readonly cycleId: string | null;
   readonly teamId: string;
   readonly taskState: "todo" | "in_progress" | "done" | "canceled";
 };
@@ -31,7 +49,63 @@ export type TeamWeeksIndexRow = {
   readonly completedCount: number;
   /** Whole-percent share of this Week's scoped Tasks that are Done (0 when empty). */
   readonly completedPercentage: number;
+  readonly projected: boolean;
+  readonly targetCycle: TeamWeeksTargetCycle;
 };
+
+export function buildTargetCycle(args: {
+  readonly churchTimeZone: string;
+  readonly startDate: string;
+}): TeamWeeksTargetCycle {
+  const endDate = addLocalDateDays(args.startDate, 6);
+  return {
+    churchTimeZone: args.churchTimeZone,
+    endDate,
+    endsAt: localMidnightToUtcInstant(
+      addLocalDateDays(args.startDate, 7),
+      args.churchTimeZone,
+    ).toISOString(),
+    startDate: args.startDate,
+    startsAt: localMidnightToUtcInstant(args.startDate, args.churchTimeZone).toISOString(),
+  };
+}
+
+export function buildProjectedWeekCycles(args: {
+  readonly cycles: readonly TeamWeeksIndexCycle[];
+  readonly today: string;
+  readonly churchTimeZone: string;
+  readonly pastWeeks?: number;
+  readonly futureWeeks?: number;
+}): readonly TeamWeeksIndexCycle[] {
+  const currentStart = cycleStartDateForLocalDate(args.today);
+  const pastWeeks = args.pastWeeks ?? 2;
+  const futureWeeks = args.futureWeeks ?? 8;
+  const byStartDate = new Map(args.cycles.map((cycle) => [cycle.startDate, cycle]));
+
+  for (let offset = -pastWeeks; offset <= futureWeeks; offset += 1) {
+    const startDate = addLocalDateDays(currentStart, offset * 7);
+    if (byStartDate.has(startDate)) continue;
+    const target = buildTargetCycle({ churchTimeZone: args.churchTimeZone, startDate });
+    byStartDate.set(startDate, {
+      id: `projected-week:${startDate}`,
+      description: null,
+      endDate: target.endDate,
+      endsAt: Date.parse(target.endsAt),
+      name: null,
+      projected: true,
+      startDate,
+      startsAt: Date.parse(target.startsAt),
+      targetCycle: target,
+    });
+  }
+
+  return [...byStartDate.values()].map((cycle) => ({
+    ...cycle,
+    targetCycle:
+      cycle.targetCycle ??
+      buildTargetCycle({ churchTimeZone: args.churchTimeZone, startDate: cycle.startDate }),
+  }));
+}
 
 export type TeamWeeksIndexSection = {
   readonly status: TeamWeeksIndexStatus;
@@ -84,12 +158,14 @@ export function buildTeamWeeksIndexRows({
   teamId,
   teamIdentifier,
   today,
+  churchTimeZone = "UTC",
 }: {
   readonly cycles: readonly TeamWeeksIndexCycle[];
   readonly tasks: readonly TeamWeeksIndexTask[];
   readonly teamId: string;
   readonly teamIdentifier: string;
   readonly today: string;
+  readonly churchTimeZone?: string;
 }): readonly TeamWeeksIndexRow[] {
   const taskCounts = new Map<
     string,
@@ -98,6 +174,7 @@ export function buildTeamWeeksIndexRows({
 
   for (const task of tasks) {
     if (task.teamId !== teamId || task.taskState === "canceled") continue;
+    if (task.cycleId === null) continue;
     const counts = taskCounts.get(task.cycleId) ?? {
       taskCount: 0,
       startedCount: 0,
@@ -128,6 +205,12 @@ export function buildTeamWeeksIndexRows({
         completedCount: 0,
       };
       const dateRange = formatWeekDateRange(cycle);
+      const targetCycle =
+        cycle.targetCycle ??
+        buildTargetCycle({
+          churchTimeZone,
+          startDate: cycle.startDate,
+        });
       return {
         id: cycle.id,
         completedCount: counts.completedCount,
@@ -141,6 +224,8 @@ export function buildTeamWeeksIndexRows({
         startedCount: counts.startedCount,
         status: getTeamWeekStatus(cycle, today),
         taskCount: counts.taskCount,
+        projected: cycle.projected ?? false,
+        targetCycle,
       };
     });
 }
@@ -203,6 +288,7 @@ export function buildTeamWeeksTimelineRows(args: {
   readonly teamId: string;
   readonly teamIdentifier: string;
   readonly today: string;
+  readonly churchTimeZone?: string;
 }): readonly TeamWeeksTimelineRow[] {
   const rows = buildTeamWeeksIndexRows(args);
 

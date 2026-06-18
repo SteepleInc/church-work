@@ -17,7 +17,7 @@ export type TaskCollectionItem = {
   readonly identifier: string;
   readonly previousIdentifiers: readonly string[];
   readonly assignedUserId: string | null;
-  readonly cycleId: string;
+  readonly cycleId: string | null;
   readonly dueDate: string | null;
   readonly createdAt: number;
   readonly createdByUserId: string | null;
@@ -98,7 +98,7 @@ const mapTask = (task: Task, teamsById: ReadonlyMap<string, Team>): TaskCollecti
   churchId: task.church_id,
   createdAt: task.created_at ?? 0,
   createdByUserId: task.created_by_user_id ?? task.created_by ?? null,
-  cycleId: task.cycle_id ?? "",
+  cycleId: task.cycle_id ?? null,
   description: task.description ?? null,
   dueDate: task.due_date ?? null,
   estimate: taskEstimate(task.estimate),

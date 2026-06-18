@@ -354,6 +354,7 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
             name: selectedTeam.name,
             color: selectedTeam.color,
           }}
+          churchTimeZone={activeChurch?.churchTimeZone ?? "UTC"}
         />
       ) : activeChurchId && currentUserId ? (
         <TaskExecutionSurface
@@ -371,6 +372,7 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
               ? activePanel.weekNumber
               : null
           }
+          churchTimeZone={activeChurch?.churchTimeZone ?? "UTC"}
           insights={activeInsights}
           onInsightsChange={setInsights}
           onToggleLayout={toggleLayout}

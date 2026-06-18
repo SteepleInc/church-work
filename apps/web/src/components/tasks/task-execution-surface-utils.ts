@@ -10,6 +10,7 @@ type ExecutionCycle = {
   readonly id: string;
   readonly startDate: string;
   readonly endDate: string;
+  readonly targetCycle?: TaskGroupAddPreset["targetCycle"];
 };
 
 export type TaskState = "todo" | "in_progress" | "done" | "canceled";
@@ -23,7 +24,7 @@ export type TaskSummary = {
   readonly description?: string | null;
   readonly teamId: string;
   readonly assignedUserId: string | null;
-  readonly cycleId: string;
+  readonly cycleId: string | null;
   readonly dueDate: string | null;
   readonly createdAt: number;
   readonly parentTaskId: string | null;
@@ -138,6 +139,13 @@ export type TaskGroupAddPreset = {
   readonly assignTo: string | null;
   readonly teamId: string | null;
   readonly workflowStatusId?: string;
+  readonly targetCycle?: {
+    readonly churchTimeZone: string;
+    readonly startDate: string;
+    readonly endDate: string;
+    readonly startsAt: string;
+    readonly endsAt: string;
+  };
 };
 
 /**
@@ -153,6 +161,7 @@ export function getTaskGroupAddPreset(args: {
   readonly grouping: string;
   readonly columnId: string;
   readonly defaults: { readonly assignedUserId: string | null; readonly teamId: string | null };
+  readonly targetCycle?: TaskGroupAddPreset["targetCycle"];
   readonly unassignedColumnId: string;
 }): TaskGroupAddPreset {
   const { grouping, columnId, defaults } = args;
@@ -161,18 +170,28 @@ export function getTaskGroupAddPreset(args: {
       assignTo: defaults.assignedUserId,
       teamId: defaults.teamId,
       workflowStatusId: columnId,
+      ...(args.targetCycle ? { targetCycle: args.targetCycle } : {}),
     };
   }
   if (grouping === "assignee") {
     return {
       assignTo: columnId === args.unassignedColumnId ? null : columnId,
       teamId: defaults.teamId,
+      ...(args.targetCycle ? { targetCycle: args.targetCycle } : {}),
     };
   }
   if (grouping === "team") {
-    return { assignTo: defaults.assignedUserId, teamId: columnId };
+    return {
+      assignTo: defaults.assignedUserId,
+      teamId: columnId,
+      ...(args.targetCycle ? { targetCycle: args.targetCycle } : {}),
+    };
   }
-  return { assignTo: defaults.assignedUserId, teamId: defaults.teamId };
+  return {
+    assignTo: defaults.assignedUserId,
+    teamId: defaults.teamId,
+    ...(args.targetCycle ? { targetCycle: args.targetCycle } : {}),
+  };
 }
 
 /**

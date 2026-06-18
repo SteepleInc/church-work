@@ -63,6 +63,13 @@ export type CreateTaskQuickActionState = {
   readonly teamId?: string | null;
   // Creating a subtask: openers pass the parent Task plus its Team preset.
   readonly parentTaskId?: string | null;
+  readonly targetCycle?: {
+    readonly churchTimeZone: string;
+    readonly startDate: string;
+    readonly endDate: string;
+    readonly startsAt: string;
+    readonly endsAt: string;
+  };
 } | null;
 
 export const createTaskQuickActionStateAtom = atom<CreateTaskQuickActionState>(null);
@@ -259,6 +266,7 @@ export function CreateTaskQuickAction() {
         parentTaskId: state?.parentTaskId ?? null,
         labelIds: [...value.labels],
         estimate: value.estimate === "no_estimate" ? null : value.estimate,
+        ...(state?.targetCycle ? { targetCycle: state.targetCycle } : {}),
       });
 
       if (!result.ok) {
