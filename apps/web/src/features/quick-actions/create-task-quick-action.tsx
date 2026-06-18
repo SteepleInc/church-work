@@ -1,9 +1,18 @@
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { revalidateLogic } from "@tanstack/react-form";
 import { Schema } from "effect";
 import { atom, useAtom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
-import { CalendarIcon, ChevronRight, Maximize2, Minimize2, Tag, Triangle, X } from "lucide-react";
+import {
+  CalendarDays,
+  CalendarIcon,
+  ChevronRight,
+  Maximize2,
+  Minimize2,
+  Tag,
+  Triangle,
+  X,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -33,10 +42,16 @@ import {
   statusOptions,
   type PickerHotkey,
 } from "@/components/tasks/task-kanban-board-utils";
+import {
+  resolveExecutionCycleScope,
+  type WeekShortcut,
+} from "@/components/tasks/task-execution-surface-utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { Switch } from "@/components/ui/switch";
+import { buildProjectedWeekCycles } from "@/components/weeks/team-weeks-index-data";
+import { formatWeekDateRange, useCyclesCollection } from "@/data/cycles/cyclesData.app";
 import { useCreateLabelMutation, useLabelsCollection } from "@/data/labels/labelsData.app";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { useCreateTaskMutation } from "@/data/tasks/tasksData.app";
@@ -63,6 +78,13 @@ export type CreateTaskQuickActionState = {
   readonly teamId?: string | null;
   // Creating a subtask: openers pass the parent Task plus its Team preset.
   readonly parentTaskId?: string | null;
+  readonly targetCycle?: {
+    readonly churchTimeZone: string;
+    readonly startDate: string;
+    readonly endDate: string;
+    readonly startsAt: string;
+    readonly endsAt: string;
+  };
 } | null;
 
 export const createTaskQuickActionStateAtom = atom<CreateTaskQuickActionState>(null);
@@ -117,8 +139,34 @@ function FieldPill({
   );
 }
 
+/**
+ * A compact, read-only cue that this Task will attach to the Week currently in
+ * view (its Cycle is materialized on create if it is still a Projected Week).
+ * It mirrors the date range shown on the Week board header so a User reading
+ * the dialog never wonders "which Week does this land in?".
+ */
+function TargetWeekPill({
+  targetCycle,
+}: {
+  readonly targetCycle: NonNullable<CreateTaskQuickActionState>["targetCycle"];
+}) {
+  if (!targetCycle) return null;
+  const dateRange = formatWeekDateRange(targetCycle);
+  return (
+    <span
+      aria-label={`This Task will be added to the Week of ${dateRange}.`}
+      className="inline-flex h-7 items-center gap-1.5 rounded-md bg-muted px-2 text-xs font-medium text-muted-foreground"
+    >
+      <CalendarDays aria-hidden className="size-3.5" />
+      <span className="hidden sm:inline">Week of </span>
+      {dateRange}
+    </span>
+  );
+}
+
 export function CreateTaskQuickAction() {
   const [state, setState] = useAtom(createTaskQuickActionStateAtom);
+  const search = useSearch({ strict: false }) as { readonly week?: WeekShortcut };
   const [expanded, setExpanded] = useAtom(createTaskDialogExpandedAtom);
   const [createMore, setCreateMore] = useAtom(createTaskCreateMoreAtom);
   const [error, setError] = useState<string | null>(null);
@@ -135,7 +183,27 @@ export function CreateTaskQuickAction() {
   const teamsCollection = useTeamsCollection({ churchId });
   const teamMemberships = useTeamMembershipsCollection({ churchId });
   const labelsCollection = useLabelsCollection({ churchId });
+  const cyclesCollection = useCyclesCollection({ churchId, currentUserId });
   const createLabel = useCreateLabelMutation();
+
+  const today = new Date().toISOString().slice(0, 10);
+  const routeTargetCycle = useMemo(() => {
+    if (!search.week || typeof window === "undefined") return undefined;
+    if (!window.location.pathname.startsWith("/team/")) return undefined;
+
+    const cycle = resolveExecutionCycleScope({
+      surface: "team_board",
+      week: search.week,
+      cycles: buildProjectedWeekCycles({
+        churchTimeZone: activeChurch?.churchTimeZone ?? "UTC",
+        cycles: cyclesCollection.cyclesCollection,
+        today,
+      }),
+      today,
+    });
+    return cycle?.targetCycle;
+  }, [activeChurch?.churchTimeZone, cyclesCollection.cyclesCollection, search.week, today]);
+  const effectiveTargetCycle = state?.targetCycle ?? routeTargetCycle;
 
   const titleInputRef = useRef<HTMLInputElement>(null);
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
@@ -259,6 +327,7 @@ export function CreateTaskQuickAction() {
         parentTaskId: state?.parentTaskId ?? null,
         labelIds: [...value.labels],
         estimate: value.estimate === "no_estimate" ? null : value.estimate,
+        ...(effectiveTargetCycle ? { targetCycle: effectiveTargetCycle } : {}),
       });
 
       if (!result.ok) {
@@ -449,6 +518,7 @@ export function CreateTaskQuickAction() {
               </form.Subscribe>
               <ChevronRight className="size-3.5 text-muted-foreground" />
               <span>New Task</span>
+              {effectiveTargetCycle ? <TargetWeekPill targetCycle={effectiveTargetCycle} /> : null}
             </span>
           </QuickActionsTitle>
           <div className="flex items-center gap-1">

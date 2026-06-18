@@ -757,7 +757,6 @@ function TaskKanbanCard({
     [],
   );
 
-  const keyboard = useTaskSurfaceKeyboard();
   const wrapWithContextMenu = useTaskContextMenu();
   const { isFocused, isSelected: selectedFromKeyboard } = useRegisterTaskShortcuts(task.id, {
     open: onOpenTask ? () => onOpenTask(task.identifier) : undefined,
@@ -838,13 +837,12 @@ function TaskKanbanCard({
         "gap-0 rounded-md py-0 shadow-xs ring-foreground/10",
         cardState === "canceled" && "opacity-70",
         onOpenTask && "cursor-pointer transition-colors hover:ring-foreground/20",
-        isFocused && "ring-2 ring-primary/60",
+        isFocused && "ring-1 ring-foreground/20",
         isSelected &&
           "bg-primary/5 ring-primary/40 hover:ring-primary/50 group-data-[dragging=true]/kanban-root:opacity-40",
         className,
       )}
       onClick={handleCardClick}
-      onPointerEnter={() => keyboard?.setFocusedTaskId(task.id)}
     >
       <CardHeader className="flex flex-row items-center justify-between gap-2 px-3 pt-3 pb-0">
         <div className="flex min-w-0 items-center gap-1.5">

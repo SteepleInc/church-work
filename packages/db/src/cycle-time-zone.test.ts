@@ -93,4 +93,25 @@ describe("buildCycleTimeZoneAdjustments", () => {
       starts_at: localMidnightToUtcInstant(future.start_date, "America/Los_Angeles"),
     });
   });
+
+  test("limits timezone changes to cycle rows so task assignment and due date can remain stable", () => {
+    const futureTask = {
+      cycle_id: "future-cycle-id",
+      due_date: "2026-07-04",
+      id: "task-with-due-date-outside-shifted-cycle",
+    };
+
+    const adjustments = buildCycleTimeZoneAdjustments({
+      cycles: [cycle("current", "2026-06-15"), cycle(futureTask.cycle_id, "2026-06-22")],
+      newChurchTimeZone: "America/Los_Angeles",
+      now: new Date("2026-06-17T12:00:00.000Z"),
+    });
+
+    expect(adjustments.map((adjustment) => adjustment.id)).toContain(futureTask.cycle_id);
+    expect(futureTask).toEqual({
+      cycle_id: "future-cycle-id",
+      due_date: "2026-07-04",
+      id: "task-with-due-date-outside-shifted-cycle",
+    });
+  });
 });

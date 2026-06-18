@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   buildTeamWeekBurndown,
+  buildProjectedWeekCycles,
   buildTeamWeeksIndexRows,
   buildTeamWeeksTimelineRows,
   getTeamWeekRelativeLabel,
@@ -104,6 +105,45 @@ describe("Team Weeks index data", () => {
       ["current", 2],
       ["past", 1],
     ]);
+  });
+
+  test("projects future Weeks from date math when no Cycle rows exist", () => {
+    const projected = buildProjectedWeekCycles({
+      churchTimeZone: "America/New_York",
+      cycles: [{ id: "current", startDate: "2026-06-08", endDate: "2026-06-14", name: null }],
+      futureWeeks: 2,
+      pastWeeks: 0,
+      today: "2026-06-10",
+    });
+
+    expect(
+      projected.map((cycle) => [cycle.id, cycle.startDate, cycle.endDate, cycle.projected]),
+    ).toEqual([
+      ["current", "2026-06-08", "2026-06-14", undefined],
+      ["projected-week:2026-06-15", "2026-06-15", "2026-06-21", true],
+      ["projected-week:2026-06-22", "2026-06-22", "2026-06-28", true],
+    ]);
+    expect(projected[1]?.targetCycle).toMatchObject({
+      churchTimeZone: "America/New_York",
+      startDate: "2026-06-15",
+      endDate: "2026-06-21",
+    });
+  });
+
+  test("ignores uncycled Tasks when counting Week rows", () => {
+    const rows = buildTeamWeeksIndexRows({
+      churchTimeZone: "UTC",
+      cycles: [{ id: "current", startDate: "2026-06-08", endDate: "2026-06-14", name: null }],
+      tasks: [
+        { id: "planned", cycleId: "current", teamId: "team-care", taskState: "todo" },
+        { id: "inbox", cycleId: null, teamId: "team-care", taskState: "todo" },
+      ],
+      teamId: "team-care",
+      teamIdentifier: "care",
+      today: "2026-06-10",
+    });
+
+    expect(rows[0]?.taskCount).toBe(1);
   });
 });
 

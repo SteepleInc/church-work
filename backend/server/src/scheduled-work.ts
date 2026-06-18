@@ -439,31 +439,31 @@ export const maintainCyclesForChurch = Effect.fn("maintainCyclesForChurch")(func
         const rolledOverTaskIds: string[] = [];
 
         for (const cycle of closedCycles) {
-          const targetCycleStartDate =
-            cycle.start_date < currentCycleFields.start_date
-              ? currentCycleFields.start_date
-              : addLocalDateDays(cycle.start_date, 7);
-          const nextCycle = await ensureCycle(tx, {
-            church_id: args.church_id,
-            church_time_zone: cycle.church_time_zone,
-            local_date: targetCycleStartDate,
-          });
-          if (nextCycle.created) {
-            createdCycleIds.push(nextCycle.cycle.id);
-            await writeSystemActivity(tx, {
+          let targetCycle = cycle;
+          do {
+            const nextCycle = await ensureCycle(tx, {
               church_id: args.church_id,
-              cycle_id: nextCycle.cycle.id,
-              entity_id: nextCycle.cycle.id,
-              entity_type: "cycle",
-              event_type: "cycle.created",
-              metadata: {
-                church_time_zone: nextCycle.cycle.church_time_zone,
-                end_date: nextCycle.cycle.end_date,
-                start_date: nextCycle.cycle.start_date,
-              },
-              occurred_at: now,
+              church_time_zone: targetCycle.church_time_zone,
+              local_date: addLocalDateDays(targetCycle.start_date, 7),
             });
-          }
+            targetCycle = nextCycle.cycle;
+            if (nextCycle.created) {
+              createdCycleIds.push(nextCycle.cycle.id);
+              await writeSystemActivity(tx, {
+                church_id: args.church_id,
+                cycle_id: nextCycle.cycle.id,
+                entity_id: nextCycle.cycle.id,
+                entity_type: "cycle",
+                event_type: "cycle.created",
+                metadata: {
+                  church_time_zone: nextCycle.cycle.church_time_zone,
+                  end_date: nextCycle.cycle.end_date,
+                  start_date: nextCycle.cycle.start_date,
+                },
+                occurred_at: now,
+              });
+            }
+          } while (targetCycle.ends_at <= now);
 
           const rolloverTasks = await tx
             .select()
@@ -486,7 +486,7 @@ export const maintainCyclesForChurch = Effect.fn("maintainCyclesForChurch")(func
             await tx
               .update(tasks)
               .set({
-                cycle_id: nextCycle.cycle.id,
+                cycle_id: targetCycle.id,
                 source_template_sync_enabled: false,
                 updated_at: now,
                 updated_by: null,
@@ -494,7 +494,7 @@ export const maintainCyclesForChurch = Effect.fn("maintainCyclesForChurch")(func
               .where(eq(tasks.id, task.id));
             await writeSystemActivity(tx, {
               church_id: args.church_id,
-              cycle_id: nextCycle.cycle.id,
+              cycle_id: targetCycle.id,
               entity_id: task.id,
               entity_type: "task",
               event_type: "task.rolled_over",
@@ -503,7 +503,7 @@ export const maintainCyclesForChurch = Effect.fn("maintainCyclesForChurch")(func
                 previous_task_state: task.task_state,
                 previous_workflow_status_id: task.workflow_status_id,
                 previous_workflow_status_name: previousStatus?.name ?? null,
-                to_cycle_id: nextCycle.cycle.id,
+                to_cycle_id: targetCycle.id,
               },
               occurred_at: now,
             });

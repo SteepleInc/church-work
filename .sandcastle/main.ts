@@ -557,7 +557,13 @@ async function waitForChecks(prUrl: string) {
 }
 
 function prIsMerged(prUrl: string) {
-  return safeSh(`gh pr view ${quote(prUrl)} --json merged --jq .merged`).trim() === "true";
+  const json = safeSh(`gh pr view ${quote(prUrl)} --json state,mergedAt`);
+  if (!json.trim()) {
+    return false;
+  }
+
+  const pr = JSON.parse(json) as { state?: string; mergedAt?: string | null };
+  return pr.state === "MERGED" || Boolean(pr.mergedAt);
 }
 
 function formatCheckSummary(checks: PrCheck[]) {
@@ -599,11 +605,34 @@ function getPrChecks(prUrl: string): PrCheck[] {
   const json = safeSh(
     `gh pr checks ${quote(prUrl)} --json bucket,conclusion,detailsUrl,link,name,state,workflow`,
   );
-  if (!json.trim()) {
+  if (json.trim()) {
+    return JSON.parse(json) as PrCheck[];
+  }
+
+  const prJson = safeSh(`gh pr view ${quote(prUrl)} --json statusCheckRollup`);
+  if (!prJson.trim()) {
     return [];
   }
-  return JSON.parse(json) as PrCheck[];
+
+  const pr = JSON.parse(prJson) as { statusCheckRollup?: GitHubStatusCheck[] };
+  return (pr.statusCheckRollup ?? []).map((check) => ({
+    bucket:
+      check.conclusion === "SUCCESS" ? "pass" : check.status === "COMPLETED" ? "fail" : "pending",
+    conclusion: check.conclusion,
+    detailsUrl: check.detailsUrl,
+    name: check.name,
+    state: check.status === "COMPLETED" ? "completed" : "pending",
+    workflow: check.workflowName,
+  }));
 }
+
+type GitHubStatusCheck = {
+  conclusion?: string;
+  detailsUrl?: string;
+  name?: string;
+  status?: string;
+  workflowName?: string;
+};
 
 type PrCheck = {
   bucket?: string;

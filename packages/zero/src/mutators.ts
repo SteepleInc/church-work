@@ -30,7 +30,7 @@ import {
   getWorkflowStatusId,
 } from "@church-task/shared/get-ids";
 import { defineMutatorWithType, defineMutators } from "@rocicorp/zero";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, lte } from "drizzle-orm";
 import { Schema } from "effect";
 
 import {
@@ -138,15 +138,25 @@ const TaskEstimateArg = Schema.Union([
   Schema.Literal("xl"),
   Schema.Null,
 ]);
+const TargetCycleArg = Schema.Struct({
+  church_time_zone: Schema.String,
+  end_date: Schema.String,
+  ends_at: Schema.String,
+  start_date: Schema.String,
+  starts_at: Schema.String,
+});
+type TargetCycleInput = typeof TargetCycleArg.Type;
 const TaskFieldsArg = Schema.Struct({
   assigned_user_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
   board_order: Schema.optional(Schema.String),
+  cycle_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
   due_date: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
   estimate: Schema.optional(TaskEstimateArg),
   label_ids: Schema.optional(Schema.Array(Schema.String)),
   parent_task_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
   team_id: Schema.optional(Schema.String),
   title: Schema.optional(Schema.String),
+  target_cycle: Schema.optional(TargetCycleArg),
   workflow_status_id: Schema.optional(Schema.String),
 });
 const CreateTaskArgs = toZeroSchema(
@@ -160,6 +170,7 @@ const CreateTaskArgs = toZeroSchema(
     parent_task_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
     team_id: Schema.String,
     title: Schema.String,
+    target_cycle: Schema.optional(TargetCycleArg),
     workflow_status_id: Schema.String,
   }),
 );
@@ -460,6 +471,7 @@ const getTaskWithTeamIdentifier = async (
       label_ids: tasks.label_ids,
       number: tasks.number,
       previous_identifiers: tasks.previous_identifiers,
+      cycle_id: tasks.cycle_id,
       task_state: tasks.task_state,
       team_id: tasks.team_id,
       team_identifier: teams.identifier,
@@ -479,6 +491,7 @@ const getTaskWithTeamIdentifier = async (
     readonly label_ids: string;
     readonly number: number;
     readonly previous_identifiers: string;
+    readonly cycle_id: string | null;
     readonly task_state: string;
     readonly team_id: string;
     readonly team_identifier: string | null;
@@ -542,6 +555,68 @@ const parseIsoInstant = (value: string) => {
   return date;
 };
 
+const ensureTargetCycle = async (
+  db: ServerTx["dbTransaction"]["wrappedTransaction"],
+  args: {
+    readonly church_id: string;
+    readonly session_user_id: string;
+    readonly target_cycle: TargetCycleInput;
+  },
+) => {
+  const existing = (await db
+    .select({ id: cycles.id })
+    .from(cycles)
+    .where(
+      and(
+        eq(cycles.church_id, args.church_id),
+        eq(cycles.start_date, args.target_cycle.start_date),
+        isNull(cycles.deleted_at),
+      ),
+    )) as Array<{ readonly id: string }>;
+  if (existing[0]) return existing[0].id;
+
+  const now = new Date();
+  const cycleId = getCycleId();
+  await db.insert(cycles).values({
+    _tag: "cycle",
+    church_id: args.church_id,
+    church_time_zone: args.target_cycle.church_time_zone,
+    created_at: now,
+    created_by: args.session_user_id,
+    description: null,
+    end_date: args.target_cycle.end_date,
+    ends_at: parseIsoInstant(args.target_cycle.ends_at),
+    id: cycleId,
+    name: null,
+    start_date: args.target_cycle.start_date,
+    starts_at: parseIsoInstant(args.target_cycle.starts_at),
+    updated_at: now,
+    updated_by: args.session_user_id,
+  });
+  return cycleId;
+};
+
+const requireCurrentCycleId = async (
+  db: ServerTx["dbTransaction"]["wrappedTransaction"],
+  church_id: string,
+) => {
+  const now = new Date();
+  const rows = (await db
+    .select({ id: cycles.id })
+    .from(cycles)
+    .where(
+      and(
+        eq(cycles.church_id, church_id),
+        lte(cycles.starts_at, now),
+        gte(cycles.ends_at, now),
+        isNull(cycles.deleted_at),
+      ),
+    )) as Array<{ readonly id: string }>;
+  const cycle = rows[0];
+  if (!cycle) throw new Error("Current Cycle not found.");
+  return cycle.id;
+};
+
 type TemplateTaskRow = {
   readonly id: string;
   readonly key: string;
@@ -570,6 +645,13 @@ type TodoStatusRow = { readonly id: string; readonly workflow_id: string };
 type ExistingProjectedTaskRow = {
   readonly id: string;
   readonly source_template_task_id: string;
+};
+type TaskPatch = {
+  readonly updated_at: Date;
+  readonly updated_by: string;
+  cycle_id?: string | null;
+  task_state?: string;
+  [key: string]: unknown;
 };
 type ProjectionTaskInsert = {
   readonly _tag: "task";
@@ -732,7 +814,7 @@ const taskPatchForFields = async (
   if (!task) throw new Error("Task not found.");
 
   const now = new Date();
-  const patch: Record<string, unknown> = { updated_at: now, updated_by: args.session_user_id };
+  const patch: TaskPatch = { updated_at: now, updated_by: args.session_user_id };
 
   if (args.fields.title !== undefined) patch.title = args.fields.title.trim();
   if (args.fields.assigned_user_id !== undefined)
@@ -741,6 +823,14 @@ const taskPatchForFields = async (
   if (args.fields.parent_task_id !== undefined) patch.parent_task_id = args.fields.parent_task_id;
   if (args.fields.board_order !== undefined) patch.board_order = args.fields.board_order;
   if (args.fields.estimate !== undefined) patch.estimate = args.fields.estimate;
+  if (args.fields.cycle_id !== undefined) patch.cycle_id = args.fields.cycle_id;
+  if (args.fields.target_cycle !== undefined) {
+    patch.cycle_id = await ensureTargetCycle(db, {
+      church_id: args.church_id,
+      session_user_id: args.session_user_id,
+      target_cycle: args.fields.target_cycle,
+    });
+  }
 
   if (args.fields.workflow_status_id !== undefined) {
     const statusRows = (await db
@@ -769,6 +859,12 @@ const taskPatchForFields = async (
     patch.task_state = status.task_state;
     patch.finished_at =
       status.task_state === "done" ? now : task.task_state === "done" ? null : task.finished_at;
+  }
+
+  const effectiveTaskState = patch.task_state ?? task.task_state;
+  const effectiveCycleId = Object.hasOwn(patch, "cycle_id") ? patch.cycle_id : task.cycle_id;
+  if (effectiveTaskState !== "todo" && effectiveCycleId === null) {
+    patch.cycle_id = await requireCurrentCycleId(db, args.church_id);
   }
 
   if (args.fields.team_id !== undefined && args.fields.team_id !== task.team_id) {
@@ -2012,6 +2108,16 @@ export const mutators = defineMutators({
       );
       const now = new Date();
       const taskId = getTaskId();
+      let cycleId: string | null = null;
+      if (args.target_cycle) {
+        cycleId = await ensureTargetCycle(db, {
+          church_id: args.church_id,
+          session_user_id: session.user_id,
+          target_cycle: args.target_cycle,
+        });
+      } else if (status.task_state !== "todo") {
+        cycleId = await requireCurrentCycleId(db, args.church_id);
+      }
 
       await db.insert(tasks).values({
         _tag: "task",
@@ -2021,7 +2127,7 @@ export const mutators = defineMutators({
         created_at: now,
         created_by: session.user_id,
         created_by_user_id: session.user_id,
-        cycle_id: null,
+        cycle_id: cycleId,
         description: args.description ?? null,
         due_date: args.due_date ?? null,
         estimate: args.estimate ?? null,
@@ -2056,6 +2162,7 @@ export const mutators = defineMutators({
       await writeActivity(db, {
         actor_id: session.user_id,
         church_id: args.church_id,
+        cycle_id: cycleId,
         entity_id: taskId,
         entity_type: "task",
         event_type: "task.created",
@@ -2089,7 +2196,7 @@ export const mutators = defineMutators({
       await writeActivity(db, {
         actor_id: session.user_id,
         church_id: args.church_id,
-        cycle_id: (patch.cycle_id as string | null | undefined) ?? null,
+        cycle_id: patch.cycle_id ?? null,
         entity_id: args.task_id,
         entity_type: "task",
         event_type: "task.updated",
@@ -2126,7 +2233,7 @@ export const mutators = defineMutators({
         await writeActivity(db, {
           actor_id: session.user_id,
           church_id: args.church_id,
-          cycle_id: (patch.cycle_id as string | null | undefined) ?? null,
+          cycle_id: patch.cycle_id ?? null,
           entity_id: update.task_id,
           entity_type: "task",
           event_type: "task.updated",
@@ -2158,9 +2265,12 @@ export const mutators = defineMutators({
       const status = rows[0];
       if (!status) throw new Error("Done Workflow Status not found.");
       const now = new Date();
+      const cycleId =
+        task.cycle_id === null ? await requireCurrentCycleId(db, args.church_id) : task.cycle_id;
       await db
         .update(tasks)
         .set({
+          cycle_id: cycleId,
           finished_at: now,
           task_state: "done",
           updated_at: now,
@@ -2172,6 +2282,7 @@ export const mutators = defineMutators({
       await writeActivity(db, {
         actor_id: session.user_id,
         church_id: args.church_id,
+        cycle_id: cycleId,
         entity_id: args.task_id,
         entity_type: "task",
         event_type: "task.completed",
@@ -2191,9 +2302,12 @@ export const mutators = defineMutators({
       const task = await getTaskWithTeamIdentifier(db, args.task_id, args.church_id);
       if (!task) throw new Error("Task not found.");
       const now = new Date();
+      const cycleId =
+        task.cycle_id === null ? await requireCurrentCycleId(db, args.church_id) : task.cycle_id;
       await db
         .update(tasks)
         .set({
+          cycle_id: cycleId,
           finished_at: now,
           task_state: "canceled",
           updated_at: now,
@@ -2210,6 +2324,7 @@ export const mutators = defineMutators({
       await writeActivity(db, {
         actor_id: session.user_id,
         church_id: args.church_id,
+        cycle_id: cycleId,
         entity_id: args.task_id,
         entity_type: "task",
         event_type: "task.canceled",
