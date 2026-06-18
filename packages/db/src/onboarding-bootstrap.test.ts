@@ -1,4 +1,11 @@
-import { DEFAULT_WORKFLOW_STATUSES, STARTER_LABELS, STARTER_TEAM_NAMES } from "@church-task/domain";
+import {
+  DEFAULT_WORKFLOW_STATUSES,
+  STARTER_LABELS,
+  STARTER_TEAM_NAMES,
+  addLocalDateDays,
+  cycleStartDateForLocalDate,
+  localDateForInstant,
+} from "@church-task/domain";
 import { getIdType, getOrgId, getUserId } from "@church-task/shared/get-ids";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import { eq } from "drizzle-orm";
@@ -17,26 +24,8 @@ import {
   workflows,
 } from "./schema";
 
-const addLocalDateDays = (localDate: string, days: number) => {
-  const [year, month, day] = localDate.split("-").map(Number) as [number, number, number];
-  const date = new Date(Date.UTC(year, month - 1, day + days));
-  return date.toISOString().slice(0, 10);
-};
-
 const currentCycleStartDate = (timeZone: string) => {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    day: "2-digit",
-    month: "2-digit",
-    timeZone,
-    year: "numeric",
-  }).formatToParts(new Date());
-  const byType = Object.fromEntries(
-    parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]),
-  );
-  const localDate = `${byType.year}-${byType.month}-${byType.day}`;
-  const [year, month, day] = localDate.split("-").map(Number) as [number, number, number];
-  const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
-  return addLocalDateDays(localDate, -((dayOfWeek + 6) % 7));
+  return cycleStartDateForLocalDate(localDateForInstant(new Date(), timeZone));
 };
 
 describe("onboarding product bootstrap", () => {

@@ -31,6 +31,32 @@ import {
   workflows,
 } from "./schema";
 
+const currentAndNextCycleStartDates = (churchTimeZone: string, now = new Date()) => {
+  const currentCycleStartDate = cycleStartDateForLocalDate(
+    localDateForInstant(now, churchTimeZone),
+  );
+
+  return [currentCycleStartDate, addLocalDateDays(currentCycleStartDate, 7)] as const;
+};
+
+const buildOnboardingCycleInsert = (args: {
+  readonly church_id: string;
+  readonly churchTimeZone: string;
+  readonly createdByUserId: string;
+  readonly startDate: string;
+}) => ({
+  _tag: "cycle" as const,
+  church_id: args.church_id,
+  church_time_zone: args.churchTimeZone,
+  created_by: args.createdByUserId,
+  end_date: addLocalDateDays(args.startDate, 6),
+  ends_at: localMidnightToUtcInstant(addLocalDateDays(args.startDate, 7), args.churchTimeZone),
+  id: getCycleId(),
+  start_date: args.startDate,
+  starts_at: localMidnightToUtcInstant(args.startDate, args.churchTimeZone),
+  updated_by: args.createdByUserId,
+});
+
 export type BootstrapChurchOnboardingArgs = {
   readonly church_id: string;
   readonly user_id: string;
@@ -49,25 +75,18 @@ export const bootstrapChurchOnboarding = async (
       .where(eq(organization.id, args.church_id))
       .limit(1);
     const churchTimeZone = church?.churchTimeZone ?? "America/New_York";
-    const currentCycleStartDate = cycleStartDateForLocalDate(
-      localDateForInstant(new Date(), churchTimeZone),
-    );
 
-    for (const startDate of [currentCycleStartDate, addLocalDateDays(currentCycleStartDate, 7)]) {
+    for (const startDate of currentAndNextCycleStartDates(churchTimeZone)) {
       await tx
         .insert(cycles)
-        .values({
-          _tag: "cycle",
-          church_id: args.church_id,
-          church_time_zone: churchTimeZone,
-          created_by: args.user_id,
-          end_date: addLocalDateDays(startDate, 6),
-          ends_at: localMidnightToUtcInstant(addLocalDateDays(startDate, 7), churchTimeZone),
-          id: getCycleId(),
-          start_date: startDate,
-          starts_at: localMidnightToUtcInstant(startDate, churchTimeZone),
-          updated_by: args.user_id,
-        })
+        .values(
+          buildOnboardingCycleInsert({
+            church_id: args.church_id,
+            churchTimeZone,
+            createdByUserId: args.user_id,
+            startDate,
+          }),
+        )
         .onConflictDoNothing({
           target: [cycles.church_id, cycles.start_date],
           where: sql`${cycles.deleted_at} IS NULL`,
