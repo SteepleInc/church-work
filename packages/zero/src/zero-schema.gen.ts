@@ -225,6 +225,16 @@ const cyclesTable = {
       optional: false,
       customType: null as unknown as string,
     },
+    name: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    description: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
     starts_at: {
       type: "number",
       optional: false,

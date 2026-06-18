@@ -1,4 +1,5 @@
 import { useOpenTaskDetailsPaneUrl } from "@/components/details-pane/details-pane-helpers";
+import { WeekHeader } from "@/components/weeks/week-header";
 import { useCyclesCollection } from "@/data/cycles/cyclesData.app";
 import { useLabelsCollection } from "@/data/labels/labelsData.app";
 import { useTeamMembershipsCollection } from "@/data/teams/teamsData.app";
@@ -218,6 +219,11 @@ export function TaskExecutionSurface({
     scope,
     currentCycleId: currentCycle?.id ?? null,
   });
+  // The selector returns only the date fields it needs; pull the full Week row
+  // back out so the header can show its Church-wide name/description.
+  const currentWeek = currentCycle
+    ? (cycles.find((cycle) => cycle.id === currentCycle.id) ?? null)
+    : null;
   // Every Team owns its Workflow (ADR 0013): a Team Board shows that
   // Workflow's statuses. Cross-team surfaces carry every active status so
   // per-card status pickers stay scoped to each Task's Team Workflow.
@@ -441,6 +447,8 @@ export function TaskExecutionSurface({
             remaining width, the pane scrolls independently. */}
         <section className="flex min-h-0 min-w-0 flex-1 gap-4">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
+            {currentWeek ? <WeekHeader churchId={churchId} cycle={currentWeek} /> : null}
+
             {isLoading && !showBoard ? <TaskBoardSkeleton /> : null}
 
             {showBoard && resolvedView.mode === "list" ? (

@@ -228,10 +228,20 @@ const UpsertCycleArgs = toZeroSchema(
   Schema.Struct({
     church_id: Schema.String,
     church_time_zone: Schema.String,
+    description: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
     end_date: Schema.String,
     ends_at: Schema.String,
+    name: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
     start_date: Schema.String,
     starts_at: Schema.String,
+  }),
+);
+const UpdateCycleDetailsArgs = toZeroSchema(
+  Schema.Struct({
+    church_id: Schema.String,
+    cycle_id: Schema.String,
+    description: Schema.Union([Schema.String, Schema.Null]),
+    name: Schema.Union([Schema.String, Schema.Null]),
   }),
 );
 const CreateKeyDateArgs = toZeroSchema(
@@ -1469,6 +1479,8 @@ export const mutators = defineMutators({
             church_time_zone: args.church_time_zone,
             end_date: args.end_date,
             ends_at: parseIsoInstant(args.ends_at),
+            ...(args.description === undefined ? {} : { description: args.description }),
+            ...(args.name === undefined ? {} : { name: args.name }),
             start_date: args.start_date,
             starts_at: parseIsoInstant(args.starts_at),
             updated_at: now,
@@ -1483,11 +1495,13 @@ export const mutators = defineMutators({
         _tag: "cycle",
         church_id: args.church_id,
         church_time_zone: args.church_time_zone,
+        description: args.description ?? null,
         created_at: now,
         created_by: session.user_id,
         end_date: args.end_date,
         ends_at: parseIsoInstant(args.ends_at),
         id: cycleId,
+        name: args.name ?? null,
         start_date: args.start_date,
         starts_at: parseIsoInstant(args.starts_at),
         updated_at: now,
@@ -1505,6 +1519,38 @@ export const mutators = defineMutators({
           end_date: args.end_date,
           start_date: args.start_date,
         },
+        occurred_at: now,
+      });
+    }),
+    updateDetails: defineChurchTaskMutator(UpdateCycleDetailsArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+
+      const session = requireActiveChurchAccess(ctx, args.church_id);
+      const now = new Date();
+      await db
+        .update(cycles)
+        .set({
+          description: args.description,
+          name: args.name,
+          updated_at: now,
+          updated_by: session.user_id,
+        })
+        .where(
+          and(
+            eq(cycles.id, args.cycle_id),
+            eq(cycles.church_id, args.church_id),
+            isNull(cycles.deleted_at),
+          ),
+        );
+
+      await writeActivity(db, {
+        actor_id: session.user_id,
+        church_id: args.church_id,
+        entity_id: args.cycle_id,
+        entity_type: "cycle",
+        event_type: "cycle.updated",
+        metadata: { description: args.description, name: args.name },
         occurred_at: now,
       });
     }),

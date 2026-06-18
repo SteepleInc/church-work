@@ -328,6 +328,8 @@ export const cycles = pgTable(
     church_id: text("church_id").notNull(),
     start_date: text("start_date").notNull(),
     end_date: text("end_date").notNull(),
+    name: text("name"),
+    description: text("description"),
     starts_at: utcTimestamp("starts_at").notNull(),
     ends_at: utcTimestamp("ends_at").notNull(),
     church_time_zone: text("church_time_zone").notNull(),
