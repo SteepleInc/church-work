@@ -23,16 +23,58 @@ type ZeroMutationResult = {
   >;
 };
 
-export const formatWeekDateRange = (cycle: {
-  readonly startDate: string;
-  readonly endDate: string;
-}) => `${cycle.startDate} – ${cycle.endDate}`;
+const parseIsoDate = (value: string): Date | null => {
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  const date = new Date(year, month - 1, day);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
 
-export const getWeekDisplayName = (cycle: {
-  readonly name: string | null;
-  readonly startDate: string;
-  readonly endDate: string;
-}) => cycle.name?.trim() || formatWeekDateRange(cycle);
+/**
+ * A Week always runs Monday–Sunday, so the range is shown compactly:
+ * "Jun 15 – 21" within a month, "Jun 29 – Jul 5" across months, and the year
+ * is appended only when the Week falls outside the current year. When a date
+ * cannot be parsed we fall back to the raw ISO range so nothing is hidden.
+ */
+export const formatWeekDateRange = (
+  cycle: {
+    readonly startDate: string;
+    readonly endDate: string;
+  },
+  now: Date = new Date(),
+) => {
+  const start = parseIsoDate(cycle.startDate);
+  const end = parseIsoDate(cycle.endDate);
+  if (!start || !end) return `${cycle.startDate} – ${cycle.endDate}`;
+
+  const sameYear =
+    start.getFullYear() === now.getFullYear() && end.getFullYear() === now.getFullYear();
+  const sameMonth =
+    start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+  const yearOption = sameYear ? {} : { year: "numeric" as const };
+
+  const startLabel = start.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    ...yearOption,
+  });
+  const endLabel = end.toLocaleDateString("en-US", {
+    ...(sameMonth ? {} : { month: "short" }),
+    day: "numeric",
+    ...yearOption,
+  });
+
+  return `${startLabel} – ${endLabel}`;
+};
+
+export const getWeekDisplayName = (
+  cycle: {
+    readonly name: string | null;
+    readonly startDate: string;
+    readonly endDate: string;
+  },
+  now: Date = new Date(),
+) => cycle.name?.trim() || formatWeekDateRange(cycle, now);
 
 const mutationResult = async (run: () => ZeroMutationResult): CycleMutationResult => {
   try {
