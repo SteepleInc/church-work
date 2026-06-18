@@ -1,6 +1,7 @@
 import { TeamAvatar } from "@/components/avatars/teamAvatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { WeekProgressPanel } from "@/components/tasks/week-progress-panel";
 import { useCyclesCollection } from "@/data/cycles/cyclesData.app";
 import { useLabelsCollection } from "@/data/labels/labelsData.app";
@@ -8,8 +9,8 @@ import { useTasksCollection } from "@/data/tasks/tasksData.app";
 import { getUserDisplayName, useChurchUsersCollection } from "@/data/users/usersData.app";
 import { cn } from "@/lib/utils";
 import { Link } from "@tanstack/react-router";
-import { CalendarDays, ChevronRight } from "lucide-react";
-import type { ComponentProps } from "react";
+import { CalendarDays, ChevronRight, GaugeCircle } from "lucide-react";
+import { useId, type ComponentProps } from "react";
 
 import {
   buildTeamWeeksIndexRows,
@@ -214,10 +215,13 @@ function WeekRow({
   readonly tasks: ComponentProps<typeof WeekProgressPanel>["tasks"];
 }) {
   const hasName = row.displayName !== row.dateRange;
+  const panelId = useId();
+  const toggleProgress = () =>
+    onProgressCycleIdChange?.(expanded ? CLOSED_PROGRESS_CYCLE_ID : row.id);
 
   return (
-    <div className="group/week">
-      <div className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-muted/50">
+    <div className={cn("group/week transition-colors", expanded && "bg-muted/30")}>
+      <div className="flex items-center gap-3 px-4 py-3 transition-colors group-hover/week:bg-muted/40">
         <span
           aria-hidden
           className={cn("mt-1 size-2 shrink-0 self-start rounded-full", STATUS_DOT[row.status])}
@@ -250,18 +254,36 @@ function WeekRow({
           <WeekRowMeta row={row} />
         </Link>
 
-        <Button
-          type="button"
-          variant={expanded ? "secondary" : "ghost"}
-          size="sm"
-          onClick={() => onProgressCycleIdChange?.(expanded ? CLOSED_PROGRESS_CYCLE_ID : row.id)}
-        >
-          {expanded ? "Hide progress" : "Show progress"}
-        </Button>
-        <ChevronRight className="size-4 shrink-0 text-muted-foreground/50 transition-colors group-hover/week:text-muted-foreground" />
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                aria-controls={panelId}
+                aria-expanded={expanded}
+                className="gap-1.5"
+                onClick={toggleProgress}
+                size="sm"
+                type="button"
+                variant={expanded ? "secondary" : "ghost"}
+              />
+            }
+          >
+            <GaugeCircle aria-hidden className="size-4" />
+            <span className="hidden sm:inline">Progress</span>
+          </TooltipTrigger>
+          <TooltipContent>{expanded ? "Hide Week Progress" : "Show Week Progress"}</TooltipContent>
+        </Tooltip>
+
+        <ChevronRight
+          aria-hidden
+          className="size-4 shrink-0 text-muted-foreground/40 transition-colors group-hover/week:text-muted-foreground"
+        />
       </div>
       {expanded ? (
-        <div className="border-t bg-muted/20 p-3">
+        <div
+          className="overflow-hidden border-t bg-background/40 p-3 duration-200 animate-in fade-in-0 slide-in-from-top-1"
+          id={panelId}
+        >
           <WeekProgressPanel
             className="w-full"
             meta={progressMeta}

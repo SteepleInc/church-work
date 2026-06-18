@@ -1,6 +1,7 @@
 import {
   CalendarRange,
   ChartNoAxesColumn,
+  GaugeCircle,
   Kanban,
   List,
   ListFilter,
@@ -165,16 +166,11 @@ export function TaskViewTopBar({
             openRef={openDisplayOptionsRef}
             view={view}
           />
-          <Button
-            aria-label="Insights"
-            aria-pressed={insightsOpen}
-            onClick={onToggleInsights}
-            size="icon-sm"
-            type="button"
-            variant={insightsOpen ? "secondary" : "ghost"}
-          >
-            <ChartNoAxesColumn />
-          </Button>
+          <InsightsToggleButton
+            insightsOpen={insightsOpen}
+            onToggleInsights={onToggleInsights}
+            surface={surface}
+          />
           <Button aria-label="Breakdown panel" size="icon-sm" type="button" variant="ghost">
             <PanelRight />
           </Button>
@@ -189,6 +185,48 @@ export function TaskViewTopBar({
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * The right-pane toggle in the top bar. On a Team Week board the pane is Week
+ * Progress (a gauge of Started/Completed against Scope), so the affordance reads
+ * "Week Progress" with a gauge glyph; everywhere else it is the chart-driven
+ * Insights pane. The label, icon, and tooltip switch with the surface so the
+ * button never promises a chart it will not show.
+ */
+function InsightsToggleButton({
+  surface,
+  insightsOpen,
+  onToggleInsights,
+}: {
+  readonly surface: ExecutionSurface;
+  readonly insightsOpen: boolean;
+  readonly onToggleInsights?: () => void;
+}) {
+  const isProgress = surface === "team_board";
+  const label = isProgress ? "Week Progress" : "Insights";
+  const Icon = isProgress ? GaugeCircle : ChartNoAxesColumn;
+  const tooltip = insightsOpen ? `Hide ${label}` : `Show ${label}`;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            aria-label={label}
+            aria-pressed={insightsOpen}
+            onClick={onToggleInsights}
+            size="icon-sm"
+            type="button"
+            variant={insightsOpen ? "secondary" : "ghost"}
+          />
+        }
+      >
+        <Icon />
+      </TooltipTrigger>
+      <TooltipContent>{tooltip}</TooltipContent>
+    </Tooltip>
   );
 }
 
