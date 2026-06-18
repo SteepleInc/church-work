@@ -148,6 +148,13 @@ export type TaskGroupAddPreset = {
   };
 };
 
+function withTargetCycle(
+  preset: Omit<TaskGroupAddPreset, "targetCycle">,
+  targetCycle: TaskGroupAddPreset["targetCycle"],
+): TaskGroupAddPreset {
+  return targetCycle ? { ...preset, targetCycle } : preset;
+}
+
 /**
  * The create-dialog preset for a group header's "+" button (shared by the
  * Board column and the List group header). The grouped field for that group is
@@ -166,32 +173,40 @@ export function getTaskGroupAddPreset(args: {
 }): TaskGroupAddPreset {
   const { grouping, columnId, defaults } = args;
   if (grouping === "workflow_status") {
-    return {
-      assignTo: defaults.assignedUserId,
-      teamId: defaults.teamId,
-      workflowStatusId: columnId,
-      ...(args.targetCycle ? { targetCycle: args.targetCycle } : {}),
-    };
+    return withTargetCycle(
+      {
+        assignTo: defaults.assignedUserId,
+        teamId: defaults.teamId,
+        workflowStatusId: columnId,
+      },
+      args.targetCycle,
+    );
   }
   if (grouping === "assignee") {
-    return {
-      assignTo: columnId === args.unassignedColumnId ? null : columnId,
-      teamId: defaults.teamId,
-      ...(args.targetCycle ? { targetCycle: args.targetCycle } : {}),
-    };
+    return withTargetCycle(
+      {
+        assignTo: columnId === args.unassignedColumnId ? null : columnId,
+        teamId: defaults.teamId,
+      },
+      args.targetCycle,
+    );
   }
   if (grouping === "team") {
-    return {
-      assignTo: defaults.assignedUserId,
-      teamId: columnId,
-      ...(args.targetCycle ? { targetCycle: args.targetCycle } : {}),
-    };
+    return withTargetCycle(
+      {
+        assignTo: defaults.assignedUserId,
+        teamId: columnId,
+      },
+      args.targetCycle,
+    );
   }
-  return {
-    assignTo: defaults.assignedUserId,
-    teamId: defaults.teamId,
-    ...(args.targetCycle ? { targetCycle: args.targetCycle } : {}),
-  };
+  return withTargetCycle(
+    {
+      assignTo: defaults.assignedUserId,
+      teamId: defaults.teamId,
+    },
+    args.targetCycle,
+  );
 }
 
 /**
