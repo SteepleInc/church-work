@@ -57,6 +57,7 @@ const PR_CHECK_REPAIR = process.env.SANDCASTLE_REPAIR_FAILED_CHECKS !== "false";
 const MAX_REPAIR_ATTEMPTS = Number(process.env.SANDCASTLE_MAX_REPAIR_ATTEMPTS ?? "3");
 const CHECK_POLL_INTERVAL_MS = Number(process.env.SANDCASTLE_CHECK_POLL_INTERVAL_MS ?? "30000");
 const CHECK_TIMEOUT_MS = Number(process.env.SANDCASTLE_CHECK_TIMEOUT_MS ?? String(20 * 60 * 1000));
+const MERGE_TIMEOUT_MS = Number(process.env.SANDCASTLE_MERGE_TIMEOUT_MS ?? String(20 * 60 * 1000));
 
 const allAroundAgent = () => sandcastle.opencode("openai/gpt-5.5", { variant: "low" });
 
@@ -322,10 +323,20 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
       checksReadyToMerge = checksArePassing(await waitForChecks(prUrl));
     }
 
-    if (AUTO_MERGE_PRS && !autoMergeEnabled && checksReadyToMerge) {
+    if (!checksReadyToMerge) {
+      console.warn(`  PR is not ready to merge after repair attempts: ${prUrl}`);
+      process.exitCode = 1;
+      break;
+    }
+
+    if (AUTO_MERGE_PRS && !autoMergeEnabled) {
       mergePr(prUrl);
-    } else if (AUTO_MERGE_PRS && autoMergeEnabled && checksReadyToMerge) {
-      console.log(`  PR checks passed or PR merged; GitHub auto-merge owns final merge: ${prUrl}`);
+    } else if (AUTO_MERGE_PRS && autoMergeEnabled) {
+      const merged = await waitForPrMerge(prUrl);
+      if (!merged) {
+        console.log(`  Auto-merge did not complete in time; attempting GitHub merge now: ${prUrl}`);
+        mergePr(prUrl);
+      }
     }
   }
 
@@ -394,6 +405,44 @@ function mergePr(prUrl: string) {
     encoding: "utf8",
   });
   console.log(`  PR merged through GitHub: ${prUrl}`);
+}
+
+async function waitForPrMerge(prUrl: string) {
+  const deadline = Date.now() + MERGE_TIMEOUT_MS;
+  let pollCount = 0;
+
+  while (Date.now() < deadline) {
+    pollCount++;
+    const status = getPrMergeStatus(prUrl);
+
+    if (status.state === "MERGED" || Boolean(status.mergedAt)) {
+      console.log(`  PR merged through GitHub: ${prUrl}`);
+      return true;
+    }
+
+    console.log(
+      `  Merge poll ${pollCount}: state=${status.state ?? "unknown"}, mergeState=${status.mergeStateStatus ?? "unknown"}, mergeable=${status.mergeable ?? "unknown"}; waiting ${CHECK_POLL_INTERVAL_MS / 1000}s...`,
+    );
+
+    if (status.mergeStateStatus === "CLEAN" || status.mergeStateStatus === "HAS_HOOKS") {
+      return false;
+    }
+
+    await sleep(CHECK_POLL_INTERVAL_MS);
+  }
+
+  console.warn(`  Timed out waiting for PR to merge: ${prUrl}`);
+  return false;
+}
+
+function getPrMergeStatus(prUrl: string) {
+  const json = safeSh(
+    `gh pr view ${quote(prUrl)} --json state,mergedAt,mergeStateStatus,mergeable`,
+  );
+  if (!json.trim()) {
+    return {} as PrMergeStatus;
+  }
+  return JSON.parse(json) as PrMergeStatus;
 }
 
 async function runPostPrReview({
@@ -632,6 +681,13 @@ type GitHubStatusCheck = {
   name?: string;
   status?: string;
   workflowName?: string;
+};
+
+type PrMergeStatus = {
+  mergeable?: string;
+  mergeStateStatus?: string;
+  mergedAt?: string | null;
+  state?: string;
 };
 
 type PrCheck = {
