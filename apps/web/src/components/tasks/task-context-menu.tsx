@@ -217,55 +217,57 @@ export function TaskContextMenu({
         onContextMenu={(event) => event.stopPropagation()}
       >
         {children}
-        {/* Hidden pickers: the menu items open these imperatively via their
-            openRefs, reusing the inline card selectors' searchable popups. */}
-        {onChangeTaskStatus ? (
-          <StatusComboboxSelector
-            disabled={statusItems.length === 0}
-            emptyText="No statuses."
-            onValueChange={applyStatus}
-            openRef={statusOpenRef}
-            options={statusItems}
-            trigger={hiddenTrigger}
-            value={multiple ? null : task.workflowStatusId}
-          />
-        ) : null}
-        {onAssignTask ? (
-          <AssigneeComboboxSelector
-            currentUserId={currentUserId}
-            onValueChange={applyAssignee}
-            openRef={assigneeOpenRef}
-            options={assigneeOptions}
-            teamMemberIds={teamMemberIds}
-            trigger={hiddenTrigger}
-            value={multiple ? null : (task.assignedUserId ?? null)}
-          />
-        ) : null}
-        {onChangeTaskLabels && !multiple ? (
-          <LabelsComboboxSelector
-            onValueChange={applyLabels}
-            openRef={labelsOpenRef}
-            options={applicableLabels}
-            trigger={hiddenTrigger}
-            value={task.labelIds ?? []}
-          />
-        ) : null}
-        {onChangeTaskEstimate ? (
-          <EstimateComboboxSelector
-            onValueChange={applyEstimate}
-            openRef={estimateOpenRef}
-            trigger={hiddenTrigger}
-            value={multiple ? "no_estimate" : ((task.estimate ?? "no_estimate") as TaskEstimate)}
-          />
-        ) : null}
-        {onChangeTaskDueDate ? (
-          <DueDateSelector
-            onValueChange={applyDueDate}
-            openRef={dueDateOpenRef}
-            trigger={hiddenTrigger}
-            value={multiple ? null : (task.dueDate ?? null)}
-          />
-        ) : null}
+        {/* Hidden pickers: keep their trigger buttons out of normal flow so they
+            do not add a phantom row under list items. */}
+        <div className="absolute size-0 overflow-hidden">
+          {onChangeTaskStatus ? (
+            <StatusComboboxSelector
+              disabled={statusItems.length === 0}
+              emptyText="No statuses."
+              onValueChange={applyStatus}
+              openRef={statusOpenRef}
+              options={statusItems}
+              trigger={hiddenTrigger}
+              value={multiple ? null : task.workflowStatusId}
+            />
+          ) : null}
+          {onAssignTask ? (
+            <AssigneeComboboxSelector
+              currentUserId={currentUserId}
+              onValueChange={applyAssignee}
+              openRef={assigneeOpenRef}
+              options={assigneeOptions}
+              teamMemberIds={teamMemberIds}
+              trigger={hiddenTrigger}
+              value={multiple ? null : (task.assignedUserId ?? null)}
+            />
+          ) : null}
+          {onChangeTaskLabels && !multiple ? (
+            <LabelsComboboxSelector
+              onValueChange={applyLabels}
+              openRef={labelsOpenRef}
+              options={applicableLabels}
+              trigger={hiddenTrigger}
+              value={task.labelIds ?? []}
+            />
+          ) : null}
+          {onChangeTaskEstimate ? (
+            <EstimateComboboxSelector
+              onValueChange={applyEstimate}
+              openRef={estimateOpenRef}
+              trigger={hiddenTrigger}
+              value={multiple ? "no_estimate" : ((task.estimate ?? "no_estimate") as TaskEstimate)}
+            />
+          ) : null}
+          {onChangeTaskDueDate ? (
+            <DueDateSelector
+              onValueChange={applyDueDate}
+              openRef={dueDateOpenRef}
+              trigger={hiddenTrigger}
+              value={multiple ? null : (task.dueDate ?? null)}
+            />
+          ) : null}
+        </div>
       </ContextMenuTrigger>
       <ContextMenuContent className="w-56">
         <ContextMenuGroup>
