@@ -145,6 +145,7 @@ const TargetCycleArg = Schema.Struct({
   start_date: Schema.String,
   starts_at: Schema.String,
 });
+type TargetCycleInput = typeof TargetCycleArg.Type;
 const TaskFieldsArg = Schema.Struct({
   assigned_user_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
   board_order: Schema.optional(Schema.String),
@@ -559,7 +560,7 @@ const ensureTargetCycle = async (
   args: {
     readonly church_id: string;
     readonly session_user_id: string;
-    readonly target_cycle: typeof TargetCycleArg.Type;
+    readonly target_cycle: TargetCycleInput;
   },
 ) => {
   const existing = (await db
@@ -623,6 +624,12 @@ type TodoStatusRow = { readonly id: string; readonly workflow_id: string };
 type ExistingProjectedTaskRow = {
   readonly id: string;
   readonly source_template_task_id: string;
+};
+type TaskPatch = {
+  readonly updated_at: Date;
+  readonly updated_by: string;
+  cycle_id?: string | null;
+  [key: string]: unknown;
 };
 type ProjectionTaskInsert = {
   readonly _tag: "task";
@@ -785,7 +792,7 @@ const taskPatchForFields = async (
   if (!task) throw new Error("Task not found.");
 
   const now = new Date();
-  const patch: Record<string, unknown> = { updated_at: now, updated_by: args.session_user_id };
+  const patch: TaskPatch = { updated_at: now, updated_by: args.session_user_id };
 
   if (args.fields.title !== undefined) patch.title = args.fields.title.trim();
   if (args.fields.assigned_user_id !== undefined)
@@ -2158,7 +2165,7 @@ export const mutators = defineMutators({
       await writeActivity(db, {
         actor_id: session.user_id,
         church_id: args.church_id,
-        cycle_id: (patch.cycle_id as string | null | undefined) ?? null,
+        cycle_id: patch.cycle_id ?? null,
         entity_id: args.task_id,
         entity_type: "task",
         event_type: "task.updated",
@@ -2195,7 +2202,7 @@ export const mutators = defineMutators({
         await writeActivity(db, {
           actor_id: session.user_id,
           church_id: args.church_id,
-          cycle_id: (patch.cycle_id as string | null | undefined) ?? null,
+          cycle_id: patch.cycle_id ?? null,
           entity_id: update.task_id,
           entity_type: "task",
           event_type: "task.updated",
