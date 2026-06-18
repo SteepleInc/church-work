@@ -3,6 +3,7 @@
 import { env } from "@church-task/env/web";
 import { mutators, schema, type OptionalZeroSessionContext } from "@church-task/zero";
 import { ZeroProvider } from "@rocicorp/zero/react";
+import { useRef } from "react";
 
 import { authClient } from "@/lib/auth-client";
 
@@ -39,13 +40,14 @@ const getZeroCacheUrl = () => {
 
 export function ZeroRuntimeProvider(props: { readonly children: React.ReactNode }) {
   const { data, isPending: sessionPending } = authClient.useSession();
+  const lastAuthenticatedContext = useRef<OptionalZeroSessionContext>(null);
   const session = data?.session as SessionWithZeroContext | undefined;
   const userId = data?.user?.id;
 
   const activeChurchId = session?.activeOrganizationId ?? null;
   const sessionId = session?.id ?? data?.session?.id;
-  const context: OptionalZeroSessionContext =
-    sessionPending || !data?.user || !data.session || !userId || !sessionId
+  const nextContext: OptionalZeroSessionContext =
+    !data?.user || !data.session || !userId || !sessionId
       ? null
       : {
           authenticated: true,
@@ -56,6 +58,8 @@ export function ZeroRuntimeProvider(props: { readonly children: React.ReactNode 
           session_id: sessionId,
           user_id: data.user.id,
         };
+  if (nextContext) lastAuthenticatedContext.current = nextContext;
+  const context = sessionPending ? lastAuthenticatedContext.current : nextContext;
 
   return (
     <ZeroProvider

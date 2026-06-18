@@ -69,7 +69,8 @@ test("creates, assigns, moves, and preserves Task board state on the local Postg
   });
   const expandWorship = worshipTeamItem.getByRole("button", { name: "Expand Worship" });
   if (await expandWorship.isVisible()) await expandWorship.click();
-  await page.goto("/team/worship/weeks");
+  await worshipTeamItem.getByRole("button", { name: "Weeks" }).click();
+  await worshipTeamItem.getByRole("link", { name: "All Weeks" }).click();
   await expect(page).toHaveURL(/\/team\/worship\/weeks$/);
   await expect(page.getByRole("heading", { name: "Weeks" })).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText("Church-wide Weeks for Worship")).toBeVisible();
