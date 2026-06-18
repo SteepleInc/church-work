@@ -10,6 +10,16 @@ import {
 } from "./-dashboard-utils";
 
 describe("dashboard execution route search", () => {
+  test("uses completed session org state instead of gating on active org loading", async () => {
+    const source = await Bun.file(new URL("./-dashboard.tsx", import.meta.url)).text();
+
+    expect(source).toContain("sessionHasCompletedActiveChurch");
+    expect(source).toContain("activeChurchLoading && !sessionHasCompletedActiveChurch");
+    expect(source).toContain("hasActiveChurch || sessionHasCompletedActiveChurch");
+    expect(source).toContain("activeChurch?.id ?? sessionRouting?.activeOrganizationId ?? null");
+    expect(source).toContain("activeChurch?.currentUserId ?? sessionData?.user?.id ?? null");
+  });
+
   test("keeps page identity out of dashboard search state", () => {
     expect(
       decodeDashboardSearch({

@@ -102,6 +102,7 @@ import {
   resolveTeamByRouteIdentifier,
   type DashboardSearch,
 } from "@/routes/-dashboard-utils";
+import type { SessionOrgRoutingFields } from "@/data/org-routing";
 
 export type ActiveDashboardPanel =
   | "my_work"
@@ -112,6 +113,7 @@ export type ActiveDashboardPanel =
 function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboardPanel }) {
   const search = useSearch({ strict: false }) as DashboardSearch;
   const navigate = useNavigate();
+  const { data: sessionData } = authClient.useSession();
   const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
   const setActivePanel = (panel: ActiveDashboardPanel) => {
     const routeSearch = getDashboardSearchForPanel(search);
@@ -130,8 +132,10 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
       search: routeSearch,
     });
   };
-  const currentUserId = activeChurch?.currentUserId ?? null;
-  const teams = useTeamsCollection({ churchId: activeChurch?.id ?? null });
+  const sessionRouting = sessionData?.session as SessionOrgRoutingFields | undefined;
+  const activeChurchId = activeChurch?.id ?? sessionRouting?.activeOrganizationId ?? null;
+  const currentUserId = activeChurch?.currentUserId ?? sessionData?.user?.id ?? null;
+  const teams = useTeamsCollection({ churchId: activeChurchId });
   const pendingInvitations =
     activeChurch?.invitations.filter((invitation) => invitation.status === "pending") ?? [];
   const activeTeams = teams.teamsCollection;
@@ -143,10 +147,10 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
   const unavailableTeamBoardActions = getUnavailableTeamBoardActions();
   const { openCreateTask } = useQuickActionOpeners();
   const showCreateTask =
-    activePanel !== "settings" && Boolean(activeChurch) && Boolean(currentUserId);
+    activePanel !== "settings" && Boolean(activeChurchId) && Boolean(currentUserId);
   const showBoardSurface =
     activePanel !== "settings" &&
-    Boolean(activeChurch) &&
+    Boolean(activeChurchId) &&
     Boolean(currentUserId) &&
     !(typeof activePanel === "object" && !selectedTeam);
 
@@ -162,7 +166,7 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
   const activeInsights = resolveInsightsState(search.insights);
   const [taskFilters, setTaskFilters] = useFilters(FilterKeys.Tasks);
   const taskFilterFields = useTaskFilterFields({
-    churchId: showTopBar ? (activeChurch?.id ?? null) : null,
+    churchId: showTopBar ? activeChurchId : null,
     surface,
     teamId: selectedTeam?.id ?? null,
     tab: activeTab,
@@ -271,9 +275,9 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
             ))}
           </div>
         </section>
-      ) : activeChurch && currentUserId ? (
+      ) : activeChurchId && currentUserId ? (
         <TaskExecutionSurface
-          churchId={activeChurch.id}
+          churchId={activeChurchId}
           currentUserId={currentUserId}
           surface={surface}
           team={selectedTeam}
@@ -1906,7 +1910,12 @@ function churchSlug(name: string) {
 
 function ChurchOnboardingGate({ activePanel }: { activePanel: ActiveDashboardPanel }) {
   const { currentOrgOpt: activeChurch, loading: activeChurchLoading } = useCurrentOrgOpt();
+  const { data: sessionData } = authClient.useSession();
+  const sessionRouting = sessionData?.session as SessionOrgRoutingFields | undefined;
   const hasActiveChurch = Boolean(activeChurch);
+  const sessionHasCompletedActiveChurch = Boolean(
+    sessionRouting?.activeOrganizationId && sessionRouting.orgCompletedOnboarding,
+  );
   const [error, setError] = useState<string | null>(null);
   const [invitationError, setInvitationError] = useState<string | null>(null);
   const pendingInvitations = useUserInvitationsCollection();
@@ -1947,7 +1956,7 @@ function ChurchOnboardingGate({ activePanel }: { activePanel: ActiveDashboardPan
     },
   });
 
-  if (activeChurchLoading) {
+  if (activeChurchLoading && !sessionHasCompletedActiveChurch) {
     return (
       <MainContainer>
         <PageContainer wrapperClassName="gap-6">
@@ -1964,7 +1973,7 @@ function ChurchOnboardingGate({ activePanel }: { activePanel: ActiveDashboardPan
     );
   }
 
-  if (hasActiveChurch) {
+  if (hasActiveChurch || sessionHasCompletedActiveChurch) {
     return <PrivateDashboardContent activePanel={activePanel} />;
   }
 
