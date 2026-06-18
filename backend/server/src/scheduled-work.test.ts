@@ -197,6 +197,18 @@ describe("scheduled work", () => {
         "2026-06-22",
       ]);
       expect(result.resultsByChurchId[`${churchId}_sparse`]?.ensuredCycleIds).toHaveLength(2);
+
+      const secondResult = await Effect.runPromise(runScheduledCycleMaintenance(db, { now }));
+      const secondCycleRows = await db
+        .select()
+        .from(cycles)
+        .where(eq(cycles.church_id, `${churchId}_sparse`));
+
+      expect(secondResult.resultsByChurchId[`${churchId}_sparse`]?.createdCycleIds).toEqual([]);
+      expect(secondCycleRows.map((cycle) => cycle.start_date).sort()).toEqual([
+        "2026-06-15",
+        "2026-06-22",
+      ]);
     } finally {
       await harness.stop();
     }
