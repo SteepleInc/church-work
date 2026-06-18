@@ -267,7 +267,6 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
                 TASK_ID: issue.id,
                 ISSUE_TITLE: issue.title,
                 BRANCH: issue.branch,
-                TARGET_BRANCH: BASE_BRANCH,
               },
             });
 
@@ -294,6 +293,11 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     }
   }
 
+  const failedIssues = settled
+    .map((outcome, i) => ({ outcome, issue: issues[i]! }))
+    .filter((entry) => entry.outcome.status === "rejected")
+    .map((entry) => entry.issue);
+
   // Only publish branches that actually produced commits.
   // An agent that ran successfully but made no commits has nothing to publish.
   const completedIssues = settled
@@ -311,9 +315,17 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   }
 
   if (completedBranches.length === 0) {
+    if (failedIssues.length > 0) {
+      console.error(
+        `Stopping because ${failedIssues.length} issue pipeline(s) failed and no branches were ready to publish.`,
+      );
+      process.exitCode = 1;
+      break;
+    }
+
     // All agents ran but none made commits — nothing to publish this cycle.
     console.log("No commits produced. Nothing to publish.");
-    continue;
+    break;
   }
 
   // -------------------------------------------------------------------------
