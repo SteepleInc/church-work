@@ -30,7 +30,7 @@ export function useTaskByIdentifier(params: {
   const tasks = useTasksCollection({
     churchId: params.churchId,
     currentUserId: null,
-    filters: parsed ? undefined : { taskId: "__invalid_identifier__" },
+    listArgs: parsed ? undefined : { limit: 0 },
   });
   const teams = useTeamsCollection({ churchId: params.churchId });
   const teamIdentifierById = new Map(

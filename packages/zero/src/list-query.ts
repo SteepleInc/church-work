@@ -43,7 +43,7 @@ const OptionFilterSchema = Schema.Struct({
   column_id: Schema.String,
   operator: Schema.Literals(["is", "is not", "is any of", "is none of"]),
   type: Schema.Literal("option"),
-  values: Schema.Array(Schema.String),
+  values: Schema.Array(Schema.Union([Schema.String, Schema.Null])),
 });
 
 const MultiOptionFilterSchema = Schema.Struct({
@@ -115,10 +115,30 @@ function applyTextFilter(query: QueryLike, filter: FilterItem, column: string) {
 function applyOptionFilter(query: QueryLike, filter: FilterItem, column: string) {
   if (filter.type !== "option" || !hasValues(filter)) return query;
 
-  if (filter.operator === "is") return query.where(column, filter.values[0]);
-  if (filter.operator === "is not") return query.where(column, "!=", filter.values[0]);
-  if (filter.operator === "is any of") return query.where(column, "IN", filter.values);
-  return query.where(column, "NOT IN", filter.values);
+  const values = filter.values;
+  const stringValues = values.filter((value): value is string => value !== null);
+  const includesNull = values.includes(null);
+
+  if (filter.operator === "is") {
+    const value = values[0];
+    return value === null ? query.where(column, "IS", null) : query.where(column, value);
+  }
+  if (filter.operator === "is not") {
+    const value = values[0];
+    return value === null ? query.where(column, "IS NOT", null) : query.where(column, "!=", value);
+  }
+  if (filter.operator === "is any of") {
+    if (!includesNull) return query.where(column, "IN", stringValues);
+    if (stringValues.length === 0) return query.where(column, "IS", null);
+
+    return query.where(({ cmp, or }: QueryLike) =>
+      or(cmp(column, "IN", stringValues), cmp(column, "IS", null)),
+    );
+  }
+
+  let result = stringValues.length > 0 ? query.where(column, "NOT IN", stringValues) : query;
+  if (includesNull) result = result.where(column, "IS NOT", null);
+  return result;
 }
 
 function applyNumberFilter(query: QueryLike, filter: FilterItem, column: string) {

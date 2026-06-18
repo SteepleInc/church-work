@@ -9,7 +9,6 @@ import {
   useTasksCollection,
   useUpdateTaskMutation,
   useUpdateTasksBatchMutation,
-  type TaskCollectionFilters,
 } from "@/data/tasks/tasksData.app";
 import { getUserDisplayName, useChurchUsersCollection } from "@/data/users/usersData.app";
 import {
@@ -24,11 +23,12 @@ import {
 } from "@/shared/global-state";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtom } from "jotai";
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 
-import { taskFiltersToCollectionFilters } from "@/components/tasks/task-filters";
+import { mapTaskFilterValuesForZero } from "@/components/tasks/task-filters";
 import { FilterKeys } from "@/shared/global-state";
-import { useFiltersValue } from "@/shared/hooks/useFilters";
+import { useZeroListArgs } from "@/shared/hooks/useZeroListArgs";
+import type { ListArgs } from "@church-task/zero";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { TaskInsightsPanel } from "@/components/tasks/task-insights-panel";
@@ -84,6 +84,71 @@ type WorkflowStatus = {
   readonly taskState: TaskState;
   readonly sortOrder: number;
 };
+
+const taskColumnMap = {
+  assignee: "assigned_user_id",
+  createdAt: "created_at",
+  creator: "created_by_user_id",
+  cycle: "cycle_id",
+  dueDate: "due_date",
+  parentTask: "parent_task_id",
+  taskState: "task_state",
+  team: "team_id",
+  workflowStatus: "workflow_status_id",
+} as const;
+
+type TaskExecutionQueryFilters = ReturnType<typeof getTaskExecutionFilters> | undefined;
+
+function optionFilter(params: {
+  readonly columnId: string;
+  readonly operator: "is" | "is any of";
+  readonly values: readonly (string | null)[];
+}): NonNullable<ListArgs["filters"]>[number] {
+  return {
+    column_id: params.columnId,
+    operator: params.operator,
+    type: "option",
+    values: params.values,
+  };
+}
+
+function getTaskScopeListFilters(
+  filters: TaskExecutionQueryFilters,
+): NonNullable<ListArgs["filters"]> {
+  const listFilters: Array<NonNullable<ListArgs["filters"]>[number]> = [];
+
+  if (!filters) return listFilters;
+  if (filters.createdByUserId) {
+    listFilters.push(
+      optionFilter({ columnId: "created_by_user_id", operator: "is", values: [filters.createdByUserId] }),
+    );
+  }
+  if (filters.cycleId) {
+    listFilters.push(optionFilter({ columnId: "cycle_id", operator: "is", values: [filters.cycleId] }));
+  }
+  if (filters.excludeSubtasks) {
+    listFilters.push(optionFilter({ columnId: "parent_task_id", operator: "is", values: [null] }));
+  }
+  if (filters.taskStates?.length) {
+    listFilters.push(
+      optionFilter({ columnId: "task_state", operator: "is any of", values: filters.taskStates }),
+    );
+  }
+
+  return listFilters;
+}
+
+function mergeTaskListArgs(base: ListArgs, filters: TaskExecutionQueryFilters): ListArgs {
+  const mergedFilters = [...getTaskScopeListFilters(filters), ...(base.filters ?? [])];
+
+  return {
+    ...base,
+    ...(mergedFilters.length ? { filters: mergedFilters } : {}),
+    ...(filters?.orderBy === "due_date"
+      ? { order_by: "due_date", order_direction: "asc" as const }
+      : {}),
+  };
+}
 
 export function TaskExecutionSurface({
   churchId,
@@ -157,9 +222,12 @@ export function TaskExecutionSurface({
         : []
       : activeWorkflowStatuses;
   const resolvedView = resolveTaskViewOptions(view);
-  // Ad-hoc Board filters (FilterKeys.Tasks) combine with the surface/tab scope
-  // as additional ANDed constraints (see task-filters.tsx).
-  const adHocFilters = useFiltersValue(FilterKeys.Tasks);
+  const { listArgs: adHocTaskListArgs } = useZeroListArgs({
+    columnMap: taskColumnMap,
+    filterKey: FilterKeys.Tasks,
+    getAll: true,
+    mapFilterValues: mapTaskFilterValuesForZero,
+  });
   const taskReadArgs = getTaskExecutionReadArgs({
     churchId,
     currentUserId,
@@ -167,24 +235,26 @@ export function TaskExecutionSurface({
     teamId: team?.id ?? null,
     cycleId: currentCycle?.id ?? null,
   });
-  const taskFilters: TaskCollectionFilters | undefined = taskReadArgs
-    ? {
-        ...getTaskExecutionFilters({
-          surface,
-          teamId: team?.id ?? null,
-          cycleId: taskReadArgs.cycleId,
-          currentUserId,
-          tab,
-          showSubtasks: resolvedView.showSubtasks,
-          ordering: resolvedView.ordering,
-        }),
-        ...taskFiltersToCollectionFilters(adHocFilters),
-      }
+  const taskFilters = taskReadArgs
+    ? getTaskExecutionFilters({
+        surface,
+        teamId: team?.id ?? null,
+        cycleId: taskReadArgs.cycleId,
+        currentUserId,
+        tab,
+        showSubtasks: resolvedView.showSubtasks,
+        ordering: resolvedView.ordering,
+      })
     : undefined;
+  const taskListArgs = useMemo(
+    () => mergeTaskListArgs(adHocTaskListArgs, taskFilters),
+    [adHocTaskListArgs, taskFilters],
+  );
   const tasksCollection = useTasksCollection({
     churchId: taskReadArgs !== null ? churchId : null,
     currentUserId,
     filters: taskFilters,
+    listArgs: taskListArgs,
   });
 
   const updateTask = useUpdateTaskMutation();

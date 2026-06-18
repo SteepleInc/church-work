@@ -19,7 +19,21 @@ import type { Schema as ZeroSchema } from "./zero-schema.gen";
 
 const DemoItemByIdArgs = toZeroSchema(Schema.Struct({ id: Schema.String }));
 const ChurchScopedArgs = toZeroSchema(Schema.Struct({ church_id: Schema.String }));
+const ChurchTaskAssigneeArgs = toZeroSchema(
+  Schema.Struct({ church_id: Schema.String, assigned_user_id: Schema.String }),
+);
+const ChurchTaskTeamArgs = toZeroSchema(
+  Schema.Struct({ church_id: Schema.String, team_id: Schema.String }),
+);
 const AdminListArgs = toZeroSchema(Schema.Struct({ list_args: ListArgsEffectSchema }));
+const ChurchTaskListArgs = toZeroSchema(
+  Schema.Struct({
+    assigned_user_id: Schema.optional(Schema.String),
+    church_id: Schema.String,
+    list_args: ListArgsEffectSchema,
+    team_id: Schema.optional(Schema.String),
+  }),
+);
 const ActivityForEntityArgs = toZeroSchema(
   Schema.Struct({ church_id: Schema.String, entity_id: Schema.String, entity_type: Schema.String }),
 );
@@ -328,6 +342,61 @@ export const queries = defineQueries({
       }
 
       return scoped.where("deleted_at", "IS", null).orderBy("created_at", "desc");
+    }),
+    by_assignee: defineChurchTaskQuery(ChurchTaskAssigneeArgs, ({ args, ctx }) => {
+      if (!hasActiveChurchAccess(ctx, args.church_id)) {
+        if (isServerContext(ctx)) requireActiveChurchAccess(ctx, args.church_id);
+
+        return zql.tasks.where("id", "__unauthorized__").where("deleted_at", "IS", null);
+      }
+
+      return zql.tasks
+        .where("church_id", args.church_id)
+        .where("assigned_user_id", args.assigned_user_id)
+        .where("deleted_at", "IS", null)
+        .orderBy("created_at", "desc");
+    }),
+    by_team: defineChurchTaskQuery(ChurchTaskTeamArgs, ({ args, ctx }) => {
+      if (!hasActiveChurchAccess(ctx, args.church_id)) {
+        if (isServerContext(ctx)) requireActiveChurchAccess(ctx, args.church_id);
+
+        return zql.tasks.where("id", "__unauthorized__").where("deleted_at", "IS", null);
+      }
+
+      return zql.tasks
+        .where("church_id", args.church_id)
+        .where("team_id", args.team_id)
+        .where("deleted_at", "IS", null)
+        .orderBy("created_at", "desc");
+    }),
+    filtered: defineChurchTaskQuery(ChurchTaskListArgs, ({ args, ctx }) => {
+      if (!hasActiveChurchAccess(ctx, args.church_id)) {
+        if (isServerContext(ctx)) requireActiveChurchAccess(ctx, args.church_id);
+
+        return zql.tasks.where("id", "__unauthorized__").where("deleted_at", "IS", null);
+      }
+
+      let query = zql.tasks.where("church_id", args.church_id).where("deleted_at", "IS", null);
+
+      if (args.team_id) query = query.where("team_id", args.team_id);
+      if (args.assigned_user_id) query = query.where("assigned_user_id", args.assigned_user_id);
+
+      return applyZeroListQuery(query, args.list_args, {
+        allowed_columns: [
+          "assigned_user_id",
+          "created_at",
+          "created_by_user_id",
+          "cycle_id",
+          "due_date",
+          "id",
+          "parent_task_id",
+          "task_state",
+          "team_id",
+          "workflow_status_id",
+        ],
+        default_order_by: "created_at",
+        default_order_direction: "desc",
+      });
     }),
     by_identifier: defineChurchTaskQuery(TaskByIdentifierArgs, ({ args, ctx }) => {
       const parsed = parseTaskIdentifier(args.identifier);

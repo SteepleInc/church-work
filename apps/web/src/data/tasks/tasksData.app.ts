@@ -1,29 +1,10 @@
 import { formatTaskIdentifier, type TaskEstimate, type TaskStatus } from "@church-task/domain";
-import { mutators, queries, type Task, type Team } from "@church-task/zero";
+import { mutators, queries, type ListArgs, type Task, type Team } from "@church-task/zero";
 import { useQuery, useZero } from "@rocicorp/zero/react";
 
 export type TaskCollectionFilters = {
   readonly surface?: "my_work" | "our_work";
-  readonly cycleId?: string;
   readonly teamId?: string;
-  readonly assignedUserId?: string | null;
-  readonly createdByUserId?: string;
-  readonly workflowStatusId?: string;
-  readonly taskState?: TaskStatus;
-  readonly taskStates?: readonly TaskStatus[];
-  readonly excludeSubtasks?: boolean;
-  readonly orderBy?: "created" | "due_date";
-  readonly taskId?: string;
-  readonly teamIdIn?: readonly string[];
-  readonly teamIdNotIn?: readonly string[];
-  readonly assignedUserIdIn?: readonly (string | null)[];
-  readonly assignedUserIdNotIn?: readonly (string | null)[];
-  readonly createdByUserIdIn?: readonly (string | null)[];
-  readonly createdByUserIdNotIn?: readonly (string | null)[];
-  readonly workflowStatusIdIn?: readonly string[];
-  readonly workflowStatusIdNotIn?: readonly string[];
-  readonly taskStateIn?: readonly TaskStatus[];
-  readonly taskStateNotIn?: readonly TaskStatus[];
 };
 
 export type TaskCollectionItem = {
@@ -130,52 +111,6 @@ const mapTask = (task: Task, teamsById: ReadonlyMap<string, Team>): TaskCollecti
   workflowStatusId: task.workflow_status_id,
 });
 
-const includesOrEmpty = <Value>(values: readonly Value[] | undefined, value: Value) =>
-  !values?.length || values.includes(value);
-
-const excludesOrEmpty = <Value>(values: readonly Value[] | undefined, value: Value) =>
-  !values?.length || !values.includes(value);
-
-const filterTask = (
-  task: TaskCollectionItem,
-  filters: TaskCollectionFilters | undefined,
-  currentUserId: string | null,
-) => {
-  if (!filters) return true;
-  if (filters.taskId && task.id !== filters.taskId) return false;
-  if (filters.surface === "my_work" && task.assignedUserId !== currentUserId) return false;
-  if (filters.teamId !== undefined && task.teamId !== filters.teamId) return false;
-  if ("assignedUserId" in filters && task.assignedUserId !== filters.assignedUserId) return false;
-  if (filters.createdByUserId && task.createdByUserId !== filters.createdByUserId) return false;
-  if (filters.workflowStatusId && task.workflowStatusId !== filters.workflowStatusId) return false;
-  if (filters.taskState && task.taskState !== filters.taskState) return false;
-  if (filters.taskStates && !filters.taskStates.includes(task.taskState)) return false;
-  if (filters.excludeSubtasks && task.parentTaskId !== null) return false;
-  if (!includesOrEmpty(filters.teamIdIn, task.teamId)) return false;
-  if (!excludesOrEmpty(filters.teamIdNotIn, task.teamId)) return false;
-  if (!includesOrEmpty(filters.assignedUserIdIn, task.assignedUserId)) return false;
-  if (!excludesOrEmpty(filters.assignedUserIdNotIn, task.assignedUserId)) return false;
-  if (!includesOrEmpty(filters.createdByUserIdIn, task.createdByUserId)) return false;
-  if (!excludesOrEmpty(filters.createdByUserIdNotIn, task.createdByUserId)) return false;
-  if (!includesOrEmpty(filters.workflowStatusIdIn, task.workflowStatusId)) return false;
-  if (!excludesOrEmpty(filters.workflowStatusIdNotIn, task.workflowStatusId)) return false;
-  if (!includesOrEmpty(filters.taskStateIn, task.taskState)) return false;
-  if (!excludesOrEmpty(filters.taskStateNotIn, task.taskState)) return false;
-  return true;
-};
-
-const sortTasks = (
-  tasks: readonly TaskCollectionItem[],
-  orderBy: TaskCollectionFilters["orderBy"],
-) => {
-  if (orderBy !== "due_date") return [...tasks];
-  return [...tasks].sort(
-    (left, right) =>
-      (left.dueDate ?? "9999-12-31").localeCompare(right.dueDate ?? "9999-12-31") ||
-      (left.createdAt ?? 0) - (right.createdAt ?? 0),
-  );
-};
-
 const zeroMutationResult = async <Data>(
   run: () => {
     readonly server: Promise<{
@@ -216,10 +151,18 @@ export function useTasksCollection(params: {
   readonly churchId: string | null;
   readonly currentUserId: string | null;
   readonly filters?: TaskCollectionFilters;
+  readonly listArgs?: ListArgs;
 }) {
   const [taskRows] = useQuery(
-    queries.tasks.by_church({ church_id: params.churchId ?? "__no_church__" }),
+    queries.tasks.filtered({
+      assigned_user_id:
+        params.filters?.surface === "my_work" ? (params.currentUserId ?? undefined) : undefined,
+      church_id: params.churchId ?? "__no_church__",
+      list_args: params.listArgs ?? {},
+      team_id: params.filters?.teamId,
+    }),
   );
+  const activeTaskRows = taskRows ?? [];
   const [teamRows] = useQuery(
     queries.teams.by_church({ church_id: params.churchId ?? "__no_church__" }),
   );
@@ -227,12 +170,7 @@ export function useTasksCollection(params: {
   const collection =
     params.churchId === null
       ? []
-      : sortTasks(
-          taskRows
-            .map((task) => mapTask(task, teamsById))
-            .filter((task) => filterTask(task, params.filters, params.currentUserId)),
-          params.filters?.orderBy,
-        );
+      : activeTaskRows.map((task) => mapTask(task, teamsById));
 
   return {
     loading: false,

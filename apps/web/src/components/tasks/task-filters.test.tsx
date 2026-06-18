@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import type { FilterItem } from "@/components/data-table-filter/core/types";
 import {
   buildTaskFilterFields,
-  taskFiltersToCollectionFilters,
+  mapTaskFilterValuesForZero,
   UNASSIGNED_FILTER_VALUE,
 } from "@/components/tasks/task-filters";
 
@@ -112,51 +112,27 @@ describe("task filter field catalog (per-surface)", () => {
   });
 });
 
-describe("taskFiltersToCollectionFilters", () => {
-  test("include operators map to *In; exclude operators map to *NotIn", () => {
-    const filters: FilterItem[] = [
-      { columnId: "team", operator: "is any of", type: "option", values: ["team-1", "team-2"] },
-      { columnId: "workflowStatus", operator: "is none of", type: "option", values: ["status-2"] },
-    ];
-    expect(taskFiltersToCollectionFilters(filters)).toEqual({
-      teamIdIn: ["team-1", "team-2"],
-      workflowStatusIdNotIn: ["status-2"],
-    });
-  });
-
+describe("mapTaskFilterValuesForZero", () => {
   test("Unassigned value maps to null for assignee/creator", () => {
-    const filters: FilterItem[] = [
-      {
-        columnId: "assignee",
-        operator: "is any of",
-        type: "option",
-        values: [UNASSIGNED_FILTER_VALUE, "user-1"],
-      },
-    ];
-    expect(taskFiltersToCollectionFilters(filters)).toEqual({
-      assignedUserIdIn: [null, "user-1"],
-    });
+    const filter: FilterItem = {
+      columnId: "assignee",
+      operator: "is any of",
+      type: "option",
+      values: [UNASSIGNED_FILTER_VALUE, "user-1"],
+    };
+
+    expect(mapTaskFilterValuesForZero(filter)).toEqual([null, "user-1"]);
   });
 
-  test("value-less filters never reach the query", () => {
-    const filters: FilterItem[] = [
-      { columnId: "team", operator: "is any of", type: "option", values: [] },
-    ];
-    expect(taskFiltersToCollectionFilters(filters)).toEqual({});
-  });
+  test("generic filters keep their original values", () => {
+    const filter: FilterItem = {
+      columnId: "taskState",
+      operator: "is any of",
+      type: "option",
+      values: ["todo", "done"],
+    };
 
-  test("only valid task states pass through", () => {
-    const filters: FilterItem[] = [
-      {
-        columnId: "taskState",
-        operator: "is any of",
-        type: "option",
-        values: ["todo", "bogus", "done"],
-      },
-    ];
-    expect(taskFiltersToCollectionFilters(filters)).toEqual({
-      taskStateIn: ["todo", "done"],
-    });
+    expect(mapTaskFilterValuesForZero(filter)).toBeUndefined();
   });
 
   test("grouped workflow status values expand to all status ids", () => {
@@ -171,14 +147,12 @@ describe("taskFiltersToCollectionFilters", () => {
 
     expect(groupedToDoValue).toBeDefined();
     expect(
-      taskFiltersToCollectionFilters([
-        {
-          columnId: "workflowStatus",
-          operator: "is any of",
-          type: "option",
-          values: [groupedToDoValue ?? ""],
-        },
-      ]),
-    ).toEqual({ workflowStatusIdIn: ["status-1", "status-2"] });
+      mapTaskFilterValuesForZero({
+        columnId: "workflowStatus",
+        operator: "is any of",
+        type: "option",
+        values: [groupedToDoValue ?? ""],
+      }),
+    ).toEqual(["status-1", "status-2"]);
   });
 });

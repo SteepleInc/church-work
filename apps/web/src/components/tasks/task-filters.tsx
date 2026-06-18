@@ -20,7 +20,6 @@ import {
   taskStateLabel,
   UNASSIGNED_COLUMN_ID,
 } from "@/components/tasks/task-kanban-adapter";
-import type { TaskCollectionFilters } from "@/data/tasks/tasksData.app";
 import type { TaskViewTab } from "@/components/tasks/task-view-options";
 import { getUserDisplayName, useChurchUsersCollection } from "@/data/users/usersData.app";
 import { useTeamsCollection } from "@/data/teams/teamsData.app";
@@ -247,11 +246,6 @@ export function useTaskFilterFields(args: {
   ]);
 }
 
-/** Whether an option operator means "exclude" (none-of) rather than include. */
-function isExcludeOperator(operator: string): boolean {
-  return operator === "is not" || operator === "is none of";
-}
-
 /** Map an Assignee/Creator filter value to its server value (Unassigned -> null). */
 function toUserIdValue(value: string): string | null {
   return value === UNASSIGNED_FILTER_VALUE ? null : value;
@@ -265,64 +259,15 @@ function workflowStatusValues(values: readonly string[]): string[] {
   );
 }
 
-/**
- * Convert the active `FilterItem[]` into `mcpListTasks` include/exclude args.
- * Only option filters with >=1 value contribute (a value-less filter never
- * reaches the query). Surface/tab scoping is layered separately by the caller.
- */
-export function taskFiltersToCollectionFilters(
-  filters: readonly FilterItem[],
-): Partial<TaskCollectionFilters> {
-  const result: {
-    teamIdIn?: string[];
-    teamIdNotIn?: string[];
-    assignedUserIdIn?: (string | null)[];
-    assignedUserIdNotIn?: (string | null)[];
-    createdByUserIdIn?: (string | null)[];
-    createdByUserIdNotIn?: (string | null)[];
-    workflowStatusIdIn?: string[];
-    workflowStatusIdNotIn?: string[];
-    taskStateIn?: TaskState[];
-    taskStateNotIn?: TaskState[];
-  } = {};
+export function mapTaskFilterValuesForZero(
+  filter: FilterItem,
+): readonly (string | null)[] | undefined {
+  if (filter.type !== "option" && filter.type !== "multiOption") return undefined;
 
-  for (const filter of filters) {
-    if (filter.type !== "option" && filter.type !== "multiOption") continue;
-    if (filter.values.length === 0) continue;
-
-    const exclude = isExcludeOperator(filter.operator);
-
-    switch (filter.columnId) {
-      case "team":
-        if (exclude) result.teamIdNotIn = [...filter.values];
-        else result.teamIdIn = [...filter.values];
-        break;
-      case "assignee": {
-        const values = filter.values.map(toUserIdValue);
-        if (exclude) result.assignedUserIdNotIn = values;
-        else result.assignedUserIdIn = values;
-        break;
-      }
-      case "creator": {
-        const values = filter.values.map(toUserIdValue);
-        if (exclude) result.createdByUserIdNotIn = values;
-        else result.createdByUserIdIn = values;
-        break;
-      }
-      case "workflowStatus":
-        if (exclude) result.workflowStatusIdNotIn = workflowStatusValues(filter.values);
-        else result.workflowStatusIdIn = workflowStatusValues(filter.values);
-        break;
-      case "taskState": {
-        const values = filter.values.filter((value): value is TaskState =>
-          (TASK_STATE_VALUES as readonly string[]).includes(value),
-        );
-        if (exclude) result.taskStateNotIn = values;
-        else result.taskStateIn = values;
-        break;
-      }
-    }
+  if (filter.columnId === "assignee" || filter.columnId === "creator") {
+    return filter.values.map(toUserIdValue);
   }
+  if (filter.columnId === "workflowStatus") return workflowStatusValues(filter.values);
 
-  return result;
+  return undefined;
 }

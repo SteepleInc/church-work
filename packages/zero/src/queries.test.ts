@@ -33,10 +33,24 @@ const churchScopedQueryNames = [
   "template_tasks.by_church",
   "template_teams.by_church",
   "templates.by_church",
+  "tasks.by_assignee",
   "tasks.by_church",
+  "tasks.by_team",
+  "tasks.filtered",
   "workflows.by_church",
   "workflow_statuses.by_church",
 ] as const;
+
+const argsByQueryName = {
+  "tasks.by_assignee": { assigned_user_id: "user_member", church_id: "org_other" },
+  "tasks.filtered": { church_id: "org_other", list_args: {} },
+  "tasks.by_team": { church_id: "org_other", team_id: "team_other" },
+} as const;
+
+const getArgsForQueryName = (name: (typeof churchScopedQueryNames)[number]) =>
+  name in argsByQueryName
+    ? argsByQueryName[name as keyof typeof argsByQueryName]
+    : { church_id: "org_other" };
 
 describe("Zero product queries", () => {
   test("does not throw while the browser is still refreshing active Church context", () => {
@@ -101,7 +115,7 @@ describe("Zero product queries", () => {
     for (const name of churchScopedQueryNames) {
       expect(() =>
         mustGetQuery(queries, name).fn({
-          args: { church_id: "org_other" },
+          args: getArgsForQueryName(name),
           ctx: memberContext,
         }),
       ).toThrow("Active Church access required.");
@@ -112,7 +126,7 @@ describe("Zero product queries", () => {
     for (const name of churchScopedQueryNames) {
       expect(() =>
         mustGetQuery(queries, name).fn({
-          args: { church_id: "org_other" },
+          args: getArgsForQueryName(name),
           ctx: appAdminContext,
         }),
       ).not.toThrow();
