@@ -71,14 +71,6 @@ export const buildCycleForInstant = (args: {
     localDate: localDateForInstant(args.instant, args.churchTimeZone),
   });
 
-const dayOffsetWithinCycle = (cycleStartDate: string, dueDate: string) => {
-  const start = Date.parse(`${cycleStartDate}T00:00:00.000Z`);
-  const due = Date.parse(`${dueDate}T00:00:00.000Z`);
-  if (Number.isNaN(start) || Number.isNaN(due)) return 6;
-
-  return Math.min(6, Math.max(0, Math.round((due - start) / 86_400_000)));
-};
-
 const writeSystemActivity = (
   db: DbExecutor,
   args: {
@@ -461,18 +453,10 @@ export const maintainCyclesForChurch = Effect.fn("maintainCyclesForChurch")(func
               .from(workflow_statuses)
               .where(eq(workflow_statuses.id, task.workflow_status_id))
               .limit(1);
-            const nextDueDate = task.due_date
-              ? addLocalDateDays(
-                  nextCycle.cycle.start_date,
-                  dayOffsetWithinCycle(cycle.start_date, task.due_date),
-                )
-              : null;
-
             await tx
               .update(tasks)
               .set({
                 cycle_id: nextCycle.cycle.id,
-                due_date: nextDueDate,
                 source_template_sync_enabled: false,
                 updated_at: now,
                 updated_by: null,

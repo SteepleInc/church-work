@@ -816,6 +816,50 @@ describe("Zero Task mutators", () => {
     expect(taskUpdate).not.toHaveProperty("previous_identifiers");
   });
 
+  test("moves completed Tasks back to previous Cycles for rollover correction without changing identifiers", async () => {
+    const { insertCalls, tx, updateCalls } = createServerTx([
+      [
+        {
+          board_order: "a1",
+          church_id: "org_test",
+          cycle_id: "cycle_current",
+          deleted_at: null,
+          finished_at: new Date("2026-08-03T12:00:00.000Z"),
+          id: "task_rolled_over",
+          label_ids: "[]",
+          number: 7,
+          previous_identifiers: "[]",
+          task_state: "done",
+          team_id: "team_production",
+          team_identifier: "PRO",
+          workflow_id: "workflow_production",
+          workflow_status_id: "workflowstatus_done",
+        },
+      ],
+      [{ id: "cycle_previous" }],
+    ]);
+
+    await mustGetMutator(mutators, "tasks.update").fn({
+      args: {
+        church_id: "org_test",
+        fields: { cycle_id: "cycle_previous" },
+        task_id: "task_rolled_over",
+      },
+      ctx: signedInContext,
+      tx,
+    });
+
+    const taskUpdate = updateCalls.find((call) => call.table === tasks)?.set as {
+      readonly cycle_id: string;
+      readonly number?: number;
+      readonly previous_identifiers?: string;
+    };
+    expect(insertCalls.some((call) => call.table === cycles)).toBe(false);
+    expect(taskUpdate.cycle_id).toBe("cycle_previous");
+    expect(taskUpdate).not.toHaveProperty("number");
+    expect(taskUpdate).not.toHaveProperty("previous_identifiers");
+  });
+
   test("Due Date updates do not attach Tasks to Cycles", async () => {
     const { insertCalls, tx, updateCalls } = createServerTx([
       [
