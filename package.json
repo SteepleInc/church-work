@@ -43,6 +43,7 @@
   "type": "module",
   "scripts": {
     "dev": "turbo run infra dev --continue",
+    "sandcastle": "npx tsx .sandcastle/main.ts",
     "reference:populate": "bash scripts/populate-reference.sh",
     "build": "turbo build",
     "check-types": "turbo check-types",
@@ -90,6 +91,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@ai-hero/sandcastle": "^0.10.0",
     "@church-task/config": "workspace:*",
     "@church-task/test-harness": "workspace:*",
     "@playwright/test": "^1.60.0",
