@@ -63,6 +63,7 @@ import {
   getExecutionBoardGrouping,
   getTaskCreationDefaults,
   getTaskExecutionFilters,
+  getTaskExecutionCycleId,
   getTaskExecutionReadArgs,
   getTaskGroupAddPreset,
   getTaskParentContext,
@@ -75,6 +76,7 @@ import {
   resolveTaskViewOptions,
   type TaskViewOptions,
   type TaskViewTab,
+  type TaskWeekScope,
 } from "@/components/tasks/task-view-options";
 
 type WorkflowStatus = {
@@ -164,6 +166,7 @@ export function TaskExecutionSurface({
   teams = [],
   tab,
   view,
+  scope,
   insights,
   onInsightsChange,
   onToggleLayout,
@@ -180,6 +183,7 @@ export function TaskExecutionSurface({
   readonly teams?: readonly { readonly id: string; readonly name: string }[];
   readonly tab?: TaskViewTab;
   readonly view?: TaskViewOptions;
+  readonly scope?: TaskWeekScope;
   readonly insights?: ResolvedInsightsState;
   readonly onInsightsChange?: (next: ResolvedInsightsState) => void;
   // Surface-level keyboard shortcut targets, owned by the route.
@@ -209,6 +213,11 @@ export function TaskExecutionSurface({
 
   const cycles = cyclesCollection.cyclesCollection;
   const currentCycle = selectCurrentExecutionCycle(cycles, today);
+  const executionCycleId = getTaskExecutionCycleId({
+    surface,
+    scope,
+    currentCycleId: currentCycle?.id ?? null,
+  });
   // Every Team owns its Workflow (ADR 0013): a Team Board shows that
   // Workflow's statuses. Cross-team surfaces carry every active status so
   // per-card status pickers stay scoped to each Task's Team Workflow.
@@ -239,7 +248,7 @@ export function TaskExecutionSurface({
     currentUserId,
     surface,
     teamId: team?.id ?? null,
-    cycleId: currentCycle?.id ?? null,
+    cycleId: executionCycleId,
   });
   const taskFilters = taskReadArgs
     ? getTaskExecutionFilters({

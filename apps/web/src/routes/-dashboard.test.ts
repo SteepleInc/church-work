@@ -59,6 +59,17 @@ describe("dashboard execution route search", () => {
     });
   });
 
+  test("does not carry Week scope between My Work and Our Work by default", () => {
+    expect(
+      getDashboardSearchForPanel({
+        scope: "all",
+        tab: "created",
+        view: { mode: "list" },
+        taskState: "todo",
+      }),
+    ).toEqual({ taskState: "todo" });
+  });
+
   test("preserves details pane state while switching execution pages", () => {
     expect(
       getDashboardSearchForPanel({

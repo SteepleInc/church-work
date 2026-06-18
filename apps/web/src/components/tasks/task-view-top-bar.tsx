@@ -1,4 +1,5 @@
 import {
+  CalendarRange,
   ChartNoAxesColumn,
   Kanban,
   List,
@@ -11,6 +12,7 @@ import { useEffect, useState, type MutableRefObject } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -34,6 +36,7 @@ import {
   type TaskDisplayProperty,
   type TaskViewGrouping,
   type TaskViewOrdering,
+  type TaskWeekScope,
   type TaskViewTab,
 } from "@/components/tasks/task-view-options";
 
@@ -41,6 +44,8 @@ type TaskViewTopBarProps = {
   readonly surface: ExecutionSurface;
   readonly tab: TaskViewTab;
   readonly onTabChange: (tab: TaskViewTab) => void;
+  readonly scope?: TaskWeekScope;
+  readonly onScopeChange?: (scope: TaskWeekScope) => void;
   readonly view: ResolvedTaskViewOptions;
   readonly onViewChange: (view: ResolvedTaskViewOptions) => void;
   readonly onCreateTask?: () => void;
@@ -84,6 +89,8 @@ export function TaskViewTopBar({
   surface,
   tab,
   onTabChange,
+  scope = "current_week",
+  onScopeChange,
   view,
   onViewChange,
   onCreateTask,
@@ -101,29 +108,33 @@ export function TaskViewTopBar({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div
-          aria-label="View Tabs"
-          className="flex flex-1 flex-wrap items-center gap-2"
-          role="tablist"
-        >
-          {tabs.map((candidate) => {
-            const isActive = candidate.value === tab;
+        <div className="flex flex-1 flex-wrap items-center gap-2">
+          <div aria-label="View Tabs" className="flex flex-wrap items-center gap-2" role="tablist">
+            {tabs.map((candidate) => {
+              const isActive = candidate.value === tab;
 
-            return (
-              <Button
-                aria-selected={isActive}
-                className="rounded-full"
-                key={candidate.value}
-                onClick={() => onTabChange(candidate.value)}
-                role="tab"
-                size="sm"
-                type="button"
-                variant={isActive ? "secondary" : "ghost"}
-              >
-                {candidate.label}
-              </Button>
-            );
-          })}
+              return (
+                <Button
+                  aria-selected={isActive}
+                  className="rounded-full"
+                  key={candidate.value}
+                  onClick={() => onTabChange(candidate.value)}
+                  role="tab"
+                  size="sm"
+                  type="button"
+                  variant={isActive ? "secondary" : "ghost"}
+                >
+                  {candidate.label}
+                </Button>
+              );
+            })}
+          </div>
+          {surface !== "team_board" && onScopeChange ? (
+            <>
+              <Separator orientation="vertical" className="mx-0.5 h-5" />
+              <WeekScopeControl onScopeChange={onScopeChange} scope={scope} />
+            </>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-1">
@@ -178,6 +189,81 @@ export function TaskViewTopBar({
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * The Week scope control for the Cycle-scoped Work Views (My Work, Our Work).
+ * Current Week is the resting default every visit; All is the explicit
+ * per-visit escape hatch (CONTEXT: Cycle-scoped Work View). It is deliberately
+ * shaped unlike the View Tabs — a calendar-led, inset segmented toggle behind a
+ * vertical divider — so the time window never reads as another View Tab and
+ * scope choices do not feel like they carry between surfaces.
+ */
+function WeekScopeControl({
+  scope,
+  onScopeChange,
+}: {
+  readonly scope: TaskWeekScope;
+  readonly onScopeChange: (scope: TaskWeekScope) => void;
+}) {
+  const isCurrentWeek = scope === "current_week";
+
+  // Elevated "thumb" for the active segment. The track is an inset muted pill,
+  // so the active option lifts off it with the surface background, a hairline
+  // border, and a soft shadow — `secondary` reads almost identically to the
+  // track in both themes and would leave the selection ambiguous.
+  const segmentClassName = "h-6 rounded-full px-2.5 text-xs font-medium transition-colors";
+  const activeSegmentClassName =
+    "bg-background text-foreground border-border/60 border shadow-sm hover:bg-background";
+  const inactiveSegmentClassName =
+    "text-muted-foreground hover:text-foreground border border-transparent hover:bg-background/50";
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <div
+            aria-label="Week scope"
+            className="bg-muted/60 text-muted-foreground flex h-7 items-center gap-0.5 rounded-full px-1.5"
+            role="group"
+          />
+        }
+      >
+        <CalendarRange aria-hidden className="size-3.5 shrink-0" />
+        <Button
+          aria-pressed={isCurrentWeek}
+          className={cn(
+            segmentClassName,
+            isCurrentWeek ? activeSegmentClassName : inactiveSegmentClassName,
+          )}
+          onClick={() => onScopeChange("current_week")}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          Current Week
+        </Button>
+        <Button
+          aria-pressed={!isCurrentWeek}
+          className={cn(
+            segmentClassName,
+            isCurrentWeek ? inactiveSegmentClassName : activeSegmentClassName,
+          )}
+          onClick={() => onScopeChange("all")}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          All
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>
+        {isCurrentWeek
+          ? "Showing this Week's Tasks. Switch to All for every Task."
+          : "Showing every Task. This Week is the default each visit."}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 

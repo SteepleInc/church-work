@@ -61,6 +61,25 @@ test("creates, assigns, moves, and preserves Task board state on the local Postg
   await chooseCardOption(taskCard(page, sharedTaskTitle), "Assign to", userName);
   await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "My Work" }).click();
   await expect(page).toHaveURL(/\/my-work$/);
+  await expect(page.getByRole("button", { name: "Current Week" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(taskCard(page, sharedTaskTitle)).toBeVisible({ timeout: 20_000 });
+
+  await page.getByRole("button", { name: "All" }).click();
+  await expect(page).toHaveURL(/\/my-work\?scope=all$/);
+  await expect(page.getByRole("button", { name: "All" })).toHaveAttribute("aria-pressed", "true");
+
+  await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Our Work" }).click();
+  await expect(page).toHaveURL(/\/our-work$/);
+  await expect(page.getByRole("button", { name: "Current Week" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+
+  await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "My Work" }).click();
+  await expect(page).toHaveURL(/\/my-work$/);
   await expect(taskCard(page, sharedTaskTitle)).toBeVisible({ timeout: 20_000 });
 
   await chooseCardOption(taskCard(page, sharedTaskTitle), "Change status", "In Progress");

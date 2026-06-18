@@ -6,6 +6,7 @@ import {
   getTaskCreationDefaults,
   getExecutionBoardGrouping,
   getTaskExecutionFilters,
+  getTaskExecutionCycleId,
   getTaskExecutionReadArgs,
   getTaskGroupAddPreset,
   getTaskParentContext,
@@ -24,6 +25,29 @@ describe("Task execution surface", () => {
         "2026-06-03",
       ),
     ).toEqual({ id: "current", startDate: "2026-06-01", endDate: "2026-06-07" });
+  });
+
+  test("defaults My Work and Our Work to current Week unless All is explicit", () => {
+    expect(getTaskExecutionCycleId({ surface: "my_work", currentCycleId: "cycle-current" })).toBe(
+      "cycle-current",
+    );
+    expect(getTaskExecutionCycleId({ surface: "our_work", currentCycleId: "cycle-current" })).toBe(
+      "cycle-current",
+    );
+    expect(
+      getTaskExecutionCycleId({
+        surface: "my_work",
+        scope: "all",
+        currentCycleId: "cycle-current",
+      }),
+    ).toBeNull();
+    expect(
+      getTaskExecutionCycleId({
+        surface: "our_work",
+        scope: "all",
+        currentCycleId: "cycle-current",
+      }),
+    ).toBeNull();
   });
 
   test("defaults My Work Task creation to the current User", () => {
