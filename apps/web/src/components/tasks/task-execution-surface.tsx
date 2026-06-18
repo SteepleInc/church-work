@@ -69,7 +69,6 @@ import {
   getTaskParentContext,
   selectCurrentExecutionCycle,
   type ExecutionSurface,
-  type TaskWeekScope,
   type TaskSummary,
   type TaskState,
 } from "@/components/tasks/task-execution-surface-utils";
@@ -77,6 +76,7 @@ import {
   resolveTaskViewOptions,
   type TaskViewOptions,
   type TaskViewTab,
+  type TaskWeekScope,
 } from "@/components/tasks/task-view-options";
 
 type WorkflowStatus = {

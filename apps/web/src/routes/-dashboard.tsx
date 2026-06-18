@@ -64,6 +64,7 @@ import {
   toTaskViewSearchValue,
   type ResolvedTaskViewOptions,
   type TaskViewTab,
+  type TaskWeekScope,
 } from "@/components/tasks/task-view-options";
 import { useUserInvitationsCollection } from "@/data/invitations/invitationsData.app";
 import {
@@ -202,7 +203,7 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
     });
   };
 
-  const setScope = (scope: "current_week" | "all") => {
+  const setScope = (scope: TaskWeekScope) => {
     void navigate({
       to: ".",
       replace: true,

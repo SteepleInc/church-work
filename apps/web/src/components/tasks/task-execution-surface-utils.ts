@@ -1,7 +1,10 @@
-import { resolveTaskViewTab, type TaskViewTab } from "@/components/tasks/task-view-options";
+import {
+  resolveTaskViewTab,
+  type TaskViewTab,
+  type TaskWeekScope,
+} from "@/components/tasks/task-view-options";
 
 export type ExecutionSurface = "my_work" | "our_work" | "team_board";
-export type TaskWeekScope = "current_week" | "all";
 
 type ExecutionCycle = {
   readonly id: string;
