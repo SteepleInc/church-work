@@ -16,6 +16,7 @@ import {
 
 import {
   buildTeamWeekBurndown,
+  buildProjectedWeekCycles,
   buildTeamWeeksTimelineRows,
   type TeamWeeksIndexStatus,
   type TeamWeeksTimelineRow,
@@ -69,6 +70,7 @@ export function TeamWeeksIndex({
   team,
   progressCycleId,
   onProgressCycleIdChange,
+  churchTimeZone = "UTC",
 }: {
   readonly churchId: string;
   readonly currentUserId: string;
@@ -80,6 +82,7 @@ export function TeamWeeksIndex({
   };
   readonly progressCycleId?: string | null;
   readonly onProgressCycleIdChange?: (cycleId: string | null) => void;
+  readonly churchTimeZone?: string;
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const cyclesCollection = useCyclesCollection({ churchId, currentUserId });
@@ -88,12 +91,18 @@ export function TeamWeeksIndex({
     currentUserId,
     filters: { teamId: team.id },
   });
-  const rows = buildTeamWeeksTimelineRows({
+  const cycles = buildProjectedWeekCycles({
+    churchTimeZone,
     cycles: cyclesCollection.cyclesCollection,
+    today,
+  });
+  const rows = buildTeamWeeksTimelineRows({
+    cycles,
     tasks: tasksCollection.tasksCollection,
     teamId: team.id,
     teamIdentifier: team.identifier,
     today,
+    churchTimeZone,
   });
   const isLoading = cyclesCollection.loading || tasksCollection.loading;
   const expandedCycleId = resolveExpandedCycleId({ progressCycleId, rows });
@@ -305,12 +314,19 @@ function WeekExpandedPanel({ row }: { readonly row: TeamWeeksTimelineRow }) {
   });
 
   if (row.taskCount === 0) {
+    // A future Week with no saved Cycle row is a Projected Week: it is real to
+    // plan into, but reads as "nothing scheduled yet" rather than "empty Week".
+    const isFuture = row.status === "upcoming";
     return (
       <div className="px-2 pb-5">
         <div className="grid place-items-center gap-1 rounded-lg border border-dashed bg-muted/10 px-4 py-8 text-center">
-          <p className="text-sm font-medium">No Tasks this Week</p>
+          <p className="text-sm font-medium">
+            {isFuture ? "Nothing planned yet" : "No Tasks this Week"}
+          </p>
           <p className="text-xs text-muted-foreground">
-            Progress appears once this Team has Tasks in the Week.
+            {isFuture
+              ? "Add Tasks to this Week and it starts tracking progress automatically."
+              : "Progress appears once this Team has Tasks in the Week."}
           </p>
         </div>
       </div>
@@ -386,9 +402,10 @@ function EmptyWeeks() {
       <span className="grid size-10 place-items-center rounded-full bg-muted text-muted-foreground">
         <CalendarDays className="size-5" />
       </span>
-      <p className="text-sm font-medium">No Weeks generated yet</p>
+      <p className="text-sm font-medium">No Weeks to show yet</p>
       <p className="max-w-sm text-sm text-muted-foreground">
-        Once Church-wide Weeks exist, they will appear here even before this Team has Tasks.
+        Upcoming Weeks are projected from the Church calendar — they appear here even before this
+        Team has Tasks.
       </p>
     </div>
   );
