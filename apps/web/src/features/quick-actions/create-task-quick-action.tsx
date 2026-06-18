@@ -3,7 +3,16 @@ import { revalidateLogic } from "@tanstack/react-form";
 import { Schema } from "effect";
 import { atom, useAtom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
-import { CalendarIcon, ChevronRight, Maximize2, Minimize2, Tag, Triangle, X } from "lucide-react";
+import {
+  CalendarDays,
+  CalendarIcon,
+  ChevronRight,
+  Maximize2,
+  Minimize2,
+  Tag,
+  Triangle,
+  X,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -37,6 +46,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { Switch } from "@/components/ui/switch";
+import { formatWeekDateRange } from "@/data/cycles/cyclesData.app";
 import { useCreateLabelMutation, useLabelsCollection } from "@/data/labels/labelsData.app";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { useCreateTaskMutation } from "@/data/tasks/tasksData.app";
@@ -120,6 +130,31 @@ function FieldPill({
       )}
     >
       {children}
+    </span>
+  );
+}
+
+/**
+ * A compact, read-only cue that this Task will attach to the Week currently in
+ * view (its Cycle is materialized on create if it is still a Projected Week).
+ * It mirrors the date range shown on the Week board header so a User reading
+ * the dialog never wonders "which Week does this land in?".
+ */
+function TargetWeekPill({
+  targetCycle,
+}: {
+  readonly targetCycle: NonNullable<CreateTaskQuickActionState>["targetCycle"];
+}) {
+  if (!targetCycle) return null;
+  const dateRange = formatWeekDateRange(targetCycle);
+  return (
+    <span
+      className="inline-flex h-6 items-center gap-1.5 rounded-md bg-primary/10 px-2 font-medium text-primary text-xs"
+      title={`This Task will be added to the Week of ${dateRange}.`}
+    >
+      <CalendarDays aria-hidden className="size-3.5" />
+      <span className="hidden sm:inline">Week of </span>
+      {dateRange}
     </span>
   );
 }
@@ -457,6 +492,7 @@ export function CreateTaskQuickAction() {
               </form.Subscribe>
               <ChevronRight className="size-3.5 text-muted-foreground" />
               <span>New Task</span>
+              {state?.targetCycle ? <TargetWeekPill targetCycle={state.targetCycle} /> : null}
             </span>
           </QuickActionsTitle>
           <div className="flex items-center gap-1">
