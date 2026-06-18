@@ -512,12 +512,22 @@ export const maintainCyclesForChurch = Effect.fn("maintainCyclesForChurch")(func
         }
 
         const materializedTaskIds: string[] = [];
-        for (const cycleId of ensuredCycleIds) {
-          const [cycle] = await tx.select().from(cycles).where(eq(cycles.id, cycleId)).limit(1);
-          if (!cycle) continue;
-          materializedTaskIds.push(
-            ...(await materializeTemplateCycleTasks(tx, { church_id: args.church_id, cycle, now })),
-          );
+        const currentCycleId = ensuredCycleIds[0];
+        if (currentCycleId) {
+          const [currentCycle] = await tx
+            .select()
+            .from(cycles)
+            .where(eq(cycles.id, currentCycleId))
+            .limit(1);
+          if (currentCycle) {
+            materializedTaskIds.push(
+              ...(await materializeTemplateCycleTasks(tx, {
+                church_id: args.church_id,
+                cycle: currentCycle,
+                now,
+              })),
+            );
+          }
         }
 
         return { createdCycleIds, ensuredCycleIds, materializedTaskIds, rolledOverTaskIds };

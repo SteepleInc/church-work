@@ -14,7 +14,11 @@ import {
   workflows,
 } from "@church-task/db/schema";
 
-import { buildTemplateCycleTaskInserts, mutators } from "./mutators";
+import {
+  buildTemplateCycleTaskInserts,
+  buildTemplateCycleTaskProjections,
+  mutators,
+} from "./mutators";
 
 const signedInContext = {
   active_church_id: "org_test",
@@ -1177,7 +1181,7 @@ describe("Zero Template and Cycle projection", () => {
       number: 7,
       source_template_cycle_id: "cycle_easter",
       source_template_id: "template_easter",
-      source_template_sync_enabled: true,
+      source_template_sync_enabled: false,
       source_template_task_id: "templatetask_rehearsal",
       task_state: "todo",
       team_id: "team_worship",
@@ -1284,5 +1288,69 @@ describe("Zero Template and Cycle projection", () => {
       source_template_task_id: "templatetask_child",
     });
     expect(projection.nextNumberByTeamId.get("team_worship")).toBe(8);
+  });
+
+  test("renders future Template Tasks without Task identifiers or materialized Task rows", () => {
+    const projections = buildTemplateCycleTaskProjections({
+      adjustments: [
+        {
+          lifecycle: "active",
+          overrides: JSON.stringify([
+            { field: "title", value: "Confirm Advent readers" },
+            { field: "dueDate", value: "2026-12-02" },
+          ]),
+          template_task_id: "templatetask_readers",
+        },
+        {
+          lifecycle: "skipped",
+          overrides: JSON.stringify([]),
+          template_task_id: "templatetask_skipped",
+        },
+      ],
+      cycle: { id: "projected-week:2026-11-30", start_date: "2026-11-30" },
+      focus_windows: [],
+      key_date_occurrences: [],
+      template_id: "template_advent",
+      template_tasks: [
+        {
+          id: "templatetask_readers",
+          key: "readers",
+          parent_template_task_id: null,
+          scheduling_rule: JSON.stringify({
+            baseLocalDate: "2026-11-30",
+            dayOffset: 1,
+            kind: "cycleOffset",
+            offsetCycles: 0,
+          }),
+          template_team_id: "templateteam_worship",
+          title: "Confirm readers",
+        },
+        {
+          id: "templatetask_skipped",
+          key: "skipped",
+          parent_template_task_id: null,
+          scheduling_rule: JSON.stringify({ kind: "fixedDate", localDate: "2026-12-03" }),
+          template_team_id: "templateteam_worship",
+          title: "Skipped occurrence",
+        },
+      ],
+      template_teams: [{ id: "templateteam_worship", mapped_team_id: "team_worship" }],
+    });
+
+    expect(projections).toEqual([
+      {
+        cycle_id: "projected-week:2026-11-30",
+        due_date: "2026-12-02",
+        parent_template_task_id: null,
+        skipped: false,
+        source_template_id: "template_advent",
+        source_template_task_id: "templatetask_readers",
+        team_id: "team_worship",
+        template_task_key: "readers",
+        title: "Confirm Advent readers",
+      },
+    ]);
+    expect(projections[0]).not.toHaveProperty("id");
+    expect(projections[0]).not.toHaveProperty("number");
   });
 });

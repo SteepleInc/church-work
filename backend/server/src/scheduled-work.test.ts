@@ -255,7 +255,7 @@ describe("scheduled work", () => {
         "task_rollover",
         "task_progress_rollover",
       ]);
-      expect(result.resultsByChurchId[churchId]?.materializedTaskIds).toHaveLength(2);
+      expect(result.resultsByChurchId[churchId]?.materializedTaskIds).toHaveLength(1);
 
       const [rolledTask] = await db.select().from(tasks).where(eq(tasks.id, "task_rollover"));
       expect(rolledTask).toMatchObject({
@@ -290,11 +290,11 @@ describe("scheduled work", () => {
         .select()
         .from(tasks)
         .where(eq(tasks.source_template_id, "template_weekly_ops"));
-      expect(projectedTasks).toHaveLength(2);
-      expect(projectedTasks.map((task) => task.due_date).sort()).toEqual([
-        "2026-06-16",
-        "2026-06-23",
-      ]);
+      expect(projectedTasks).toHaveLength(1);
+      expect(projectedTasks[0]).toMatchObject({
+        due_date: "2026-06-16",
+        source_template_sync_enabled: false,
+      });
       expect(projectedTasks.every((task) => task.created_by === null)).toBe(true);
 
       const activityRows = await db.select().from(activities);
