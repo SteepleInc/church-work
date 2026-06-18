@@ -13,7 +13,7 @@ The user-facing label for an Org, presented to users as the church they belong t
 _Avoid_: Workspace, account, Org in user-facing product copy
 
 **Church Time Zone**:
-The local time zone used to determine a Church's weekly Cycle boundaries. It is collected during Church onboarding and may be changed by an owner or admin.
+The local time zone used to determine a Church's weekly Cycle boundaries. It is collected during Church onboarding and may be changed by an owner or admin; changing it preserves past Cycles, keeps the current Cycle's start boundary, adjusts the current Cycle's end boundary, and recalculates future Cycles.
 _Avoid_: User time zone, browser time zone
 
 **Org**:
@@ -33,12 +33,28 @@ A repeating rhythm that causes church work to recur, such as weekly, monthly, or
 _Avoid_: Cycle, schedule pattern
 
 **Cycle**:
-The Monday-to-Sunday weekly planning surface for work in a specific Church week, using the Church Time Zone. Every Task belongs to one Cycle; monthly, quarterly, yearly, and weekly template work flows into the relevant Cycle, and a Cycle may also include one-off work or week-specific adjustments. Cycles are Church-wide, always run Monday through Sunday, and are presented to Users as Weeks; Users may rename a Cycle or add a description, but they do not change its date range.
+The Monday-to-Sunday weekly planning container for active or planned work in a specific Church week, using the Church Time Zone. A Cycle exists when the Week has Tasks attached to it, a user-authored name or description, week-specific adjustments, or has been opened by rollover maintenance. Once created, a Cycle remains even if its Tasks, name, description, or adjustments are later removed. Cycles are Church-wide, always run Monday through Sunday, and are presented to Users as Weeks; Users may rename a Cycle or add a description, but they do not change its date range.
 _Avoid_: Sprint, task run, occurrence, Cycle as user-facing copy
 
+**Current Cycle Time Zone Adjustment**:
+The special handling when a Church changes Time Zone during the active Week: the current Cycle keeps its existing start boundary but gets a recalculated end boundary in the new Church Time Zone. Past Cycles remain unchanged, and future Cycles are recalculated from the new Church Time Zone.
+_Avoid_: Reopening the current week, rewriting past cycle dates
+
 **Week**:
-The user-facing name for a Cycle. Product navigation and copy should say Week or Weeks when referring to the Monday-to-Sunday work period, while code and internal domain language may continue to use Cycle.
+The user-facing name for a Church-local Monday-to-Sunday planning period. Product navigation and copy should say Week or Weeks; a Week may be shown before it has a Cycle when it only contains projected Template work or no work.
 _Avoid_: Sprint, Cycle in user-facing copy
+
+**Projected Week**:
+A Week shown from Church calendar and Template projections before it has real Tasks, a user-authored Cycle Name or Cycle Description, or week-specific Cycle Adjustments. A Projected Week becomes a Cycle when Users add real work or author week-specific state.
+_Avoid_: Empty Cycle, pre-created Cycle, virtual Cycle
+
+**Rollover Maintenance**:
+The scheduled transition that closes a Church's current Week and ensures the Church has a current Cycle and next Cycle, creating either Cycle if needed and moving unfinished Tasks into the new current Cycle. Rollover Maintenance does not pre-create arbitrary future Cycles just so they can appear in planning UI.
+_Avoid_: Cycle creation cron, weekly seed job
+
+**Initial Cycles**:
+The current Cycle and next Cycle created when a Church is onboarded so the Church begins with a real planning window and a ready next Week. Initial Cycles are a bootstrap exception to otherwise sparse Cycle materialization.
+_Avoid_: Seeded future cycles, onboarding schedule
 
 **Cycle Name**:
 An optional user-facing name for a Week, such as "Focus on the Family week three." When absent, the Week is presented by its date range.
@@ -49,7 +65,7 @@ Optional explanatory text for a Week that helps the Church understand the emphas
 _Avoid_: Planning notes that alter task ownership, date override
 
 **Cycle Adjustment**:
-A week-specific change to Cycle work, such as moving, skipping, or changing a task for that week. A Cycle Adjustment does not change the Source Template; deleting a projected Task from a Cycle is represented as skipping it for that Cycle.
+A week-specific change to a Template Task for one Week, such as moving, skipping, or changing that rendered occurrence. A Cycle Adjustment does not change the Source Template and does not make the Template Task a real Task before its Week becomes current.
 _Avoid_: Override, exception, hard delete of projected work
 
 **Template**:
@@ -69,7 +85,7 @@ A named team slot inside a Template that is mapped to a real Team. Template Task
 _Avoid_: Team reference, team binding, dangling team
 
 **Template Task**:
-A task definition inside a Template before it appears in a Cycle. A Template Task belongs to one Template Team and becomes a Task in that Template Team's mapped Team when its Scheduling Rule places it into a Cycle, drawing its Task Identifier from that Team's sequence at that moment.
+A task definition inside a Template before it becomes real Cycle work. A Template Task belongs to one Template Team and may be rendered in future Weeks by its Scheduling Rule without becoming a Task; it becomes a Task in that Template Team's mapped Team when its Week becomes the current Cycle, drawing its Task Identifier from that Team's sequence at that moment.
 _Avoid_: Template card
 
 **Scheduling Rule**:
@@ -85,8 +101,12 @@ The Template that caused a Cycle task to exist. A generated Task may show its So
 _Avoid_: Origin, parent template
 
 **Task**:
-A unit of church work inside a Cycle that belongs to exactly one Team and can be assigned, scheduled, tracked, and completed. A Task may additionally be assigned to one User as the expected executor; the Team is always the accountability boundary. A Task without a Source Template is still just a Task.
+A unit of church work that belongs to exactly one Team and can be assigned, scheduled, tracked, and completed. A To-do Task may or may not be attached to a Cycle; a Task in active or completed workflow must be attached to a Cycle. Tasks without a Cycle still appear in the existing Issues view. A Task may additionally be assigned to one User as the expected executor; the Team is always the accountability boundary. A Task without a Source Template is still just a Task.
 _Avoid_: Card when referring to the domain concept; one-off task, manual task, team-less task
+
+**Task Cycle Move**:
+Moving an existing Task from one Cycle to another while preserving its Task Identifier. Users may move Tasks between past, current, and future Cycles to correct planning history or re-plan work; rollover is the system-authored form of a Task Cycle Move.
+_Avoid_: Copying a task to another week, creating a replacement task
 
 **Task Identifier**:
 The human-readable key of a Task, formed from its Team's Team Identifier and a per-Team sequence number, such as PRD-48. The Task Identifier is how a Task is referenced in URLs and across product surfaces; matching is case-insensitive and the canonical form is uppercase. A Task is numbered within its Team; moving a Task to another Team issues a new Task Identifier from the destination Team's sequence, and the Task's previous Task Identifiers remain resolvable so existing links keep working.
@@ -97,7 +117,7 @@ A Task that belongs to a parent Task. A Subtask may belong to a different Cycle 
 _Avoid_: Checklist item
 
 **Due Date**:
-The date by which a Task should be completed, when one is set. A Task may have no Due Date; it is never assigned one automatically. A Task created without a Due Date belongs to the Cycle containing its creation date. Due Date is the only task date concept until the domain proves it needs separate scheduling and deadline language.
+The date by which a Task should be completed, when one is set. A Task may have no Due Date; it is never assigned one automatically. A Due Date does not attach a Task without a Cycle to a Cycle or move an already-attached Task between Cycles; explicit Cycle assignment wins, and a Task may remain in or move to a Cycle that does not contain its Due Date.
 _Avoid_: Scheduled date, deadline
 
 **Team**:
