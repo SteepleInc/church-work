@@ -193,7 +193,7 @@ describe("template-to-cycle projection integration", () => {
         due_date: "2026-03-31",
         parent_task_id: null,
         source_template_id: "template_easter_integration",
-        source_template_sync_enabled: true,
+        source_template_sync_enabled: false,
         source_template_task_id: "templatetask_parent_integration",
         task_state: "todo",
         title: "Prepare Easter service plan",
