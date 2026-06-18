@@ -47,6 +47,11 @@ test("manages Labels and applies them to Tasks on the local Postgres and Zero st
     timeout: 20_000,
   });
 
+  await page.reload();
+  await expect(page.getByRole("row", { name: new RegExp(`${labelName}.*—`) })).toBeVisible({
+    timeout: 20_000,
+  });
+
   await page.goto("/our-work");
   await expect(page).toHaveURL(/\/our-work$/);
   await page.getByRole("button", { name: "All" }).click();

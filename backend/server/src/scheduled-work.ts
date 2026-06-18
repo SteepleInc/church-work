@@ -273,7 +273,10 @@ const materializeTemplateCycleTasks = async (
       mappedTeamIds.length === 0
         ? []
         : await db
-            .select({ number: tasks.number, team_id: tasks.team_id })
+            .select({
+              max_number: sql<number | null>`max(${tasks.number})`,
+              team_id: tasks.team_id,
+            })
             .from(tasks)
             .where(
               and(
@@ -281,7 +284,17 @@ const materializeTemplateCycleTasks = async (
                 inArray(tasks.team_id, mappedTeamIds),
                 isNull(tasks.deleted_at),
               ),
-            );
+            )
+            .groupBy(tasks.team_id);
+    const highestTaskNumberByTeamId = new Map(
+      taskNumberRows.map((row) => [row.team_id, row.max_number ?? 0]),
+    );
+    const startNumberByTeamId = new Map(
+      teamRows.map((team) => [
+        team.id,
+        Math.max(team.next_task_number, (highestTaskNumberByTeamId.get(team.id) ?? 0) + 1),
+      ]),
+    );
     const workflowRows =
       mappedTeamIds.length === 0
         ? []
@@ -318,16 +331,7 @@ const materializeTemplateCycleTasks = async (
       key_date_occurrences: keyDateOccurrenceRows,
       now: args.now,
       session_user_id: "system",
-      start_number_by_team_id: new Map(
-        teamRows.map((team) => {
-          const highestLiveTaskNumber = taskNumberRows.reduce(
-            (highest, task) =>
-              task.team_id === team.id && task.number > highest ? task.number : highest,
-            0,
-          );
-          return [team.id, Math.max(team.next_task_number, highestLiveTaskNumber + 1)];
-        }),
-      ),
+      start_number_by_team_id: startNumberByTeamId,
       template_id: template.id,
       template_tasks: templateTaskRows,
       template_teams: templateTeamRows,

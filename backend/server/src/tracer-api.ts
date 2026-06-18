@@ -1,5 +1,5 @@
 import { createAuth, createLocalOtpStore } from "@church-task/auth";
-import { createDb } from "@church-task/db";
+import { bootstrapChurchOnboarding, createDb } from "@church-task/db";
 import {
   demo_items,
   invitation,
@@ -196,6 +196,14 @@ export const createTracerApi = (databaseUrl: string) => {
           return Response.json({ error: "Could not create test user session" }, { status: 500 });
         }
 
+        const signUpSession = await authRuntime.auth.api.getSession({
+          headers: new Headers({ cookie: signUpCookie }),
+        });
+
+        if (!signUpSession) {
+          return Response.json({ error: "Could not read test sign-up session" }, { status: 500 });
+        }
+
         const org = await authRuntime.auth.api.createOrganization({
           body: {
             churchTimeZone: "America/Chicago",
@@ -208,6 +216,8 @@ export const createTracerApi = (databaseUrl: string) => {
         if (!org?.id) {
           return Response.json({ error: "Could not create test Church" }, { status: 500 });
         }
+
+        await bootstrapChurchOnboarding(db, { church_id: org.id, user_id: signUpSession.user.id });
 
         const activeResponse = await authRuntime.auth.api.setActiveOrganization({
           asResponse: true,
