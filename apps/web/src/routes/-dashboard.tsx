@@ -110,7 +110,7 @@ export type ActiveDashboardPanel =
   | "my_work"
   | "our_work"
   | "settings"
-  | { kind: "team"; teamIdentifier: string; weekCycleId?: string | null }
+  | { kind: "team"; teamIdentifier: string; weekNumber?: number | null }
   | { kind: "team_weeks"; teamIdentifier: string };
 
 function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboardPanel }) {
@@ -193,8 +193,8 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
             readonly params: { readonly teamIdentifier: string };
           }
         | {
-            readonly to: "/team/$teamIdentifier/weeks/$cycleId";
-            readonly params: { readonly teamIdentifier: string; readonly cycleId: string };
+            readonly to: "/team/$teamIdentifier/week/$weekNumber";
+            readonly params: { readonly teamIdentifier: string; readonly weekNumber: string };
           }
         | {
             readonly to: "/team/$teamIdentifier";
@@ -206,12 +206,12 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
           to: "/team/$teamIdentifier/weeks",
           params: { teamIdentifier: canonicalTeamIdentifier },
         };
-      } else if (activePanel.weekCycleId) {
+      } else if (activePanel.weekNumber != null) {
         target = {
-          to: "/team/$teamIdentifier/weeks/$cycleId",
+          to: "/team/$teamIdentifier/week/$weekNumber",
           params: {
             teamIdentifier: canonicalTeamIdentifier,
-            cycleId: activePanel.weekCycleId,
+            weekNumber: String(activePanel.weekNumber),
           },
         };
       } else {
@@ -366,9 +366,9 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
           view={search.view}
           scope={activeScope}
           week={search.week}
-          weekCycleId={
+          weekNumber={
             typeof activePanel === "object" && activePanel.kind === "team"
-              ? activePanel.weekCycleId
+              ? activePanel.weekNumber
               : null
           }
           insights={activeInsights}

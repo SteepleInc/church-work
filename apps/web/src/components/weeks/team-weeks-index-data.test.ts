@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  buildTeamWeekBurndown,
   buildTeamWeeksIndexRows,
+  buildTeamWeeksTimelineRows,
   getTeamWeekRelativeLabel,
   groupTeamWeeksIndexRows,
 } from "./team-weeks-index-data";
@@ -85,5 +87,54 @@ describe("Team Weeks index data", () => {
       ["upcoming", 1],
       ["completed", 1],
     ]);
+  });
+
+  test("orders timeline rows newest-first and assigns chronological ordinals", () => {
+    const rows = buildTeamWeeksTimelineRows({
+      cycles,
+      tasks: [],
+      teamId: "team-care",
+      teamIdentifier: "care",
+      today: "2026-06-10",
+    });
+
+    // Furthest-out Week sits on top (descending start date), like Linear.
+    expect(rows.map((row) => [row.id, row.ordinal])).toEqual([
+      ["future-empty", 3],
+      ["current", 2],
+      ["past", 1],
+    ]);
+  });
+});
+
+describe("Week burndown series", () => {
+  test("builds a 7-point series with flat scope/started/completed and a countdown ideal", () => {
+    const burndown = buildTeamWeekBurndown({
+      scope: 10,
+      started: 6,
+      completed: 3,
+      startLabel: "Jun 8",
+      endLabel: "Jun 14",
+    });
+
+    expect(burndown.points).toHaveLength(7);
+    expect(burndown.startedPercentage).toBe(60);
+    expect(burndown.completedPercentage).toBe(30);
+    expect(burndown.points[0]?.ideal).toBe(10);
+    expect(burndown.points[6]?.ideal).toBe(0);
+    expect(burndown.axisLabels).toEqual(["Jun 8", "Jun 14"]);
+  });
+
+  test("treats an empty Week as zero progress without dividing by zero", () => {
+    const burndown = buildTeamWeekBurndown({
+      scope: 0,
+      started: 0,
+      completed: 0,
+      startLabel: "Jun 8",
+      endLabel: "Jun 14",
+    });
+
+    expect(burndown.startedPercentage).toBe(0);
+    expect(burndown.completedPercentage).toBe(0);
   });
 });

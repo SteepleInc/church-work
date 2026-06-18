@@ -1,23 +1,26 @@
 import { TeamAvatar } from "@/components/avatars/teamAvatar";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { WeekProgressPanel } from "@/components/tasks/week-progress-panel";
 import { useCyclesCollection } from "@/data/cycles/cyclesData.app";
-import { useLabelsCollection } from "@/data/labels/labelsData.app";
 import { useTasksCollection } from "@/data/tasks/tasksData.app";
-import { getUserDisplayName, useChurchUsersCollection } from "@/data/users/usersData.app";
 import { cn } from "@/lib/utils";
 import { Link } from "@tanstack/react-router";
-import { CalendarDays, ChevronRight, GaugeCircle } from "lucide-react";
-import { useId, useMemo, type ComponentProps } from "react";
+import {
+  CalendarDays,
+  ChevronRight,
+  CircleCheck,
+  CircleDashed,
+  CirclePlay,
+  Layers,
+  Play,
+} from "lucide-react";
 
 import {
-  buildTeamWeeksIndexRows,
-  groupTeamWeeksIndexRows,
-  type TeamWeeksIndexRow,
+  buildTeamWeekBurndown,
+  buildTeamWeeksTimelineRows,
   type TeamWeeksIndexStatus,
+  type TeamWeeksTimelineRow,
 } from "./team-weeks-index-data";
+import { WeekBurndownChart } from "./week-burndown-chart";
 
 const STATUS_LABEL: Record<TeamWeeksIndexStatus, string> = {
   current: "Current",
@@ -25,38 +28,38 @@ const STATUS_LABEL: Record<TeamWeeksIndexStatus, string> = {
   completed: "Completed",
 };
 
-// A Week's lifecycle position reads at a glance from a single dot, matching the
-// Team Week board selector: the live Week is tinted with the primary accent,
-// future Weeks stay neutral-prominent, and past Weeks recede into the muted
-// track. Keeping this vocabulary identical across the index and the board means
-// a User learns "where am I in time" once.
-const STATUS_DOT: Record<TeamWeeksIndexStatus, string> = {
-  current: "bg-primary",
-  upcoming: "bg-foreground/70",
-  completed: "bg-muted-foreground/30",
+// A Week's lifecycle position reads from a single leading icon, matching
+// Linear's Cycles list: the live Week glows with the primary accent, future
+// Weeks show a hollow play, and past Weeks recede into a muted check.
+const STATUS_ICON: Record<TeamWeeksIndexStatus, typeof Play> = {
+  current: CirclePlay,
+  upcoming: Play,
+  completed: CircleCheck,
+};
+
+const STATUS_ICON_CLASS: Record<TeamWeeksIndexStatus, string> = {
+  current: "text-primary",
+  upcoming: "text-muted-foreground",
+  completed: "text-muted-foreground/60",
+};
+
+const STATUS_PILL_CLASS: Record<TeamWeeksIndexStatus, string> = {
+  current: "bg-primary/10 text-primary",
+  upcoming: "bg-muted text-muted-foreground",
+  completed: "bg-muted text-muted-foreground",
 };
 
 const CLOSED_PROGRESS_CYCLE_ID = "closed";
-
-type TeamWeeksIndexProgressTask = ComponentProps<typeof WeekProgressPanel>["tasks"][number] & {
-  readonly cycleId?: string | null;
-};
 
 function resolveExpandedCycleId({
   progressCycleId,
   rows,
 }: {
   readonly progressCycleId?: string | null;
-  readonly rows: readonly TeamWeeksIndexRow[];
-}) {
-  if (progressCycleId === CLOSED_PROGRESS_CYCLE_ID) {
-    return null;
-  }
-
-  if (progressCycleId) {
-    return progressCycleId;
-  }
-
+  readonly rows: readonly TeamWeeksTimelineRow[];
+}): string | null {
+  if (progressCycleId === CLOSED_PROGRESS_CYCLE_ID) return null;
+  if (progressCycleId) return progressCycleId;
   return rows.find((row) => row.status === "current")?.id ?? null;
 }
 
@@ -85,79 +88,46 @@ export function TeamWeeksIndex({
     currentUserId,
     filters: { teamId: team.id },
   });
-  const usersCollection = useChurchUsersCollection({ churchId });
-  const labelsCollection = useLabelsCollection({ churchId });
-  const rows = buildTeamWeeksIndexRows({
+  const rows = buildTeamWeeksTimelineRows({
     cycles: cyclesCollection.cyclesCollection,
     tasks: tasksCollection.tasksCollection,
     teamId: team.id,
     teamIdentifier: team.identifier,
     today,
   });
-  const sections = groupTeamWeeksIndexRows(rows);
   const isLoading = cyclesCollection.loading || tasksCollection.loading;
   const expandedCycleId = resolveExpandedCycleId({ progressCycleId, rows });
-  const tasksByCycleId = useMemo(() => {
-    const grouped = new Map<string, TeamWeeksIndexProgressTask[]>();
-
-    for (const task of tasksCollection.tasksCollection) {
-      if (!task.cycleId) {
-        continue;
-      }
-
-      const cycleTasks = grouped.get(task.cycleId);
-      if (cycleTasks) {
-        cycleTasks.push(task);
-      } else {
-        grouped.set(task.cycleId, [task]);
-      }
-    }
-
-    return grouped;
-  }, [tasksCollection.tasksCollection]);
-  const progressMeta = {
-    assignees: usersCollection.usersCollection.map((user) => ({
-      id: user.id,
-      label: getUserDisplayName(user),
-    })),
-    labels: labelsCollection.labelsCollection,
-    teams: [{ id: team.id, name: team.name }],
-  };
 
   return (
-    <section className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 px-4 py-6 md:px-6">
+    <section className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-5 px-4 py-6 md:px-6">
       <header className="flex flex-col gap-3">
         <TeamWeeksBreadcrumb teamIdentifier={team.identifier} teamName={team.name} />
         <div className="flex items-center gap-3">
-          <TeamAvatar color={team.color} name={team.name} size={36} />
-          <div className="grid gap-0.5">
-            <h1 className="text-xl font-semibold tracking-tight">Weeks</h1>
-            <p className="text-sm text-muted-foreground">
-              Church-wide Weeks for {team.name}, including empty Weeks ready for planning.
-            </p>
-          </div>
+          <TeamAvatar color={team.color} name={team.name} size={32} />
+          <h1 className="text-lg font-semibold tracking-tight">Weeks</h1>
         </div>
       </header>
 
       {isLoading ? (
         <TeamWeeksIndexSkeleton />
-      ) : sections.length === 0 ? (
+      ) : rows.length === 0 ? (
         <EmptyWeeks />
       ) : (
-        <div className="flex flex-col gap-7">
-          {sections.map((section) => (
-            <WeekSection
-              key={section.status}
-              status={section.status}
-              rows={section.rows}
-              teamIdentifier={team.identifier}
-              expandedCycleId={expandedCycleId}
-              onProgressCycleIdChange={onProgressCycleIdChange}
-              progressMeta={progressMeta}
-              tasksByCycleId={tasksByCycleId}
-            />
+        <ul className="flex flex-col border-t">
+          {rows.map((row, index) => (
+            <li className="flex border-b" key={row.id}>
+              <TimelineMarker isFirst={index === 0} isLast={index === rows.length - 1} row={row} />
+              <div className="min-w-0 flex-1">
+                <WeekRow
+                  expanded={row.id === expandedCycleId}
+                  onProgressCycleIdChange={onProgressCycleIdChange}
+                  row={row}
+                  teamIdentifier={team.identifier}
+                />
+              </div>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </section>
   );
@@ -173,10 +143,10 @@ function TeamWeeksBreadcrumb({
   return (
     <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-xs text-muted-foreground">
       <Link
-        to="/team/$teamIdentifier"
+        className="truncate rounded transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         params={{ teamIdentifier }}
         search={true}
-        className="truncate rounded transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        to="/team/$teamIdentifier"
       >
         {teamName}
       </Link>
@@ -186,49 +156,46 @@ function TeamWeeksBreadcrumb({
   );
 }
 
-function WeekSection({
-  status,
-  rows,
-  teamIdentifier,
-  expandedCycleId,
-  onProgressCycleIdChange,
-  progressMeta,
-  tasksByCycleId,
+// The timeline marker that sits to the left of each Week row, mirroring
+// Linear's Cycles timeline. A continuous vertical line runs through every
+// marker cell (clipped at the first/last row), the dot is pinned to the row's
+// header height, and the current Week's connecting segment is tinted with the
+// primary accent so the present moment stands out. Living inside each row keeps
+// the line aligned even when a row expands to show its burndown chart.
+function TimelineMarker({
+  row,
+  isFirst,
+  isLast,
 }: {
-  readonly status: TeamWeeksIndexStatus;
-  readonly rows: readonly TeamWeeksIndexRow[];
-  readonly teamIdentifier: string;
-  readonly expandedCycleId: string | null;
-  readonly onProgressCycleIdChange?: (cycleId: string | null) => void;
-  readonly progressMeta: ComponentProps<typeof WeekProgressPanel>["meta"];
-  readonly tasksByCycleId: ReadonlyMap<string, readonly TeamWeeksIndexProgressTask[]>;
+  readonly row: TeamWeeksTimelineRow;
+  readonly isFirst: boolean;
+  readonly isLast: boolean;
 }) {
+  const lineClass = row.status === "current" ? "bg-primary/60" : "bg-border";
+
   return (
-    <section className="flex flex-col gap-2">
-      <div className="flex items-center gap-2 px-1">
-        <span aria-hidden className={cn("size-2 rounded-full", STATUS_DOT[status])} />
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          {STATUS_LABEL[status]}
-        </h2>
-        <span className="text-xs tabular-nums text-muted-foreground/70">{rows.length}</span>
+    <div aria-hidden className="relative hidden w-20 shrink-0 sm:block">
+      {/* Connecting line, clipped so the rail doesn't overshoot the ends. */}
+      <span
+        className={cn("absolute left-[11px] w-px", lineClass)}
+        style={{ top: isFirst ? 22 : 0, bottom: isLast ? "auto" : 0, height: isLast ? 22 : "auto" }}
+      />
+      <div className="flex items-start gap-2 pt-[14px] pl-2">
+        <span
+          className={cn(
+            "mt-0.5 size-[9px] shrink-0 rounded-full ring-4 ring-background",
+            row.status === "current"
+              ? "bg-primary"
+              : row.status === "upcoming"
+                ? "bg-muted-foreground/50"
+                : "bg-muted-foreground/30",
+          )}
+        />
+        <span className="pt-px text-[11px] leading-tight tabular-nums text-muted-foreground">
+          {row.startLabel}
+        </span>
       </div>
-      <div className="overflow-hidden rounded-xl border bg-background shadow-xs">
-        <ul className="divide-y">
-          {rows.map((row) => (
-            <li key={row.id}>
-              <WeekRow
-                row={row}
-                teamIdentifier={teamIdentifier}
-                expanded={row.id === expandedCycleId}
-                onProgressCycleIdChange={onProgressCycleIdChange}
-                progressMeta={progressMeta}
-                tasks={tasksByCycleId.get(row.id) ?? []}
-              />
-            </li>
-          ))}
-        </ul>
-      </div>
-    </section>
+    </div>
   );
 }
 
@@ -237,174 +204,175 @@ function WeekRow({
   teamIdentifier,
   expanded,
   onProgressCycleIdChange,
-  progressMeta,
-  tasks,
 }: {
-  readonly row: TeamWeeksIndexRow;
+  readonly row: TeamWeeksTimelineRow;
   readonly teamIdentifier: string;
   readonly expanded: boolean;
   readonly onProgressCycleIdChange?: (cycleId: string | null) => void;
-  readonly progressMeta: ComponentProps<typeof WeekProgressPanel>["meta"];
-  readonly tasks: ComponentProps<typeof WeekProgressPanel>["tasks"];
 }) {
-  const hasName = row.displayName !== row.dateRange;
-  const panelId = useId();
+  const StatusIcon = STATUS_ICON[row.status];
+  const headline = row.ordinal > 0 ? `Week ${row.ordinal}` : row.displayName;
+  const hasCustomName = row.displayName !== row.dateRange;
   const toggleProgress = () =>
     onProgressCycleIdChange?.(expanded ? CLOSED_PROGRESS_CYCLE_ID : row.id);
 
   return (
-    <div className={cn("group/week transition-colors", expanded && "bg-muted/30")}>
-      <div className="flex items-center gap-3 px-4 py-3 transition-colors group-hover/week:bg-muted/40">
-        <span
-          aria-hidden
-          className={cn("mt-1 size-2 shrink-0 self-start rounded-full", STATUS_DOT[row.status])}
-        />
+    <div className={cn("group/week", expanded && "bg-muted/20")}>
+      <div className="flex items-center gap-3 px-2 py-3.5 transition-colors group-hover/week:bg-muted/40">
+        <StatusIcon aria-hidden className={cn("size-4 shrink-0", STATUS_ICON_CLASS[row.status])} />
 
         <Link
-          to="/team/$teamIdentifier/weeks/$cycleId"
-          params={{ teamIdentifier, cycleId: row.id }}
+          className="flex min-w-0 items-center gap-2 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          params={{ teamIdentifier, weekNumber: String(row.ordinal) }}
           search={true}
-          className="flex min-w-0 flex-1 flex-col gap-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          to="/team/$teamIdentifier/week/$weekNumber"
         >
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-            <span className="truncate text-sm font-medium">{row.displayName}</span>
-            {hasName ? (
-              <span className="truncate text-xs text-muted-foreground">{row.dateRange}</span>
-            ) : null}
-            {row.relativeLabel ? (
-              <span
-                className={cn(
-                  "rounded-full px-1.5 py-px text-[10px] font-medium uppercase tracking-wide",
-                  row.status === "current"
-                    ? "bg-primary/10 text-primary"
-                    : "bg-muted text-muted-foreground",
-                )}
-              >
-                {row.relativeLabel}
-              </span>
-            ) : null}
-          </div>
-          <WeekRowMeta row={row} />
+          <span className="truncate text-sm font-medium">{headline}</span>
+          <span className="hidden truncate text-xs text-muted-foreground md:inline">
+            {hasCustomName ? row.displayName : row.dateRange}
+          </span>
         </Link>
 
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                aria-controls={panelId}
-                aria-expanded={expanded}
-                className="gap-1.5"
-                onClick={toggleProgress}
-                size="sm"
-                type="button"
-                variant={expanded ? "secondary" : "ghost"}
-              />
-            }
+        <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-4">
+          <span
+            className={cn(
+              "rounded-full px-2 py-0.5 text-[11px] font-medium",
+              STATUS_PILL_CLASS[row.status],
+            )}
           >
-            <GaugeCircle aria-hidden className="size-4" />
-            <span className="hidden sm:inline">Progress</span>
-          </TooltipTrigger>
-          <TooltipContent>{expanded ? "Hide Week Progress" : "Show Week Progress"}</TooltipContent>
-        </Tooltip>
+            {STATUS_LABEL[row.status]}
+          </span>
 
-        <ChevronRight
-          aria-hidden
-          className="size-4 shrink-0 text-muted-foreground/40 transition-colors group-hover/week:text-muted-foreground"
-        />
-      </div>
-      {expanded ? (
-        <div
-          className="overflow-hidden border-t bg-muted/10 px-4 py-4 duration-200 animate-in fade-in-0 slide-in-from-top-1"
-          id={panelId}
-        >
-          <WeekProgressPanel
-            className="w-full rounded-none border-0 bg-transparent p-0 shadow-none"
-            meta={progressMeta}
-            onClose={() => onProgressCycleIdChange?.(CLOSED_PROGRESS_CYCLE_ID)}
-            tasks={tasks}
-          />
+          <button
+            aria-expanded={expanded}
+            className="hidden items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex"
+            onClick={toggleProgress}
+            type="button"
+          >
+            <CapacityRing percentage={row.completedPercentage} />
+            <span className="tabular-nums">
+              <span className="font-medium text-foreground">{row.completedPercentage}%</span> done
+            </span>
+          </button>
+
+          <span className="hidden items-center gap-1.5 text-xs text-muted-foreground md:flex">
+            <Layers aria-hidden className="size-3.5" />
+            <span className="tabular-nums">
+              <span className="font-medium text-foreground">{row.taskCount}</span> scope
+            </span>
+          </span>
         </div>
-      ) : null}
+      </div>
+
+      {expanded ? <WeekExpandedPanel row={row} /> : null}
     </div>
   );
 }
 
-function WeekRowMeta({ row }: { readonly row: TeamWeeksIndexRow }) {
+// A small ring that fills clockwise with completion, echoing Linear's capacity
+// dial. Empty Weeks show a dashed placeholder.
+function CapacityRing({ percentage }: { readonly percentage: number }) {
+  if (percentage === 0) {
+    return <CircleDashed aria-hidden className="size-4 text-muted-foreground/50" />;
+  }
+  const radius = 6;
+  const circumference = 2 * Math.PI * radius;
+  const dash = (Math.min(percentage, 100) / 100) * circumference;
+  return (
+    <svg aria-hidden className="size-4 -rotate-90" viewBox="0 0 16 16">
+      <circle cx="8" cy="8" fill="none" r={radius} stroke="var(--color-muted)" strokeWidth="2" />
+      <circle
+        cx="8"
+        cy="8"
+        fill="none"
+        r={radius}
+        stroke="var(--color-primary)"
+        strokeDasharray={`${dash} ${circumference}`}
+        strokeLinecap="round"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
+function WeekExpandedPanel({ row }: { readonly row: TeamWeeksTimelineRow }) {
+  const burndown = buildTeamWeekBurndown({
+    scope: row.taskCount,
+    started: row.startedCount,
+    completed: row.completedCount,
+    startLabel: row.startLabel,
+    endLabel: row.endLabel,
+  });
+
   if (row.taskCount === 0) {
-    return <p className="text-xs text-muted-foreground">No Team Tasks yet</p>;
+    return (
+      <div className="px-2 pb-5">
+        <div className="grid place-items-center gap-1 rounded-lg border border-dashed bg-muted/10 px-4 py-8 text-center">
+          <p className="text-sm font-medium">No Tasks this Week</p>
+          <p className="text-xs text-muted-foreground">
+            Progress appears once this Team has Tasks in the Week.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-      <span className="text-xs tabular-nums text-muted-foreground">
-        {row.taskCount} {row.taskCount === 1 ? "Task" : "Tasks"}
-      </span>
-      <span aria-hidden className="text-muted-foreground/40">
-        ·
-      </span>
-      <span className="text-xs tabular-nums text-muted-foreground">
-        {row.completedCount}/{row.taskCount} completed
-      </span>
-      <CompletionBar
-        completedCount={row.completedCount}
-        startedCount={row.startedCount}
-        taskCount={row.taskCount}
-      />
+    <div className="grid gap-4 px-2 pb-5 lg:grid-cols-[1fr_220px]">
+      <WeekBurndownChart burndown={burndown} className="min-w-0" />
+      <dl className="flex flex-col justify-center gap-3 lg:border-l lg:pl-5">
+        <LegendStat dotClassName="bg-muted-foreground/40" label="Scope" value={burndown.scope} />
+        <LegendStat
+          dotClassName="bg-amber-400"
+          hint={`${burndown.startedPercentage}%`}
+          label="Started"
+          value={burndown.started}
+        />
+        <LegendStat
+          dotClassName="bg-primary"
+          hint={`${burndown.completedPercentage}%`}
+          label="Completed"
+          value={burndown.completed}
+        />
+      </dl>
     </div>
   );
 }
 
-// Mirrors the Team Week board's Week Progress bar: a lighter Started fill sits
-// behind the solid Completed fill (every Done Task is also Started), so the
-// index telegraphs momentum — not just completion — in the same visual language
-// a User meets on the board itself.
-function CompletionBar({
-  completedCount,
-  startedCount,
-  taskCount,
+function LegendStat({
+  label,
+  value,
+  hint,
+  dotClassName,
 }: {
-  readonly completedCount: number;
-  readonly startedCount: number;
-  readonly taskCount: number;
+  readonly label: string;
+  readonly value: number;
+  readonly hint?: string;
+  readonly dotClassName: string;
 }) {
-  const startedPercentage = taskCount === 0 ? 0 : Math.round((startedCount / taskCount) * 100);
-  const completedPercentage = taskCount === 0 ? 0 : Math.round((completedCount / taskCount) * 100);
   return (
-    <div
-      aria-label={`${startedCount} of ${taskCount} Tasks started, ${completedCount} completed`}
-      className="relative h-1.5 w-16 overflow-hidden rounded-full bg-muted"
-      role="img"
-    >
-      <div
-        className="absolute inset-y-0 left-0 rounded-full bg-primary/30 transition-all"
-        style={{ width: `${startedPercentage}%` }}
-      />
-      <div
-        className="absolute inset-y-0 left-0 rounded-full bg-emerald-500 transition-all"
-        style={{ width: `${completedPercentage}%` }}
-      />
+    <div className="flex items-center gap-2.5">
+      <span className={cn("size-2.5 shrink-0 rounded-sm", dotClassName)} />
+      <dt className="flex-1 text-sm text-muted-foreground">{label}</dt>
+      <dd className="flex items-baseline gap-1.5 tabular-nums">
+        <span className="text-sm font-semibold">{value}</span>
+        {hint ? <span className="text-xs text-muted-foreground">{hint}</span> : null}
+      </dd>
     </div>
   );
 }
 
 function TeamWeeksIndexSkeleton() {
   return (
-    <div className="flex flex-col gap-7">
-      {[0, 1].map((section) => (
-        <div key={section} className="flex flex-col gap-2">
-          <Skeleton className="ml-1 h-3 w-20" />
-          <div className="overflow-hidden rounded-xl border bg-background shadow-xs">
-            <ul className="divide-y">
-              {[0, 1, 2].map((row) => (
-                <li key={row} className="flex items-center gap-4 px-4 py-3.5">
-                  <Skeleton className="size-2 shrink-0 rounded-full" />
-                  <div className="flex flex-1 flex-col gap-2">
-                    <Skeleton className="h-4 w-40" />
-                    <Skeleton className="h-3 w-52" />
-                  </div>
-                </li>
-              ))}
-            </ul>
+    <div className="flex flex-col border-t">
+      {[0, 1, 2, 3, 4].map((row) => (
+        <div className="flex items-center gap-3 border-b px-2 py-3.5" key={row}>
+          <Skeleton className="size-4 shrink-0 rounded-full" />
+          <Skeleton className="h-4 w-24" />
+          <div className="ml-auto flex items-center gap-4">
+            <Skeleton className="h-4 w-16 rounded-full" />
+            <Skeleton className="h-4 w-16" />
+            <Skeleton className="h-4 w-16" />
           </div>
         </div>
       ))}
