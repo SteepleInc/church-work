@@ -47,6 +47,11 @@ test("manages Labels and applies them to Tasks on the local Postgres and Zero st
     timeout: 20_000,
   });
 
+  await page.reload();
+  await expect(page.getByRole("row", { name: new RegExp(`${labelName}.*—`) })).toBeVisible({
+    timeout: 20_000,
+  });
+
   // Our Work shows every Task regardless of Week — no Week scope control — so
   // the freshly created Task is visible without an "All" scope toggle.
   await page.goto("/our-work");

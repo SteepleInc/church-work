@@ -1,4 +1,8 @@
-import { bootstrapChurchOnboarding, createDb } from "@church-task/db";
+import {
+  adjustChurchCyclesForTimeZone,
+  bootstrapChurchOnboarding,
+  createDb,
+} from "@church-task/db";
 import {
   getAccountId,
   getApiKeyId,
@@ -208,6 +212,16 @@ export const createAuthOptions = (
             await bootstrapChurchOnboarding(db, {
               church_id: createdOrg.id,
               user_id: creatorMember?.userId ?? user.id,
+            });
+          },
+          afterUpdateOrganization: async ({ organization: updatedOrg, user }) => {
+            if (!updatedOrg) return;
+            if (!updatedOrg.churchTimeZone) return;
+
+            await adjustChurchCyclesForTimeZone(db, {
+              church_id: updatedOrg.id,
+              newChurchTimeZone: updatedOrg.churchTimeZone,
+              updatedByUserId: user.id,
             });
           },
         },
