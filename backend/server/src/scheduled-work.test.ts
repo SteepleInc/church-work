@@ -78,16 +78,48 @@ describe("scheduled work", () => {
         name: "Operations Workflow",
         team_id: "team_scheduled_work",
       });
-      await db.insert(workflow_statuses).values({
-        ...baseEntity("workflowstatus"),
-        church_id: churchId,
-        id: "workflowstatus_scheduled_todo",
-        key: "todo",
-        name: "To Do",
-        sort_order: 0,
-        task_state: "todo",
-        workflow_id: "workflow_scheduled_work",
-      });
+      await db.insert(workflow_statuses).values([
+        {
+          ...baseEntity("workflowstatus"),
+          church_id: churchId,
+          id: "workflowstatus_scheduled_todo",
+          key: "todo",
+          name: "To Do",
+          sort_order: 0,
+          task_state: "todo",
+          workflow_id: "workflow_scheduled_work",
+        },
+        {
+          ...baseEntity("workflowstatus"),
+          church_id: churchId,
+          id: "workflowstatus_scheduled_progress",
+          key: "in-progress",
+          name: "In Progress",
+          sort_order: 1,
+          task_state: "in_progress",
+          workflow_id: "workflow_scheduled_work",
+        },
+        {
+          ...baseEntity("workflowstatus"),
+          church_id: churchId,
+          id: "workflowstatus_scheduled_done",
+          key: "done",
+          name: "Done",
+          sort_order: 2,
+          task_state: "done",
+          workflow_id: "workflow_scheduled_work",
+        },
+        {
+          ...baseEntity("workflowstatus"),
+          church_id: churchId,
+          id: "workflowstatus_scheduled_canceled",
+          key: "canceled",
+          name: "Canceled",
+          sort_order: 3,
+          task_state: "canceled",
+          workflow_id: "workflow_scheduled_work",
+        },
+      ]);
       const closedCycle = buildCycleForLocalDate({
         churchTimeZone: "America/New_York",
         localDate: "2026-06-02",
@@ -98,23 +130,90 @@ describe("scheduled work", () => {
         church_id: churchId,
         id: "cycle_closed",
       });
-      await db.insert(tasks).values({
-        ...baseEntity("task"),
-        board_order: "a0",
-        church_id: churchId,
-        cycle_id: "cycle_closed",
-        due_date: "2026-06-03",
-        id: "task_rollover",
-        label_ids: "[]",
-        number: 1,
-        previous_identifiers: "[]",
-        source_template_sync_enabled: true,
-        task_state: "todo",
-        team_id: "team_scheduled_work",
-        title: "Carry forward setup",
-        workflow_id: "workflow_scheduled_work",
-        workflow_status_id: "workflowstatus_scheduled_todo",
-      });
+      await db.insert(tasks).values([
+        {
+          ...baseEntity("task"),
+          board_order: "a0",
+          church_id: churchId,
+          cycle_id: "cycle_closed",
+          due_date: "2026-06-03",
+          id: "task_rollover",
+          label_ids: "[]",
+          number: 1,
+          previous_identifiers: "[]",
+          source_template_sync_enabled: true,
+          task_state: "todo",
+          team_id: "team_scheduled_work",
+          title: "Carry forward setup",
+          workflow_id: "workflow_scheduled_work",
+          workflow_status_id: "workflowstatus_scheduled_todo",
+        },
+        {
+          ...baseEntity("task"),
+          board_order: "a1",
+          church_id: churchId,
+          cycle_id: "cycle_closed",
+          due_date: null,
+          id: "task_progress_rollover",
+          label_ids: "[]",
+          number: 2,
+          previous_identifiers: "[]",
+          source_template_sync_enabled: true,
+          task_state: "in_progress",
+          team_id: "team_scheduled_work",
+          title: "Carry forward active work",
+          workflow_id: "workflow_scheduled_work",
+          workflow_status_id: "workflowstatus_scheduled_progress",
+        },
+        {
+          ...baseEntity("task"),
+          board_order: "a2",
+          church_id: churchId,
+          cycle_id: "cycle_closed",
+          due_date: null,
+          id: "task_done_retained",
+          label_ids: "[]",
+          number: 3,
+          previous_identifiers: "[]",
+          task_state: "done",
+          team_id: "team_scheduled_work",
+          title: "Completed history",
+          workflow_id: "workflow_scheduled_work",
+          workflow_status_id: "workflowstatus_scheduled_done",
+        },
+        {
+          ...baseEntity("task"),
+          board_order: "a3",
+          church_id: churchId,
+          cycle_id: "cycle_closed",
+          due_date: null,
+          id: "task_canceled_retained",
+          label_ids: "[]",
+          number: 4,
+          previous_identifiers: "[]",
+          task_state: "canceled",
+          team_id: "team_scheduled_work",
+          title: "Canceled history",
+          workflow_id: "workflow_scheduled_work",
+          workflow_status_id: "workflowstatus_scheduled_canceled",
+        },
+        {
+          ...baseEntity("task"),
+          board_order: "a4",
+          church_id: churchId,
+          cycle_id: null,
+          due_date: null,
+          id: "task_uncycled_ignored",
+          label_ids: "[]",
+          number: 5,
+          previous_identifiers: "[]",
+          task_state: "todo",
+          team_id: "team_scheduled_work",
+          title: "Unplanned capture",
+          workflow_id: "workflow_scheduled_work",
+          workflow_status_id: "workflowstatus_scheduled_todo",
+        },
+      ]);
       await db.insert(templates).values({
         ...baseEntity("template"),
         church_id: churchId,
@@ -152,14 +251,40 @@ describe("scheduled work", () => {
       const result = await Effect.runPromise(runScheduledCycleMaintenance(db, { now }));
 
       expect(result.maintainedChurchIds).toEqual([churchId]);
-      expect(result.resultsByChurchId[churchId]?.rolledOverTaskIds).toEqual(["task_rollover"]);
+      expect(result.resultsByChurchId[churchId]?.rolledOverTaskIds).toEqual([
+        "task_rollover",
+        "task_progress_rollover",
+      ]);
       expect(result.resultsByChurchId[churchId]?.materializedTaskIds).toHaveLength(2);
 
       const [rolledTask] = await db.select().from(tasks).where(eq(tasks.id, "task_rollover"));
       expect(rolledTask).toMatchObject({
-        due_date: "2026-06-10",
+        due_date: "2026-06-03",
         source_template_sync_enabled: false,
       });
+      expect(rolledTask?.number).toBe(1);
+      expect(rolledTask?.previous_identifiers).toBe("[]");
+      const [rolledProgressTask] = await db
+        .select()
+        .from(tasks)
+        .where(eq(tasks.id, "task_progress_rollover"));
+      expect(rolledProgressTask).toMatchObject({
+        cycle_id: rolledTask?.cycle_id,
+        due_date: null,
+        number: 2,
+        previous_identifiers: "[]",
+        source_template_sync_enabled: false,
+      });
+
+      for (const retainedTaskId of ["task_done_retained", "task_canceled_retained"]) {
+        const [retainedTask] = await db.select().from(tasks).where(eq(tasks.id, retainedTaskId));
+        expect(retainedTask?.cycle_id).toBe("cycle_closed");
+      }
+      const [uncycledTask] = await db
+        .select()
+        .from(tasks)
+        .where(eq(tasks.id, "task_uncycled_ignored"));
+      expect(uncycledTask?.cycle_id).toBeNull();
 
       const projectedTasks = await db
         .select()
@@ -178,6 +303,7 @@ describe("scheduled work", () => {
       );
 
       const secondResult = await Effect.runPromise(runScheduledCycleMaintenance(db, { now }));
+      expect(secondResult.resultsByChurchId[churchId]?.rolledOverTaskIds).toEqual([]);
       expect(secondResult.resultsByChurchId[churchId]?.materializedTaskIds).toEqual([]);
     } finally {
       await harness.stop();

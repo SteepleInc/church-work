@@ -595,6 +595,7 @@ describe("Zero Task mutators", () => {
 
     const taskInsert = insertCalls.find((call) => call.table === tasks)?.values as {
       readonly board_order: string;
+      readonly cycle_id: string | null;
       readonly id: string;
       readonly number: number;
       readonly task_state: string;
@@ -615,6 +616,7 @@ describe("Zero Task mutators", () => {
     expect(getIdType(activityInsert.entity_id)).toBe("task");
     expect(taskInsert).toMatchObject({
       board_order: "a4",
+      cycle_id: null,
       number: 7,
       task_state: "todo",
       title: "Prepare stage cues",
@@ -628,6 +630,80 @@ describe("Zero Task mutators", () => {
     expect(JSON.parse(activityInsert.metadata)).toMatchObject({ team_id: "team_production" });
     expect(teamUpdate.next_task_number).toBe(8);
     expect(formatTaskIdentifier("PRO", taskInsert.number)).toBe("PRO-7");
+  });
+
+  test("creates Week-context Tasks in an existing Cycle", async () => {
+    const { insertCalls, tx } = createServerTx([
+      [{ id: "workflowstatus_todo", task_state: "todo", workflow_id: "workflow_production" }],
+      [{ id: "team_production", identifier: "PRO", next_task_number: 7 }],
+      [{ id: "workflow_production" }],
+      [],
+      [],
+      [{ id: "cycle_current" }],
+    ]);
+
+    await mustGetMutator(mutators, "tasks.create").fn({
+      args: {
+        church_id: "org_test",
+        target_cycle: {
+          church_time_zone: "America/New_York",
+          end_date: "2026-07-05",
+          ends_at: "2026-07-06T04:00:00.000Z",
+          start_date: "2026-06-29",
+          starts_at: "2026-06-30T04:00:00.000Z",
+        },
+        team_id: "team_production",
+        title: "Plan Week work",
+        workflow_status_id: "workflowstatus_todo",
+      },
+      ctx: signedInContext,
+      tx,
+    });
+
+    const taskInsert = insertCalls.find((call) => call.table === tasks)?.values as {
+      readonly cycle_id: string | null;
+    };
+    expect(insertCalls.some((call) => call.table === cycles)).toBe(false);
+    expect(taskInsert.cycle_id).toBe("cycle_current");
+  });
+
+  test("materializes projected Week Cycles before creating Tasks", async () => {
+    const { insertCalls, tx } = createServerTx([
+      [{ id: "workflowstatus_todo", task_state: "todo", workflow_id: "workflow_production" }],
+      [{ id: "team_production", identifier: "PRO", next_task_number: 7 }],
+      [{ id: "workflow_production" }],
+      [],
+      [],
+      [],
+    ]);
+
+    await mustGetMutator(mutators, "tasks.create").fn({
+      args: {
+        church_id: "org_test",
+        target_cycle: {
+          church_time_zone: "America/New_York",
+          end_date: "2026-08-02",
+          ends_at: "2026-08-03T04:00:00.000Z",
+          start_date: "2026-07-27",
+          starts_at: "2026-07-28T04:00:00.000Z",
+        },
+        team_id: "team_production",
+        title: "Future Week work",
+        workflow_status_id: "workflowstatus_todo",
+      },
+      ctx: signedInContext,
+      tx,
+    });
+
+    const cycleInsert = insertCalls.find((call) => call.table === cycles)?.values as {
+      readonly id: string;
+      readonly start_date: string;
+    };
+    const taskInsert = insertCalls.find((call) => call.table === tasks)?.values as {
+      readonly cycle_id: string | null;
+    };
+    expect(cycleInsert.start_date).toBe("2026-07-27");
+    expect(taskInsert.cycle_id).toBe(cycleInsert.id);
   });
 
   test("updates board order through the batch Task path", async () => {
@@ -684,6 +760,256 @@ describe("Zero Task mutators", () => {
     expect(
       updateCalls.map((call) => (call.set as { readonly board_order: string }).board_order),
     ).toEqual(["a2", "a1"]);
+  });
+
+  test("materializes projected Week Cycles before moving Tasks and preserves identifiers", async () => {
+    const { insertCalls, tx, updateCalls } = createServerTx([
+      [
+        {
+          board_order: "a1",
+          church_id: "org_test",
+          cycle_id: "cycle_current",
+          deleted_at: null,
+          finished_at: null,
+          id: "task_one",
+          label_ids: "[]",
+          number: 7,
+          previous_identifiers: "[]",
+          task_state: "todo",
+          team_id: "team_production",
+          team_identifier: "PRO",
+          workflow_id: "workflow_production",
+          workflow_status_id: "workflowstatus_todo",
+        },
+      ],
+      [],
+    ]);
+
+    await mustGetMutator(mutators, "tasks.update").fn({
+      args: {
+        church_id: "org_test",
+        fields: {
+          target_cycle: {
+            church_time_zone: "America/New_York",
+            end_date: "2026-08-02",
+            ends_at: "2026-08-03T04:00:00.000Z",
+            start_date: "2026-07-27",
+            starts_at: "2026-07-28T04:00:00.000Z",
+          },
+        },
+        task_id: "task_one",
+      },
+      ctx: signedInContext,
+      tx,
+    });
+
+    const cycleInsert = insertCalls.find((call) => call.table === cycles)?.values as {
+      readonly id: string;
+    };
+    const taskUpdate = updateCalls.find((call) => call.table === tasks)?.set as {
+      readonly cycle_id: string;
+      readonly number?: number;
+      readonly previous_identifiers?: string;
+    };
+    expect(taskUpdate.cycle_id).toBe(cycleInsert.id);
+    expect(taskUpdate).not.toHaveProperty("number");
+    expect(taskUpdate).not.toHaveProperty("previous_identifiers");
+  });
+
+  test("moves completed Tasks back to previous Cycles for rollover correction without changing identifiers", async () => {
+    const { insertCalls, tx, updateCalls } = createServerTx([
+      [
+        {
+          board_order: "a1",
+          church_id: "org_test",
+          cycle_id: "cycle_current",
+          deleted_at: null,
+          finished_at: new Date("2026-08-03T12:00:00.000Z"),
+          id: "task_rolled_over",
+          label_ids: "[]",
+          number: 7,
+          previous_identifiers: "[]",
+          task_state: "done",
+          team_id: "team_production",
+          team_identifier: "PRO",
+          workflow_id: "workflow_production",
+          workflow_status_id: "workflowstatus_done",
+        },
+      ],
+      [{ id: "cycle_previous" }],
+    ]);
+
+    await mustGetMutator(mutators, "tasks.update").fn({
+      args: {
+        church_id: "org_test",
+        fields: { cycle_id: "cycle_previous" },
+        task_id: "task_rolled_over",
+      },
+      ctx: signedInContext,
+      tx,
+    });
+
+    const taskUpdate = updateCalls.find((call) => call.table === tasks)?.set as {
+      readonly cycle_id: string;
+      readonly number?: number;
+      readonly previous_identifiers?: string;
+    };
+    expect(insertCalls.some((call) => call.table === cycles)).toBe(false);
+    expect(taskUpdate.cycle_id).toBe("cycle_previous");
+    expect(taskUpdate).not.toHaveProperty("number");
+    expect(taskUpdate).not.toHaveProperty("previous_identifiers");
+  });
+
+  test("Due Date updates do not attach Tasks to Cycles", async () => {
+    const { insertCalls, tx, updateCalls } = createServerTx([
+      [
+        {
+          board_order: "a1",
+          church_id: "org_test",
+          cycle_id: null,
+          deleted_at: null,
+          finished_at: null,
+          id: "task_one",
+          label_ids: "[]",
+          number: 7,
+          previous_identifiers: "[]",
+          task_state: "todo",
+          team_id: "team_production",
+          team_identifier: "PRO",
+          workflow_id: "workflow_production",
+          workflow_status_id: "workflowstatus_todo",
+        },
+      ],
+    ]);
+
+    await mustGetMutator(mutators, "tasks.update").fn({
+      args: {
+        church_id: "org_test",
+        fields: { due_date: "2026-07-29" },
+        task_id: "task_one",
+      },
+      ctx: signedInContext,
+      tx,
+    });
+
+    const taskUpdate = updateCalls.find((call) => call.table === tasks)?.set as {
+      readonly cycle_id?: string | null;
+      readonly due_date: string;
+    };
+    expect(insertCalls.some((call) => call.table === cycles)).toBe(false);
+    expect(taskUpdate.due_date).toBe("2026-07-29");
+    expect(taskUpdate).not.toHaveProperty("cycle_id");
+  });
+
+  test("attaches uncycled To-do Tasks to viewed Week when transitioning in Week context", async () => {
+    const { tx, updateCalls } = createServerTx([
+      [
+        {
+          board_order: "a1",
+          church_id: "org_test",
+          cycle_id: null,
+          deleted_at: null,
+          finished_at: null,
+          id: "task_one",
+          label_ids: "[]",
+          number: 7,
+          previous_identifiers: "[]",
+          task_state: "todo",
+          team_id: "team_production",
+          team_identifier: "PRO",
+          workflow_id: "workflow_production",
+          workflow_status_id: "workflowstatus_todo",
+        },
+      ],
+      [{ id: "cycle_viewed" }],
+      [
+        {
+          id: "workflowstatus_in_progress",
+          task_state: "in_progress",
+          workflow_id: "workflow_production",
+        },
+      ],
+    ]);
+
+    await mustGetMutator(mutators, "tasks.update").fn({
+      args: {
+        church_id: "org_test",
+        fields: {
+          target_cycle: {
+            church_time_zone: "America/New_York",
+            end_date: "2026-08-02",
+            ends_at: "2026-08-03T04:00:00.000Z",
+            start_date: "2026-07-27",
+            starts_at: "2026-07-28T04:00:00.000Z",
+          },
+          workflow_status_id: "workflowstatus_in_progress",
+        },
+        task_id: "task_one",
+      },
+      ctx: signedInContext,
+      tx,
+    });
+
+    const taskUpdate = updateCalls.find((call) => call.table === tasks)?.set as {
+      readonly cycle_id: string;
+      readonly task_state: string;
+      readonly workflow_status_id: string;
+    };
+    expect(taskUpdate).toMatchObject({
+      cycle_id: "cycle_viewed",
+      task_state: "in_progress",
+      workflow_status_id: "workflowstatus_in_progress",
+    });
+  });
+
+  test("attaches uncycled To-do Tasks to current Cycle on default workflow transition", async () => {
+    const { tx, updateCalls } = createServerTx([
+      [
+        {
+          board_order: "a1",
+          church_id: "org_test",
+          cycle_id: null,
+          deleted_at: null,
+          finished_at: null,
+          id: "task_one",
+          label_ids: "[]",
+          number: 7,
+          previous_identifiers: "[]",
+          task_state: "todo",
+          team_id: "team_production",
+          team_identifier: "PRO",
+          workflow_id: "workflow_production",
+          workflow_status_id: "workflowstatus_todo",
+        },
+      ],
+      [
+        {
+          id: "workflowstatus_done",
+          task_state: "done",
+          workflow_id: "workflow_production",
+        },
+      ],
+      [{ id: "cycle_current" }],
+    ]);
+
+    await mustGetMutator(mutators, "tasks.update").fn({
+      args: {
+        church_id: "org_test",
+        fields: { workflow_status_id: "workflowstatus_done" },
+        task_id: "task_one",
+      },
+      ctx: signedInContext,
+      tx,
+    });
+
+    const taskUpdate = updateCalls.find((call) => call.table === tasks)?.set as {
+      readonly cycle_id: string;
+      readonly finished_at: Date;
+      readonly task_state: string;
+    };
+    expect(taskUpdate.cycle_id).toBe("cycle_current");
+    expect(taskUpdate.task_state).toBe("done");
+    expect(taskUpdate.finished_at).toBeInstanceOf(Date);
   });
 
   test("strips foreign Team Labels when moving a Task between Teams", async () => {

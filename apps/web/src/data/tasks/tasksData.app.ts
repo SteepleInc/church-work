@@ -41,12 +41,21 @@ export type TaskUpdateFields = {
   readonly teamId?: string;
   readonly workflowStatusId?: string;
   readonly dueDate?: string | null;
-  readonly cycleId?: string;
+  readonly cycleId?: string | null;
+  readonly targetCycle?: {
+    readonly churchTimeZone: string;
+    readonly startDate: string;
+    readonly endDate: string;
+    readonly startsAt: string;
+    readonly endsAt: string;
+  };
   readonly parentTaskId?: string | null;
   readonly boardOrder?: string;
   readonly labelIds?: readonly string[];
   readonly estimate?: TaskEstimate | null;
 };
+
+type TargetCycleFields = NonNullable<TaskUpdateFields["targetCycle"]>;
 
 type MutationResult<Data = undefined> = Promise<
   | { readonly ok: true; readonly data: Data }
@@ -135,15 +144,29 @@ const zeroMutationResult = async <Data>(
   }
 };
 
+const targetCycleToZero = (targetCycle: TargetCycleFields) => ({
+  church_time_zone: targetCycle.churchTimeZone,
+  end_date: targetCycle.endDate,
+  ends_at: targetCycle.endsAt,
+  start_date: targetCycle.startDate,
+  starts_at: targetCycle.startsAt,
+});
+
 const taskFieldsToZero = (fields: TaskUpdateFields) => ({
   ...(fields.assignedUserId !== undefined ? { assigned_user_id: fields.assignedUserId } : {}),
   ...(fields.boardOrder !== undefined ? { board_order: fields.boardOrder } : {}),
+  ...(fields.cycleId !== undefined ? { cycle_id: fields.cycleId } : {}),
   ...(fields.dueDate !== undefined ? { due_date: fields.dueDate } : {}),
   ...(fields.estimate !== undefined ? { estimate: fields.estimate } : {}),
   ...(fields.labelIds !== undefined ? { label_ids: [...fields.labelIds] } : {}),
   ...(fields.parentTaskId !== undefined ? { parent_task_id: fields.parentTaskId } : {}),
   ...(fields.teamId !== undefined ? { team_id: fields.teamId } : {}),
   ...(fields.title !== undefined ? { title: fields.title } : {}),
+  ...(fields.targetCycle !== undefined
+    ? {
+        target_cycle: targetCycleToZero(fields.targetCycle),
+      }
+    : {}),
   ...(fields.workflowStatusId !== undefined ? { workflow_status_id: fields.workflowStatusId } : {}),
 });
 
@@ -192,6 +215,7 @@ export function useCreateTaskMutation() {
     readonly parentTaskId?: string | null;
     readonly labelIds?: readonly string[];
     readonly estimate?: TaskEstimate | null;
+    readonly targetCycle?: TargetCycleFields;
   }) => {
     const result = await zeroMutationResult<{
       readonly tasks: readonly { readonly id: string; readonly identifier: string }[];
@@ -206,6 +230,11 @@ export function useCreateTaskMutation() {
             estimate: params.estimate ?? null,
             label_ids: [...(params.labelIds ?? [])],
             parent_task_id: params.parentTaskId ?? null,
+            ...(params.targetCycle
+              ? {
+                  target_cycle: targetCycleToZero(params.targetCycle),
+                }
+              : {}),
             team_id: params.teamId,
             title: params.title,
             workflow_status_id: params.workflowStatusId,
