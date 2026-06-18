@@ -317,9 +317,9 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
   );
 
   return (
-    <MainContainer>
+    <MainContainer className={showBoardSurface ? "mt-0 pt-0" : undefined}>
       {showBoardSurface ? (
-        <PageWrapper variant="noPageContainer" className="gap-6">
+        <PageWrapper variant="noPageContainer" className="gap-3 pt-0 md:pt-0">
           {content}
         </PageWrapper>
       ) : (

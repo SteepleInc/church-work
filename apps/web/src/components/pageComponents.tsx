@@ -29,7 +29,7 @@ export function PageContainer({
   );
 }
 
-export const pageWrapperSpacing = "px-4 py-4 pt-3 md:px-6 md:pt-6";
+export const pageWrapperSpacing = "px-4 py-4 pt-0 md:pt-1";
 
 const pageWrapperVariants = cva(["flex flex-col", pageWrapperSpacing], {
   defaultVariants: {

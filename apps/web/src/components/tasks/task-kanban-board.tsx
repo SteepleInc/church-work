@@ -367,7 +367,7 @@ export function TaskKanbanBoard({
         maskHeight={0}
         clampContentMinWidth={false}
       >
-        <KanbanBoard className="grid h-full min-h-0 w-max auto-cols-[minmax(17rem,20rem)] grid-flow-col gap-2 pb-2 sm:grid-cols-none">
+        <KanbanBoard className="grid h-full min-h-0 w-max auto-cols-[minmax(17rem,20rem)] grid-flow-col gap-2 sm:grid-cols-none">
           {columns.map((column) => (
             <TaskKanbanColumn
               key={column.id}
@@ -585,7 +585,7 @@ function TaskKanbanColumn({
       {...props}
     >
       <div className="flex h-full min-h-0 min-w-0 flex-col rounded-lg bg-muted/50">
-        <div className="flex items-center justify-between gap-2 px-3 py-2">
+        <div className="flex items-center justify-between gap-2 px-3 pt-2 pb-0.5">
           <div className="flex min-w-0 items-center gap-2">
             {column.taskState ? <WorkflowStatusIcon taskState={column.taskState} /> : null}
             <span className="truncate font-medium text-sm">{column.title}</span>
@@ -644,7 +644,7 @@ function TaskKanbanColumn({
         </div>
         <KanbanColumnContent
           value={value}
-          className="flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto px-2 pb-2"
+          className="flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto px-2 pt-1.5 pb-2"
           aria-label={`${column.title} Tasks`}
         >
           {tasks.map((task) => (

@@ -151,7 +151,7 @@ export function TaskInsightsPanel({
                 </Button>
               }
             />
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="w-auto">
               <DropdownMenuItem onClick={onCopyLink}>
                 <Copy />
                 Copy link
