@@ -52,14 +52,21 @@ Iterate until the user approves the breakdown.
 
 ### 5. Publish the issues to the issue tracker
 
-For each approved slice, publish a new issue to the issue tracker. Use the issue body template below. These issues are considered ready for AFK agents, so publish them with the correct triage label unless instructed otherwise.
+For each approved slice, publish a new issue to the issue tracker. Use the issue body template below. These issues are considered ready for AFK agents, so publish them with both labels unless instructed otherwise:
+
+- `ready-for-agent` — the canonical triage label for agent-ready work
+- `Sandcastle` — the execution label consumed by the Sandcastle planner
 
 Publish issues in dependency order (blockers first) so you can reference real issue identifiers in the "Blocked by" field.
 
 <issue-template>
 ## Parent
 
-A reference to the parent issue on the issue tracker (if the source was an existing issue, otherwise omit this section).
+A reference to the parent PRD/root issue on the issue tracker. Prefer the exact format older Ralph/Sandcastle issues use:
+
+`Parent PRD: #123`
+
+If a full URL is more useful, include it too. Do not omit this section when the slice comes from a PRD/root issue; `ralph.sh` finds connected task issues by searching for either the PRD issue number (`#123`) or URL.
 
 ## What to build
 
