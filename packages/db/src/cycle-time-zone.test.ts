@@ -74,4 +74,23 @@ describe("buildCycleTimeZoneAdjustments", () => {
 
     expect(adjustments).toEqual([]);
   });
+
+  test("keeps materialized future cycle identity stable so tasks remain assigned", () => {
+    const future = cycle("future-cycle-id", "2026-06-22");
+
+    const [adjustment] = buildCycleTimeZoneAdjustments({
+      cycles: [cycle("current", "2026-06-15"), future],
+      newChurchTimeZone: "America/Los_Angeles",
+      now: new Date("2026-06-17T12:00:00.000Z"),
+    }).filter((candidate) => candidate.id === future.id);
+
+    expect(adjustment).toEqual({
+      church_time_zone: "America/Los_Angeles",
+      end_date: "2026-06-28",
+      ends_at: localMidnightToUtcInstant("2026-06-29", "America/Los_Angeles"),
+      id: future.id,
+      start_date: future.start_date,
+      starts_at: localMidnightToUtcInstant(future.start_date, "America/Los_Angeles"),
+    });
+  });
 });
