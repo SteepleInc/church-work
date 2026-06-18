@@ -1,4 +1,5 @@
 import {
+  CalendarRange,
   ChartNoAxesColumn,
   Kanban,
   List,
@@ -11,6 +12,7 @@ import { useEffect, useState, type MutableRefObject } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -106,55 +108,32 @@ export function TaskViewTopBar({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div
-          aria-label="View Tabs"
-          className="flex flex-1 flex-wrap items-center gap-2"
-          role="tablist"
-        >
-          {tabs.map((candidate) => {
-            const isActive = candidate.value === tab;
+        <div className="flex flex-1 flex-wrap items-center gap-2">
+          <div aria-label="View Tabs" className="flex flex-wrap items-center gap-2" role="tablist">
+            {tabs.map((candidate) => {
+              const isActive = candidate.value === tab;
 
-            return (
-              <Button
-                aria-selected={isActive}
-                className="rounded-full"
-                key={candidate.value}
-                onClick={() => onTabChange(candidate.value)}
-                role="tab"
-                size="sm"
-                type="button"
-                variant={isActive ? "secondary" : "ghost"}
-              >
-                {candidate.label}
-              </Button>
-            );
-          })}
+              return (
+                <Button
+                  aria-selected={isActive}
+                  className="rounded-full"
+                  key={candidate.value}
+                  onClick={() => onTabChange(candidate.value)}
+                  role="tab"
+                  size="sm"
+                  type="button"
+                  variant={isActive ? "secondary" : "ghost"}
+                >
+                  {candidate.label}
+                </Button>
+              );
+            })}
+          </div>
           {surface !== "team_board" && onScopeChange ? (
-            <div
-              aria-label="Week scope"
-              className="ml-1 flex items-center gap-1 rounded-full border p-0.5"
-            >
-              <Button
-                aria-pressed={scope === "current_week"}
-                className="h-7 rounded-full px-3"
-                onClick={() => onScopeChange("current_week")}
-                size="sm"
-                type="button"
-                variant={scope === "current_week" ? "secondary" : "ghost"}
-              >
-                Current Week
-              </Button>
-              <Button
-                aria-pressed={scope === "all"}
-                className="h-7 rounded-full px-3"
-                onClick={() => onScopeChange("all")}
-                size="sm"
-                type="button"
-                variant={scope === "all" ? "secondary" : "ghost"}
-              >
-                All
-              </Button>
-            </div>
+            <>
+              <Separator orientation="vertical" className="mx-0.5 h-5" />
+              <WeekScopeControl onScopeChange={onScopeChange} scope={scope} />
+            </>
           ) : null}
         </div>
 
@@ -210,6 +189,65 @@ export function TaskViewTopBar({
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * The Week scope control for the Cycle-scoped Work Views (My Work, Our Work).
+ * Current Week is the resting default every visit; All is the explicit
+ * per-visit escape hatch (CONTEXT: Cycle-scoped Work View). It is deliberately
+ * shaped unlike the View Tabs — a calendar-led, inset segmented toggle behind a
+ * vertical divider — so the time window never reads as another View Tab and
+ * scope choices do not feel like they carry between surfaces.
+ */
+function WeekScopeControl({
+  scope,
+  onScopeChange,
+}: {
+  readonly scope: TaskWeekScope;
+  readonly onScopeChange: (scope: TaskWeekScope) => void;
+}) {
+  const isCurrentWeek = scope === "current_week";
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <div
+            aria-label="Week scope"
+            className="bg-muted/60 text-muted-foreground flex h-7 items-center rounded-full p-0.5"
+            role="group"
+          />
+        }
+      >
+        <CalendarRange aria-hidden className="ml-1.5 size-3.5 shrink-0" />
+        <Button
+          aria-pressed={isCurrentWeek}
+          className="ml-1 h-6 rounded-full px-2.5 text-xs"
+          onClick={() => onScopeChange("current_week")}
+          size="sm"
+          type="button"
+          variant={isCurrentWeek ? "secondary" : "ghost"}
+        >
+          Current Week
+        </Button>
+        <Button
+          aria-pressed={!isCurrentWeek}
+          className="h-6 rounded-full px-2.5 text-xs"
+          onClick={() => onScopeChange("all")}
+          size="sm"
+          type="button"
+          variant={isCurrentWeek ? "ghost" : "secondary"}
+        >
+          All
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>
+        {isCurrentWeek
+          ? "Showing this Week's Tasks. Switch to All for every Task."
+          : "Showing every Task. This Week is the default each visit."}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
