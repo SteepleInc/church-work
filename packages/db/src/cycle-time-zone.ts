@@ -3,7 +3,7 @@ import {
   assertValidTimeZone,
   localMidnightToUtcInstant,
 } from "@church-task/domain";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import type { ChurchTaskDb } from "./client";
 import { cycles } from "./schema";
@@ -16,6 +16,9 @@ type CycleBoundary = {
   readonly start_date: string;
   readonly starts_at: Date;
 };
+
+type DbTransaction = Parameters<Parameters<ChurchTaskDb["transaction"]>[0]>[0];
+type DbExecutor = ChurchTaskDb | DbTransaction;
 
 export type CycleTimeZoneAdjustment = CycleBoundary;
 
@@ -77,7 +80,23 @@ export const adjustChurchCyclesForTimeZone = async (
     readonly now?: Date;
     readonly updatedByUserId?: string | null;
   },
+) =>
+  db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${args.church_id}))`);
+
+    return adjustChurchCyclesForTimeZoneInTransaction(tx, args);
+  });
+
+const adjustChurchCyclesForTimeZoneInTransaction = async (
+  db: DbExecutor,
+  args: {
+    readonly church_id: string;
+    readonly newChurchTimeZone: string;
+    readonly now?: Date;
+    readonly updatedByUserId?: string | null;
+  },
 ) => {
+  const updatedAt = args.now ?? new Date();
   const cycleRows = await db
     .select({
       church_time_zone: cycles.church_time_zone,
@@ -105,7 +124,7 @@ export const adjustChurchCyclesForTimeZone = async (
         ends_at: adjustment.ends_at,
         start_date: adjustment.start_date,
         starts_at: adjustment.starts_at,
-        updated_at: args.now ?? new Date(),
+        updated_at: updatedAt,
         updated_by: args.updatedByUserId ?? null,
       })
       .where(eq(cycles.id, adjustment.id));
