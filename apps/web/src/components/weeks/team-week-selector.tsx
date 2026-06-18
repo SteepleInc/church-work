@@ -88,12 +88,15 @@ export function TeamWeekSelector({
   const selectedIndex = ordered.findIndex((cycle) => cycle.id === selectedCycleId);
   const selected = selectedIndex >= 0 ? ordered[selectedIndex] : null;
 
-  const goToWeek = (cycleId: string) =>
-    navigate({
-      to: "/team/$teamIdentifier/weeks/$cycleId",
-      params: { teamIdentifier, cycleId },
+  const goToWeek = (cycleId: string) => {
+    const weekNumber = ordered.findIndex((cycle) => cycle.id === cycleId) + 1;
+    if (weekNumber < 1) return;
+    void navigate({
+      to: "/team/$teamIdentifier/week/$weekNumber",
+      params: { teamIdentifier, weekNumber: String(weekNumber) },
       search: true,
     });
+  };
 
   const previousWeek = selectedIndex > 0 ? ordered[selectedIndex - 1] : null;
   const nextWeek =

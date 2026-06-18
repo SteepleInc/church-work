@@ -175,7 +175,7 @@ export function TaskExecutionSurface({
   view,
   scope,
   week,
-  weekCycleId,
+  weekNumber,
   insights,
   onInsightsChange,
   onToggleLayout,
@@ -195,7 +195,7 @@ export function TaskExecutionSurface({
   readonly view?: TaskViewOptions;
   readonly scope?: TaskWeekScope;
   readonly week?: WeekShortcut;
-  readonly weekCycleId?: string | null;
+  readonly weekNumber?: number | null;
   readonly insights?: ResolvedInsightsState;
   readonly onInsightsChange?: (next: ResolvedInsightsState) => void;
   // Surface-level keyboard shortcut targets, owned by the route.
@@ -225,7 +225,7 @@ export function TaskExecutionSurface({
 
   const cycles = cyclesCollection.cyclesCollection;
   const currentCycle = selectCurrentExecutionCycle(cycles, today);
-  const scopedCycle = resolveExecutionCycleScope({ surface, week, weekCycleId, cycles, today });
+  const scopedCycle = resolveExecutionCycleScope({ surface, week, weekNumber, cycles, today });
   const executionCycleId =
     surface === "team_board"
       ? (scopedCycle?.id ?? null)

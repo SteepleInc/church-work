@@ -59,14 +59,31 @@ export function selectUpcomingExecutionCycle(
   );
 }
 
+/**
+ * A Week's chronological ordinal, oldest = 1 — the stable number Linear shows
+ * as "Cycle 7" and we surface as "Week 7" both in the Weeks list and the
+ * `/team/$id/week/$weekNumber` URL. Computed from the full set of generated
+ * Weeks so it matches whatever the index renders.
+ */
+export function selectExecutionCycleByNumber(
+  cycles: readonly ExecutionCycle[],
+  weekNumber: number,
+): ExecutionCycle | null {
+  if (!Number.isInteger(weekNumber) || weekNumber < 1) return null;
+  const ordered = [...cycles].sort((left, right) => left.startDate.localeCompare(right.startDate));
+  return ordered[weekNumber - 1] ?? null;
+}
+
 export function resolveExecutionCycleScope(args: {
   readonly surface: ExecutionSurface;
   readonly week?: WeekShortcut;
   readonly weekCycleId?: string | null;
+  readonly weekNumber?: number | null;
   readonly cycles: readonly ExecutionCycle[];
   readonly today: string;
 }): ExecutionCycle | null {
   if (args.surface === "team_board") {
+    if (args.weekNumber != null) return selectExecutionCycleByNumber(args.cycles, args.weekNumber);
     if (args.weekCycleId) return args.cycles.find((cycle) => cycle.id === args.weekCycleId) ?? null;
     if (args.week === "current") return selectCurrentExecutionCycle(args.cycles, args.today);
     if (args.week === "upcoming") return selectUpcomingExecutionCycle(args.cycles, args.today);
