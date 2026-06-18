@@ -1,6 +1,7 @@
+import { AppHeaderSlot } from "@/components/app-header-slot";
 import { useOpenTaskDetailsPaneUrl } from "@/components/details-pane/details-pane-helpers";
-import { WeekHeader } from "@/components/weeks/week-header";
 import { TeamWeekSelector } from "@/components/weeks/team-week-selector";
+import { WeekActionsMenu } from "@/components/weeks/week-actions-menu";
 import type { WeekCsvTask } from "@/components/weeks/week-actions-data";
 import { buildProjectedWeekCycles } from "@/components/weeks/team-weeks-index-data";
 import { useCyclesCollection } from "@/data/cycles/cyclesData.app";
@@ -25,9 +26,8 @@ import {
   hiddenBoardColumnsAtom,
   toggleHiddenBoardColumn,
 } from "@/shared/global-state";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { useAtom } from "jotai";
-import { ChevronRight } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
 
 import { mapTaskFilterValuesForZero } from "@/components/tasks/task-filters";
@@ -69,12 +69,10 @@ import {
   getExecutionBoardGrouping,
   getTaskCreationDefaults,
   getTaskExecutionFilters,
-  getTaskExecutionCycleId,
   getTaskExecutionReadArgs,
   getTaskGroupAddPreset,
   getTaskParentContext,
   resolveExecutionCycleScope,
-  selectCurrentExecutionCycle,
   type ExecutionSurface,
   type TaskSummary,
   type TaskState,
@@ -84,7 +82,6 @@ import {
   resolveTaskViewOptions,
   type TaskViewOptions,
   type TaskViewTab,
-  type TaskWeekScope,
 } from "@/components/tasks/task-view-options";
 
 type WorkflowStatus = {
@@ -174,7 +171,6 @@ export function TaskExecutionSurface({
   teams = [],
   tab,
   view,
-  scope,
   week,
   weekNumber,
   churchTimeZone = "UTC",
@@ -195,7 +191,6 @@ export function TaskExecutionSurface({
   readonly teams?: readonly { readonly id: string; readonly name: string }[];
   readonly tab?: TaskViewTab;
   readonly view?: TaskViewOptions;
-  readonly scope?: TaskWeekScope;
   readonly week?: WeekShortcut;
   readonly weekNumber?: number | null;
   readonly churchTimeZone?: string;
@@ -226,23 +221,22 @@ export function TaskExecutionSurface({
     teamMembershipsCollection.teamMembershipsCollection,
   );
 
+  // `buildProjectedWeekCycles` projects the sparse Cycle calendar into the
+  // contiguous Weeks the board reasons about (origin/main foundation).
   const cycles = buildProjectedWeekCycles({
     churchTimeZone,
     cycles: cyclesCollection.cyclesCollection,
     today,
   });
-  const currentCycle = selectCurrentExecutionCycle(cycles, today);
+  // A Team Week board is scoped to its selected Week; cross-team surfaces
+  // (My Work, Our Work) show every Task regardless of Week, like Linear's
+  // issue views, so they never filter by Cycle.
   const scopedCycle = resolveExecutionCycleScope({ surface, week, weekNumber, cycles, today });
-  const executionCycleId =
-    surface === "team_board"
-      ? (scopedCycle?.id ?? null)
-      : getTaskExecutionCycleId({
-          surface,
-          scope,
-          currentCycleId: currentCycle?.id ?? null,
-        });
-  // The selector returns only the date fields it needs; pull the full Week row
-  // back out so the header can show its Church-wide name/description.
+  const executionCycleId = surface === "team_board" ? (scopedCycle?.id ?? null) : null;
+  // The Week shown in the header switcher tracks the actually-scoped Week, so
+  // the switcher never implies a window the board is not honoring: a Week board
+  // (`?week=…` / `/week/$n`) shows that Week, while the unscoped Default Team
+  // View ("Tasks", all Cycles) shows no switcher.
   const currentWeek = executionCycleId
     ? (() => {
         const cycle = cycles.find((cycle) => cycle.id === executionCycleId);
@@ -504,24 +498,18 @@ export function TaskExecutionSurface({
             remaining width, the pane scrolls independently. */}
         <section className="flex min-h-0 min-w-0 flex-1 gap-4">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
-            {currentWeek ? (
-              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                <div className="flex min-w-0 flex-col gap-1">
-                  {surface === "team_board" && team ? (
-                    <WeekBreadcrumb teamIdentifier={team.identifier} teamName={team.name} />
-                  ) : null}
-                  <WeekHeader churchId={churchId} cycle={currentWeek} tasks={weekCsvTasks} />
-                </div>
-                {surface === "team_board" && team?.identifier ? (
+            {currentWeek && surface === "team_board" && team?.identifier ? (
+              <AppHeaderSlot>
+                <div className="flex min-w-0 items-center gap-1">
                   <TeamWeekSelector
                     cycles={cycles}
-                    currentCycleId={currentCycle?.id ?? null}
                     selectedCycleId={currentWeek.id}
                     teamIdentifier={team.identifier}
-                    today={today}
+                    teamName={team.name}
                   />
-                ) : null}
-              </div>
+                  <WeekActionsMenu churchId={churchId} cycle={currentWeek} tasks={weekCsvTasks} />
+                </div>
+              </AppHeaderSlot>
             ) : null}
 
             {isLoading && !showBoard ? <TaskBoardSkeleton /> : null}
@@ -727,50 +715,6 @@ export function TaskExecutionSurface({
         </section>
       </TaskContextMenuBridge>
     </TaskSurfaceKeyboardProvider>
-  );
-}
-
-/**
- * The Team / Weeks breadcrumb above a Team Week board. The Team segment links
- * back to that Team's Default Team View ("Tasks"), and the current "Weeks"
- * segment anchors the User in the Team Week surface. Keeping it a real trail —
- * not static text — matches the rest of the app's navigation affordances.
- */
-function WeekBreadcrumb({
-  teamIdentifier,
-  teamName,
-}: {
-  readonly teamIdentifier?: string | null;
-  readonly teamName: string;
-}) {
-  return (
-    <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-xs text-muted-foreground">
-      {teamIdentifier ? (
-        <Link
-          to="/team/$teamIdentifier"
-          params={{ teamIdentifier }}
-          search={true}
-          className="truncate rounded transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {teamName}
-        </Link>
-      ) : (
-        <span className="truncate">{teamName}</span>
-      )}
-      <ChevronRight aria-hidden className="size-3 shrink-0 opacity-60" />
-      {teamIdentifier ? (
-        <Link
-          to="/team/$teamIdentifier/weeks"
-          params={{ teamIdentifier }}
-          search={true}
-          className="rounded font-medium text-foreground/80 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          Weeks
-        </Link>
-      ) : (
-        <span className="font-medium text-foreground/80">Weeks</span>
-      )}
-    </nav>
   );
 }
 

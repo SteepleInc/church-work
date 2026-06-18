@@ -1,19 +1,18 @@
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatWeekDateRange } from "@/data/cycles/cyclesData.app";
 import { cn } from "@/lib/utils";
-import { useNavigate } from "@tanstack/react-router";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Tick02Icon } from "@hugeicons/core-free-icons";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { CalendarRange, ChevronDown, ChevronRight } from "lucide-react";
+import { useEffect } from "react";
+
+import { isEditableTarget } from "@/components/tasks/task-kanban-board-utils";
 
 type SelectorCycle = {
   readonly id: string;
@@ -22,71 +21,36 @@ type SelectorCycle = {
   readonly name: string | null;
 };
 
-type WeekStatus = "current" | "upcoming" | "completed";
-
-function getWeekStatus(
-  cycle: { readonly startDate: string; readonly endDate: string },
-  today: string,
-): WeekStatus {
-  if (cycle.startDate <= today && today <= cycle.endDate) return "current";
-  if (cycle.startDate > today) return "upcoming";
-  return "completed";
-}
-
-const WEEK_STATUS_LABEL: Record<WeekStatus, string> = {
-  current: "Current",
-  upcoming: "Upcoming",
-  completed: "Completed",
-};
-
-// A Week's lifecycle position reads at a glance: the live Week is tinted with
-// the primary accent, future Weeks stay neutral-prominent (solid foreground),
-// and past Weeks recede into the muted track so the selector telegraphs "where
-// am I in time". Upcoming and completed stay clearly separable so a bare dot —
-// the only status carrier on the trigger below `sm` and in the step tooltips —
-// never collapses into "just another gray".
-const WEEK_STATUS_DOT: Record<WeekStatus, string> = {
-  current: "bg-primary",
-  upcoming: "bg-foreground/70",
-  completed: "bg-muted-foreground/30",
-};
-
 function weekLabel(cycle: SelectorCycle): string {
   return cycle.name?.trim() || formatWeekDateRange(cycle);
 }
 
-function weekStepLabel(direction: "previous" | "next", cycle: SelectorCycle | null): string {
-  if (direction === "previous") {
-    return cycle ? `Previous Week, ${weekLabel(cycle)}` : "No earlier Week";
-  }
-
-  return cycle ? `Next Week, ${weekLabel(cycle)}` : "No later Week";
-}
-
 /**
- * The nearby Week navigator for a Team Week board. It centers on the Week in
- * view and lets Users step one Week at a time (prev / next chevrons) or jump to
- * any of the Team's Weeks from a status-grouped menu, without leaving the
- * board. Each Week carries a Current / Upcoming / Completed status so the
- * time window is always legible — the same vocabulary the Team Cycles View uses.
+ * The Team Week switcher, modeled on Linear's Cycle switcher. It lives in the
+ * page header as the final, interactive segment of the Team › Weeks › Week
+ * breadcrumb. Opening it reveals the immediate neighbors — the next (upcoming)
+ * Week and the previous (completed) Week — each jumpable in one click or with
+ * the `K` / `J` shortcuts, so stepping through Weeks never leaves the board.
  */
 export function TeamWeekSelector({
   cycles,
-  currentCycleId,
   selectedCycleId,
   teamIdentifier,
-  today,
+  teamName,
 }: {
   readonly cycles: readonly SelectorCycle[];
-  readonly currentCycleId: string | null;
   readonly selectedCycleId: string;
   readonly teamIdentifier: string;
-  readonly today: string;
+  readonly teamName: string;
 }) {
   const navigate = useNavigate();
   const ordered = [...cycles].sort((left, right) => left.startDate.localeCompare(right.startDate));
   const selectedIndex = ordered.findIndex((cycle) => cycle.id === selectedCycleId);
   const selected = selectedIndex >= 0 ? ordered[selectedIndex] : null;
+
+  const previousWeek = selectedIndex > 0 ? ordered[selectedIndex - 1] : null;
+  const nextWeek =
+    selectedIndex >= 0 && selectedIndex < ordered.length - 1 ? ordered[selectedIndex + 1] : null;
 
   const goToWeek = (cycleId: string) => {
     const weekNumber = ordered.findIndex((cycle) => cycle.id === cycleId) + 1;
@@ -98,162 +62,115 @@ export function TeamWeekSelector({
     });
   };
 
-  const previousWeek = selectedIndex > 0 ? ordered[selectedIndex - 1] : null;
-  const nextWeek =
-    selectedIndex >= 0 && selectedIndex < ordered.length - 1 ? ordered[selectedIndex + 1] : null;
-
-  const selectedStatus = selected ? getWeekStatus(selected, today) : null;
-
-  // Group the jump menu by lifecycle so "this Week" is one glance away and
-  // upcoming planning sits above the completed archive.
-  const grouped: Record<WeekStatus, SelectorCycle[]> = {
-    current: [],
-    upcoming: [],
-    completed: [],
-  };
-  for (const cycle of ordered) grouped[getWeekStatus(cycle, today)].push(cycle);
-  // Completed Weeks read newest-first; upcoming Weeks read soonest-first.
-  grouped.completed.reverse();
-
-  const menuSections: { readonly status: WeekStatus; readonly cycles: readonly SelectorCycle[] }[] =
-    [
-      { status: "current", cycles: grouped.current },
-      { status: "upcoming", cycles: grouped.upcoming },
-      { status: "completed", cycles: grouped.completed },
-    ];
+  // `⌥K` / `⌥J` step to the next / previous Week — Linear's exact Cycle
+  // shortcuts — while the board (not a text field) has focus.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!event.altKey || event.metaKey || event.ctrlKey) return;
+      if (isEditableTarget(event.target)) return;
+      // Option remaps letters on macOS (⌥K → "˚", ⌥J → "∆"); match on the
+      // physical key instead so the shortcut fires regardless of layout.
+      const code = event.code;
+      if (code === "KeyK" && nextWeek) {
+        event.preventDefault();
+        goToWeek(nextWeek.id);
+      } else if (code === "KeyJ" && previousWeek) {
+        event.preventDefault();
+        goToWeek(previousWeek.id);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nextWeek?.id, previousWeek?.id]);
 
   return (
-    <div
-      aria-label="Week selector"
-      className="flex h-9 items-center gap-0.5 rounded-lg border bg-muted/40 p-0.5"
-      role="group"
+    <nav
+      aria-label="Week"
+      className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground"
     >
-      <WeekStepButton cycle={previousWeek} direction="previous" onSelect={goToWeek} today={today} />
+      <Link
+        to="/team/$teamIdentifier"
+        params={{ teamIdentifier }}
+        search={true}
+        className="truncate rounded transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {teamName}
+      </Link>
+      <BreadcrumbChevron />
+      <Link
+        to="/team/$teamIdentifier/weeks"
+        params={{ teamIdentifier }}
+        search={true}
+        className="rounded transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        Weeks
+      </Link>
+      <BreadcrumbChevron />
 
       <DropdownMenu>
         <DropdownMenuTrigger
-          render={
-            <Button
-              type="button"
-              variant="ghost"
-              className="h-8 min-w-0 gap-2 rounded-md px-2.5 font-medium aria-expanded:bg-background data-popup-open:bg-background"
-              aria-label={
-                selected
-                  ? `Selected Week: ${weekLabel(selected)}. Choose a different Week`
-                  : "Choose a Week"
-              }
-            >
-              {selectedStatus ? (
-                <span
-                  aria-hidden
-                  className={cn("size-1.5 shrink-0 rounded-full", WEEK_STATUS_DOT[selectedStatus])}
-                />
-              ) : null}
-              <span className="truncate text-sm">
-                {selected ? weekLabel(selected) : "Select a Week"}
-              </span>
-              {selectedStatus ? (
-                <Badge variant="secondary" className="hidden shrink-0 sm:inline-flex">
-                  {WEEK_STATUS_LABEL[selectedStatus]}
-                </Badge>
-              ) : null}
-            </Button>
+          aria-label={
+            selected
+              ? `Selected Week: ${weekLabel(selected)}. Choose a different Week`
+              : "Choose a Week"
           }
-        />
-        <DropdownMenuContent align="end" className="max-h-80 w-64 min-w-56">
-          {menuSections.map((section) =>
-            section.cycles.length === 0 ? null : (
-              <div key={section.status}>
-                <DropdownMenuLabel className="flex items-center gap-1.5">
-                  <span
-                    aria-hidden
-                    className={cn("size-1.5 rounded-full", WEEK_STATUS_DOT[section.status])}
-                  />
-                  {WEEK_STATUS_LABEL[section.status]}
-                </DropdownMenuLabel>
-                {section.cycles.map((cycle) => {
-                  const isSelected = cycle.id === selectedCycleId;
-                  const isCurrent = cycle.id === currentCycleId;
-                  return (
-                    <DropdownMenuItem
-                      key={cycle.id}
-                      onClick={() => void goToWeek(cycle.id)}
-                      className="gap-2"
-                    >
-                      <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="truncate">{weekLabel(cycle)}</span>
-                        {cycle.name?.trim() ? (
-                          <span className="truncate text-xs text-muted-foreground">
-                            {formatWeekDateRange(cycle)}
-                          </span>
-                        ) : null}
-                      </span>
-                      {isCurrent && !isSelected ? (
-                        <span className="shrink-0 text-xs text-muted-foreground">Now</span>
-                      ) : null}
-                      {isSelected ? (
-                        <HugeiconsIcon
-                          icon={Tick02Icon}
-                          strokeWidth={2}
-                          className="size-4 shrink-0 text-foreground"
-                        />
-                      ) : null}
-                    </DropdownMenuItem>
-                  );
-                })}
-              </div>
-            ),
-          )}
+          className="-mx-1 flex min-w-0 items-center gap-1 rounded-md px-1 py-0.5 font-medium text-foreground transition-colors hover:bg-muted aria-expanded:bg-muted data-popup-open:bg-muted"
+        >
+          <CalendarRange aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+          <span className="truncate">{selected ? weekLabel(selected) : "Select a Week"}</span>
+          <ChevronDown aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-72">
+          {nextWeek ? (
+            <>
+              <DropdownMenuLabel>Next Week (upcoming)</DropdownMenuLabel>
+              <WeekMenuItem cycle={nextWeek} onSelect={goToWeek} shortcut="⌥K" />
+            </>
+          ) : null}
+          {previousWeek ? (
+            <>
+              <DropdownMenuLabel>Previous Week (completed)</DropdownMenuLabel>
+              <WeekMenuItem cycle={previousWeek} onSelect={goToWeek} shortcut="⌥J" />
+            </>
+          ) : null}
+          {!nextWeek && !previousWeek ? (
+            <DropdownMenuLabel className="font-normal">No other Weeks</DropdownMenuLabel>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
-
-      <WeekStepButton cycle={nextWeek} direction="next" onSelect={goToWeek} today={today} />
-    </div>
+    </nav>
   );
 }
 
-function WeekStepButton({
+function BreadcrumbChevron() {
+  return <ChevronRight aria-hidden className="size-3.5 shrink-0 opacity-60" />;
+}
+
+function WeekMenuItem({
   cycle,
-  direction,
   onSelect,
-  today,
+  shortcut,
 }: {
-  readonly cycle: SelectorCycle | null;
-  readonly direction: "previous" | "next";
+  readonly cycle: SelectorCycle;
   readonly onSelect: (cycleId: string) => unknown;
-  readonly today: string;
+  readonly shortcut: string;
 }) {
-  const Icon = direction === "previous" ? ChevronLeft : ChevronRight;
-  const label = weekStepLabel(direction, cycle);
-
-  const button = (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-sm"
-      className="size-8 shrink-0 rounded-md text-muted-foreground hover:text-foreground"
-      disabled={cycle === null}
-      aria-label={label}
-      onClick={() => {
-        if (cycle) void onSelect(cycle.id);
-      }}
-    >
-      <Icon className="size-4" />
-    </Button>
-  );
-
-  if (!cycle) return button;
-
-  const status = getWeekStatus(cycle, today);
+  const name = cycle.name?.trim();
   return (
-    <Tooltip>
-      <TooltipTrigger render={button} />
-      <TooltipContent side="bottom">
-        <span className="flex items-center gap-1.5">
-          <span aria-hidden className={cn("size-1.5 rounded-full", WEEK_STATUS_DOT[status])} />
-          {weekLabel(cycle)}
-        </span>
-      </TooltipContent>
-    </Tooltip>
+    <DropdownMenuItem className="gap-2" onClick={() => void onSelect(cycle.id)}>
+      <CalendarRange className="size-4 shrink-0 text-muted-foreground" />
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate">{name || formatWeekDateRange(cycle)}</span>
+        {name ? (
+          <span className="truncate text-xs text-muted-foreground">
+            {formatWeekDateRange(cycle)}
+          </span>
+        ) : null}
+      </span>
+      <DropdownMenuShortcut className={cn("tracking-normal", name ? "self-start" : undefined)}>
+        {shortcut}
+      </DropdownMenuShortcut>
+    </DropdownMenuItem>
   );
 }

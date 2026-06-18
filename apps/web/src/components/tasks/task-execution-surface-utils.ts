@@ -1,8 +1,4 @@
-import {
-  resolveTaskViewTab,
-  type TaskViewTab,
-  type TaskWeekScope,
-} from "@/components/tasks/task-view-options";
+import { resolveTaskViewTab, type TaskViewTab } from "@/components/tasks/task-view-options";
 
 export type ExecutionSurface = "my_work" | "our_work" | "team_board";
 
@@ -239,15 +235,6 @@ export function getTaskExecutionReadArgs(args: {
       : { surface: args.surface }),
     ...(args.cycleId ? { cycleId: args.cycleId } : {}),
   };
-}
-
-export function getTaskExecutionCycleId(args: {
-  readonly surface: ExecutionSurface;
-  readonly scope?: TaskWeekScope;
-  readonly currentCycleId?: string | null;
-}): string | null {
-  if (args.surface === "team_board") return args.currentCycleId ?? null;
-  return args.scope === "all" ? null : (args.currentCycleId ?? null);
 }
 
 /**

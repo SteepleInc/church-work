@@ -52,10 +52,10 @@ test("manages Labels and applies them to Tasks on the local Postgres and Zero st
     timeout: 20_000,
   });
 
+  // Our Work shows every Task regardless of Week — no Week scope control — so
+  // the freshly created Task is visible without an "All" scope toggle.
   await page.goto("/our-work");
   await expect(page).toHaveURL(/\/our-work$/);
-  await page.getByRole("button", { name: "All" }).click();
-  await expect(page).toHaveURL(/\/our-work\?scope=all$/);
   await createTask(page, taskTitle, { team: "Worship" });
 
   const taskCard = page.getByLabel(`Task card ${taskTitle}`);

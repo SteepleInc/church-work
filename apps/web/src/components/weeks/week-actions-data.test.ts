@@ -38,15 +38,17 @@ describe("Week actions", () => {
     );
   });
 
-  it("keeps the scoped Week menu actions minimal", () => {
+  it("keeps the scoped Week menu actions to the ones our domain supports", () => {
     expect(WEEK_ACTION_MENU_LABELS).toEqual([
       "Export tasks as CSV",
       "Open in new tab",
       "Open in new window",
+      "Copy link",
     ]);
+    // Weeks run a fixed Monday–Sunday span, so there is no date editing, and we
+    // have no notification/favorite domain to subscribe or star a Week.
     expect(WEEK_ACTION_MENU_LABELS).not.toContain("Change dates");
     expect(WEEK_ACTION_MENU_LABELS).not.toContain("Notifications");
     expect(WEEK_ACTION_MENU_LABELS).not.toContain("Favorite");
-    expect(WEEK_ACTION_MENU_LABELS).not.toContain("Copy link");
   });
 });

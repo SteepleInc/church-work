@@ -329,9 +329,12 @@ describe("quick action route behavior", () => {
 
   test("never auto-sets a Due Date when creating a Task", () => {
     // The Due Date pill starts empty and the submit payload passes the picked
-    // value (or null) straight through — no Cycle-end fallback.
+    // value (or null) straight through — no Cycle-end fallback. (A Task's
+    // targetCycle carries the Week's own endDate for materialization, which is
+    // unrelated to the Due Date field, so we assert the Due Date wiring
+    // directly rather than banning the "endDate" substring outright.)
     expect(createTaskQuickActionSource).not.toContain("currentCycle");
-    expect(createTaskQuickActionSource).not.toContain("endDate");
+    expect(createTaskQuickActionSource).toContain("dueDate: null as string | null");
     expect(createTaskQuickActionSource).toContain("dueDate: value.dueDate");
   });
 

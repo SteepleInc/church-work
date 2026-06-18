@@ -194,9 +194,9 @@ _Avoid_: Hard-coded view, special view
 A Team's built-in System Saved View showing that Team's real Tasks across Cycles. It is the team destination surfaced in the sidebar as "Tasks" and is presented as a System Board. Template-generated future Tasks do not appear here until they are real Cycle Tasks.
 _Avoid_: Cycle-specific team view, team inbox
 
-**Cycle-scoped Work View**:
-A Task view whose default Task set is limited to one Cycle, usually the current Cycle. My Work and Our Work default to the current Cycle whenever opened; viewing all real Tasks or a past/future Cycle there is an explicit per-visit action and is not carried across surfaces.
-_Avoid_: Infinite backlog, all future work by default
+**Work View**:
+A cross-Team Task view — My Work or Our Work — that lists every real Task it can see regardless of Cycle, the way Linear's issue views show all matching issues. Work Views are scoped only by their View Tab (such as Assigned, Created, or Active) and any ad-hoc filters, never by a Week. Cycle scoping lives on the Team Week board, which is reached through the Week switcher, not on the Work Views.
+_Avoid_: Current-Cycle-only default, Week scope toggle on My Work or Our Work
 
 **Team Cycles View**:
 A Team-scoped planning surface listing that Team's Cycles as current, upcoming, planned, or completed. It is reached from the Team navigation under Cycles and lets Users open the Team's current or upcoming Cycle work.

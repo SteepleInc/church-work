@@ -59,10 +59,9 @@ describe("dashboard execution route search", () => {
     });
   });
 
-  test("does not carry Week scope between My Work and Our Work by default", () => {
+  test("does not carry View Tabs or View Options between My Work and Our Work by default", () => {
     expect(
       getDashboardSearchForPanel({
-        scope: "all",
         tab: "created",
         view: { mode: "list" },
         taskState: "todo",

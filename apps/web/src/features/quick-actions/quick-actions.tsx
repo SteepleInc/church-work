@@ -14,6 +14,7 @@ import {
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { CreateTaskQuickAction } from "@/features/quick-actions/create-task-quick-action";
 import { EditOrgQuickAction } from "@/features/quick-actions/edit-org-quick-action";
+import { EditWeekQuickAction } from "@/features/quick-actions/edit-week-quick-action";
 import { EditUserQuickAction } from "@/features/quick-actions/edit-user-quick-action";
 import { TeamQuickAction } from "@/features/quick-actions/team-quick-action";
 import { InviteMemberQuickAction } from "@/features/settings/invite-member";
@@ -122,6 +123,7 @@ export function QuickActions() {
       ) : null}
       <EditOrgQuickAction />
       <EditUserQuickAction />
+      <EditWeekQuickAction />
       <TeamQuickAction />
     </>
   );

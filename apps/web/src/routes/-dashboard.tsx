@@ -70,7 +70,6 @@ import {
   toTaskViewSearchValue,
   type ResolvedTaskViewOptions,
   type TaskViewTab,
-  type TaskWeekScope,
 } from "@/components/tasks/task-view-options";
 import { useUserInvitationsCollection } from "@/data/invitations/invitationsData.app";
 import { useCyclesCollection } from "@/data/cycles/cyclesData.app";
@@ -174,7 +173,6 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
     showCreateTask &&
     (typeof activePanel !== "object" || (activePanel.kind === "team" && selectedTeam !== null));
   const activeTab = resolveTaskViewTab(surface, search.tab);
-  const activeScope = surface === "team_board" ? undefined : (search.scope ?? "current_week");
   const activeView = resolveTaskViewOptions(search.view);
   const activeInsights = resolveInsightsState(search.insights);
   const today = new Date().toISOString().slice(0, 10);
@@ -194,12 +192,14 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
     cycles,
     today,
   });
+  // On a Team Week board, new Tasks default to the scoped Week's Cycle. The
+  // cross-team surfaces (My Work / Our Work) carry no Week scope, so new Tasks
+  // default to the current Week, the way Linear files new issues into the
+  // active Cycle.
   const topBarTargetCycle =
     surface === "team_board"
       ? scopedCycle?.targetCycle
-      : search.scope === "current_week" || search.scope === undefined
-        ? selectCurrentExecutionCycle(cycles, today)?.targetCycle
-        : undefined;
+      : selectCurrentExecutionCycle(cycles, today)?.targetCycle;
   const [taskFilters, setTaskFilters] = useFilters(FilterKeys.Tasks);
   const taskFilterFields = useTaskFilterFields({
     churchId: showTopBar ? activeChurchId : null,
@@ -270,17 +270,6 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
     });
   };
 
-  const setScope = (scope: TaskWeekScope) => {
-    void navigate({
-      to: ".",
-      replace: true,
-      search: (prev: Record<string, unknown>) => ({
-        ...prev,
-        scope: scope === "current_week" ? undefined : scope,
-      }),
-    });
-  };
-
   const setView = (view: ResolvedTaskViewOptions) => {
     void navigate({
       to: ".",
@@ -326,8 +315,6 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
           surface={surface}
           tab={activeTab}
           onTabChange={setTab}
-          scope={activeScope}
-          onScopeChange={surface === "team_board" ? undefined : setScope}
           view={activeView}
           onViewChange={setView}
           openDisplayOptionsRef={openDisplayOptionsRef}
@@ -396,7 +383,6 @@ function PrivateDashboardContent({ activePanel }: { activePanel: ActiveDashboard
           teams={activeTeams.map((candidate) => ({ id: candidate.id, name: candidate.name }))}
           tab={activeTab}
           view={search.view}
-          scope={activeScope}
           week={search.week}
           weekNumber={
             typeof activePanel === "object" && activePanel.kind === "team"

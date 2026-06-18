@@ -2,6 +2,7 @@ export const WEEK_ACTION_MENU_LABELS = [
   "Export tasks as CSV",
   "Open in new tab",
   "Open in new window",
+  "Copy link",
 ] as const;
 
 export type WeekCsvTask = {

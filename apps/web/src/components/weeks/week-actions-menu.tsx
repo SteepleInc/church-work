@@ -1,13 +1,3 @@
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,20 +7,16 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
-import { formatWeekDateRange, useUpdateWeekDetailsMutation } from "@/data/cycles/cyclesData.app";
+import { formatWeekDateRange } from "@/data/cycles/cyclesData.app";
+import { useQuickActionOpeners } from "@/features/quick-actions/quick-actions-state";
 import {
   Download,
   ExternalLink,
-  Lock,
+  Link as LinkIcon,
   MoreHorizontal,
   Pencil,
   SquareArrowOutUpRight,
 } from "lucide-react";
-import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { toast } from "sonner";
 
@@ -41,7 +27,8 @@ import {
   type WeekCsvTask,
 } from "./week-actions-data";
 
-const [exportTasksLabel, openInNewTabLabel, openInNewWindowLabel] = WEEK_ACTION_MENU_LABELS;
+const [exportTasksLabel, openInNewTabLabel, openInNewWindowLabel, copyLinkLabel] =
+  WEEK_ACTION_MENU_LABELS;
 
 export type WeekActionsMenuCycle = {
   readonly id: string;
@@ -50,8 +37,6 @@ export type WeekActionsMenuCycle = {
   readonly name: string | null;
   readonly description: string | null;
 };
-
-const NAME_MAX_LENGTH = 80;
 
 export function WeekActionsMenu({
   churchId,
@@ -66,51 +51,28 @@ export function WeekActionsMenu({
   // header) while the default "⋯" button still works on its own.
   readonly trigger?: ReactElement;
 }) {
-  const updateWeekDetails = useUpdateWeekDetailsMutation();
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState(cycle.name ?? "");
-  const [description, setDescription] = useState(cycle.description ?? "");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Re-seed the form each time the dialog opens so a cancelled edit never
-  // leaks into the next one, and so external Week changes are picked up.
-  useEffect(() => {
-    if (!open) return;
-    setName(cycle.name ?? "");
-    setDescription(cycle.description ?? "");
-    setError(null);
-  }, [open, cycle.name, cycle.description]);
+  const { openEditWeek } = useQuickActionOpeners();
 
   const dateRange = formatWeekDateRange(cycle);
-  const trimmedName = name.trim();
-  const trimmedDescription = description.trim();
-  const isDirty =
-    trimmedName !== (cycle.name ?? "").trim() ||
-    trimmedDescription !== (cycle.description ?? "").trim();
-
-  const save = async () => {
-    setSaving(true);
-    setError(null);
-    const result = await updateWeekDetails({
-      churchId,
-      cycleId: cycle.id,
-      description: trimmedDescription || null,
-      name: trimmedName || null,
-    });
-    setSaving(false);
-    if (result.ok) {
-      setOpen(false);
-      toast.success(trimmedName ? `“${trimmedName}” saved.` : "Week updated.");
-      return;
-    }
-    setError(result.error.message);
-  };
-
   const weekUrl = typeof window === "undefined" ? "" : window.location.href;
   const scopedTaskCount = getWeekCsvTasks({ cycleId: cycle.id, tasks }).length;
   const weekLabel = cycle.name?.trim() || dateRange;
 
+  const editWeek = () => {
+    // The menu closes on item click; defer the quick action open to the next
+    // frame so the dropdown's own close handling (focus restore, outside-press
+    // detection) settles first and doesn't immediately dismiss the dialog.
+    requestAnimationFrame(() =>
+      openEditWeek({
+        churchId,
+        cycleId: cycle.id,
+        startDate: cycle.startDate,
+        endDate: cycle.endDate,
+        name: cycle.name,
+        description: cycle.description,
+      }),
+    );
+  };
   const exportTasks = () => {
     const csv = buildWeekTasksCsv({ cycleId: cycle.id, tasks });
     downloadCsv(csv, `week-${cycle.startDate}-tasks.csv`);
@@ -128,131 +90,61 @@ export function WeekActionsMenu({
     if (!weekUrl) return;
     window.open(weekUrl, "_blank", "noopener,noreferrer,width=1280,height=900");
   };
+  const copyLink = () => {
+    if (!weekUrl) return;
+    void navigator.clipboard?.writeText(weekUrl);
+    toast.success("Link copied.");
+  };
 
   return (
-    <>
-      <DropdownMenu>
-        {trigger ? (
-          <DropdownMenuTrigger aria-label="Week actions" render={trigger} />
-        ) : (
-          <DropdownMenuTrigger
-            aria-label="Week actions"
-            className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <MoreHorizontal className="size-4" />
-          </DropdownMenuTrigger>
-        )}
-        <DropdownMenuContent align="start" className="w-56">
-          <DropdownMenuLabel className="truncate">{weekLabel}</DropdownMenuLabel>
+    <DropdownMenu>
+      {trigger ? (
+        <DropdownMenuTrigger aria-label="Week actions" render={trigger} />
+      ) : (
+        <DropdownMenuTrigger
+          aria-label="Week actions"
+          className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <MoreHorizontal className="size-4" />
+        </DropdownMenuTrigger>
+      )}
+      {/* Fan to the right (Linear's Cycle menu opens from the "⋯" toward the
+          content), so the menu anchors its left edge to the trigger. */}
+      <DropdownMenuContent align="start" className="w-60">
+        <DropdownMenuLabel className="truncate">{weekLabel}</DropdownMenuLabel>
 
-          <DropdownMenuItem disabled={scopedTaskCount === 0} onSelect={exportTasks}>
-            <Download className="size-4" />
-            <span className="truncate">{exportTasksLabel}</span>
-            {scopedTaskCount > 0 ? (
-              <DropdownMenuShortcut className="tabular-nums">
-                {scopedTaskCount}
-              </DropdownMenuShortcut>
-            ) : null}
-          </DropdownMenuItem>
+        <DropdownMenuItem onClick={editWeek}>
+          <Pencil className="size-4" />
+          Edit week name and description…
+        </DropdownMenuItem>
 
-          <DropdownMenuSeparator />
+        <DropdownMenuSeparator />
 
-          <DropdownMenuItem onSelect={openInNewTab}>
-            <ExternalLink className="size-4" />
-            {openInNewTabLabel}
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={openInNewWindow}>
-            <SquareArrowOutUpRight className="size-4" />
-            {openInNewWindowLabel}
-          </DropdownMenuItem>
+        <DropdownMenuItem onClick={copyLink}>
+          <LinkIcon className="size-4" />
+          {copyLinkLabel}
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={scopedTaskCount === 0} onClick={exportTasks}>
+          <Download className="size-4" />
+          <span className="truncate">{exportTasksLabel}…</span>
+          {scopedTaskCount > 0 ? (
+            <DropdownMenuShortcut className="tabular-nums">{scopedTaskCount}</DropdownMenuShortcut>
+          ) : null}
+        </DropdownMenuItem>
 
-          <DropdownMenuSeparator />
+        <DropdownMenuSeparator />
 
-          <DropdownMenuItem onSelect={() => setOpen(true)}>
-            <Pencil className="size-4" />
-            {cycle.name ? "Rename Week…" : "Name this Week…"}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit Week details</DialogTitle>
-            <DialogDescription>
-              Give this Week a Church-wide name and description. Its Monday–Sunday dates stay fixed.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-4 py-1">
-            {/* Locked dates: the Week's identity is its Monday–Sunday span, and
-                that span never moves — make that immutability obvious. */}
-            <div className="flex items-center gap-3 rounded-md border bg-muted/40 px-3 py-2.5">
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground shadow-xs">
-                <Lock className="size-3.5" />
-              </span>
-              <div className="grid gap-0.5">
-                <span className="text-sm font-medium leading-none">{dateRange}</span>
-                <span className="text-xs text-muted-foreground">
-                  Monday–Sunday · dates can't be changed
-                </span>
-              </div>
-            </div>
-
-            <div className="grid gap-2">
-              <div className="flex items-baseline justify-between gap-2">
-                <Label htmlFor="week-name">Name</Label>
-                <span
-                  className={cn(
-                    "text-xs tabular-nums text-muted-foreground",
-                    name.length > NAME_MAX_LENGTH && "text-destructive",
-                  )}
-                >
-                  {name.length}/{NAME_MAX_LENGTH}
-                </span>
-              </div>
-              <Input
-                autoFocus
-                id="week-name"
-                maxLength={NAME_MAX_LENGTH}
-                onChange={(event) => setName(event.target.value)}
-                placeholder={dateRange}
-                value={name}
-              />
-              <p className="text-xs text-muted-foreground">
-                Leave blank to show the date range. Try “Focus on the Family — week three.”
-              </p>
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="week-description">Description</Label>
-              <Textarea
-                className="min-h-20 resize-none"
-                id="week-description"
-                onChange={(event) => setDescription(event.target.value)}
-                placeholder="Add planning context for this Week…"
-                value={description}
-              />
-            </div>
-
-            {error ? (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            ) : null}
-          </div>
-
-          <DialogFooter>
-            <Button disabled={saving} onClick={() => setOpen(false)} type="button" variant="ghost">
-              Cancel
-            </Button>
-            <Button disabled={!isDirty || saving} loading={saving} onClick={save} type="button">
-              Save Week
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+        <DropdownMenuItem onClick={openInNewWindow}>
+          <SquareArrowOutUpRight className="size-4" />
+          {openInNewWindowLabel}
+          <DropdownMenuShortcut>Ctrl ,</DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={openInNewTab}>
+          <ExternalLink className="size-4" />
+          {openInNewTabLabel}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

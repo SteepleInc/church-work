@@ -1,5 +1,6 @@
 import { Outlet, useLocation, useRouteContext } from "@tanstack/react-router";
 
+import { AppHeaderSlotAnchor, AppHeaderSlotProvider } from "@/components/app-header-slot";
 import { getBreadcrumbLabel } from "@/components/app-shell-utils";
 import { ModeToggle } from "@/components/mode-toggle";
 import { AppNavigation } from "@/components/navigation/app-navigation";
@@ -33,25 +34,29 @@ export function AppShell() {
 
   return (
     <SidebarProvider defaultOpen={sidebarOpen} id="app-sidebar-provider">
-      <AppNavigation />
-      <SidebarInset className="overflow-hidden md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-0">
-        <header className="flex h-16 shrink-0 items-center gap-4 px-4">
-          <div className="flex items-center gap-2">
-            <SidebarTrigger className="-ml-1" />
-            <Separator className="mr-2 h-4" orientation="vertical" />
-            <AppBreadcrumbs />
-          </div>
-          <div className="ml-auto flex items-center gap-2">
-            <ModeToggle />
-            <UserMenu />
-          </div>
-        </header>
-        <Outlet />
-      </SidebarInset>
-      <DetailsPane />
-      <QuickActions />
-      <BigActions />
-      <GlobalSearch />
+      <AppHeaderSlotProvider>
+        <AppNavigation />
+        <SidebarInset className="overflow-hidden md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-0">
+          <header className="flex h-16 shrink-0 items-center gap-4 px-4">
+            <div className="flex min-w-0 items-center gap-2">
+              <SidebarTrigger className="-ml-1" />
+              <Separator className="mr-2 h-4" orientation="vertical" />
+              <AppHeaderSlotAnchor>
+                <AppBreadcrumbs />
+              </AppHeaderSlotAnchor>
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <ModeToggle />
+              <UserMenu />
+            </div>
+          </header>
+          <Outlet />
+        </SidebarInset>
+        <DetailsPane />
+        <QuickActions />
+        <BigActions />
+        <GlobalSearch />
+      </AppHeaderSlotProvider>
     </SidebarProvider>
   );
 }

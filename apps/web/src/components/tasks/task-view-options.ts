@@ -137,9 +137,6 @@ export type ChurchWorkViewTab = typeof ChurchWorkViewTabSchema.Type;
 
 export type TaskViewTab = MyWorkViewTab | ChurchWorkViewTab;
 
-export const TaskWeekScopeSchema = Schema.Literals(["current_week", "all"]);
-export type TaskWeekScope = typeof TaskWeekScopeSchema.Type;
-
 type TaskViewSurface = "my_work" | "our_work" | "team_board";
 
 export function getTaskViewTabs(
@@ -177,14 +174,12 @@ export function resolveTaskViewTab(
 
 export const MyWorkSearchSchema = Schema.Struct({
   tab: lenientSearchField(MyWorkViewTabSchema),
-  scope: lenientSearchField(TaskWeekScopeSchema),
   view: lenientSearchField(TaskViewOptionsSchema),
   ...InsightsSearchSchema,
 });
 
 export const ChurchWorkSearchSchema = Schema.Struct({
   tab: lenientSearchField(ChurchWorkViewTabSchema),
-  scope: lenientSearchField(TaskWeekScopeSchema),
   week: lenientSearchField(Schema.Literals(["current", "upcoming"])),
   progress: lenientSearchField(Schema.String),
   view: lenientSearchField(TaskViewOptionsSchema),
@@ -193,7 +188,6 @@ export const ChurchWorkSearchSchema = Schema.Struct({
 
 export type TaskViewSearch = {
   readonly tab?: TaskViewTab;
-  readonly scope?: TaskWeekScope;
   readonly week?: "current" | "upcoming";
   readonly progress?: string;
   readonly view?: TaskViewOptions;

@@ -3,6 +3,10 @@ import { useMemo } from "react";
 
 import { inviteMemberDialogSourceAtom } from "@/features/settings/invite-member";
 import { createTaskQuickActionStateAtom } from "@/features/quick-actions/create-task-quick-action";
+import {
+  editWeekQuickActionStateAtom,
+  type EditWeekQuickActionState,
+} from "@/features/quick-actions/edit-week-quick-action";
 import { teamQuickActionStateAtom } from "@/features/quick-actions/team-quick-action";
 
 export const disableQuickActionsAtom = atom(false);
@@ -11,6 +15,7 @@ export const quickActionsIsOpenAtom = atom(false);
 export function useQuickActionOpeners() {
   const setInviteMemberDialogSource = useSetAtom(inviteMemberDialogSourceAtom);
   const setCreateTaskQuickActionState = useSetAtom(createTaskQuickActionStateAtom);
+  const setEditWeekQuickActionState = useSetAtom(editWeekQuickActionStateAtom);
   const setTeamQuickActionState = useSetAtom(teamQuickActionStateAtom);
 
   return useMemo(
@@ -39,8 +44,14 @@ export function useQuickActionOpeners() {
           churchId: options.churchId,
           teamId: options.teamId,
         }),
+      openEditWeek: (week: EditWeekQuickActionState) => setEditWeekQuickActionState(week),
       openInviteMember: () => setInviteMemberDialogSource("quick-actions"),
     }),
-    [setCreateTaskQuickActionState, setInviteMemberDialogSource, setTeamQuickActionState],
+    [
+      setCreateTaskQuickActionState,
+      setEditWeekQuickActionState,
+      setInviteMemberDialogSource,
+      setTeamQuickActionState,
+    ],
   );
 }
