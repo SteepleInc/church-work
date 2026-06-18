@@ -405,6 +405,7 @@ async function runPostPrReview({
           TASK_ID: issue.id,
           ISSUE_TITLE: issue.title,
           BRANCH: issue.branch,
+          PR_URL: prUrl,
           UI_BRIEF: issue.uiBrief ?? "Review design quality and UX fit.",
         },
       });
@@ -420,6 +421,7 @@ async function runPostPrReview({
         TASK_ID: issue.id,
         ISSUE_TITLE: issue.title,
         BRANCH: issue.branch,
+        PR_URL: prUrl,
       },
     });
     reviewCommitCount += codeReview.commits.length;

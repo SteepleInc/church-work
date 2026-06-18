@@ -2,6 +2,8 @@
 
 Review the code changes for issue {{TASK_ID}}: {{ISSUE_TITLE}} on branch `{{BRANCH}}` and improve correctness, clarity, consistency, and maintainability while preserving exact functionality.
 
+PR: {{PR_URL}}
+
 This is the all-around code reviewer. Focus on repo fit, correctness, tests, safety, and maintainability. UI design quality is reviewed separately for UI branches.
 
 # CONTEXT
@@ -46,12 +48,13 @@ This is the all-around code reviewer. Focus on repo fit, correctness, tests, saf
 
 # EXECUTION
 
-If you find improvements to make:
+If you find concerns or improvements:
 
-1. Make the changes directly on this branch
-2. Run targeted Bun checks and tests to ensure nothing is broken
-3. Commit describing the refinements
+1. Comment on the PR with the specific things you dislike or want changed. Use `gh pr comment {{PR_URL}} --body-file <file>` so the review trail is visible in GitHub.
+2. Make the changes directly on this branch.
+3. Run targeted Bun checks and tests to ensure nothing is broken.
+4. Commit describing the refinements.
 
-If the code is already clean and well-structured, do nothing.
+If the code is already clean and well-structured, comment on the PR saying the all-around review found no changes needed.
 
 Once complete, output <promise>COMPLETE</promise>.
