@@ -1,9 +1,12 @@
 import {
   DEFAULT_WORKFLOW_STATUSES,
   addLocalDateDays,
+  cycleStartDateForLocalDate,
   generateTeamIdentifier,
   getLabelColorForName,
   getTeamColorForName,
+  localDateForInstant,
+  localMidnightToUtcInstant,
   STARTER_LABELS,
   STARTER_TEAM_NAMES,
 } from "@church-task/domain";
@@ -27,68 +30,6 @@ import {
   workflow_statuses,
   workflows,
 } from "./schema";
-
-const parseLocalDate = (localDate: string) => {
-  const [year, month, day] = localDate.split("-").map(Number) as [number, number, number];
-  const asUtcDate = new Date(Date.UTC(year, month - 1, day));
-  if (asUtcDate.toISOString().slice(0, 10) !== localDate) throw new Error("Invalid local date.");
-  return { day, month, year };
-};
-
-const localDateForInstant = (instant: Date, timeZone: string) => {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    day: "2-digit",
-    month: "2-digit",
-    timeZone,
-    year: "numeric",
-  }).formatToParts(instant);
-  const byType = Object.fromEntries(
-    parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]),
-  );
-  return `${byType.year}-${byType.month}-${byType.day}`;
-};
-
-const localMidnightToUtcInstant = (localDate: string, timeZone: string) => {
-  const { day, month, year } = parseLocalDate(localDate);
-  let candidateUtc = Date.UTC(year, month - 1, day);
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    day: "2-digit",
-    hour: "2-digit",
-    hourCycle: "h23",
-    minute: "2-digit",
-    month: "2-digit",
-    second: "2-digit",
-    timeZone,
-    year: "numeric",
-  });
-
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const byType = Object.fromEntries(
-      formatter
-        .formatToParts(new Date(candidateUtc))
-        .filter((part) => part.type !== "literal")
-        .map((part) => [part.type, part.value]),
-    );
-    const localAsUtc = Date.UTC(
-      Number(byType.year),
-      Number(byType.month) - 1,
-      Number(byType.day),
-      Number(byType.hour),
-      Number(byType.minute),
-      Number(byType.second),
-    );
-    const delta = localAsUtc - Date.UTC(year, month - 1, day);
-    if (delta === 0) return new Date(candidateUtc);
-    candidateUtc -= delta;
-  }
-  return new Date(candidateUtc);
-};
-
-const cycleStartDateForLocalDate = (localDate: string) => {
-  const { day, month, year } = parseLocalDate(localDate);
-  const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
-  return addLocalDateDays(localDate, -((dayOfWeek + 6) % 7));
-};
 
 export type BootstrapChurchOnboardingArgs = {
   readonly church_id: string;

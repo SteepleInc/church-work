@@ -1,4 +1,5 @@
 import { startPostgresHarness } from "@church-task/test-harness";
+import { cycleStartDateForLocalDate } from "@church-task/domain";
 import { eq } from "drizzle-orm";
 import { Effect } from "effect";
 import { describe, expect, test } from "vitest";
@@ -19,7 +20,6 @@ import {
 import {
   buildCycleForInstant,
   buildCycleForLocalDate,
-  cycleStartDateForLocalDate,
   runScheduledCycleMaintenance,
 } from "./scheduled-work";
 

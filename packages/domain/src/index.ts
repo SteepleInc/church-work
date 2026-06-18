@@ -1,3 +1,5 @@
+import { addLocalDateDays } from "./template-projection";
+
 export const TEAM_COLORS = [
   "red",
   "orange",
@@ -103,6 +105,108 @@ export const generateTeamIdentifier = (
 
 export const formatTaskIdentifier = (teamIdentifier: string, taskNumber: number): string =>
   `${teamIdentifier.trim().toUpperCase()}-${taskNumber}`;
+
+const localDateFormatterByTimeZone = new Map<string, Intl.DateTimeFormat>();
+const localDateTimeFormatterByTimeZone = new Map<string, Intl.DateTimeFormat>();
+
+export const assertValidTimeZone = (churchTimeZone: string) => {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: churchTimeZone });
+  } catch {
+    throw new Error("Church Time Zone must be a valid IANA time zone.");
+  }
+};
+
+export const parseLocalDate = (localDate: string) => {
+  const [year, month, day] = localDate.split("-").map(Number) as [number, number, number];
+  const asUtcDate = new Date(Date.UTC(year, month - 1, day));
+  if (asUtcDate.toISOString().slice(0, 10) !== localDate) {
+    throw new Error("Local date must be a real calendar date.");
+  }
+  return { day, month, year };
+};
+
+const localDateDayOfWeek = (localDate: string) => {
+  const { day, month, year } = parseLocalDate(localDate);
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+};
+
+const getLocalDateFormatter = (churchTimeZone: string) => {
+  const existing = localDateFormatterByTimeZone.get(churchTimeZone);
+  if (existing) return existing;
+
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: churchTimeZone,
+    year: "numeric",
+  });
+  localDateFormatterByTimeZone.set(churchTimeZone, formatter);
+  return formatter;
+};
+
+const getLocalDateTimeFormatter = (churchTimeZone: string) => {
+  const existing = localDateTimeFormatterByTimeZone.get(churchTimeZone);
+  if (existing) return existing;
+
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    day: "2-digit",
+    hour: "2-digit",
+    hourCycle: "h23",
+    minute: "2-digit",
+    month: "2-digit",
+    second: "2-digit",
+    timeZone: churchTimeZone,
+    year: "numeric",
+  });
+  localDateTimeFormatterByTimeZone.set(churchTimeZone, formatter);
+  return formatter;
+};
+
+const partsToRecord = (parts: Intl.DateTimeFormatPart[]) => {
+  const record: Record<string, string> = {};
+  for (const part of parts) {
+    if (part.type !== "literal") record[part.type] = part.value;
+  }
+  return record;
+};
+
+export const localDateForInstant = (instant: Date, churchTimeZone: string) => {
+  assertValidTimeZone(churchTimeZone);
+  const parts = partsToRecord(getLocalDateFormatter(churchTimeZone).formatToParts(instant));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+};
+
+export const localMidnightToUtcInstant = (localDate: string, churchTimeZone: string) => {
+  const { day, month, year } = parseLocalDate(localDate);
+  const desiredLocalAsUtc = Date.UTC(year, month - 1, day, 0, 0, 0);
+  let candidateUtc = desiredLocalAsUtc;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const parts = partsToRecord(
+      getLocalDateTimeFormatter(churchTimeZone).formatToParts(new Date(candidateUtc)),
+    );
+    const candidateLocalAsUtc = Date.UTC(
+      Number(parts.year),
+      Number(parts.month) - 1,
+      Number(parts.day),
+      Number(parts.hour),
+      Number(parts.minute),
+      Number(parts.second),
+    );
+    const delta = candidateLocalAsUtc - desiredLocalAsUtc;
+    if (delta === 0) return new Date(candidateUtc);
+    candidateUtc -= delta;
+  }
+
+  return new Date(candidateUtc);
+};
+
+export const cycleStartDateForLocalDate = (localDate: string) => {
+  const dayOfWeek = localDateDayOfWeek(localDate);
+  const daysSinceMonday = (dayOfWeek + 6) % 7;
+  return addLocalDateDays(localDate, -daysSinceMonday);
+};
 
 const TASK_IDENTIFIER_PATTERN = new RegExp(
   `^([A-Za-z0-9]{1,${TEAM_IDENTIFIER_MAX_LENGTH}})-([0-9]+)$`,
