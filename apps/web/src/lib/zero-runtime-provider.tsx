@@ -45,7 +45,6 @@ export function ZeroRuntimeProvider(props: { readonly children: React.ReactNode 
     <ZeroProvider
       cacheURL={getZeroCacheUrl()}
       context={context}
-      key={`${userId ?? "anonymous"}:${sessionId ?? "anonymous"}:${activeChurchId ?? "none"}`}
       mutators={mutators}
       schema={schema}
       userID={userId}
