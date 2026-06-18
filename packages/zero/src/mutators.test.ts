@@ -857,6 +857,117 @@ describe("Zero Task mutators", () => {
     expect(taskUpdate).not.toHaveProperty("cycle_id");
   });
 
+  test("attaches uncycled To-do Tasks to viewed Week when transitioning in Week context", async () => {
+    const { tx, updateCalls } = createServerTx([
+      [
+        {
+          board_order: "a1",
+          church_id: "org_test",
+          cycle_id: null,
+          deleted_at: null,
+          finished_at: null,
+          id: "task_one",
+          label_ids: "[]",
+          number: 7,
+          previous_identifiers: "[]",
+          task_state: "todo",
+          team_id: "team_production",
+          team_identifier: "PRO",
+          workflow_id: "workflow_production",
+          workflow_status_id: "workflowstatus_todo",
+        },
+      ],
+      [{ id: "cycle_viewed" }],
+      [
+        {
+          id: "workflowstatus_in_progress",
+          task_state: "in_progress",
+          workflow_id: "workflow_production",
+        },
+      ],
+    ]);
+
+    await mustGetMutator(mutators, "tasks.update").fn({
+      args: {
+        church_id: "org_test",
+        fields: {
+          target_cycle: {
+            church_time_zone: "America/New_York",
+            end_date: "2026-08-02",
+            ends_at: "2026-08-03T04:00:00.000Z",
+            start_date: "2026-07-27",
+            starts_at: "2026-07-28T04:00:00.000Z",
+          },
+          workflow_status_id: "workflowstatus_in_progress",
+        },
+        task_id: "task_one",
+      },
+      ctx: signedInContext,
+      tx,
+    });
+
+    const taskUpdate = updateCalls.find((call) => call.table === tasks)?.set as {
+      readonly cycle_id: string;
+      readonly task_state: string;
+      readonly workflow_status_id: string;
+    };
+    expect(taskUpdate).toMatchObject({
+      cycle_id: "cycle_viewed",
+      task_state: "in_progress",
+      workflow_status_id: "workflowstatus_in_progress",
+    });
+  });
+
+  test("attaches uncycled To-do Tasks to current Cycle on default workflow transition", async () => {
+    const { tx, updateCalls } = createServerTx([
+      [
+        {
+          board_order: "a1",
+          church_id: "org_test",
+          cycle_id: null,
+          deleted_at: null,
+          finished_at: null,
+          id: "task_one",
+          label_ids: "[]",
+          number: 7,
+          previous_identifiers: "[]",
+          task_state: "todo",
+          team_id: "team_production",
+          team_identifier: "PRO",
+          workflow_id: "workflow_production",
+          workflow_status_id: "workflowstatus_todo",
+        },
+      ],
+      [
+        {
+          id: "workflowstatus_done",
+          task_state: "done",
+          workflow_id: "workflow_production",
+        },
+      ],
+      [{ id: "cycle_current" }],
+    ]);
+
+    await mustGetMutator(mutators, "tasks.update").fn({
+      args: {
+        church_id: "org_test",
+        fields: { workflow_status_id: "workflowstatus_done" },
+        task_id: "task_one",
+      },
+      ctx: signedInContext,
+      tx,
+    });
+
+    const taskUpdate = updateCalls.find((call) => call.table === tasks)?.set as {
+      readonly cycle_id: string;
+      readonly finished_at: Date;
+      readonly task_state: string;
+    };
+    expect(taskUpdate.cycle_id).toBe("cycle_current");
+    expect(taskUpdate.task_state).toBe("done");
+    expect(taskUpdate.finished_at).toBeInstanceOf(Date);
+  });
+
   test("strips foreign Team Labels when moving a Task between Teams", async () => {
     const { tx, updateCalls } = createServerTx([
       [
