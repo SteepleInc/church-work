@@ -324,6 +324,8 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
 
     if (AUTO_MERGE_PRS && !autoMergeEnabled && checksReadyToMerge) {
       mergePr(prUrl);
+    } else if (AUTO_MERGE_PRS && autoMergeEnabled && checksReadyToMerge) {
+      console.log(`  PR checks passed or PR merged; GitHub auto-merge owns final merge: ${prUrl}`);
     }
   }
 
@@ -469,7 +471,7 @@ async function repairFailedPrChecks({
 
     if (failedChecks.length === 0) {
       console.log(`  PR checks are not failing: ${prUrl}`);
-      return checksArePassing(checks);
+      return checks.length === 0 || checksArePassing(checks);
     }
 
     console.log(`  ${failedChecks.length} PR check(s) failed; running repair agent.`);
@@ -513,10 +515,21 @@ async function repairFailedPrChecks({
 
 async function waitForChecks(prUrl: string) {
   const deadline = Date.now() + CHECK_TIMEOUT_MS;
+  let pollCount = 0;
 
   while (Date.now() < deadline) {
+    pollCount++;
+
+    if (prIsMerged(prUrl)) {
+      console.log(`  PR already merged; stopping check polling: ${prUrl}`);
+      return [];
+    }
+
     const checks = getPrChecks(prUrl);
     if (checks.length === 0) {
+      console.log(
+        `  Check poll ${pollCount}: no checks reported yet; waiting ${CHECK_POLL_INTERVAL_MS / 1000}s...`,
+      );
       await sleep(CHECK_POLL_INTERVAL_MS);
       continue;
     }
@@ -527,6 +540,8 @@ async function waitForChecks(prUrl: string) {
     const hasFailing = checks.some(
       (check) => check.bucket === "fail" || check.conclusion === "failure",
     );
+
+    console.log(`  Check poll ${pollCount}: ${formatCheckSummary(checks)}`);
 
     if (hasFailing || !hasPending) {
       return checks;
@@ -539,6 +554,32 @@ async function waitForChecks(prUrl: string) {
     `  Timed out waiting for checks; leaving PR for GitHub auto-merge/manual inspection.`,
   );
   return [];
+}
+
+function prIsMerged(prUrl: string) {
+  return safeSh(`gh pr view ${quote(prUrl)} --json merged --jq .merged`).trim() === "true";
+}
+
+function formatCheckSummary(checks: PrCheck[]) {
+  const counts = checks.reduce(
+    (summary, check) => {
+      const bucket = check.bucket ?? check.state ?? check.conclusion ?? "unknown";
+      summary[bucket] = (summary[bucket] ?? 0) + 1;
+      return summary;
+    },
+    {} as Record<string, number>,
+  );
+
+  const names = checks
+    .map(
+      (check) =>
+        `${check.name ?? check.workflow ?? "unnamed"}:${check.bucket ?? check.state ?? check.conclusion ?? "unknown"}`,
+    )
+    .join(", ");
+
+  return `${Object.entries(counts)
+    .map(([bucket, count]) => `${count} ${bucket}`)
+    .join(", ")} (${names})`;
 }
 
 function checksArePassing(checks: PrCheck[]) {
