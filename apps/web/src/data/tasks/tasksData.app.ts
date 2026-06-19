@@ -55,6 +55,12 @@ export type TaskCollectionItem = {
    * (dashed/ghost) treatment so projections read distinctly from real Tasks.
    */
   readonly isProjected: boolean;
+  /**
+   * True when a projected Template Task carries a Cycle Adjustment with one or
+   * more planning overrides for this occurrence. Surfaces use this to mark the
+   * projection as edited-for-this-Cycle without it ceasing to be a projection.
+   */
+  readonly isAdjusted: boolean;
 };
 
 export type TemplateSourceBadge = {
@@ -301,6 +307,7 @@ const mapTask = (
   finishedAt: timestampToIso(task.finished_at),
   id: task.id,
   identifier: formatTaskIdentifier(teamsById.get(task.team_id)?.identifier ?? "TEAM", task.number),
+  isAdjusted: false,
   isProjected: false,
   labelIds: parseStringArray(task.label_ids),
   number: task.number,
@@ -416,6 +423,7 @@ export function buildProjectedTemplateTasksForCycle(args: {
           finishedAt: null,
           id: `projected-template-task:${schedule.id}:${templateTask.id}:${occurrenceKey}:${args.cycle.id}`,
           identifier: "Projected",
+          isAdjusted: overrides.length > 0,
           isProjected: true,
           labelIds: effectiveLabelIds,
           number: 0,

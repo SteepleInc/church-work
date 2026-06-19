@@ -31,6 +31,7 @@ export type TaskSummary = {
   readonly boardOrder?: string;
   readonly labelIds?: readonly string[];
   readonly isProjected?: boolean;
+  readonly isAdjusted?: boolean;
   readonly sourceBadge?: {
     readonly scheduleName: string;
     readonly occurrenceLabel: string;

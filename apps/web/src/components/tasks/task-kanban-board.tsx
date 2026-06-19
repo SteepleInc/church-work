@@ -68,7 +68,7 @@ import {
   type TaskBoardTaskState,
   type TaskBoardWorkflowStatus,
 } from "./task-kanban-adapter";
-import { TemplateSourceBadge } from "./template-source-badge";
+import { ProjectedAdjustedBadge, TemplateSourceBadge } from "./template-source-badge";
 import { DEFAULT_TASK_VIEW_OPTIONS, type TaskDisplayProperty } from "./task-view-options";
 import { statusOptions } from "./task-kanban-board-utils";
 import { useTaskContextMenu } from "./task-context-menu";
@@ -827,6 +827,9 @@ function TaskKanbanCard({
       onToggleTaskSelected(task.id);
       return;
     }
+    // A projected Template Task has no Task row to open yet; planning edits
+    // happen inline on the ghost card itself, so a body click is a no-op.
+    if (task.isProjected) return;
     // Task links carry the Task Identifier, not the database id (ADR 0013).
     onOpenTask?.(task.identifier);
   };
@@ -841,7 +844,9 @@ function TaskKanbanCard({
         // dashed/muted "ghost" card so they're distinct from real Tasks, in
         // keeping with the app's dashed-placeholder language.
         task.isProjected && "border-dashed bg-muted/20 shadow-none ring-0",
-        onOpenTask && "cursor-pointer transition-colors hover:ring-foreground/20",
+        onOpenTask &&
+          !task.isProjected &&
+          "cursor-pointer transition-colors hover:ring-foreground/20",
         isFocused && "ring-1 ring-foreground/20",
         isSelected &&
           "bg-primary/5 ring-primary/40 hover:ring-primary/50 group-data-[dragging=true]/kanban-root:opacity-40",
@@ -976,6 +981,7 @@ function TaskKanbanCard({
         {task.sourceBadge ? (
           <TemplateSourceBadge badge={task.sourceBadge} className="max-w-[14rem]" />
         ) : null}
+        {task.isProjected && task.isAdjusted ? <ProjectedAdjustedBadge /> : null}
       </CardContent>
 
       {showProperty("created") && createdAtLabel ? (

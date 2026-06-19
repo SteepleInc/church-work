@@ -8,12 +8,14 @@ import { useCyclesCollection } from "@/data/cycles/cyclesData.app";
 import { useLabelsCollection } from "@/data/labels/labelsData.app";
 import { useTeamMembershipsCollection } from "@/data/teams/teamsData.app";
 import {
+  useAdjustProjectedTemplateTaskMutation,
   useCancelTaskMutation,
   useCompleteTaskMutation,
   useReopenTaskMutation,
   useTasksCollection,
   useUpdateTaskMutation,
   useUpdateTasksBatchMutation,
+  type TaskUpdateFields,
 } from "@/data/tasks/tasksData.app";
 import { getUserDisplayName, useChurchUsersCollection } from "@/data/users/usersData.app";
 import {
@@ -307,6 +309,7 @@ export function TaskExecutionSurface({
 
   const updateTask = useUpdateTaskMutation();
   const updateTasksBatch = useUpdateTasksBatchMutation();
+  const adjustProjectedTask = useAdjustProjectedTemplateTaskMutation();
   const completeTask = useCompleteTaskMutation();
   const cancelTask = useCancelTaskMutation();
   const reopenTask = useReopenTaskMutation();
@@ -318,6 +321,32 @@ export function TaskExecutionSurface({
   };
 
   const tasks = tasksCollection.tasksCollection;
+
+  // A single inline-edit seam shared by the Board, List, and right-click menu.
+  // Materialized Tasks update their Task row; projected Template Tasks have no
+  // row yet, so the same planning fields are written as an occurrence-scoped
+  // Cycle Adjustment keyed by Template Schedule + Template Task + occurrence.
+  const editTask = (taskId: string, fields: TaskUpdateFields) => {
+    const task = tasks.find((candidate) => candidate.id === taskId);
+    if (
+      task?.isProjected &&
+      task.sourceTemplateScheduleId &&
+      task.sourceTemplateOccurrenceKey &&
+      task.sourceTemplateTaskId &&
+      task.cycleId
+    ) {
+      void adjustProjectedTask({
+        churchId,
+        cycleId: task.cycleId,
+        fields,
+        sourceTemplateOccurrenceKey: task.sourceTemplateOccurrenceKey,
+        sourceTemplateScheduleId: task.sourceTemplateScheduleId,
+        sourceTemplateTaskId: task.sourceTemplateTaskId,
+      });
+      return;
+    }
+    void updateTask({ churchId, actorUserId: currentUserId, taskId, fields });
+  };
   const isLoading =
     workflows.loading ||
     workflowStatusesCollection.loading ||
@@ -381,14 +410,14 @@ export function TaskExecutionSurface({
     showEmptyColumns: resolvedView.showEmptyColumns,
     displayProperties: resolvedView.displayProperties,
     onAssignTask: (change: { taskId: string; assignedUserId: string | null }) => {
-      void updateTask({
-        churchId,
-        actorUserId: currentUserId,
-        taskId: change.taskId,
-        fields: { assignedUserId: change.assignedUserId },
-      });
+      editTask(change.taskId, { assignedUserId: change.assignedUserId });
     },
     onChangeTaskStatus: (change: { taskId: string; workflowStatusId: string }) => {
+      // Projected Template Tasks have no materialized Workflow Status to set;
+      // their Cycle Adjustment only carries planning fields, so status edits
+      // apply to real Tasks only.
+      const task = tasks.find((candidate) => candidate.id === change.taskId);
+      if (task?.isProjected) return;
       void updateTask({
         churchId,
         actorUserId: currentUserId,
@@ -397,20 +426,10 @@ export function TaskExecutionSurface({
       });
     },
     onChangeTaskLabels: (change: { taskId: string; labelIds: readonly string[] }) => {
-      void updateTask({
-        churchId,
-        actorUserId: currentUserId,
-        taskId: change.taskId,
-        fields: { labelIds: [...change.labelIds] },
-      });
+      editTask(change.taskId, { labelIds: [...change.labelIds] });
     },
     onChangeTaskEstimate: (change: { taskId: string; estimate: TaskBoardEstimate | null }) => {
-      void updateTask({
-        churchId,
-        actorUserId: currentUserId,
-        taskId: change.taskId,
-        fields: { estimate: change.estimate },
-      });
+      editTask(change.taskId, { estimate: change.estimate });
     },
     onOpenTask: (taskIdentifier: string) => {
       const url = openTaskDetailsPaneUrl({ id: taskIdentifier });
@@ -475,12 +494,7 @@ export function TaskExecutionSurface({
     onChangeTaskLabels: sharedSurfaceProps.onChangeTaskLabels,
     onChangeTaskEstimate: sharedSurfaceProps.onChangeTaskEstimate,
     onChangeTaskDueDate: (change) => {
-      void updateTask({
-        churchId,
-        actorUserId: currentUserId,
-        taskId: change.taskId,
-        fields: { dueDate: change.dueDate },
-      });
+      editTask(change.taskId, { dueDate: change.dueDate });
     },
     onTransitionTask: (change) => transitionTask(change.taskId, change.transition),
     onOpenTask: sharedSurfaceProps.onOpenTask,
@@ -578,6 +592,15 @@ export function TaskExecutionSurface({
                               }
                             : null;
                   if (!fields) return;
+                  // A projected Template Task carries no Workflow Status of its
+                  // own, so a status/state-lane drag has nothing to persist;
+                  // assignee/estimate drags route to its Cycle Adjustment.
+                  const movedTask = tasks.find((candidate) => candidate.id === move.taskId);
+                  if (movedTask?.isProjected) {
+                    if ("workflowStatusId" in fields) return;
+                    editTask(move.taskId, fields);
+                    return;
+                  }
                   void updateTask({
                     churchId,
                     actorUserId: currentUserId,
@@ -587,8 +610,15 @@ export function TaskExecutionSurface({
                 }}
                 hiddenColumnIds={hiddenColumnIds}
                 onMoveTasks={(moves) => {
-                  if (moves.length === 1) {
-                    const move = moves[0];
+                  // Projected Template Tasks cannot be reordered or moved
+                  // between Workflow Status lanes — they have no Task row.
+                  const persistable = moves.filter((move) => {
+                    const task = tasks.find((candidate) => candidate.id === move.taskId);
+                    return !task?.isProjected;
+                  });
+                  if (persistable.length === 0) return;
+                  if (persistable.length === 1) {
+                    const move = persistable[0];
                     void updateTask({
                       churchId,
                       actorUserId: currentUserId,
@@ -603,7 +633,7 @@ export function TaskExecutionSurface({
                   void updateTasksBatch({
                     churchId,
                     actorUserId: currentUserId,
-                    updates: moves.map((move) => ({
+                    updates: persistable.map((move) => ({
                       taskId: move.taskId,
                       fields: {
                         workflowStatusId: move.workflowStatusId,
@@ -630,38 +660,10 @@ export function TaskExecutionSurface({
                     toggleHiddenBoardColumn(current, boardKey, workflowStatusId),
                   );
                 }}
-                onAssignTask={(change) => {
-                  void updateTask({
-                    churchId,
-                    actorUserId: currentUserId,
-                    taskId: change.taskId,
-                    fields: { assignedUserId: change.assignedUserId },
-                  });
-                }}
-                onChangeTaskStatus={(change) => {
-                  void updateTask({
-                    churchId,
-                    actorUserId: currentUserId,
-                    taskId: change.taskId,
-                    fields: { workflowStatusId: change.workflowStatusId },
-                  });
-                }}
-                onChangeTaskLabels={(change) => {
-                  void updateTask({
-                    churchId,
-                    actorUserId: currentUserId,
-                    taskId: change.taskId,
-                    fields: { labelIds: [...change.labelIds] },
-                  });
-                }}
-                onChangeTaskEstimate={(change) => {
-                  void updateTask({
-                    churchId,
-                    actorUserId: currentUserId,
-                    taskId: change.taskId,
-                    fields: { estimate: change.estimate },
-                  });
-                }}
+                onAssignTask={sharedSurfaceProps.onAssignTask}
+                onChangeTaskStatus={sharedSurfaceProps.onChangeTaskStatus}
+                onChangeTaskLabels={sharedSurfaceProps.onChangeTaskLabels}
+                onChangeTaskEstimate={sharedSurfaceProps.onChangeTaskEstimate}
                 onOpenTask={(taskIdentifier) => {
                   const url = openTaskDetailsPaneUrl({ id: taskIdentifier });
                   void navigate({ to: url.to, search: url.search });
@@ -808,6 +810,7 @@ function toBoardTask(task: TaskSummary, tasks: readonly TaskSummary[]) {
     boardOrder: task.boardOrder,
     labelIds: task.labelIds ?? [],
     isProjected: task.isProjected ?? false,
+    isAdjusted: task.isAdjusted ?? false,
     sourceBadge: task.sourceBadge ?? null,
   };
 }

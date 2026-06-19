@@ -57,6 +57,7 @@ describe("scheduled Template projections for Cycle surfaces", () => {
       dueDate: "2026-06-10",
       id: "projected-template-task:templateschedule_sunday_service:templatetask_plan_setlist:weekly:2026-06-21:sunday:cycle_2026_06_08",
       identifier: "Projected",
+      isAdjusted: false,
       isProjected: true,
       sourceTemplateOccurrenceKey: "weekly:2026-06-21:sunday",
       sourceTemplateScheduleId: "templateschedule_sunday_service",
@@ -165,6 +166,10 @@ describe("scheduled Template projections for Cycle surfaces", () => {
       description: "Bring production in earlier.",
       dueDate: "2026-06-11",
       estimate: "l",
+      // A projection carrying any planning override is flagged so surfaces can
+      // mark it edited-for-this-Cycle while it stays a projection.
+      isAdjusted: true,
+      isProjected: true,
       labelIds: ["label_shared"],
       teamId: "team_production",
       title: "Plan production-heavy setlist",
