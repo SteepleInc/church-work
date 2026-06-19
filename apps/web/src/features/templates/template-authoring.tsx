@@ -388,6 +388,7 @@ function ShapeStep({
             <button
               aria-current={shape.available ? "true" : undefined}
               aria-disabled={!shape.available}
+              aria-label={`${shape.label} Template shape${shape.available ? " selected" : " coming soon"}`}
               className={cn(
                 "flex flex-col gap-1 rounded-lg border p-3 text-left transition-colors",
                 shape.available

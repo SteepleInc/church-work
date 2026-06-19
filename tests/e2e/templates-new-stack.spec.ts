@@ -26,5 +26,5 @@ test("authors and schedules a weekly service Template", async ({ page }, testInf
   await expect(page.getByText("Repeats every week")).toBeVisible();
   await page.getByRole("button", { name: "Save and schedule" }).click();
 
-  await expect(page.getByText("Template saved.")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/Template saved/)).toBeVisible({ timeout: 20_000 });
 });
