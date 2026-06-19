@@ -6,6 +6,7 @@ import { describe, expect, test } from "vitest";
 import {
   activities,
   cycles,
+  key_dates,
   labels,
   tasks,
   team_memberships,
@@ -132,6 +133,117 @@ describe("Zero Cycle mutators", () => {
       entity_type: "cycle",
       event_type: "cycle.updated",
     });
+  });
+});
+
+describe("Zero Key Date mutators", () => {
+  test("creates Church-owned Key Dates with rule schedules and activity", async () => {
+    const insertCalls: Array<{ readonly table: unknown; readonly values: unknown }> = [];
+    const tx = {
+      dbTransaction: {
+        wrappedTransaction: {
+          insert: (table: unknown) => ({
+            values: async (values: unknown) => {
+              insertCalls.push({ table, values });
+            },
+          }),
+        },
+      },
+      location: "server",
+    } as never;
+
+    await mustGetMutator(mutators, "key_dates.create").fn({
+      args: {
+        church_id: "org_test",
+        key: "easter-service",
+        name: "Easter Service",
+        schedule: { kind: "computedYearly", rule: "easter" },
+      },
+      ctx: signedInContext,
+      tx,
+    });
+
+    const keyDateInsert = insertCalls.find((call) => call.table === key_dates)?.values as {
+      readonly id: string;
+      readonly schedule: string;
+    };
+    expect(getIdType(keyDateInsert.id)).toBe("keydate");
+    expect(keyDateInsert).toMatchObject({
+      _tag: "keydate",
+      church_id: "org_test",
+      key: "easter-service",
+      name: "Easter Service",
+      schedule: JSON.stringify({ kind: "computedYearly", rule: "easter" }),
+    });
+    expect(insertCalls.find((call) => call.table === activities)?.values).toMatchObject({
+      church_id: "org_test",
+      entity_id: keyDateInsert.id,
+      entity_type: "key_date",
+      event_type: "key_date.created",
+    });
+  });
+
+  test("updates and soft-deletes Key Dates within the active Church", async () => {
+    const updateCalls: Array<{
+      readonly table: unknown;
+      readonly set: Record<string, unknown>;
+      readonly where: unknown;
+    }> = [];
+    const insertCalls: Array<{ readonly table: unknown; readonly values: unknown }> = [];
+    const tx = {
+      dbTransaction: {
+        wrappedTransaction: {
+          insert: (table: unknown) => ({
+            values: async (values: unknown) => {
+              insertCalls.push({ table, values });
+            },
+          }),
+          update: (table: unknown) => ({
+            set: (set: Record<string, unknown>) => ({
+              where: async (where: unknown) => {
+                updateCalls.push({ table, set, where });
+              },
+            }),
+          }),
+        },
+      },
+      location: "server",
+    } as never;
+
+    await mustGetMutator(mutators, "key_dates.update").fn({
+      args: {
+        church_id: "org_test",
+        key: "christmas-eve",
+        key_date_id: "keydate_christmas",
+        name: "Christmas Eve",
+        schedule: { day: 24, kind: "fixedYearly", month: 12 },
+      },
+      ctx: signedInContext,
+      tx,
+    });
+    await mustGetMutator(mutators, "key_dates.delete").fn({
+      args: { church_id: "org_test", key_date_id: "keydate_christmas" },
+      ctx: signedInContext,
+      tx,
+    });
+
+    expect(updateCalls).toHaveLength(2);
+    expect(updateCalls[0]?.table).toBe(key_dates);
+    expect(updateCalls[0]?.set).toMatchObject({
+      key: "christmas-eve",
+      name: "Christmas Eve",
+      schedule: JSON.stringify({ kind: "fixedYearly", month: 12, day: 24 }),
+      updated_by: "user_test",
+    });
+    expect(updateCalls[1]?.table).toBe(key_dates);
+    expect(updateCalls[1]?.set).toMatchObject({ updated_by: "user_test" });
+    expect(updateCalls[1]?.set.deleted_at).toBeInstanceOf(Date);
+    expect(insertCalls.map((call) => call.values)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ entity_id: "keydate_christmas", event_type: "key_date.updated" }),
+        expect.objectContaining({ entity_id: "keydate_christmas", event_type: "key_date.deleted" }),
+      ]),
+    );
   });
 });
 

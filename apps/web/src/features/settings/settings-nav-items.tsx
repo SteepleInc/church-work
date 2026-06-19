@@ -1,6 +1,6 @@
 import type { LinkProps } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { Tag01Icon, UserGroupIcon } from "@hugeicons/core-free-icons";
+import { Calendar03Icon, Tag01Icon, UserGroupIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
 import { ChurchIcon } from "@/components/icons/churchIcon";
@@ -55,6 +55,11 @@ export const administrationNavGroup: SettingsNavGroup = {
       icon: <NavIcon icon={Tag01Icon} />,
       title: "Labels",
       to: "/settings/workspace/labels",
+    },
+    {
+      icon: <NavIcon icon={Calendar03Icon} />,
+      title: "Key Dates",
+      to: "/settings/workspace/key-dates",
     },
   ],
 };

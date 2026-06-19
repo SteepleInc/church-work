@@ -4,10 +4,17 @@ export type KeyDateSchedule =
   | { readonly kind: "fixedYearly"; readonly month: number; readonly day: number }
   | {
       readonly kind: "computedYearly";
-      readonly rule: "easter" | "palm_sunday" | "pentecost" | "mothers_day" | "fathers_day";
+      readonly rule:
+        | "easter"
+        | "palm_sunday"
+        | "pentecost"
+        | "ash_wednesday"
+        | "good_friday"
+        | "mothers_day"
+        | "fathers_day"
+        | "thanksgiving";
     }
-  | { readonly kind: "manualOccurrences" }
-  | { readonly kind: "oneTime" };
+  | { readonly kind: "oneTime"; readonly localDate: string };
 
 export type SchedulingRule =
   | { readonly kind: "fixedDate"; readonly localDate: string }

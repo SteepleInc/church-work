@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { STARTER_TEAM_NAMES } from "@church-task/domain";
+import { STARTER_KEY_DATES, STARTER_TEAM_NAMES } from "@church-task/domain";
 
 export const getE2eApiUrl = () => {
   if (process.env.DATABASE_URL) {
@@ -160,6 +160,18 @@ export async function completeOnboarding(page: Page, churchName: string) {
       );
     });
   await page.getByRole("button", { name: "Next" }).click();
+
+  await expect(page.getByText("Your Key Dates")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByLabel("Starter Key Dates").getByRole("listitem")).toHaveCount(
+    STARTER_KEY_DATES.length,
+    { timeout: 20_000 },
+  );
+  await expect(
+    page.getByLabel("Starter Key Dates").getByText("Easter", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("Starter Key Dates").getByText("Christmas", { exact: true }),
+  ).toBeVisible();
 
   await expect(page.getByRole("button", { name: "Enter Church Task" })).toBeEnabled();
   await page.getByRole("button", { name: "Enter Church Task" }).click();

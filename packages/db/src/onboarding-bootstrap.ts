@@ -8,11 +8,13 @@ import {
   localDateForInstant,
   localMidnightToUtcInstant,
   STARTER_LABELS,
+  STARTER_KEY_DATES,
   STARTER_TEAM_NAMES,
 } from "@church-task/domain";
 import {
   getLabelId,
   getCycleId,
+  getKeyDateId,
   getTeamId,
   getTeamMembershipId,
   getWorkflowId,
@@ -23,6 +25,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import type { ChurchTaskDb } from "./client";
 import {
   cycles,
+  key_dates,
   labels,
   organization,
   team_memberships,
@@ -171,23 +174,47 @@ export const bootstrapChurchOnboarding = async (
       .from(labels)
       .where(and(eq(labels.church_id, args.church_id), isNull(labels.deleted_at)));
 
-    if (existingLabels.length > 0) return;
+    if (existingLabels.length === 0) {
+      for (const name of STARTER_LABELS) {
+        const now = new Date();
 
-    for (const name of STARTER_LABELS) {
-      const now = new Date();
+        await tx.insert(labels).values({
+          _tag: "label",
+          church_id: args.church_id,
+          color: getLabelColorForName(name),
+          created_at: now,
+          created_by: args.user_id,
+          id: getLabelId(),
+          name,
+          team_id: null,
+          updated_at: now,
+          updated_by: args.user_id,
+        });
+      }
+    }
 
-      await tx.insert(labels).values({
-        _tag: "label",
-        church_id: args.church_id,
-        color: getLabelColorForName(name),
-        created_at: now,
-        created_by: args.user_id,
-        id: getLabelId(),
-        name,
-        team_id: null,
-        updated_at: now,
-        updated_by: args.user_id,
-      });
+    const existingKeyDates = await tx
+      .select({ id: key_dates.id })
+      .from(key_dates)
+      .where(and(eq(key_dates.church_id, args.church_id), isNull(key_dates.deleted_at)));
+
+    if (existingKeyDates.length === 0) {
+      for (const starterKeyDate of STARTER_KEY_DATES) {
+        const now = new Date();
+
+        await tx.insert(key_dates).values({
+          _tag: "keydate",
+          church_id: args.church_id,
+          created_at: now,
+          created_by: args.user_id,
+          id: getKeyDateId(),
+          key: starterKeyDate.key,
+          name: starterKeyDate.name,
+          schedule: JSON.stringify(starterKeyDate.schedule),
+          updated_at: now,
+          updated_by: args.user_id,
+        });
+      }
     }
   });
 };

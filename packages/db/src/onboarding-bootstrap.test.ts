@@ -1,5 +1,6 @@
 import {
   DEFAULT_WORKFLOW_STATUSES,
+  STARTER_KEY_DATES,
   STARTER_LABELS,
   STARTER_TEAM_NAMES,
   addLocalDateDays,
@@ -16,6 +17,7 @@ import { createDb } from "./client";
 import { bootstrapChurchOnboarding } from "./onboarding-bootstrap";
 import {
   cycles,
+  key_dates,
   labels,
   organization,
   team_memberships,
@@ -64,6 +66,10 @@ describe("onboarding product bootstrap", () => {
         .from(workflow_statuses)
         .where(eq(workflow_statuses.church_id, churchId));
       const labelRows = await db.select().from(labels).where(eq(labels.church_id, churchId));
+      const keyDateRows = await db
+        .select()
+        .from(key_dates)
+        .where(eq(key_dates.church_id, churchId));
       const cycleRows = await db.select().from(cycles).where(eq(cycles.church_id, churchId));
 
       expect(teamRows.map((team) => team.name)).toEqual([...STARTER_TEAM_NAMES]);
@@ -87,11 +93,22 @@ describe("onboarding product bootstrap", () => {
       );
       expect(labelRows.map((label) => label.name).sort()).toEqual([...STARTER_LABELS].sort());
       expect(labelRows.every((label) => label.team_id === null)).toBe(true);
+      expect(keyDateRows.map((keyDate) => keyDate.key).sort()).toEqual(
+        STARTER_KEY_DATES.map((keyDate) => keyDate.key).sort(),
+      );
+      expect(keyDateRows.map((keyDate) => JSON.parse(keyDate.schedule).kind)).toContain(
+        "computedYearly",
+      );
       expect(cycleRows.map((cycle) => cycle.start_date).sort()).toHaveLength(2);
 
       await bootstrapChurchOnboarding(db, { church_id: churchId, user_id: userId });
       const secondCycleRows = await db.select().from(cycles).where(eq(cycles.church_id, churchId));
+      const secondKeyDateRows = await db
+        .select()
+        .from(key_dates)
+        .where(eq(key_dates.church_id, churchId));
       expect(secondCycleRows).toHaveLength(2);
+      expect(secondKeyDateRows).toHaveLength(STARTER_KEY_DATES.length);
       expect(secondCycleRows.map((cycle) => cycle.start_date).sort()).toEqual([
         currentCycleStartDate("America/New_York"),
         addLocalDateDays(currentCycleStartDate("America/New_York"), 7),

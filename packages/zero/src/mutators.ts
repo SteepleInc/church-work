@@ -194,12 +194,14 @@ const KeyDateScheduleArg = Schema.Union([
       Schema.Literal("easter"),
       Schema.Literal("palm_sunday"),
       Schema.Literal("pentecost"),
+      Schema.Literal("ash_wednesday"),
+      Schema.Literal("good_friday"),
       Schema.Literal("mothers_day"),
       Schema.Literal("fathers_day"),
+      Schema.Literal("thanksgiving"),
     ]),
   }),
-  Schema.Struct({ kind: Schema.Literal("manualOccurrences") }),
-  Schema.Struct({ kind: Schema.Literal("oneTime") }),
+  Schema.Struct({ kind: Schema.Literal("oneTime"), localDate: Schema.String }),
 ]);
 const SchedulingRuleArg = Schema.Union([
   Schema.Struct({ kind: Schema.Literal("fixedDate"), localDate: Schema.String }),
@@ -262,6 +264,18 @@ const CreateKeyDateArgs = toZeroSchema(
     name: Schema.String,
     schedule: KeyDateScheduleArg,
   }),
+);
+const UpdateKeyDateArgs = toZeroSchema(
+  Schema.Struct({
+    church_id: Schema.String,
+    key: Schema.String,
+    key_date_id: Schema.String,
+    name: Schema.String,
+    schedule: KeyDateScheduleArg,
+  }),
+);
+const DeleteKeyDateArgs = toZeroSchema(
+  Schema.Struct({ church_id: Schema.String, key_date_id: Schema.String }),
 );
 const CreateKeyDateOccurrenceArgs = toZeroSchema(
   Schema.Struct({
@@ -1722,17 +1736,87 @@ export const mutators = defineMutators({
 
       const session = requireTemplateManager(ctx, args.church_id);
       const now = new Date();
+      const keyDateId = getKeyDateId();
       await db.insert(key_dates).values({
         _tag: "keydate",
         church_id: args.church_id,
         created_at: now,
         created_by: session.user_id,
-        id: getKeyDateId(),
+        id: keyDateId,
         key: args.key,
         name: args.name,
         schedule: stringifyJson(args.schedule),
         updated_at: now,
         updated_by: session.user_id,
+      });
+      await writeActivity(db, {
+        actor_id: session.user_id,
+        church_id: args.church_id,
+        entity_id: keyDateId,
+        entity_type: "key_date",
+        event_type: "key_date.created",
+        metadata: { key: args.key, name: args.name, schedule: args.schedule },
+        occurred_at: now,
+      });
+    }),
+    update: defineChurchTaskMutator(UpdateKeyDateArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+
+      const session = requireTemplateManager(ctx, args.church_id);
+      const now = new Date();
+      await db
+        .update(key_dates)
+        .set({
+          key: args.key,
+          name: args.name,
+          schedule: stringifyJson(args.schedule),
+          updated_at: now,
+          updated_by: session.user_id,
+        })
+        .where(
+          and(
+            eq(key_dates.id, args.key_date_id),
+            eq(key_dates.church_id, args.church_id),
+            isNull(key_dates.deleted_at),
+          ),
+        );
+
+      await writeActivity(db, {
+        actor_id: session.user_id,
+        church_id: args.church_id,
+        entity_id: args.key_date_id,
+        entity_type: "key_date",
+        event_type: "key_date.updated",
+        metadata: { key: args.key, name: args.name, schedule: args.schedule },
+        occurred_at: now,
+      });
+    }),
+    delete: defineChurchTaskMutator(DeleteKeyDateArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+
+      const session = requireTemplateManager(ctx, args.church_id);
+      const now = new Date();
+      await db
+        .update(key_dates)
+        .set({ deleted_at: now, updated_at: now, updated_by: session.user_id })
+        .where(
+          and(
+            eq(key_dates.id, args.key_date_id),
+            eq(key_dates.church_id, args.church_id),
+            isNull(key_dates.deleted_at),
+          ),
+        );
+
+      await writeActivity(db, {
+        actor_id: session.user_id,
+        church_id: args.church_id,
+        entity_id: args.key_date_id,
+        entity_type: "key_date",
+        event_type: "key_date.deleted",
+        metadata: {},
+        occurred_at: now,
       });
     }),
     create_occurrence: defineChurchTaskMutator(
