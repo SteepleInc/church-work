@@ -329,13 +329,27 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
       break;
     }
 
+    const branchUpToDate = await ensurePrBranchUpToDate({ issue, prUrl });
+    if (!branchUpToDate) {
+      console.warn(`  PR branch could not be brought up to date with ${BASE_BRANCH}: ${prUrl}`);
+      process.exitCode = 1;
+      break;
+    }
+
     if (AUTO_MERGE_PRS && !autoMergeEnabled) {
       mergePr(prUrl);
     } else if (AUTO_MERGE_PRS && autoMergeEnabled) {
       const merged = await waitForPrMerge(prUrl);
       if (!merged) {
-        console.log(`  Auto-merge did not complete in time; attempting GitHub merge now: ${prUrl}`);
-        mergePr(prUrl);
+        const status = getPrMergeStatus(prUrl);
+        if (status.mergeStateStatus === "BEHIND") {
+          console.warn(`  PR is still behind ${BASE_BRANCH}; leaving auto-merge enabled: ${prUrl}`);
+        } else {
+          console.log(
+            `  Auto-merge did not complete in time; attempting GitHub merge now: ${prUrl}`,
+          );
+          mergePr(prUrl);
+        }
       }
     }
   }
@@ -407,6 +421,52 @@ function mergePr(prUrl: string) {
   console.log(`  PR merged through GitHub: ${prUrl}`);
 }
 
+async function ensurePrBranchUpToDate({
+  issue,
+  prUrl,
+}: {
+  issue: z.infer<typeof planSchema>["issues"][number];
+  prUrl: string;
+}) {
+  for (let attempt = 1; attempt <= MAX_REPAIR_ATTEMPTS; attempt++) {
+    const status = getPrMergeStatus(prUrl);
+
+    if (status.state === "MERGED" || Boolean(status.mergedAt)) {
+      return true;
+    }
+
+    if (status.mergeStateStatus !== "BEHIND") {
+      return true;
+    }
+
+    console.log(
+      `  PR branch is behind ${BASE_BRANCH}; updating branch (${attempt}/${MAX_REPAIR_ATTEMPTS}): ${prUrl}`,
+    );
+    updatePrBranch(prUrl);
+
+    const checks = await waitForChecks(prUrl);
+    const failedChecks = checks.filter(
+      (check) => check.bucket === "fail" || check.conclusion === "failure",
+    );
+
+    if (failedChecks.length > 0) {
+      console.log(
+        `  Updating from ${BASE_BRANCH} introduced failing checks; running repair agent.`,
+      );
+      const repaired = await repairFailedPrChecks({ issue, prUrl });
+      if (!repaired) {
+        return false;
+      }
+    }
+  }
+
+  return getPrMergeStatus(prUrl).mergeStateStatus !== "BEHIND";
+}
+
+function updatePrBranch(prUrl: string) {
+  execFileSync("gh", ["pr", "update-branch", prUrl], { encoding: "utf8" });
+}
+
 async function waitForPrMerge(prUrl: string) {
   const deadline = Date.now() + MERGE_TIMEOUT_MS;
   let pollCount = 0;
@@ -425,6 +485,10 @@ async function waitForPrMerge(prUrl: string) {
     );
 
     if (status.mergeStateStatus === "CLEAN" || status.mergeStateStatus === "HAS_HOOKS") {
+      return false;
+    }
+
+    if (status.mergeStateStatus === "BEHIND") {
       return false;
     }
 
