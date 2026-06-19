@@ -845,7 +845,7 @@ export const buildTemplateCycleTaskInserts = (args: {
       number,
       parent_task_id: null,
       previous_identifiers: "[]",
-      source_template_cycle_id: null,
+      source_template_cycle_id: args.cycle.id,
       source_template_id: args.template_id,
       source_template_occurrence_key: sourceTemplateOccurrenceKey,
       source_template_schedule_id: sourceTemplateScheduleId,

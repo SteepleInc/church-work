@@ -192,7 +192,7 @@ describe("template-to-cycle projection integration", () => {
         cycle_id: "cycle_easter_integration",
         due_date: "2026-03-31",
         parent_task_id: null,
-        source_template_cycle_id: null,
+        source_template_cycle_id: "cycle_easter_integration",
         source_template_id: "template_easter_integration",
         source_template_occurrence_key: null,
         source_template_schedule_id: null,

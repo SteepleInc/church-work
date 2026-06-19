@@ -1179,7 +1179,7 @@ describe("Zero Template and Cycle projection", () => {
       cycle_id: "cycle_easter",
       due_date: "2026-04-01",
       number: 7,
-      source_template_cycle_id: null,
+      source_template_cycle_id: "cycle_easter",
       source_template_id: "template_easter",
       source_template_occurrence_key: null,
       source_template_schedule_id: null,
@@ -1349,7 +1349,7 @@ describe("Zero Template and Cycle projection", () => {
     });
 
     expect(firstProjection.inserts[0]).toMatchObject({
-      source_template_cycle_id: null,
+      source_template_cycle_id: "cycle_easter",
       source_template_id: "template_service",
       source_template_occurrence_key: "weekly:2026-04-05:sunday",
       source_template_schedule_id: "templateschedule_sunday",
