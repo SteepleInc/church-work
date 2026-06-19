@@ -32,6 +32,7 @@ import { Route as OrgAdminOrgsRouteImport } from './routes/_org/admin.orgs'
 import { Route as AuthAcceptInvitationIdRouteImport } from './routes/_auth/accept-invitation.$id'
 import { Route as SettingsSettingsWorkspaceMembersRouteImport } from './routes/_settings/settings.workspace.members'
 import { Route as SettingsSettingsWorkspaceLabelsRouteImport } from './routes/_settings/settings.workspace.labels'
+import { Route as SettingsSettingsWorkspaceKeyDatesRouteImport } from './routes/_settings/settings.workspace.key-dates'
 import { Route as SettingsSettingsWorkspaceGeneralRouteImport } from './routes/_settings/settings.workspace.general'
 import { Route as SettingsSettingsTeamsTeamIdRouteImport } from './routes/_settings/settings.teams.$teamId'
 import { Route as SettingsSettingsAccountProfileRouteImport } from './routes/_settings/settings.account.profile'
@@ -153,6 +154,12 @@ const SettingsSettingsWorkspaceLabelsRoute =
     path: '/workspace/labels',
     getParentRoute: () => SettingsSettingsRoute,
   } as any)
+const SettingsSettingsWorkspaceKeyDatesRoute =
+  SettingsSettingsWorkspaceKeyDatesRouteImport.update({
+    id: '/workspace/key-dates',
+    path: '/workspace/key-dates',
+    getParentRoute: () => SettingsSettingsRoute,
+  } as any)
 const SettingsSettingsWorkspaceGeneralRoute =
   SettingsSettingsWorkspaceGeneralRouteImport.update({
     id: '/workspace/general',
@@ -223,6 +230,7 @@ export interface FileRoutesByFullPath {
   '/settings/account/profile': typeof SettingsSettingsAccountProfileRoute
   '/settings/teams/$teamId': typeof SettingsSettingsTeamsTeamIdRouteWithChildren
   '/settings/workspace/general': typeof SettingsSettingsWorkspaceGeneralRoute
+  '/settings/workspace/key-dates': typeof SettingsSettingsWorkspaceKeyDatesRoute
   '/settings/workspace/labels': typeof SettingsSettingsWorkspaceLabelsRoute
   '/settings/workspace/members': typeof SettingsSettingsWorkspaceMembersRoute
   '/team/$teamIdentifier/week/$weekNumber': typeof OrgTeamTeamIdentifierWeekWeekNumberRoute
@@ -250,6 +258,7 @@ export interface FileRoutesByTo {
   '/team/$teamIdentifier/weeks': typeof OrgTeamTeamIdentifierWeeksRoute
   '/settings/account/profile': typeof SettingsSettingsAccountProfileRoute
   '/settings/workspace/general': typeof SettingsSettingsWorkspaceGeneralRoute
+  '/settings/workspace/key-dates': typeof SettingsSettingsWorkspaceKeyDatesRoute
   '/settings/workspace/labels': typeof SettingsSettingsWorkspaceLabelsRoute
   '/settings/workspace/members': typeof SettingsSettingsWorkspaceMembersRoute
   '/team/$teamIdentifier/week/$weekNumber': typeof OrgTeamTeamIdentifierWeekWeekNumberRoute
@@ -284,6 +293,7 @@ export interface FileRoutesById {
   '/_settings/settings/account/profile': typeof SettingsSettingsAccountProfileRoute
   '/_settings/settings/teams/$teamId': typeof SettingsSettingsTeamsTeamIdRouteWithChildren
   '/_settings/settings/workspace/general': typeof SettingsSettingsWorkspaceGeneralRoute
+  '/_settings/settings/workspace/key-dates': typeof SettingsSettingsWorkspaceKeyDatesRoute
   '/_settings/settings/workspace/labels': typeof SettingsSettingsWorkspaceLabelsRoute
   '/_settings/settings/workspace/members': typeof SettingsSettingsWorkspaceMembersRoute
   '/_org/team/$teamIdentifier_/week/$weekNumber': typeof OrgTeamTeamIdentifierWeekWeekNumberRoute
@@ -314,6 +324,7 @@ export interface FileRouteTypes {
     | '/settings/account/profile'
     | '/settings/teams/$teamId'
     | '/settings/workspace/general'
+    | '/settings/workspace/key-dates'
     | '/settings/workspace/labels'
     | '/settings/workspace/members'
     | '/team/$teamIdentifier/week/$weekNumber'
@@ -341,6 +352,7 @@ export interface FileRouteTypes {
     | '/team/$teamIdentifier/weeks'
     | '/settings/account/profile'
     | '/settings/workspace/general'
+    | '/settings/workspace/key-dates'
     | '/settings/workspace/labels'
     | '/settings/workspace/members'
     | '/team/$teamIdentifier/week/$weekNumber'
@@ -374,6 +386,7 @@ export interface FileRouteTypes {
     | '/_settings/settings/account/profile'
     | '/_settings/settings/teams/$teamId'
     | '/_settings/settings/workspace/general'
+    | '/_settings/settings/workspace/key-dates'
     | '/_settings/settings/workspace/labels'
     | '/_settings/settings/workspace/members'
     | '/_org/team/$teamIdentifier_/week/$weekNumber'
@@ -555,6 +568,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsSettingsWorkspaceLabelsRouteImport
       parentRoute: typeof SettingsSettingsRoute
     }
+    '/_settings/settings/workspace/key-dates': {
+      id: '/_settings/settings/workspace/key-dates'
+      path: '/workspace/key-dates'
+      fullPath: '/settings/workspace/key-dates'
+      preLoaderRoute: typeof SettingsSettingsWorkspaceKeyDatesRouteImport
+      parentRoute: typeof SettingsSettingsRoute
+    }
     '/_settings/settings/workspace/general': {
       id: '/_settings/settings/workspace/general'
       path: '/workspace/general'
@@ -720,6 +740,7 @@ interface SettingsSettingsRouteChildren {
   SettingsSettingsAccountProfileRoute: typeof SettingsSettingsAccountProfileRoute
   SettingsSettingsTeamsTeamIdRoute: typeof SettingsSettingsTeamsTeamIdRouteWithChildren
   SettingsSettingsWorkspaceGeneralRoute: typeof SettingsSettingsWorkspaceGeneralRoute
+  SettingsSettingsWorkspaceKeyDatesRoute: typeof SettingsSettingsWorkspaceKeyDatesRoute
   SettingsSettingsWorkspaceLabelsRoute: typeof SettingsSettingsWorkspaceLabelsRoute
   SettingsSettingsWorkspaceMembersRoute: typeof SettingsSettingsWorkspaceMembersRoute
 }
@@ -729,6 +750,8 @@ const SettingsSettingsRouteChildren: SettingsSettingsRouteChildren = {
   SettingsSettingsTeamsTeamIdRoute:
     SettingsSettingsTeamsTeamIdRouteWithChildren,
   SettingsSettingsWorkspaceGeneralRoute: SettingsSettingsWorkspaceGeneralRoute,
+  SettingsSettingsWorkspaceKeyDatesRoute:
+    SettingsSettingsWorkspaceKeyDatesRoute,
   SettingsSettingsWorkspaceLabelsRoute: SettingsSettingsWorkspaceLabelsRoute,
   SettingsSettingsWorkspaceMembersRoute: SettingsSettingsWorkspaceMembersRoute,
 }

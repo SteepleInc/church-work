@@ -28,6 +28,7 @@ import {
   onboardingStepLookup,
   resolveOnboardingStep,
 } from "@/features/onboarding/onboardingState";
+import { OnboardingKeyDatesReview } from "@/features/onboarding/onboardingKeyDates";
 import { OnboardingProgress } from "@/features/onboarding/onboardingProgress";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { authClient } from "@/lib/auth-client";
@@ -474,8 +475,11 @@ function FinishedStepCard(props: { readonly churchId: string }) {
   return (
     <div className="flex flex-col gap-4 overflow-hidden p-4">
       <p className="text-sm text-muted-foreground">
-        Your Church profile and Teams are ready. You can fine-tune everything later in settings.
+        Your Church profile and Teams are ready, and we seeded a starting set of Key Dates. You can
+        fine-tune everything later in settings.
       </p>
+
+      <OnboardingKeyDatesReview churchId={props.churchId} />
 
       {error ? (
         <Alert variant="destructive">
