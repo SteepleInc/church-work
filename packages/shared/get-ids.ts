@@ -16,6 +16,7 @@ export const getTeamMembershipId = () => getEntityId("teammembership");
 export const getTaskId = () => getEntityId("task");
 export const getLabelId = () => getEntityId("label");
 export const getTemplateId = () => getEntityId("template");
+export const getTemplateScheduleId = () => getEntityId("templateschedule");
 export const getTemplateTeamId = () => getEntityId("templateteam");
 export const getTemplateTaskId = () => getEntityId("templatetask");
 export const getFocusWindowId = () => getEntityId("focuswindow");

@@ -3,6 +3,7 @@ import {
   AiFolder01Icon,
   CheckListIcon,
   Database01Icon,
+  Calendar03Icon,
   Settings01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -35,6 +36,11 @@ export const workspaceNavItems: readonly NavItem[] = [
     icon: <NavIcon icon={AiFolder01Icon} />,
     title: "Our Work",
     to: "/our-work",
+  },
+  {
+    icon: <NavIcon icon={Calendar03Icon} />,
+    title: "Templates",
+    to: "/templates",
   },
 ];
 

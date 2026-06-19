@@ -21,6 +21,7 @@ import {
   getKeyDateOccurrenceId,
   getLabelId,
   getTemplateId,
+  getTemplateScheduleId,
   getTemplateTaskId,
   getTemplateTeamId,
   getTaskId,
@@ -45,6 +46,7 @@ import {
   tasks,
   team_memberships,
   teams,
+  template_schedules,
   template_tasks,
   template_teams,
   templates,
@@ -229,6 +231,10 @@ const SchedulingRuleArg = Schema.Union([
     offsetCycles: Schema.Number,
   }),
 ]);
+const WeeklyTemplateScheduleRuleArg = Schema.Struct({
+  kind: Schema.Literal("weekly"),
+  weekdays: Schema.Array(Schema.Number),
+});
 const CycleAdjustmentOverrideArg = Schema.Union([
   Schema.Struct({ field: Schema.Literal("title"), value: Schema.String }),
   Schema.Struct({ field: Schema.Literal("dueDate"), value: Schema.String }),
@@ -301,11 +307,30 @@ const CreateTemplateArgs = toZeroSchema(
     ),
     key: Schema.String,
     name: Schema.String,
+    placement_shape: Schema.Union([Schema.String, Schema.Null]),
     recurrence: Schema.String,
+    template_schedule: Schema.Union([
+      Schema.Struct({
+        end_date: Schema.Union([Schema.String, Schema.Null]),
+        key: Schema.String,
+        kind: Schema.String,
+        name: Schema.String,
+        recurrence: Schema.String,
+        rule: WeeklyTemplateScheduleRuleArg,
+        start_date: Schema.String,
+      }),
+      Schema.Null,
+    ]),
     template_tasks: Schema.Array(
       Schema.Struct({
+        assigned_user_id: Schema.Union([Schema.String, Schema.Null]),
+        description: Schema.Union([Schema.String, Schema.Null]),
+        estimate: Schema.Union([Schema.String, Schema.Null]),
         key: Schema.String,
+        label_ids: Schema.Array(Schema.String),
         parent_template_task_key: Schema.Union([Schema.String, Schema.Null]),
+        placement_cycle_offset: Schema.Union([Schema.Number, Schema.Null]),
+        placement_weekday: Schema.Union([Schema.Number, Schema.Null]),
         scheduling_rule: SchedulingRuleArg,
         template_team_key: Schema.Union([Schema.String, Schema.Null]),
         title: Schema.String,
@@ -1896,6 +1921,7 @@ export const mutators = defineMutators({
         id: templateId,
         key: args.key,
         name: args.name,
+        placement_shape: args.placement_shape,
         recurrence: args.recurrence,
         updated_at: now,
         updated_by: session.user_id,
@@ -1949,6 +1975,26 @@ export const mutators = defineMutators({
         );
       }
 
+      if (args.template_schedule) {
+        await db.insert(template_schedules).values({
+          _tag: "templateschedule",
+          church_id: args.church_id,
+          created_at: now,
+          created_by: session.user_id,
+          end_date: args.template_schedule.end_date,
+          id: getTemplateScheduleId(),
+          key: args.template_schedule.key,
+          kind: args.template_schedule.kind,
+          name: args.template_schedule.name,
+          recurrence: args.template_schedule.recurrence,
+          rule: stringifyJson(args.template_schedule.rule),
+          start_date: args.template_schedule.start_date,
+          template_id: templateId,
+          updated_at: now,
+          updated_by: session.user_id,
+        });
+      }
+
       await db.insert(template_tasks).values(
         args.template_tasks.map((templateTask) => {
           const templateTeamKey = templateTask.template_team_key ?? args.template_teams[0]?.key;
@@ -1961,11 +2007,17 @@ export const mutators = defineMutators({
             church_id: args.church_id,
             created_at: now,
             created_by: session.user_id,
+            assigned_user_id: templateTask.assigned_user_id,
             id: templateTaskIdByKey.get(templateTask.key)!,
             key: templateTask.key,
+            description: templateTask.description,
+            estimate: templateTask.estimate,
+            label_ids: stringifyJson(templateTask.label_ids),
             parent_template_task_id: templateTask.parent_template_task_key
               ? (templateTaskIdByKey.get(templateTask.parent_template_task_key) ?? null)
               : null,
+            placement_cycle_offset: templateTask.placement_cycle_offset,
+            placement_weekday: templateTask.placement_weekday,
             scheduling_rule: stringifyJson(templateTask.scheduling_rule),
             template_id: templateId,
             template_team_id: templateTeamId,

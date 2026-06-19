@@ -17,6 +17,7 @@ import { Route as AuthRouteRouteImport } from './routes/_auth/route'
 import { Route as MarketingIndexRouteImport } from './routes/_marketing/index'
 import { Route as ApiSplatRouteImport } from './routes/api/$'
 import { Route as SettingsSettingsRouteImport } from './routes/_settings/settings'
+import { Route as OrgTemplatesRouteImport } from './routes/_org/templates'
 import { Route as OrgOurWorkRouteImport } from './routes/_org/our-work'
 import { Route as OrgMyWorkRouteImport } from './routes/_org/my-work'
 import { Route as OrgAdminRouteImport } from './routes/_org/admin'
@@ -76,6 +77,11 @@ const SettingsSettingsRoute = SettingsSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
   getParentRoute: () => SettingsRouteRoute,
+} as any)
+const OrgTemplatesRoute = OrgTemplatesRouteImport.update({
+  id: '/templates',
+  path: '/templates',
+  getParentRoute: () => OrgRouteRoute,
 } as any)
 const OrgOurWorkRoute = OrgOurWorkRouteImport.update({
   id: '/our-work',
@@ -217,6 +223,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof OrgAdminRouteWithChildren
   '/my-work': typeof OrgMyWorkRoute
   '/our-work': typeof OrgOurWorkRoute
+  '/templates': typeof OrgTemplatesRoute
   '/settings': typeof SettingsSettingsRouteWithChildren
   '/api/$': typeof ApiSplatRoute
   '/accept-invitation/$id': typeof AuthAcceptInvitationIdRoute
@@ -246,6 +253,7 @@ export interface FileRoutesByTo {
   '/admin': typeof OrgAdminRouteWithChildren
   '/my-work': typeof OrgMyWorkRoute
   '/our-work': typeof OrgOurWorkRoute
+  '/templates': typeof OrgTemplatesRoute
   '/settings': typeof SettingsSettingsRouteWithChildren
   '/api/$': typeof ApiSplatRoute
   '/accept-invitation/$id': typeof AuthAcceptInvitationIdRoute
@@ -279,6 +287,7 @@ export interface FileRoutesById {
   '/_org/admin': typeof OrgAdminRouteWithChildren
   '/_org/my-work': typeof OrgMyWorkRoute
   '/_org/our-work': typeof OrgOurWorkRoute
+  '/_org/templates': typeof OrgTemplatesRoute
   '/_settings/settings': typeof SettingsSettingsRouteWithChildren
   '/api/$': typeof ApiSplatRoute
   '/_marketing/': typeof MarketingIndexRoute
@@ -311,6 +320,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/my-work'
     | '/our-work'
+    | '/templates'
     | '/settings'
     | '/api/$'
     | '/accept-invitation/$id'
@@ -340,6 +350,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/my-work'
     | '/our-work'
+    | '/templates'
     | '/settings'
     | '/api/$'
     | '/accept-invitation/$id'
@@ -372,6 +383,7 @@ export interface FileRouteTypes {
     | '/_org/admin'
     | '/_org/my-work'
     | '/_org/our-work'
+    | '/_org/templates'
     | '/_settings/settings'
     | '/api/$'
     | '/_marketing/'
@@ -462,6 +474,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsSettingsRouteImport
       parentRoute: typeof SettingsRouteRoute
+    }
+    '/_org/templates': {
+      id: '/_org/templates'
+      path: '/templates'
+      fullPath: '/templates'
+      preLoaderRoute: typeof OrgTemplatesRouteImport
+      parentRoute: typeof OrgRouteRoute
     }
     '/_org/our-work': {
       id: '/_org/our-work'
@@ -692,6 +711,7 @@ interface OrgRouteRouteChildren {
   OrgAdminRoute: typeof OrgAdminRouteWithChildren
   OrgMyWorkRoute: typeof OrgMyWorkRoute
   OrgOurWorkRoute: typeof OrgOurWorkRoute
+  OrgTemplatesRoute: typeof OrgTemplatesRoute
   OrgDevDataRoute: typeof OrgDevDataRoute
   OrgDevSessionRoute: typeof OrgDevSessionRoute
   OrgTeamTeamIdentifierRoute: typeof OrgTeamTeamIdentifierRoute
@@ -703,6 +723,7 @@ const OrgRouteRouteChildren: OrgRouteRouteChildren = {
   OrgAdminRoute: OrgAdminRouteWithChildren,
   OrgMyWorkRoute: OrgMyWorkRoute,
   OrgOurWorkRoute: OrgOurWorkRoute,
+  OrgTemplatesRoute: OrgTemplatesRoute,
   OrgDevDataRoute: OrgDevDataRoute,
   OrgDevSessionRoute: OrgDevSessionRoute,
   OrgTeamTeamIdentifierRoute: OrgTeamTeamIdentifierRoute,

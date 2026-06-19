@@ -13,6 +13,10 @@ import {
   teams,
   workflow_statuses,
   workflows,
+  template_schedules,
+  template_tasks,
+  template_teams,
+  templates,
 } from "@church-task/db/schema";
 
 import {
@@ -1237,6 +1241,95 @@ describe("Zero Task mutators", () => {
 });
 
 describe("Zero Template and Cycle projection", () => {
+  test("creates a weekly service Template with placed tasks and a repeating schedule", async () => {
+    const insertCalls: Array<{ readonly table: unknown; readonly values: unknown }> = [];
+    const tx = {
+      dbTransaction: {
+        wrappedTransaction: {
+          insert: (table: unknown) => ({
+            values: async (values: unknown) => {
+              insertCalls.push({ table, values });
+            },
+          }),
+        },
+      },
+      location: "server",
+    } as never;
+
+    await mustGetMutator(mutators, "templates.create").fn({
+      args: {
+        church_id: "org_test",
+        focus_windows: [],
+        key: "weekly-service",
+        name: "Weekly Service",
+        placement_shape: "weekly_service",
+        recurrence: "weekly",
+        template_schedule: {
+          end_date: null,
+          key: "sunday-service",
+          kind: "weekly",
+          name: "Sunday Service",
+          recurrence: "repeating",
+          rule: { kind: "weekly", weekdays: [0] },
+          start_date: "2026-06-21",
+        },
+        template_tasks: [
+          {
+            assigned_user_id: "user_worship",
+            description: "Confirm songs and rehearsal notes.",
+            estimate: "30m",
+            key: "plan-setlist",
+            label_ids: ["label_music"],
+            parent_template_task_key: null,
+            placement_cycle_offset: -1,
+            placement_weekday: 3,
+            scheduling_rule: {
+              baseLocalDate: "2026-06-21",
+              dayOffset: -4,
+              kind: "cycleOffset",
+              offsetCycles: -1,
+            },
+            template_team_key: "worship",
+            title: "Plan setlist",
+          },
+        ],
+        template_teams: [{ key: "worship", mapped_team_id: "team_worship", name: "Worship" }],
+      },
+      ctx: signedInContext,
+      tx,
+    });
+
+    expect(insertCalls.find((call) => call.table === templates)?.values).toMatchObject({
+      church_id: "org_test",
+      key: "weekly-service",
+      name: "Weekly Service",
+      placement_shape: "weekly_service",
+    });
+    expect(insertCalls.find((call) => call.table === template_teams)?.values).toMatchObject([
+      { mapped_team_id: "team_worship", name: "Worship" },
+    ]);
+    expect(insertCalls.find((call) => call.table === template_tasks)?.values).toMatchObject([
+      {
+        assigned_user_id: "user_worship",
+        description: "Confirm songs and rehearsal notes.",
+        estimate: "30m",
+        label_ids: JSON.stringify(["label_music"]),
+        placement_cycle_offset: -1,
+        placement_weekday: 3,
+        title: "Plan setlist",
+      },
+    ]);
+    expect(insertCalls.find((call) => call.table === template_schedules)?.values).toMatchObject({
+      church_id: "org_test",
+      key: "sunday-service",
+      kind: "weekly",
+      name: "Sunday Service",
+      recurrence: "repeating",
+      rule: JSON.stringify({ kind: "weekly", weekdays: [0] }),
+      start_date: "2026-06-21",
+    });
+  });
+
   test("materializes adjusted Template Tasks into Cycle Tasks with local-date due dates", () => {
     const projection = buildTemplateCycleTaskInserts({
       adjustments: [
