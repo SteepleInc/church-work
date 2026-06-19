@@ -37,6 +37,10 @@ type KeyDateMutationResult =
   | { readonly ok: true }
   | { readonly ok: false; readonly error: { readonly message: string } };
 
+export function canManageKeyDates(role: string | null | undefined) {
+  return role === "owner" || role === "admin" || role === "member";
+}
+
 const slugifyKey = (name: string) =>
   name
     .trim()
@@ -48,7 +52,7 @@ const slugifyKey = (name: string) =>
 export function SettingsKeyDatesPanel() {
   const { currentOrgOpt: activeChurch, loading } = useCurrentOrgOpt();
   const keyDates = useKeyDatesCollection({ churchId: activeChurch?.id ?? null });
-  const canManage = activeChurch?.role === "owner" || activeChurch?.role === "admin";
+  const canManage = canManageKeyDates(activeChurch?.role);
 
   return (
     <KeyDatesSettingsPanel
@@ -65,9 +69,9 @@ export function SettingsKeyDatesPanel() {
  * Linear-style Key Dates settings. A single framed pane with a description, a
  * search + "New Key Date" toolbar, then a dense table of the Church's Key
  * Dates: name, how it recurs, and its next occurrence, with inline rename, a
- * schedule editor popover, and a per-row "..." menu. Key Dates are
- * owner/admin-managed (see CONTEXT.md "Key Date"); non-managers get a read-only
- * view.
+ * schedule editor popover, and a per-row "..." menu. V1 Key Dates are
+ * manageable by every active Church member; users without an active Church get a
+ * read-only empty state.
  */
 function KeyDatesSettingsPanel({
   canManage,
@@ -214,7 +218,7 @@ function KeyDatesSettingsPanel({
         <p className="text-muted-foreground text-sm">
           Named dates with planning significance — Easter, Christmas, a church anniversary.
           Templates can schedule work around them.
-          {canManage ? null : " Only owners and admins can change Key Dates."}
+          {canManage ? null : " Join a Church to change Key Dates."}
         </p>
       </div>
 
@@ -262,7 +266,7 @@ function KeyDatesSettingsPanel({
                 <EmptyDescription>
                   {canManage
                     ? "Add Easter, Christmas, or any date your Church plans around."
-                    : "An owner or admin can add the dates your Church plans around."}
+                    : "Join a Church to add the dates your Church plans around."}
                 </EmptyDescription>
               </EmptyHeader>
             </Empty>
