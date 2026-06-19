@@ -14,9 +14,12 @@ Own tests and test data, type errors, lint/format issues, integration bugs, and 
 
 # REQUIRED PROCESS
 
-1. Understand the branch diff:
+1. Understand the branch diff by running targeted commands yourself. Start with:
+   - `git diff --stat {{TARGET_BRANCH}}...{{BRANCH}}`
+   - `git diff --name-only {{TARGET_BRANCH}}...{{BRANCH}}`
+   - Then inspect only the relevant changed files/hunks with focused `git diff {{TARGET_BRANCH}}...{{BRANCH}} -- <path>` commands.
 
-   !`git diff {{TARGET_BRANCH}}...{{BRANCH}}`
+   Do not dump the full branch diff into context for large branches.
 
 2. Run targeted verification. At minimum, prefer:
    - `bun run check-types`

@@ -10,11 +10,16 @@ This is the all-around code reviewer. Focus on repo fit, correctness, tests, saf
 
 ## Branch diff
 
-!`git diff {{TARGET_BRANCH}}...{{BRANCH}}`
+Do not load the entire branch diff at once. Start with:
+
+- `git diff --stat {{TARGET_BRANCH}}...{{BRANCH}}`
+- `git diff --name-only {{TARGET_BRANCH}}...{{BRANCH}}`
+
+Then inspect focused changed files/hunks with `git diff {{TARGET_BRANCH}}...{{BRANCH}} -- <path>`.
 
 ## Commits on this branch
 
-!`git log {{TARGET_BRANCH}}..{{BRANCH}} --oneline`
+Run `git log {{TARGET_BRANCH}}..{{BRANCH}} --oneline`.
 
 # REVIEW PROCESS
 
