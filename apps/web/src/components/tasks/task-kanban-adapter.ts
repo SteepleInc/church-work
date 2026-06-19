@@ -46,6 +46,7 @@ export type TaskBoardTask = {
     readonly occurrencePeriod: string | null;
     readonly periodLabel: string | null;
     readonly dotClassName: string;
+    readonly occurrenceKind?: "keyDate" | "weekly" | "other";
   } | null;
 };
 

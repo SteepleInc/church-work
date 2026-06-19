@@ -1,4 +1,4 @@
-import { Repeat2 } from "lucide-react";
+import { CalendarHeart, Repeat2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -17,6 +17,12 @@ export type TemplateSourceBadgeData = {
   readonly occurrencePeriod: string | null;
   readonly periodLabel: string | null;
   readonly dotClassName: string;
+  /**
+   * The kind of occurrence this source chip represents. Drives the leading
+   * glyph so a Key Date occurrence (e.g. Easter) reads distinctly from a
+   * weekly Cadence occurrence, while keeping the rest of the chip identical.
+   */
+  readonly occurrenceKind?: "keyDate" | "weekly" | "other";
 };
 
 /**
@@ -32,6 +38,8 @@ export function TemplateSourceBadge({
   readonly badge: TemplateSourceBadgeData;
   readonly className?: string;
 }) {
+  const isKeyDate = badge.occurrenceKind === "keyDate";
+  const SourceGlyph = isKeyDate ? CalendarHeart : Repeat2;
   return (
     <Tooltip>
       <TooltipTrigger
@@ -41,7 +49,7 @@ export function TemplateSourceBadge({
             className={cn("gap-1.5 text-muted-foreground", className)}
             variant="outline"
           >
-            <Repeat2 aria-hidden="true" className="size-3 shrink-0 text-muted-foreground/70" />
+            <SourceGlyph aria-hidden="true" className="size-3 shrink-0 text-muted-foreground/70" />
             <span className={cn("size-1.5 shrink-0 rounded-full", badge.dotClassName)} />
             <span className="truncate font-medium">{badge.scheduleName}</span>
             <span aria-hidden="true" className="text-muted-foreground/50">

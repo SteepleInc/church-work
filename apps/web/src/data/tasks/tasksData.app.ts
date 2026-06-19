@@ -69,6 +69,12 @@ export type TemplateSourceBadge = {
   readonly occurrenceLabel: string;
   readonly occurrenceDate: string | null;
   readonly occurrencePeriod: string | null;
+  /**
+   * The kind of Template Schedule occurrence this source chip represents,
+   * derived from the occurrence key prefix. Drives the source-chip glyph so a
+   * Key Date occurrence reads distinctly from a weekly Cadence occurrence.
+   */
+  readonly occurrenceKind: "keyDate" | "weekly" | "other";
   /** Human-friendly period label (e.g. "Jun 2026"), derived from the occurrence. */
   readonly periodLabel: string | null;
   /**
@@ -239,6 +245,11 @@ export const buildTemplateSourceBadge = (args: {
     dotClassName: getTemplateScheduleDotClassName(args.schedule.id),
     occurrenceDate: date,
     occurrenceKey: args.occurrenceKey,
+    occurrenceKind: args.occurrenceKey.startsWith("keydate:")
+      ? "keyDate"
+      : args.occurrenceKey.startsWith("weekly:")
+        ? "weekly"
+        : "other",
     occurrenceLabel: date ? occurrenceLabel(date) : args.occurrenceKey,
     occurrencePeriod: date ? date.slice(0, 7) : null,
     periodLabel: date ? periodLabel(date) : null,

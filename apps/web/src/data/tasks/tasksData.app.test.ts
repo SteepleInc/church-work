@@ -180,6 +180,10 @@ describe("scheduled Template projections for Cycle surfaces", () => {
       sourceTemplateOccurrenceKey: "keydate:2026-04-05:keydate_easter",
     });
 
+    // Key Date occurrences carry a distinct source-chip glyph kind so they read
+    // differently from weekly Cadence occurrences on Cycle surfaces.
+    expect(easterProjection[0]?.sourceBadge?.occurrenceKind).toBe("keyDate");
+
     const christmas2027 = buildProjectedTemplateTasksForCycle({
       ...base,
       cycle: { endDate: "2027-12-26", id: "cycle_2027_12_20", startDate: "2027-12-20" },
