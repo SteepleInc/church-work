@@ -28,7 +28,46 @@ type ZeroMutationResult = {
   >;
 };
 
-const parseSchedule = (value: string): KeyDateRule => JSON.parse(value) as KeyDateRule;
+const keyDatePresets = new Set<unknown>(KEY_DATE_PRESETS);
+
+const isKeyDatePreset = (value: unknown): value is KeyDatePreset => keyDatePresets.has(value);
+
+const isValidLocalDate = (value: unknown): value is string =>
+  typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+const isKeyDateRule = (value: unknown): value is KeyDateRule => {
+  if (!value || typeof value !== "object" || !("kind" in value)) return false;
+
+  if (value.kind === "computedYearly") {
+    return "rule" in value && isKeyDatePreset(value.rule);
+  }
+
+  if (value.kind === "fixedYearly") {
+    const month = "month" in value ? value.month : null;
+    const day = "day" in value ? value.day : null;
+    return (
+      Number.isInteger(month) &&
+      Number.isInteger(day) &&
+      typeof month === "number" &&
+      typeof day === "number" &&
+      month >= 1 &&
+      month <= 12 &&
+      day >= 1 &&
+      day <= 31
+    );
+  }
+
+  return value.kind === "oneTime" && "localDate" in value && isValidLocalDate(value.localDate);
+};
+
+const parseSchedule = (value: string): KeyDateRule | null => {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return isKeyDateRule(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
 
 const nextOccurrenceForSchedule = (schedule: KeyDateRule, today = new Date()) => {
   const year = today.getUTCFullYear();
@@ -62,8 +101,9 @@ export function useKeyDatesCollection(params: { readonly churchId: string | null
   const collection =
     params.churchId === null
       ? []
-      : rows.map((row) => {
+      : rows.flatMap((row) => {
           const schedule = parseSchedule(row.schedule);
+          if (!schedule) return [];
           return {
             id: row.id,
             key: row.key,
