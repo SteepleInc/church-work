@@ -1,6 +1,7 @@
 import {
   calculateKeyDateOccurrence,
   formatTaskIdentifier,
+  KEY_DATE_PRESETS,
   type KeyDateRule,
   type TaskEstimate,
   type TaskStatus,
@@ -204,16 +205,34 @@ const parseJson = <T>(value: string | null | undefined, fallback: T): T => {
   }
 };
 
+const isKeyDatePreset = (value: unknown) =>
+  typeof value === "string" && KEY_DATE_PRESETS.some((preset) => preset === value);
+
 const isKeyDateRule = (value: unknown): value is KeyDateRule => {
   if (!value || typeof value !== "object" || !("kind" in value)) return false;
-  if (value.kind === "fixedYearly") return "month" in value && "day" in value;
-  if (value.kind === "computedYearly") return "rule" in value;
-  return value.kind === "oneTime" && "localDate" in value;
+  if (value.kind === "fixedYearly") {
+    return (
+      "month" in value &&
+      "day" in value &&
+      typeof value.month === "number" &&
+      typeof value.day === "number"
+    );
+  }
+  if (value.kind === "computedYearly") {
+    return "rule" in value && isKeyDatePreset(value.rule);
+  }
+  return value.kind === "oneTime" && "localDate" in value && typeof value.localDate === "string";
 };
 
 const parseKeyDateSchedule = (value: string | null | undefined): KeyDateRule | null => {
   const parsed = parseJson<unknown>(value, null);
   return isKeyDateRule(parsed) ? parsed : null;
+};
+
+const templateOccurrenceKind = (occurrenceKey: string): TemplateSourceBadge["occurrenceKind"] => {
+  if (occurrenceKey.startsWith("keydate:")) return "keyDate";
+  if (occurrenceKey.startsWith("weekly:")) return "weekly";
+  return "other";
 };
 
 const occurrenceLabel = (date: string) => {
@@ -245,11 +264,7 @@ export const buildTemplateSourceBadge = (args: {
     dotClassName: getTemplateScheduleDotClassName(args.schedule.id),
     occurrenceDate: date,
     occurrenceKey: args.occurrenceKey,
-    occurrenceKind: args.occurrenceKey.startsWith("keydate:")
-      ? "keyDate"
-      : args.occurrenceKey.startsWith("weekly:")
-        ? "weekly"
-        : "other",
+    occurrenceKind: templateOccurrenceKind(args.occurrenceKey),
     occurrenceLabel: date ? occurrenceLabel(date) : args.occurrenceKey,
     occurrencePeriod: date ? date.slice(0, 7) : null,
     periodLabel: date ? periodLabel(date) : null,
@@ -307,6 +322,32 @@ const mapTask = (
   workflowId: task.workflow_id,
   workflowStatusId: task.workflow_status_id,
 });
+
+const keyDateScheduleOccurrences = (args: {
+  readonly cycleEndDate: string;
+  readonly keyDateId: string;
+  readonly keyDateSchedule: KeyDateRule;
+  readonly schedule: TemplateSchedule;
+}) => {
+  const occurrences: { occurrenceDate: string; occurrenceKey: string }[] = [];
+  const startYear = Number(args.schedule.start_date.slice(0, 4));
+  const endYear = Number(addDays(args.cycleEndDate, 371).slice(0, 4));
+
+  for (let year = startYear; year <= endYear; year += 1) {
+    const occurrenceDate = calculateKeyDateOccurrence(args.keyDateSchedule, year);
+    if (!occurrenceDate || occurrenceDate < args.schedule.start_date) continue;
+    if (args.schedule.end_date && occurrenceDate > args.schedule.end_date) break;
+    if (args.schedule.recurrence !== "repeating" && occurrenceDate !== args.schedule.start_date) {
+      continue;
+    }
+    occurrences.push({
+      occurrenceDate,
+      occurrenceKey: `keydate:${occurrenceDate}:${args.keyDateId}`,
+    });
+  }
+
+  return occurrences;
+};
 
 export function buildProjectedTemplateTasksForCycle(args: {
   readonly cycle: CycleProjectionContext;
@@ -414,17 +455,16 @@ export function buildProjectedTemplateTasksForCycle(args: {
       if (rule.kind !== "keyDate" || !rule.keyDateId) continue;
       const keyDateSchedule = parseKeyDateSchedule(keyDatesById.get(rule.keyDateId)?.schedule);
       if (!keyDateSchedule) continue;
-      const startYear = Number(schedule.start_date.slice(0, 4));
-      const endYear = Number(addDays(args.cycle.endDate, 371).slice(0, 4));
-      for (let year = startYear; year <= endYear; year += 1) {
-        const occurrenceDate = calculateKeyDateOccurrence(keyDateSchedule, year);
-        if (!occurrenceDate || occurrenceDate < schedule.start_date) continue;
-        if (schedule.end_date && occurrenceDate > schedule.end_date) break;
-        if (schedule.recurrence !== "repeating" && occurrenceDate !== schedule.start_date) continue;
+      for (const { occurrenceDate, occurrenceKey } of keyDateScheduleOccurrences({
+        cycleEndDate: args.cycle.endDate,
+        keyDateId: rule.keyDateId,
+        keyDateSchedule,
+        schedule,
+      })) {
         projectOccurrence({
           anchorWeekday: dateWeekday(occurrenceDate),
           occurrenceDate,
-          occurrenceKey: `keydate:${occurrenceDate}:${rule.keyDateId}`,
+          occurrenceKey,
           schedule,
           scheduleTasks,
         });
