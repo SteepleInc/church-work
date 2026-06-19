@@ -648,6 +648,16 @@ type ExistingProjectedTaskRow = {
   readonly source_template_schedule_id?: string | null;
   readonly source_template_task_id: string;
 };
+
+const templateTaskSourceKey = (source: {
+  readonly source_template_occurrence_key?: string | null;
+  readonly source_template_schedule_id?: string | null;
+  readonly source_template_task_id: string;
+}) =>
+  source.source_template_schedule_id && source.source_template_occurrence_key
+    ? `${source.source_template_schedule_id}\u0000${source.source_template_occurrence_key}\u0000${source.source_template_task_id}`
+    : source.source_template_task_id;
+
 type EffectiveTemplateCycleTask = {
   readonly due_date: string;
   readonly parent_template_task_id: string | null;
@@ -791,16 +801,14 @@ export const buildTemplateCycleTaskInserts = (args: {
   const sourceTemplateScheduleId = args.source_template_schedule_id ?? null;
   const sourceTemplateOccurrenceKey = args.source_template_occurrence_key ?? null;
   const sourceKeyForTemplateTask = (templateTaskId: string) =>
-    sourceTemplateScheduleId && sourceTemplateOccurrenceKey
-      ? `${sourceTemplateScheduleId}\u0000${sourceTemplateOccurrenceKey}\u0000${templateTaskId}`
-      : templateTaskId;
+    templateTaskSourceKey({
+      source_template_occurrence_key: sourceTemplateOccurrenceKey,
+      source_template_schedule_id: sourceTemplateScheduleId,
+      source_template_task_id: templateTaskId,
+    });
 
   for (const existingTask of args.existing_projected_tasks ?? []) {
-    const existingSourceKey =
-      existingTask.source_template_schedule_id && existingTask.source_template_occurrence_key
-        ? `${existingTask.source_template_schedule_id}\u0000${existingTask.source_template_occurrence_key}\u0000${existingTask.source_template_task_id}`
-        : existingTask.source_template_task_id;
-    insertedTasksBySourceKey.set(existingSourceKey, existingTask.id);
+    insertedTasksBySourceKey.set(templateTaskSourceKey(existingTask), existingTask.id);
   }
 
   for (const effectiveTask of buildEffectiveTemplateCycleTasks(args)) {

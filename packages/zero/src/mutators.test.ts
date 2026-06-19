@@ -1381,12 +1381,12 @@ describe("Zero Template and Cycle projection", () => {
           title: "Prepare service plan",
         },
         {
-          id: "templatetask_plan",
-          key: "plan",
+          id: "templatetask_rehearse",
+          key: "rehearse",
           parent_template_task_id: null,
           scheduling_rule: JSON.stringify({ kind: "fixedDate", localDate: "2026-04-02" }),
           template_team_id: "templateteam_worship",
-          title: "Prepare duplicate service plan",
+          title: "Rehearse service plan",
         },
       ],
       template_teams: [{ id: "templateteam_worship", mapped_team_id: "team_worship" }],
@@ -1407,7 +1407,7 @@ describe("Zero Template and Cycle projection", () => {
       source_template_schedule_id: "templateschedule_saturday",
     });
 
-    expect(sundayProjection.inserts).toHaveLength(1);
+    expect(sundayProjection.inserts).toHaveLength(2);
     expect(sundayProjection.inserts[0]).toMatchObject({
       due_date: "2026-04-01",
       source_template_occurrence_key: "weekly:2026-04-05:sunday",
@@ -1415,8 +1415,15 @@ describe("Zero Template and Cycle projection", () => {
       source_template_task_id: "templatetask_plan",
       title: "Prepare service plan",
     });
-    expect(sundayProjection.nextNumberByTeamId.get("team_worship")).toBe(8);
-    expect(saturdayProjection.inserts).toHaveLength(1);
+    expect(sundayProjection.inserts[1]).toMatchObject({
+      due_date: "2026-04-02",
+      source_template_occurrence_key: "weekly:2026-04-05:sunday",
+      source_template_schedule_id: "templateschedule_sunday",
+      source_template_task_id: "templatetask_rehearse",
+      title: "Rehearse service plan",
+    });
+    expect(sundayProjection.nextNumberByTeamId.get("team_worship")).toBe(9);
+    expect(saturdayProjection.inserts).toHaveLength(2);
     expect(saturdayProjection.inserts[0]?.source_template_schedule_id).toBe(
       "templateschedule_saturday",
     );
