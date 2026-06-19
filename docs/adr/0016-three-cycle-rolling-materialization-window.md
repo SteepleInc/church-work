@@ -1,0 +1,3 @@
+# Use a configurable rolling materialization window for scheduled template work
+
+Scheduled Template work may be projected far into the future, but Church Task will only automatically materialize Projected Template Tasks into real Tasks inside a Church's Rolling Materialization Window. The default window is three Cycles, stored as a Church setting, because weekly service templates often need several weeks of prep to become actionable while yearly or quarterly templates must not flood Users with every future Task at once. Churches may change the setting later in Church settings, but v1 deliberately avoids materializing an entire Template Schedule Occurrence just because that occurrence has begun.

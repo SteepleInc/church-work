@@ -69,8 +69,16 @@ A week-specific change to a Template Task for one Week, such as moving, skipping
 _Avoid_: Override, exception, hard delete of projected work
 
 **Template**:
-A reusable set of tasks organized around a Focus Window. A Church may have many active Templates, scoped to the whole Church or to a Team; applicable Template work flows into the relevant weekly Cycle. Template edits affect future Cycles by default and do not change existing Cycle tasks.
+A reusable library definition for church work that can be scheduled into church time. A Church may have many Templates, and a Template may have zero or many Template Schedules. Deleting a Template puts it into a Soft Delete state and hides it from normal UI rather than permanently removing it.
 _Avoid_: Checklist, run sheet
+
+**Template Schedule**:
+An application of a Template to a Cadence, Key Date, one-off date, month, quarter, or year so it can project work into Cycles. Pausing or stopping scheduled projection changes the Template Schedule rather than deleting the Template.
+_Avoid_: Activation, enabled Template, substantiation
+
+**Template Schedule Occurrence**:
+One run of a Template Schedule, such as a weekly service date, Easter 2027, a specific month, or a specific quarter. A Template Schedule Occurrence may be projected without a durable row; Users may informally call it an instance, but Template Schedule Occurrence is the canonical term.
+_Avoid_: Instance as the canonical term, substantiation, generated project
 
 **Focus Window**:
 The period a Template is centered on, such as a week, month, quarter, sermon series, event season, or a single date. Template Tasks may be scheduled before, during, or after the Focus Window.
@@ -81,23 +89,59 @@ An optional date inside a Focus Window that a Template can use as a scheduling r
 _Avoid_: End date, target date
 
 **Template Team**:
-A named team slot inside a Template that is mapped to a real Team. Template Tasks reference Template Teams rather than Teams directly, so a Template can outlive the Teams it was written against. Deleting or archiving a Team forces every Template Team mapped to it to be remapped to another Team or its Template Tasks abandoned, so mappings never dangle and Cycle generation never blocks.
+A named team slot inside a Template that is mapped to a real Team once the Template uses that Team. Template Tasks reference Template Teams rather than Teams directly, so a Template can outlive the Teams it was written against. Deleting or archiving a Team forces every Template Team mapped to it to be remapped to another Team or its Template Tasks abandoned, so mappings never dangle and Cycle generation never blocks.
 _Avoid_: Team reference, team binding, dangling team
 
 **Template Task**:
-A task definition inside a Template before it becomes real Cycle work. A Template Task belongs to one Template Team and may be rendered in future Weeks by its Scheduling Rule without becoming a Task; it becomes a Task in that Template Team's mapped Team when its Week becomes the current Cycle, drawing its Task Identifier from that Team's sequence at that moment.
+A task definition inside a Template before it becomes real Cycle work. A Template Task belongs to one Template Team and carries the task-like planning fields that should copy into a Task when materialized, but it does not carry Workflow Status or Task State. A Template Task may be rendered in future Cycles by its Scheduling Rule without becoming a Task; it becomes a Task in that Template Team's mapped Team when its Cycle becomes current or when a User starts treating the projection as real work, drawing its Task Identifier from that Team's sequence at that moment. Deleting a Template Task puts it into a Soft Delete state so undo or restore can bring back the same Template Task identity and its Cycle Adjustments.
 _Avoid_: Template card
 
+**Template Task Placement**:
+The relative calendar position of a Template Task inside its Template, expressed from the Template End Cycle plus a weekday. Template Task Placement is not a recurrence rule by itself; projection combines it with a Template Schedule to decide which real Cycle and Due Date a Projected Template Task appears in.
+_Avoid_: Recurrence rule, cron, absolute date on the Template Task
+
+**Template End Cycle**:
+The final or key Cycle of a Template's highlighted authoring frame. Template Task Placements are expressed relative to the Template End Cycle, so weekly, monthly, quarterly, yearly, and Key Date Templates can share the same placement model while highlighting different frame sizes.
+_Avoid_: Anchor cycle as the only placement reference, target cycle, last week as the canonical term
+
+**Template Placement Shape**:
+The structural authoring frame of a Template, such as weekly service, Key Date, monthly, quarterly, or yearly. Template Placement Shape determines the highlighted focus wrapper and default calendar frame the editor opens, but it is not itself a Template Schedule and does not own Template Task Placements.
+_Avoid_: Template type as a library category, schedule kind as a synonym, active schedule
+
+**Projected Template Task**:
+A not-yet-real rendering of a Template Task into a specific Cycle for planning UI. A Projected Template Task may have a UI projection key that combines Template Task and Cycle context, but it does not require a durable occurrence row until a User makes a Cycle Adjustment or materializes it as a Task.
+_Avoid_: Pre-created task, temporary task row, occurrence record by default
+
+**Rolling Materialization Window**:
+The Church setting that controls how many upcoming Cycles have their Projected Template Tasks automatically turned into real Tasks. The default Rolling Materialization Window is three Cycles, keeping near-term scheduled work actionable without creating an overwhelming amount of future work.
+_Avoid_: Materializing a whole yearly Template Schedule Occurrence at once, infinite task generation, projection window as a synonym
+
+**Soft Delete**:
+A deletion state that hides user-authored product work from normal UI and future projection without permanently removing its identity. Soft Delete allows later undo or restore; recreating similar work creates a new identity rather than reviving the old one. Hard Delete is reserved for cleanup cases where restoration is not meaningful, such as removing membership relationships.
+_Avoid_: Archive when the domain meaning is deletion, hard delete for normal product work, hidden only
+
+**Anchor Cycle**:
+The Cycle that contains a Template's main Focus Window reference, such as the Sunday being prepared for, the event date, or the start of a focused season. A simple weekly Template may only show the Anchor Cycle by default, though users may scroll to surrounding projected Cycles.
+_Avoid_: Current week, target cycle, zero week
+
+**Schedule Anchor**:
+The rule or date source that determines which Cycle is a Template's anchor occurrence when Template work is projected. A Schedule Anchor may come from a Cadence such as weekly, monthly, quarterly, or yearly, or from a named Key Date occurrence.
+_Avoid_: Treating every cadence as a Key Date, trigger date, schedule type as the domain term
+
 **Scheduling Rule**:
-The rule that determines when a Template Task appears in a Cycle. Scheduling Rules may be relative to a Focus Window, relative to an Anchor Date when one exists, or fixed to a specific date.
+The projection logic that combines a Template Schedule with Template Task Placement to determine when a Template Task appears in a Cycle. Scheduling Rules are not standalone cron-style recurrence expressions on individual Template Tasks.
 _Avoid_: Cron, recurrence expression
 
 **Key Date**:
 A named date with planning significance for a Church, such as Easter, Christmas, Mother's Day, Thanksgiving, or a church anniversary. Each Church owns its Key Dates, though the product may offer default Key Dates by locale or tradition; a Key Date may be used by Scheduling Rules to place Template Tasks into the relevant Cycle.
 _Avoid_: Holiday, observed date, special day
 
+**Starter Key Dates**:
+The default Church-scoped Key Dates a new Church begins with. Starter Key Dates are seeded during Onboarding from an initially US-centric set of fixed and dynamic dates, and may be kept, removed, or changed like any other Key Date.
+_Avoid_: Global holiday calendar, denomination calendar, hard-coded dates
+
 **Source Template**:
-The Template that caused a Cycle task to exist. A generated Task may show its Source Template, but editing the generated Task does not change the Template unless the user explicitly edits the Template.
+The Template that caused a Task to exist through a Template Schedule and Template Schedule Occurrence. A generated Task may show its Source Template and schedule occurrence, but editing the generated Task does not change the Template unless the user explicitly edits the Template.
 _Avoid_: Origin, parent template
 
 **Task**:
@@ -249,7 +293,7 @@ A per-Task importance attribute: No priority, Urgent, High, Medium, or Low. Prio
 _Avoid_: Rank, severity, using priority to mean Board position
 
 **Estimate**:
-A per-Task effort size: No estimate, XS, S, M, L, or XL. Every Task, including a Subtask, has its own independent Estimate; a Subtask does not inherit its parent's Estimate, and a parent's Estimate never aggregates its Subtasks' Estimates. Template Tasks do not carry an Estimate.
+A per-Task or Template Task effort size: No estimate, XS, S, M, L, or XL. Every Task, including a Subtask, has its own independent Estimate; a Subtask does not inherit its parent's Estimate, and a parent's Estimate never aggregates its Subtasks' Estimates.
 _Avoid_: Size, points, story points, rolling up or summing Estimates
 
 **Label**:
