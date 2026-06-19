@@ -45,7 +45,7 @@ test("authors and schedules a weekly service Template", async ({ page }, testInf
   ).toBeVisible();
 
   await projectedTask.getByRole("combobox", { name: "Change estimate" }).click();
-  await page.getByRole("option", { name: "L" }).click();
+  await page.getByRole("option", { exact: true, name: "L" }).click();
   await expect(projectedTask.getByLabel("Adjusted for this Cycle")).toBeVisible({
     timeout: 20_000,
   });
