@@ -56,6 +56,9 @@ const TAB_DESCRIPTION: Record<TemplateLibraryTab, string> = {
   schedules: "Active Template Schedules projecting recurring Church work into upcoming Weeks.",
 };
 
+const PAGE_DESCRIPTION =
+  "Reusable Templates, their Schedules, and the Key Dates they plan around for this Church.";
+
 export function TemplatesPage({ tab }: { readonly tab: TemplateLibraryTab }) {
   const { currentOrgOpt: activeChurch, loading: orgLoading } = useCurrentOrgOpt();
   const churchId = activeChurch?.id ?? null;
@@ -68,9 +71,7 @@ export function TemplatesPage({ tab }: { readonly tab: TemplateLibraryTab }) {
       <PageContainer wrapperClassName="gap-6">
         <div className="flex flex-col gap-1">
           <h1 className="font-semibold text-2xl tracking-tight">Templates</h1>
-          <p className="max-w-3xl text-balance text-muted-foreground text-sm">
-            {TAB_DESCRIPTION[tab]}
-          </p>
+          <p className="max-w-3xl text-balance text-muted-foreground text-sm">{PAGE_DESCRIPTION}</p>
         </div>
 
         <PageTabs className="gap-6" value={tab}>
@@ -89,11 +90,16 @@ export function TemplatesPage({ tab }: { readonly tab: TemplateLibraryTab }) {
 
         {tab === "schedules" ? (
           <TemplateSchedulesPanel
+            description={TAB_DESCRIPTION.schedules}
             loading={loading}
             schedules={schedules.templateSchedulesCollection}
           />
         ) : tab === "library" ? (
-          <TemplateLibraryPanel loading={loading} templates={templates.templatesCollection} />
+          <TemplateLibraryPanel
+            description={TAB_DESCRIPTION.library}
+            loading={loading}
+            templates={templates.templatesCollection}
+          />
         ) : (
           <SettingsKeyDatesPanel embedded />
         )}
@@ -103,9 +109,11 @@ export function TemplatesPage({ tab }: { readonly tab: TemplateLibraryTab }) {
 }
 
 function TemplateSchedulesPanel({
+  description,
   loading,
   schedules,
 }: {
+  readonly description: string;
   readonly loading: boolean;
   readonly schedules: readonly TemplateScheduleCollectionItem[];
 }) {
@@ -127,47 +135,52 @@ function TemplateSchedulesPanel({
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border bg-card">
-      <Table>
-        <TableHeader className="bg-card">
-          <TableRow className="hover:bg-transparent">
-            <TableHead className="pl-4">Schedule</TableHead>
-            <TableHead>Template</TableHead>
-            <TableHead>Kind</TableHead>
-            <TableHead className="pr-4 text-right">Next occurrence</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {schedules.map((schedule) => (
-            <TableRow key={schedule.id}>
-              <TableCell className="pl-4 font-medium">{schedule.name}</TableCell>
-              <TableCell>
-                <Link
-                  className="text-muted-foreground transition-colors hover:text-foreground hover:underline"
-                  params={{ templateId: schedule.templateId }}
-                  to="/templates/$templateId"
-                >
-                  {schedule.templateName}
-                </Link>
-              </TableCell>
-              <TableCell>
-                <Badge variant="secondary">{schedule.kindLabel}</Badge>
-              </TableCell>
-              <TableCell className="pr-4 text-right text-muted-foreground tabular-nums">
-                {formatTemplateScheduleOccurrence(schedule.nextOccurrence)}
-              </TableCell>
+    <div className="flex flex-col gap-3">
+      <p className="text-muted-foreground text-sm">{description}</p>
+      <div className="overflow-hidden rounded-xl border bg-card">
+        <Table>
+          <TableHeader className="bg-card">
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="pl-4">Schedule</TableHead>
+              <TableHead>Template</TableHead>
+              <TableHead>Kind</TableHead>
+              <TableHead className="pr-4 text-right">Next occurrence</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {schedules.map((schedule) => (
+              <TableRow key={schedule.id}>
+                <TableCell className="pl-4 font-medium">{schedule.name}</TableCell>
+                <TableCell>
+                  <Link
+                    className="text-muted-foreground transition-colors hover:text-foreground hover:underline"
+                    params={{ templateId: schedule.templateId }}
+                    to="/templates/$templateId"
+                  >
+                    {schedule.templateName}
+                  </Link>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="secondary">{schedule.kindLabel}</Badge>
+                </TableCell>
+                <TableCell className="pr-4 text-right text-muted-foreground tabular-nums">
+                  {formatTemplateScheduleOccurrence(schedule.nextOccurrence)}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }
 
 function TemplateLibraryPanel({
+  description,
   loading,
   templates,
 }: {
+  readonly description: string;
   readonly loading: boolean;
   readonly templates: readonly TemplateCollectionItem[];
 }) {
@@ -188,28 +201,31 @@ function TemplateLibraryPanel({
     );
   }
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      {templates.map((template) => (
-        <Link
-          className="group flex flex-col gap-3 rounded-xl border bg-card p-4 transition-colors hover:border-foreground/20 hover:bg-muted/40"
-          key={template.id}
-          params={{ templateId: template.id }}
-          to="/templates/$templateId"
-        >
-          <div className="flex size-9 items-center justify-center rounded-lg bg-muted text-muted-foreground transition-colors group-hover:text-foreground">
-            <LibraryBig className="size-4" />
-          </div>
-          <div className="min-w-0">
-            <h2 className="truncate font-medium">{template.name}</h2>
-            <p className="text-muted-foreground text-sm">
-              {template.scheduleCount === 0
-                ? "Unscheduled"
-                : `${template.scheduleCount} schedule${template.scheduleCount === 1 ? "" : "s"}`}{" "}
-              · {template.taskCount} task{template.taskCount === 1 ? "" : "s"}
-            </p>
-          </div>
-        </Link>
-      ))}
+    <div className="flex flex-col gap-3">
+      <p className="text-muted-foreground text-sm">{description}</p>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {templates.map((template) => (
+          <Link
+            className="group flex flex-col gap-3 rounded-xl border bg-card p-4 transition-colors hover:border-foreground/20 hover:bg-muted/40"
+            key={template.id}
+            params={{ templateId: template.id }}
+            to="/templates/$templateId"
+          >
+            <div className="flex size-9 items-center justify-center rounded-lg bg-muted text-muted-foreground transition-colors group-hover:text-foreground">
+              <LibraryBig className="size-4" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="truncate font-medium">{template.name}</h2>
+              <p className="text-muted-foreground text-sm">
+                {template.scheduleCount === 0
+                  ? "Unscheduled"
+                  : `${template.scheduleCount} schedule${template.scheduleCount === 1 ? "" : "s"}`}{" "}
+                · {template.taskCount} task{template.taskCount === 1 ? "" : "s"}
+              </p>
+            </div>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
