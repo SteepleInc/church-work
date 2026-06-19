@@ -1179,8 +1179,10 @@ describe("Zero Template and Cycle projection", () => {
       cycle_id: "cycle_easter",
       due_date: "2026-04-01",
       number: 7,
-      source_template_cycle_id: "cycle_easter",
+      source_template_cycle_id: null,
       source_template_id: "template_easter",
+      source_template_occurrence_key: null,
+      source_template_schedule_id: null,
       source_template_sync_enabled: false,
       source_template_task_id: "templatetask_rehearsal",
       task_state: "todo",
@@ -1288,6 +1290,73 @@ describe("Zero Template and Cycle projection", () => {
       source_template_task_id: "templatetask_child",
     });
     expect(projection.nextNumberByTeamId.get("team_worship")).toBe(8);
+  });
+
+  test("dedupes generated Template Tasks by schedule occurrence identity", () => {
+    const baseArgs = {
+      adjustments: [],
+      church_id: "org_test",
+      cycle: { id: "cycle_easter", start_date: "2026-03-30" },
+      focus_windows: [],
+      key_date_occurrences: [],
+      now: new Date("2026-01-01T00:00:00.000Z"),
+      session_user_id: "user_test",
+      source_template_occurrence_key: "weekly:2026-04-05:sunday",
+      source_template_schedule_id: "templateschedule_sunday",
+      start_number_by_team_id: new Map([["team_worship", 7]]),
+      template_id: "template_service",
+      template_tasks: [
+        {
+          id: "templatetask_plan",
+          key: "plan",
+          parent_template_task_id: null,
+          scheduling_rule: JSON.stringify({ kind: "fixedDate", localDate: "2026-04-01" }),
+          template_team_id: "templateteam_worship",
+          title: "Prepare service plan",
+        },
+      ],
+      template_teams: [{ id: "templateteam_worship", mapped_team_id: "team_worship" }],
+      todo_status_by_workflow_id: new Map([
+        ["workflow_worship", { id: "workflowstatus_todo", workflow_id: "workflow_worship" }],
+      ]),
+      workflow_by_team_id: new Map([
+        ["team_worship", { id: "workflow_worship", team_id: "team_worship" }],
+      ]),
+    } as const;
+
+    const firstProjection = buildTemplateCycleTaskInserts(baseArgs);
+    const nextOccurrenceProjection = buildTemplateCycleTaskInserts({
+      ...baseArgs,
+      existing_projected_tasks: [
+        {
+          id: "task_existing_previous_week",
+          source_template_occurrence_key: "weekly:2026-03-29:sunday",
+          source_template_schedule_id: "templateschedule_sunday",
+          source_template_task_id: "templatetask_plan",
+        },
+      ],
+    });
+    const duplicateProjection = buildTemplateCycleTaskInserts({
+      ...baseArgs,
+      existing_projected_tasks: [
+        {
+          id: "task_existing_same_occurrence",
+          source_template_occurrence_key: "weekly:2026-04-05:sunday",
+          source_template_schedule_id: "templateschedule_sunday",
+          source_template_task_id: "templatetask_plan",
+        },
+      ],
+    });
+
+    expect(firstProjection.inserts[0]).toMatchObject({
+      source_template_cycle_id: null,
+      source_template_id: "template_service",
+      source_template_occurrence_key: "weekly:2026-04-05:sunday",
+      source_template_schedule_id: "templateschedule_sunday",
+      source_template_task_id: "templatetask_plan",
+    });
+    expect(nextOccurrenceProjection.inserts).toHaveLength(1);
+    expect(duplicateProjection.inserts).toHaveLength(0);
   });
 
   test("renders future Template Tasks without Task identifiers or materialized Task rows", () => {

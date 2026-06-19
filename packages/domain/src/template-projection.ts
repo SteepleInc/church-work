@@ -1,5 +1,22 @@
 export type TemplateRecurrence = "none" | "weekly" | "monthly" | "quarterly" | "yearly";
 
+export type TemplateScheduleKind = "weekly" | "keyDate" | "monthly" | "quarterly" | "yearly";
+
+export type TemplateScheduleRecurrence = "oneOff" | "repeating";
+
+export type TemplateScheduleRule =
+  | { readonly kind: "weekly"; readonly weekdays: readonly number[] }
+  | { readonly kind: "keyDate"; readonly keyDateId: string; readonly repeat: "none" | "yearly" }
+  | { readonly kind: "monthly"; readonly repeat: "none" | "monthly" }
+  | { readonly kind: "quarterly"; readonly repeat: "none" | "quarterly" }
+  | { readonly kind: "yearly"; readonly repeat: "none" | "yearly" };
+
+export type TemplateTaskPlacement = {
+  readonly cycleOffsetFromEnd: number;
+  /** 0 = Monday, 6 = Sunday. */
+  readonly weekday: number;
+};
+
 export type KeyDateSchedule =
   | { readonly kind: "fixedYearly"; readonly month: number; readonly day: number }
   | {

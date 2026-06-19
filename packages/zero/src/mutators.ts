@@ -644,6 +644,8 @@ type WorkflowRow = { readonly id: string; readonly team_id: string };
 type TodoStatusRow = { readonly id: string; readonly workflow_id: string };
 type ExistingProjectedTaskRow = {
   readonly id: string;
+  readonly source_template_occurrence_key?: string | null;
+  readonly source_template_schedule_id?: string | null;
   readonly source_template_task_id: string;
 };
 type EffectiveTemplateCycleTask = {
@@ -687,8 +689,10 @@ type ProjectionTaskInsert = {
   readonly number: number;
   parent_task_id: string | null;
   readonly previous_identifiers: string;
-  readonly source_template_cycle_id: string;
+  readonly source_template_cycle_id: string | null;
   readonly source_template_id: string;
+  readonly source_template_occurrence_key: string | null;
+  readonly source_template_schedule_id: string | null;
   readonly source_template_sync_enabled: boolean;
   readonly source_template_task_id: string;
   readonly task_state: "todo";
@@ -769,6 +773,8 @@ export const buildTemplateCycleTaskInserts = (args: {
   readonly now: Date;
   readonly session_user_id: string;
   readonly start_number_by_team_id: ReadonlyMap<string, number>;
+  readonly source_template_occurrence_key?: string | null;
+  readonly source_template_schedule_id?: string | null;
   readonly template_id: string;
   readonly template_tasks: readonly TemplateTaskRow[];
   readonly template_teams: readonly TemplateTeamRow[];
@@ -776,19 +782,30 @@ export const buildTemplateCycleTaskInserts = (args: {
   readonly workflow_by_team_id: ReadonlyMap<string, WorkflowRow>;
 }) => {
   const nextNumberByTeamId = new Map(args.start_number_by_team_id);
-  const insertedTasksByTemplateTaskId = new Map<string, string>();
+  const insertedTasksBySourceKey = new Map<string, string>();
   const pendingParentLinks: Array<{
     readonly parentTemplateTaskId: string;
     readonly taskId: string;
   }> = [];
   const inserts: ProjectionTaskInsert[] = [];
+  const sourceTemplateScheduleId = args.source_template_schedule_id ?? null;
+  const sourceTemplateOccurrenceKey = args.source_template_occurrence_key ?? null;
+  const sourceKeyForTemplateTask = (templateTaskId: string) =>
+    sourceTemplateScheduleId && sourceTemplateOccurrenceKey
+      ? `${sourceTemplateScheduleId}\u0000${sourceTemplateOccurrenceKey}\u0000${templateTaskId}`
+      : templateTaskId;
 
   for (const existingTask of args.existing_projected_tasks ?? []) {
-    insertedTasksByTemplateTaskId.set(existingTask.source_template_task_id, existingTask.id);
+    const existingSourceKey =
+      existingTask.source_template_schedule_id && existingTask.source_template_occurrence_key
+        ? `${existingTask.source_template_schedule_id}\u0000${existingTask.source_template_occurrence_key}\u0000${existingTask.source_template_task_id}`
+        : existingTask.source_template_task_id;
+    insertedTasksBySourceKey.set(existingSourceKey, existingTask.id);
   }
 
   for (const effectiveTask of buildEffectiveTemplateCycleTasks(args)) {
-    if (insertedTasksByTemplateTaskId.has(effectiveTask.source_template_task_id)) continue;
+    const sourceKey = sourceKeyForTemplateTask(effectiveTask.source_template_task_id);
+    if (insertedTasksBySourceKey.has(sourceKey)) continue;
 
     const workflow = args.workflow_by_team_id.get(effectiveTask.team_id);
     if (!workflow) throw new Error("Template Team mapped Team does not have an active Workflow.");
@@ -797,7 +814,7 @@ export const buildTemplateCycleTaskInserts = (args: {
     const number = nextNumberByTeamId.get(effectiveTask.team_id) ?? 1;
     nextNumberByTeamId.set(effectiveTask.team_id, number + 1);
     const taskId = getTaskId();
-    insertedTasksByTemplateTaskId.set(effectiveTask.source_template_task_id, taskId);
+    insertedTasksBySourceKey.set(sourceKey, taskId);
     if (effectiveTask.parent_template_task_id) {
       pendingParentLinks.push({
         parentTemplateTaskId: effectiveTask.parent_template_task_id,
@@ -820,8 +837,10 @@ export const buildTemplateCycleTaskInserts = (args: {
       number,
       parent_task_id: null,
       previous_identifiers: "[]",
-      source_template_cycle_id: args.cycle.id,
+      source_template_cycle_id: null,
       source_template_id: args.template_id,
+      source_template_occurrence_key: sourceTemplateOccurrenceKey,
+      source_template_schedule_id: sourceTemplateScheduleId,
       source_template_sync_enabled: false,
       source_template_task_id: effectiveTask.source_template_task_id,
       task_state: "todo",
@@ -835,7 +854,8 @@ export const buildTemplateCycleTaskInserts = (args: {
   }
 
   for (const link of pendingParentLinks) {
-    const parentTaskId = insertedTasksByTemplateTaskId.get(link.parentTemplateTaskId) ?? null;
+    const parentTaskId =
+      insertedTasksBySourceKey.get(sourceKeyForTemplateTask(link.parentTemplateTaskId)) ?? null;
     const child = inserts.find((insert) => insert.id === link.taskId);
     if (child) child.parent_task_id = parentTaskId;
   }
@@ -1952,6 +1972,8 @@ export const mutators = defineMutators({
       const existingProjectedTasks = (await db
         .select({
           id: tasks.id,
+          source_template_occurrence_key: tasks.source_template_occurrence_key,
+          source_template_schedule_id: tasks.source_template_schedule_id,
           source_template_task_id: tasks.source_template_task_id,
         })
         .from(tasks)
@@ -1959,7 +1981,7 @@ export const mutators = defineMutators({
           and(
             eq(tasks.church_id, args.church_id),
             eq(tasks.source_template_id, args.template_id),
-            eq(tasks.source_template_cycle_id, args.cycle_id),
+            eq(tasks.cycle_id, args.cycle_id),
             isNull(tasks.deleted_at),
           ),
         )) as ExistingProjectedTaskRow[];

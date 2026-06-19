@@ -32,6 +32,8 @@ export type TaskCollectionItem = {
   readonly sourceTemplateId: string | null;
   readonly sourceTemplateTaskId: string | null;
   readonly sourceTemplateCycleId: string | null;
+  readonly sourceTemplateScheduleId: string | null;
+  readonly sourceTemplateOccurrenceKey: string | null;
   readonly sourceTemplateSyncEnabled: boolean;
 };
 
@@ -111,6 +113,8 @@ const mapTask = (task: Task, teamsById: ReadonlyMap<string, Team>): TaskCollecti
   previousIdentifiers: parseStringArray(task.previous_identifiers),
   sourceTemplateCycleId: task.source_template_cycle_id ?? null,
   sourceTemplateId: task.source_template_id ?? null,
+  sourceTemplateOccurrenceKey: task.source_template_occurrence_key ?? null,
+  sourceTemplateScheduleId: task.source_template_schedule_id ?? null,
   sourceTemplateSyncEnabled: task.source_template_sync_enabled ?? false,
   sourceTemplateTaskId: task.source_template_task_id ?? null,
   taskState: taskStatus(task.task_state),
