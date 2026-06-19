@@ -33,6 +33,9 @@ test("completed users land in the PreachX-style app shell", async ({ page }, tes
   await expect(
     page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Our Work" }),
   ).toBeVisible();
+  await expect(
+    page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Templates" }),
+  ).toBeVisible();
   const sidebar = page.locator('[data-sidebar="sidebar"]');
   await expect(sidebar.getByText("Settings", { exact: true })).toBeVisible();
   await expect(sidebar.getByRole("link", { exact: true, name: "Profile" })).toBeVisible();
@@ -52,6 +55,22 @@ test("shell navigation keeps work and settings routes inside the sidebar layout"
   await expect(page).toHaveURL(/\/our-work$/);
   await expect(page.getByRole("navigation", { name: "breadcrumb" })).toContainText("Our Work");
   await expect(page.getByText("To Do").first()).toBeVisible();
+
+  await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Templates" }).click();
+  await expect(page).toHaveURL(/\/templates$/);
+  await expect(page.getByRole("heading", { name: "Templates" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Schedules" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Library" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Key Dates" })).toBeVisible();
+  await expect(page.getByText("No Template Schedules yet")).toBeVisible();
+
+  await page.getByRole("tab", { name: "Library" }).click();
+  await expect(page).toHaveURL(/\/templates\/library$/);
+  await expect(page.getByText("No Templates yet")).toBeVisible();
+
+  await page.getByRole("tab", { name: "Key Dates" }).click();
+  await expect(page).toHaveURL(/\/templates\/key-dates$/);
+  await expect(page.getByRole("heading", { name: "Key Dates" })).toBeVisible();
 
   await page
     .locator('[data-sidebar="sidebar"]')

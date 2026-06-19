@@ -72,12 +72,14 @@ describe("app shell route behavior", () => {
     expect(getPrimaryAppShellNavItems()).toEqual([
       { label: "My Work", to: "/my-work", matchPath: "/my-work" },
       { label: "Our Work", to: "/our-work", matchPath: "/our-work" },
+      { label: "Templates", to: "/templates", matchPath: "/templates" },
     ]);
   });
 
   test("derives breadcrumb labels from user-facing routes", () => {
     expect(getBreadcrumbLabel("/my-work")).toBe("My Work");
     expect(getBreadcrumbLabel("/our-work")).toBe("Our Work");
+    expect(getBreadcrumbLabel("/templates/library")).toBe("Templates");
     expect(getBreadcrumbLabel("/settings")).toBe("Settings");
     expect(getBreadcrumbLabel("/team/team-1")).toBe("Team Work");
     expect(getBreadcrumbLabel("/dev/session")).toBe("Dev Session");

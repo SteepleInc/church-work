@@ -6,6 +6,7 @@ import {
   Settings01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { CalendarClock } from "lucide-react";
 
 import { ChurchIcon } from "@/components/icons/churchIcon";
 import { HomeIcon } from "@/components/icons/homeIcon";
@@ -35,6 +36,12 @@ export const workspaceNavItems: readonly NavItem[] = [
     icon: <NavIcon icon={AiFolder01Icon} />,
     title: "Our Work",
     to: "/our-work",
+  },
+  {
+    icon: <CalendarClock className="size-4" />,
+    matchPath: "/templates",
+    title: "Templates",
+    to: "/templates",
   },
 ];
 

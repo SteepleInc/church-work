@@ -13,6 +13,7 @@ export function getPrimaryAppShellNavItems() {
   return [
     { label: "My Work", to: "/my-work", matchPath: "/my-work" },
     { label: "Our Work", to: "/our-work", matchPath: "/our-work" },
+    { label: "Templates", to: "/templates", matchPath: "/templates" },
   ];
 }
 
@@ -29,6 +30,10 @@ export function getBreadcrumbLabel(pathname: string): string {
 
   if (pathname.startsWith("/settings")) {
     return "Settings";
+  }
+
+  if (pathname.startsWith("/templates")) {
+    return "Templates";
   }
 
   if (pathname.startsWith("/team/")) {
