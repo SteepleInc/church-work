@@ -69,7 +69,12 @@ const parseSchedule = (value: string): KeyDateRule | null => {
   }
 };
 
-const nextOccurrenceForSchedule = (schedule: KeyDateRule, today = new Date()) => {
+/**
+ * The next upcoming occurrence of a schedule as a local `YYYY-MM-DD` string, or
+ * null. Checks the current and next calendar year so a date that has already
+ * passed this year rolls forward to next year.
+ */
+export const nextOccurrenceForSchedule = (schedule: KeyDateRule, today = new Date()) => {
   const year = today.getUTCFullYear();
   const todayLocalDate = today.toISOString().slice(0, 10);
   for (const candidateYear of [year, year + 1]) {

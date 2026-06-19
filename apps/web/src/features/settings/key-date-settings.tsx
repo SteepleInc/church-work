@@ -24,6 +24,7 @@ import {
   formatKeyDateOccurrence,
   KEY_DATE_PRESET_OPTIONS,
   keyDateKindLabel,
+  nextOccurrenceForSchedule,
   useCreateKeyDate,
   useDeleteKeyDate,
   useKeyDatesCollection,
@@ -309,12 +310,13 @@ function NewKeyDateRow({
 }) {
   const [name, setName] = useState("");
   const [schedule, setSchedule] = useState<KeyDateRule>(defaultScheduleForKind("computedYearly"));
+  const nextOccurrence = nextOccurrenceForSchedule(schedule);
 
   return (
     <tr className="bg-muted/40">
-      <td className="h-16 rounded-lg pr-3 pl-3 align-middle" colSpan={4}>
-        <div className="flex flex-wrap items-center gap-3">
-          <CalendarDays className="size-4 shrink-0 text-muted-foreground" />
+      <td className="h-12 rounded-lg pr-2 pl-3 align-middle" colSpan={4}>
+        <div className="flex items-center gap-2">
+          <CalendarDays className="size-3.5 shrink-0 text-muted-foreground" />
           <KeyDateNameInput
             autoFocus
             defaultValue=""
@@ -324,8 +326,11 @@ function NewKeyDateRow({
             placeholder="Key Date name"
             value={name}
           />
-          <ScheduleEditor onChange={setSchedule} schedule={schedule} />
-          <div className="ml-auto flex items-center gap-2">
+          <ScheduleCell canManage onChange={setSchedule} schedule={schedule} />
+          <span className="hidden whitespace-nowrap text-muted-foreground text-xs tabular-nums sm:inline">
+            {formatKeyDateOccurrence(nextOccurrence)}
+          </span>
+          <div className="ml-auto flex items-center gap-1.5">
             <Button onClick={onCancel} size="sm" type="button" variant="ghost">
               Cancel
             </Button>
