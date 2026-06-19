@@ -132,6 +132,8 @@ const acquireSlot = (() => {
 for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   console.log(`\n=== Iteration ${iteration}/${MAX_ITERATIONS} ===\n`);
 
+  refreshBaseBranch();
+
   // -------------------------------------------------------------------------
   // Phase 1: Plan
   //
@@ -305,6 +307,13 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     const prUrl = publishIssuePr({ baseBranch: BASE_BRANCH, issue });
     console.log(`  PR ready for ${issue.id}: ${prUrl}`);
 
+    const readyForReview = await ensurePrBranchUpToDate({ issue, prUrl });
+    if (!readyForReview) {
+      console.warn(`  PR branch could not be brought up to date before review: ${prUrl}`);
+      process.exitCode = 1;
+      break;
+    }
+
     await runPostPrReview({ issue, prUrl });
 
     const autoMergeEnabled = AUTO_MERGE_PRS ? enableAutoMerge(prUrl) : false;
@@ -352,6 +361,10 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
         }
       }
     }
+
+    if (prIsMerged(prUrl)) {
+      refreshBaseBranch();
+    }
   }
 
   console.log("\nBranches published as GitHub PRs.");
@@ -361,6 +374,15 @@ console.log("\nAll done.");
 
 function currentBranch() {
   return sh("git branch --show-current").trim();
+}
+
+function refreshBaseBranch() {
+  console.log(`Refreshing ${BASE_BRANCH} from origin before continuing...`);
+  sh(`git fetch origin ${quote(BASE_BRANCH)}`);
+
+  if (currentBranch() === BASE_BRANCH) {
+    sh(`git pull --ff-only origin ${quote(BASE_BRANCH)}`);
+  }
 }
 
 function publishIssuePr({
