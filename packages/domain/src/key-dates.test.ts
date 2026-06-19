@@ -1,6 +1,11 @@
 import { describe, expect, test } from "vitest";
 
-import { STARTER_KEY_DATES, calculateKeyDateOccurrence } from "./key-dates";
+import {
+  STARTER_KEY_DATES,
+  calculateKeyDateOccurrence,
+  isValidFixedYearlyDate,
+  isValidLocalDate,
+} from "./key-dates";
 
 describe("Key Date occurrence calculation", () => {
   test("calculates built-in church and US holiday presets", () => {
@@ -40,6 +45,18 @@ describe("Key Date occurrence calculation", () => {
     expect(
       calculateKeyDateOccurrence({ kind: "oneTime", localDate: "2027-07-04" }, 2028),
     ).toBeNull();
+  });
+
+  test("validates local date schedules before occurrence calculation", () => {
+    expect(isValidLocalDate("2027-07-04")).toBe(true);
+    expect(isValidLocalDate("2027-02-29")).toBe(false);
+    expect(isValidFixedYearlyDate(2, 29)).toBe(true);
+    expect(isValidFixedYearlyDate(2, 30)).toBe(false);
+    expect(calculateKeyDateOccurrence({ kind: "fixedYearly", month: 2, day: 29 }, 2028)).toBe(
+      "2028-02-29",
+    );
+    expect(calculateKeyDateOccurrence({ kind: "fixedYearly", month: 2, day: 29 }, 2027)).toBeNull();
+    expect(calculateKeyDateOccurrence({ kind: "fixedYearly", month: 2, day: 30 }, 2027)).toBeNull();
   });
 
   test("defines US-centric Starter Key Dates", () => {

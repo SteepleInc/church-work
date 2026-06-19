@@ -1,5 +1,7 @@
 import {
   calculateKeyDateOccurrence,
+  isValidFixedYearlyDate,
+  isValidLocalDate,
   KEY_DATE_PRESETS,
   type KeyDatePreset,
   type KeyDateRule,
@@ -32,8 +34,13 @@ const keyDatePresets = new Set<unknown>(KEY_DATE_PRESETS);
 
 const isKeyDatePreset = (value: unknown): value is KeyDatePreset => keyDatePresets.has(value);
 
-const isValidLocalDate = (value: unknown): value is string =>
-  typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+const isLocalDateString = (value: unknown): value is string =>
+  typeof value === "string" && isValidLocalDate(value);
+
+const formatLocalDate = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate(),
+  ).padStart(2, "0")}`;
 
 const isKeyDateRule = (value: unknown): value is KeyDateRule => {
   if (!value || typeof value !== "object" || !("kind" in value)) return false;
@@ -46,18 +53,11 @@ const isKeyDateRule = (value: unknown): value is KeyDateRule => {
     const month = "month" in value ? value.month : null;
     const day = "day" in value ? value.day : null;
     return (
-      Number.isInteger(month) &&
-      Number.isInteger(day) &&
-      typeof month === "number" &&
-      typeof day === "number" &&
-      month >= 1 &&
-      month <= 12 &&
-      day >= 1 &&
-      day <= 31
+      typeof month === "number" && typeof day === "number" && isValidFixedYearlyDate(month, day)
     );
   }
 
-  return value.kind === "oneTime" && "localDate" in value && isValidLocalDate(value.localDate);
+  return value.kind === "oneTime" && "localDate" in value && isLocalDateString(value.localDate);
 };
 
 const parseSchedule = (value: string): KeyDateRule | null => {
@@ -75,8 +75,8 @@ const parseSchedule = (value: string): KeyDateRule | null => {
  * passed this year rolls forward to next year.
  */
 export const nextOccurrenceForSchedule = (schedule: KeyDateRule, today = new Date()) => {
-  const year = today.getUTCFullYear();
-  const todayLocalDate = today.toISOString().slice(0, 10);
+  const year = today.getFullYear();
+  const todayLocalDate = formatLocalDate(today);
   for (const candidateYear of [year, year + 1]) {
     const occurrence = calculateKeyDateOccurrence(schedule, candidateYear);
     if (occurrence && occurrence >= todayLocalDate) return occurrence;

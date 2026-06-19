@@ -21,6 +21,26 @@ export type KeyDateRule =
 const pad = (value: number) => value.toString().padStart(2, "0");
 const localDate = (year: number, month: number, day: number) => `${year}-${pad(month)}-${pad(day)}`;
 
+export const isValidLocalDate = (value: string) => {
+  try {
+    parseLocalDate(value);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const isValidFixedYearlyDate = (month: number, day: number) =>
+  Number.isInteger(month) &&
+  Number.isInteger(day) &&
+  month >= 1 &&
+  month <= 12 &&
+  day >= 1 &&
+  day <= new Date(Date.UTC(2024, month, 0)).getUTCDate();
+
+const isRealFixedYearlyOccurrence = (year: number, month: number, day: number) =>
+  isValidFixedYearlyDate(month, day) && day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
+
 const nthWeekdayOfMonth = (year: number, month: number, weekday: number, occurrence: number) => {
   const first = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
   const day = 1 + ((weekday - first + 7) % 7) + (occurrence - 1) * 7;
@@ -49,7 +69,10 @@ export const calculateKeyDateOccurrence = (schedule: KeyDateRule, year: number) 
   if (schedule.kind === "oneTime") {
     return parseLocalDate(schedule.localDate).year === year ? schedule.localDate : null;
   }
-  if (schedule.kind === "fixedYearly") return localDate(year, schedule.month, schedule.day);
+  if (schedule.kind === "fixedYearly") {
+    if (!isRealFixedYearlyOccurrence(year, schedule.month, schedule.day)) return null;
+    return localDate(year, schedule.month, schedule.day);
+  }
 
   const easter = calculateEasterDate(year);
   switch (schedule.rule) {
