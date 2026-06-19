@@ -748,6 +748,7 @@ type EstimateComboboxSelectorProps = {
   readonly value: TaskEstimate;
   readonly onValueChange: (value: TaskEstimate) => void;
   readonly trigger: ReactNode;
+  readonly triggerLabel?: string;
   readonly disabled?: boolean;
   // Populated by the parent so a card-level "Shift+E" hover shortcut can open
   // the picker without focusing the trigger.
@@ -764,6 +765,7 @@ export function EstimateComboboxSelector({
   value,
   onValueChange,
   trigger,
+  triggerLabel = "Change estimate",
   disabled = false,
   openRef,
 }: EstimateComboboxSelectorProps) {
@@ -789,7 +791,7 @@ export function EstimateComboboxSelector({
       value={value}
     >
       <ComboboxPrimitive.Trigger
-        aria-label="Change estimate"
+        aria-label={triggerLabel}
         className="inline-flex cursor-pointer items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-60"
         data-slot="card-combobox-trigger"
         // "Shift+E" opens the picker (matches Linear's "⇧ E" shortcut hint).

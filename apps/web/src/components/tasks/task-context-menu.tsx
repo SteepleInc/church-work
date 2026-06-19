@@ -261,6 +261,7 @@ export function TaskContextMenu({
               onValueChange={applyEstimate}
               openRef={estimateOpenRef}
               trigger={hiddenTrigger}
+              triggerLabel="Change estimate from context menu"
               value={multiple ? "no_estimate" : ((task.estimate ?? "no_estimate") as TaskEstimate)}
             />
           ) : null}
