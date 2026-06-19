@@ -223,6 +223,8 @@ export const tasks = pgTable(
     source_template_id: text("source_template_id"),
     source_template_task_id: text("source_template_task_id"),
     source_template_cycle_id: text("source_template_cycle_id"),
+    source_template_schedule_id: text("source_template_schedule_id"),
+    source_template_occurrence_key: text("source_template_occurrence_key"),
     source_template_sync_enabled: boolean("source_template_sync_enabled").notNull().default(false),
   },
   (table) => [
@@ -232,6 +234,15 @@ export const tasks = pgTable(
     uniqueIndex("tasks_team_number_live_idx")
       .on(table.team_id, table.number)
       .where(sql`${table.deleted_at} IS NULL`),
+    uniqueIndex("tasks_template_schedule_occurrence_task_live_idx")
+      .on(
+        table.source_template_schedule_id,
+        table.source_template_task_id,
+        table.source_template_occurrence_key,
+      )
+      .where(
+        sql`${table.deleted_at} IS NULL AND ${table.source_template_schedule_id} IS NOT NULL AND ${table.source_template_task_id} IS NOT NULL AND ${table.source_template_occurrence_key} IS NOT NULL`,
+      ),
   ],
 );
 
@@ -388,11 +399,36 @@ export const templates = pgTable(
     key: text("key").notNull(),
     name: text("name").notNull(),
     recurrence: text("recurrence").notNull(),
+    placement_shape: text("placement_shape"),
   },
   (table) => [
     index("templates_church_id_idx").on(table.church_id),
     uniqueIndex("templates_church_key_live_idx")
       .on(table.church_id, table.key)
+      .where(sql`${table.deleted_at} IS NULL`),
+  ],
+);
+
+export const template_schedules = pgTable(
+  "template_schedules",
+  {
+    id: text("id").primaryKey(),
+    ...baseEntityFields,
+    church_id: text("church_id").notNull(),
+    template_id: text("template_id").notNull(),
+    key: text("key").notNull(),
+    name: text("name").notNull(),
+    kind: text("kind").notNull(),
+    recurrence: text("recurrence").notNull(),
+    start_date: text("start_date").notNull(),
+    end_date: text("end_date"),
+    rule: text("rule").notNull().default("{}"),
+  },
+  (table) => [
+    index("template_schedules_church_id_idx").on(table.church_id),
+    index("template_schedules_template_id_idx").on(table.template_id),
+    uniqueIndex("template_schedules_template_key_live_idx")
+      .on(table.template_id, table.key)
       .where(sql`${table.deleted_at} IS NULL`),
   ],
 );
@@ -454,6 +490,8 @@ export const template_tasks = pgTable(
     title: text("title").notNull(),
     parent_template_task_id: text("parent_template_task_id"),
     scheduling_rule: text("scheduling_rule").notNull(),
+    placement_cycle_offset: integer("placement_cycle_offset"),
+    placement_weekday: integer("placement_weekday"),
   },
   (table) => [
     index("template_tasks_church_id_idx").on(table.church_id),
@@ -569,6 +607,7 @@ export const schema = {
   team_memberships,
   teams,
   template_tasks,
+  template_schedules,
   template_teams,
   templates,
   tasks,

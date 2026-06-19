@@ -1,5 +1,50 @@
 export type TemplateRecurrence = "none" | "weekly" | "monthly" | "quarterly" | "yearly";
 
+export type TemplateScheduleKind = "weekly" | "keyDate" | "monthly" | "quarterly" | "yearly";
+
+export type TemplateScheduleRecurrence = "oneOff" | "repeating";
+
+export type TemplateScheduleRule =
+  | { readonly kind: "weekly"; readonly weekdays: readonly number[] }
+  | { readonly kind: "keyDate"; readonly keyDateId: string; readonly repeat: "none" | "yearly" }
+  | { readonly kind: "monthly"; readonly repeat: "none" | "monthly" }
+  | { readonly kind: "quarterly"; readonly repeat: "none" | "quarterly" }
+  | { readonly kind: "yearly"; readonly repeat: "none" | "yearly" };
+
+export type TemplateScheduleContract = {
+  readonly kind: TemplateScheduleKind;
+  readonly recurrence: TemplateScheduleRecurrence;
+  readonly rule: TemplateScheduleRule;
+};
+
+export const assertTemplateScheduleContract = (schedule: TemplateScheduleContract) => {
+  if (schedule.kind !== schedule.rule.kind) {
+    throw new Error("Template Schedule kind must match its rule kind.");
+  }
+
+  if (
+    schedule.recurrence === "oneOff" &&
+    "repeat" in schedule.rule &&
+    schedule.rule.repeat !== "none"
+  ) {
+    throw new Error("One-off Template Schedule rules must not repeat.");
+  }
+
+  if (
+    schedule.recurrence === "repeating" &&
+    "repeat" in schedule.rule &&
+    schedule.rule.repeat === "none"
+  ) {
+    throw new Error("Repeating Template Schedule rules must repeat.");
+  }
+};
+
+export type TemplateTaskPlacement = {
+  readonly cycleOffsetFromEnd: number;
+  /** 0 = Monday, 6 = Sunday. */
+  readonly weekday: number;
+};
+
 export type KeyDateSchedule =
   | { readonly kind: "fixedYearly"; readonly month: number; readonly day: number }
   | {

@@ -30,6 +30,7 @@ const churchScopedQueryNames = [
   "labels.by_church",
   "team_memberships.by_church",
   "teams.by_church",
+  "template_schedules.by_church",
   "template_tasks.by_church",
   "template_teams.by_church",
   "templates.by_church",

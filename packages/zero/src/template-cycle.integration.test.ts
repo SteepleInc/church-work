@@ -171,7 +171,7 @@ describe("template-to-cycle projection integration", () => {
       const projectedTasks = await db
         .select()
         .from(tasks)
-        .where(eq(tasks.source_template_cycle_id, "cycle_easter_integration"));
+        .where(eq(tasks.cycle_id, "cycle_easter_integration"));
       const projectedTeam = await db
         .select({ next_task_number: teams.next_task_number })
         .from(teams)
@@ -192,7 +192,10 @@ describe("template-to-cycle projection integration", () => {
         cycle_id: "cycle_easter_integration",
         due_date: "2026-03-31",
         parent_task_id: null,
+        source_template_cycle_id: "cycle_easter_integration",
         source_template_id: "template_easter_integration",
+        source_template_occurrence_key: null,
+        source_template_schedule_id: null,
         source_template_sync_enabled: false,
         source_template_task_id: "templatetask_parent_integration",
         task_state: "todo",
@@ -221,7 +224,7 @@ describe("template-to-cycle projection integration", () => {
       const projectedAgain = await db
         .select()
         .from(tasks)
-        .where(eq(tasks.source_template_cycle_id, "cycle_easter_integration"));
+        .where(eq(tasks.cycle_id, "cycle_easter_integration"));
       const teamAgain = await db
         .select({ next_task_number: teams.next_task_number })
         .from(teams)

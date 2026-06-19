@@ -245,6 +245,22 @@ export const queries = defineQueries({
         .orderBy("name", "asc");
     }),
   },
+  template_schedules: {
+    by_church: defineChurchTaskQuery(ChurchScopedArgs, ({ args, ctx }) => {
+      if (!hasActiveChurchAccess(ctx, args.church_id)) {
+        if (isServerContext(ctx)) requireActiveChurchAccess(ctx, args.church_id);
+
+        return zql.template_schedules
+          .where("id", "__unauthorized__")
+          .where("deleted_at", "IS", null);
+      }
+
+      return zql.template_schedules
+        .where("church_id", args.church_id)
+        .where("deleted_at", "IS", null)
+        .orderBy("name", "asc");
+    }),
+  },
   template_teams: {
     by_church: defineChurchTaskQuery(ChurchScopedArgs, ({ args, ctx }) => {
       if (!hasActiveChurchAccess(ctx, args.church_id)) {
