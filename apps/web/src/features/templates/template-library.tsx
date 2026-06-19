@@ -64,7 +64,30 @@ export function TemplatesPage({ tab }: { readonly tab: TemplateLibraryTab }) {
   const churchId = activeChurch?.id ?? null;
   const templates = useTemplatesCollection({ churchId });
   const schedules = useTemplateSchedulesCollection({ churchId });
-  const loading = orgLoading || templates.loading || schedules.loading;
+  const templatesLoading = orgLoading || templates.loading || schedules.loading;
+
+  const renderCurrentTab = () => {
+    switch (tab) {
+      case "schedules":
+        return (
+          <TemplateSchedulesPanel
+            description={TAB_DESCRIPTION.schedules}
+            loading={templatesLoading}
+            schedules={schedules.templateSchedulesCollection}
+          />
+        );
+      case "library":
+        return (
+          <TemplateLibraryPanel
+            description={TAB_DESCRIPTION.library}
+            loading={templatesLoading}
+            templates={templates.templatesCollection}
+          />
+        );
+      case "key-dates":
+        return <SettingsKeyDatesPanel embedded />;
+    }
+  };
 
   return (
     <MainContainer>
@@ -88,21 +111,7 @@ export function TemplatesPage({ tab }: { readonly tab: TemplateLibraryTab }) {
           </PageTabsList>
         </PageTabs>
 
-        {tab === "schedules" ? (
-          <TemplateSchedulesPanel
-            description={TAB_DESCRIPTION.schedules}
-            loading={loading}
-            schedules={schedules.templateSchedulesCollection}
-          />
-        ) : tab === "library" ? (
-          <TemplateLibraryPanel
-            description={TAB_DESCRIPTION.library}
-            loading={loading}
-            templates={templates.templatesCollection}
-          />
-        ) : (
-          <SettingsKeyDatesPanel embedded />
-        )}
+        {renderCurrentTab()}
       </PageContainer>
     </MainContainer>
   );
@@ -216,18 +225,24 @@ function TemplateLibraryPanel({
             </div>
             <div className="min-w-0">
               <h2 className="truncate font-medium">{template.name}</h2>
-              <p className="text-muted-foreground text-sm">
-                {template.scheduleCount === 0
-                  ? "Unscheduled"
-                  : `${template.scheduleCount} schedule${template.scheduleCount === 1 ? "" : "s"}`}{" "}
-                · {template.taskCount} task{template.taskCount === 1 ? "" : "s"}
-              </p>
+              <p className="text-muted-foreground text-sm">{formatTemplateCardSummary(template)}</p>
             </div>
           </Link>
         ))}
       </div>
     </div>
   );
+}
+
+function formatCount(count: number, singular: string, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function formatTemplateCardSummary(template: TemplateCollectionItem) {
+  const scheduleSummary =
+    template.scheduleCount === 0 ? "Unscheduled" : formatCount(template.scheduleCount, "schedule");
+
+  return `${scheduleSummary} · ${formatCount(template.taskCount, "task")}`;
 }
 
 export function TemplateDetailPage({ templateId }: { readonly templateId: string }) {
