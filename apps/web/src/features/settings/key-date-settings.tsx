@@ -45,7 +45,16 @@ const slugifyKey = (name: string) =>
     .replace(/^-+|-+$/g, "")
     .slice(0, 64) || "key-date";
 
-export function SettingsKeyDatesPanel() {
+export function SettingsKeyDatesPanel({
+  embedded = false,
+}: {
+  /**
+   * When embedded inside a host surface that already renders its own page
+   * heading (e.g. the Templates page), suppress the panel's own h1/description
+   * so the page never stacks two headings.
+   */
+  readonly embedded?: boolean;
+} = {}) {
   const { currentOrgOpt: activeChurch, loading } = useCurrentOrgOpt();
   const keyDates = useKeyDatesCollection({ churchId: activeChurch?.id ?? null });
   const canManage = activeChurch?.role === "owner" || activeChurch?.role === "admin";
@@ -54,6 +63,7 @@ export function SettingsKeyDatesPanel() {
     <KeyDatesSettingsPanel
       canManage={canManage}
       churchId={activeChurch?.id ?? null}
+      embedded={embedded}
       hasChurch={Boolean(activeChurch) || loading}
       keyDates={keyDates.keyDatesCollection}
       loading={loading || keyDates.loading}
@@ -72,12 +82,14 @@ export function SettingsKeyDatesPanel() {
 function KeyDatesSettingsPanel({
   canManage,
   churchId,
+  embedded,
   hasChurch,
   keyDates,
   loading,
 }: {
   readonly canManage: boolean;
   readonly churchId: string | null;
+  readonly embedded: boolean;
   readonly hasChurch: boolean;
   readonly keyDates: readonly KeyDateItem[];
   readonly loading: boolean;
@@ -209,14 +221,16 @@ function KeyDatesSettingsPanel({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="font-semibold text-2xl tracking-tight">Key Dates</h1>
-        <p className="text-muted-foreground text-sm">
-          Named dates with planning significance — Easter, Christmas, a church anniversary.
-          Templates can schedule work around them.
-          {canManage ? null : " Only owners and admins can change Key Dates."}
-        </p>
-      </div>
+      {embedded ? null : (
+        <div className="flex flex-col gap-1">
+          <h1 className="font-semibold text-2xl tracking-tight">Key Dates</h1>
+          <p className="text-muted-foreground text-sm">
+            Named dates with planning significance — Easter, Christmas, a church anniversary.
+            Templates can schedule work around them.
+            {canManage ? null : " Only owners and admins can change Key Dates."}
+          </p>
+        </div>
+      )}
 
       <div className="flex items-center justify-between gap-3">
         <div className="relative w-full max-w-xs">
