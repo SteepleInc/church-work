@@ -29,6 +29,7 @@ export default drizzleZeroConfig(drizzleSchema, {
     team_memberships: true,
     teams: true,
     template_tasks: true,
+    template_schedules: true,
     template_teams: true,
     templates: true,
     tasks: true,
