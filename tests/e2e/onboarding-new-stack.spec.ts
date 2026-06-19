@@ -51,7 +51,7 @@ test("completes OTP sign-in through onboarding on the local Postgres and Zero st
     .getByRole("row", { name: new RegExp(keyDateName) })
     .getByRole("button", { name: keyDateName })
     .click();
-  await page.getByDisplayValue(keyDateName).fill(renamedKeyDateName);
+  await page.getByPlaceholder("Key Date name").fill(renamedKeyDateName);
   await page.keyboard.press("Enter");
   await expect(page.getByRole("row", { name: new RegExp(renamedKeyDateName) })).toBeVisible({
     timeout: 20_000,
