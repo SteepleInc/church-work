@@ -153,6 +153,12 @@ function TemplateSchedulesPanel({
   const [pendingSchedule, setPendingSchedule] = useState<TemplateScheduleCollectionItem | null>(
     null,
   );
+  const confirmDeleteSchedule = (cleanupCurrentOccurrence: boolean) => {
+    if (!churchId || !pendingSchedule) {
+      return Promise.resolve({ error: { message: "Select a Schedule to delete." }, ok: false });
+    }
+    return removeSchedule({ churchId, cleanupCurrentOccurrence, schedule: pendingSchedule });
+  };
 
   if (loading) return <TemplateListSkeleton />;
   if (schedules.length === 0) {
@@ -238,13 +244,7 @@ function TemplateSchedulesPanel({
       </div>
 
       <DeleteScheduleDialog
-        onConfirm={(cleanupCurrentOccurrence) =>
-          removeSchedule({
-            churchId: churchId ?? "",
-            cleanupCurrentOccurrence,
-            schedule: pendingSchedule as TemplateScheduleCollectionItem,
-          })
-        }
+        onConfirm={confirmDeleteSchedule}
         onOpenChange={(open) => {
           if (!open) setPendingSchedule(null);
         }}
@@ -270,6 +270,12 @@ function TemplateLibraryPanel({
 }) {
   const { removeTemplate } = useTemplateSoftDelete();
   const [pendingTemplate, setPendingTemplate] = useState<TemplateCollectionItem | null>(null);
+  const confirmDeleteTemplate = () => {
+    if (!churchId || !pendingTemplate) {
+      return Promise.resolve({ error: { message: "Select a Template to delete." }, ok: false });
+    }
+    return removeTemplate({ churchId, id: pendingTemplate.id, name: pendingTemplate.name });
+  };
 
   if (loading) return <TemplateCardSkeleton />;
   if (templates.length === 0) {
@@ -343,13 +349,7 @@ function TemplateLibraryPanel({
       </div>
 
       <DeleteTemplateDialog
-        onConfirm={() =>
-          removeTemplate({
-            churchId: churchId ?? "",
-            id: pendingTemplate?.id ?? "",
-            name: pendingTemplate?.name ?? "",
-          })
-        }
+        onConfirm={confirmDeleteTemplate}
         onOpenChange={(open) => {
           if (!open) setPendingTemplate(null);
         }}
@@ -390,6 +390,12 @@ export function TemplateDetailPage({ templateId }: { readonly templateId: string
   const [pendingSchedule, setPendingSchedule] = useState<TemplateScheduleCollectionItem | null>(
     null,
   );
+  const confirmDeleteSchedule = (cleanupCurrentOccurrence: boolean) => {
+    if (!churchId || !pendingSchedule) {
+      return Promise.resolve({ error: { message: "Select a Schedule to delete." }, ok: false });
+    }
+    return removeSchedule({ churchId, cleanupCurrentOccurrence, schedule: pendingSchedule });
+  };
 
   return (
     <MainContainer>
@@ -514,8 +520,14 @@ export function TemplateDetailPage({ templateId }: { readonly templateId: string
 
             <DeleteTemplateDialog
               onConfirm={async () => {
+                if (!churchId) {
+                  return {
+                    error: { message: "Select a Church before deleting a Template." },
+                    ok: false,
+                  };
+                }
                 const result = await removeTemplate({
-                  churchId: churchId ?? "",
+                  churchId,
                   id: template.id,
                   name: template.name,
                 });
@@ -531,13 +543,7 @@ export function TemplateDetailPage({ templateId }: { readonly templateId: string
             />
 
             <DeleteScheduleDialog
-              onConfirm={(cleanupCurrentOccurrence) =>
-                removeSchedule({
-                  churchId: churchId ?? "",
-                  cleanupCurrentOccurrence,
-                  schedule: pendingSchedule as TemplateScheduleCollectionItem,
-                })
-              }
+              onConfirm={confirmDeleteSchedule}
               onOpenChange={(open) => {
                 if (!open) setPendingSchedule(null);
               }}

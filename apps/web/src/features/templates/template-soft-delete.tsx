@@ -167,9 +167,12 @@ export function DeleteTemplateDialog({
 
   const handleConfirm = async () => {
     setWorking(true);
-    const result = await onConfirm();
-    setWorking(false);
-    if (result.ok) onOpenChange(false);
+    try {
+      const result = await onConfirm();
+      if (result.ok) onOpenChange(false);
+    } finally {
+      setWorking(false);
+    }
   };
 
   return (
@@ -225,9 +228,12 @@ export function DeleteTemplateTaskDialog({
 
   const handleConfirm = async () => {
     setWorking(true);
-    const result = await onConfirm();
-    setWorking(false);
-    if (result.ok) onOpenChange(false);
+    try {
+      const result = await onConfirm();
+      if (result.ok) onOpenChange(false);
+    } finally {
+      setWorking(false);
+    }
   };
 
   return (
@@ -291,9 +297,12 @@ export function DeleteScheduleDialog({
 
   const handleConfirm = async () => {
     setWorking(true);
-    const result = await onConfirm(canCleanup && cleanup);
-    setWorking(false);
-    if (result.ok) onOpenChange(false);
+    try {
+      const result = await onConfirm(canCleanup && cleanup);
+      if (result.ok) onOpenChange(false);
+    } finally {
+      setWorking(false);
+    }
   };
 
   return (
