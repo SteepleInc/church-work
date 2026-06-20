@@ -34,6 +34,7 @@ import {
   slugifyKeyDateKey,
   uniqueKeyDateKey,
 } from "@/features/settings/key-date-schedule";
+import { CreateKeyDateQuickAction } from "@/features/quick-actions/create-key-date-quick-action";
 import { useQuickActionOpeners } from "@/features/quick-actions/quick-actions-state";
 import { cn } from "@/lib/utils";
 
@@ -61,14 +62,20 @@ export function SettingsKeyDatesPanel({
   const canManage = activeChurch?.role === "owner" || activeChurch?.role === "admin";
 
   return (
-    <KeyDatesSettingsPanel
-      canManage={canManage}
-      churchId={activeChurch?.id ?? null}
-      embedded={embedded}
-      hasChurch={Boolean(activeChurch) || loading}
-      keyDates={keyDates.keyDatesCollection}
-      loading={loading || keyDates.loading}
-    />
+    <>
+      <KeyDatesSettingsPanel
+        canManage={canManage}
+        churchId={activeChurch?.id ?? null}
+        embedded={embedded}
+        hasChurch={Boolean(activeChurch) || loading}
+        keyDates={keyDates.keyDatesCollection}
+        loading={loading || keyDates.loading}
+      />
+      {/* The Settings shell does not mount the global QuickActions, so the
+          Create Key Date dialog is mounted here for the settings page's
+          "New Key Date" button. */}
+      <CreateKeyDateQuickAction />
+    </>
   );
 }
 
