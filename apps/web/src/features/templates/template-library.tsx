@@ -474,15 +474,29 @@ export function TemplateDetailPage({ templateId }: { readonly templateId: string
                           {formatTemplateScheduleOccurrence(schedule.nextOccurrence)}
                         </span>
                         {canManage ? (
-                          <Button
-                            aria-label={`Stop ${schedule.name}`}
-                            className="text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
-                            onClick={() => setPendingSchedule(schedule)}
-                            size="icon-sm"
-                            variant="ghost"
-                          >
-                            <Trash2 />
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger
+                              render={
+                                <Button
+                                  aria-label={`Schedule actions for ${schedule.name}`}
+                                  className="text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
+                                  size="icon-sm"
+                                  variant="ghost"
+                                />
+                              }
+                            >
+                              <MoreHorizontal />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" side="bottom">
+                              <DropdownMenuItem
+                                onClick={() => setPendingSchedule(schedule)}
+                                variant="destructive"
+                              >
+                                <Trash2 />
+                                Stop Schedule
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         ) : null}
                       </div>
                     </div>
