@@ -82,7 +82,38 @@ export type TemplateScheduleCollectionItem = {
   readonly kindLabel: string;
   readonly recurrence: string;
   readonly nextOccurrence: string | null;
+  /**
+   * The occurrence key for this Schedule's next/current occurrence, matching the
+   * projection key format the cleanup mutator scopes by. Null when the Schedule
+   * has no upcoming occurrence or uses a Cadence the cleanup prompt cannot scope
+   * (so the cleanup toggle is hidden rather than silently a no-op).
+   */
+  readonly currentOccurrenceKey: string | null;
   readonly recentUsage: string;
+};
+
+const WEEKDAY_KEY_NAMES = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+] as const;
+
+const scheduleOccurrenceKey = (params: {
+  readonly kind: string;
+  readonly occurrenceDate: string | null;
+}): string | null => {
+  if (!params.occurrenceDate) return null;
+  const weekday = new Date(`${params.occurrenceDate}T00:00:00.000Z`).getUTCDay();
+  switch (params.kind) {
+    case "weekly":
+      return `weekly:${params.occurrenceDate}:${WEEKDAY_KEY_NAMES[weekday]}`;
+    default:
+      return null;
+  }
 };
 
 type TemplateRow = {
@@ -172,23 +203,30 @@ export function buildTemplateSchedulesCollection(params: {
   const templatesById = new Map(params.templates.map((template) => [template.id, template.name]));
   const today = params.today ?? new Date().toISOString().slice(0, 10);
 
-  return params.schedules.map((schedule) => ({
-    id: schedule.id,
-    key: schedule.key,
-    name: schedule.name,
-    templateId: schedule.template_id,
-    templateName: templatesById.get(schedule.template_id) ?? "Unknown Template",
-    kind: schedule.kind,
-    kindLabel: templateScheduleKindLabel(schedule.kind),
-    nextOccurrence:
+  return params.schedules.map((schedule) => {
+    const nextOccurrence =
       schedule.end_date && schedule.end_date < today
         ? null
         : schedule.start_date >= today
           ? schedule.start_date
-          : null,
-    recentUsage: "Usage history coming soon",
-    recurrence: schedule.recurrence,
-  }));
+          : null;
+    return {
+      currentOccurrenceKey: scheduleOccurrenceKey({
+        kind: schedule.kind,
+        occurrenceDate: nextOccurrence,
+      }),
+      id: schedule.id,
+      key: schedule.key,
+      kind: schedule.kind,
+      kindLabel: templateScheduleKindLabel(schedule.kind),
+      name: schedule.name,
+      nextOccurrence,
+      recentUsage: "Usage history coming soon",
+      recurrence: schedule.recurrence,
+      templateId: schedule.template_id,
+      templateName: templatesById.get(schedule.template_id) ?? "Unknown Template",
+    };
+  });
 }
 
 export function useTemplatesCollection(params: { readonly churchId: string | null }) {
