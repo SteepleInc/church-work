@@ -259,6 +259,31 @@ export function useTemplatesCollection(params: { readonly churchId: string | nul
   };
 }
 
+/**
+ * The templates Collection shaped for the generic `Collection` component:
+ * client-side name filtering driven by the URL filter, plus the pagination
+ * fields the component expects (templates are not server-paginated yet, so the
+ * whole filtered set is returned in one page).
+ */
+export function useTemplatesCollectionWithFilters(params: {
+  readonly churchId: string | null;
+  readonly nameFilter: string;
+}) {
+  const { collection, loading } = useTemplatesCollection({ churchId: params.churchId });
+  const needle = params.nameFilter.trim().toLowerCase();
+  const filtered = needle
+    ? collection.filter((template) => template.name.toLowerCase().includes(needle))
+    : collection;
+
+  return {
+    limit: filtered.length,
+    loading,
+    nextPage: () => {},
+    pageSize: filtered.length,
+    templatesCollection: filtered,
+  };
+}
+
 export function useCreateWeeklyServiceTemplate() {
   const zero = useZero();
   return useCallback(

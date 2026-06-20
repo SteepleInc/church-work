@@ -14,6 +14,7 @@ export const DashboardSearchSchema = Schema.Struct({
   [FilterKeys.Orgs]: lenientSearchField(FilterStateValueSchema),
   [FilterKeys.Users]: lenientSearchField(FilterStateValueSchema),
   [FilterKeys.Tasks]: lenientSearchField(FilterStateValueSchema),
+  [FilterKeys.Templates]: lenientSearchField(FilterStateValueSchema),
 });
 
 /**

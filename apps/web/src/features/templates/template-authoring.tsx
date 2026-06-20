@@ -243,6 +243,130 @@ export function TemplateAuthoring() {
   );
 }
 
+// --- Big-action stepper flow -----------------------------------------------
+
+/** Labels and descriptions for each step of each authoring shape's stepper. */
+export const TEMPLATE_FLOW_STEPS: Record<
+  TemplateShape,
+  readonly { readonly label: string; readonly description: string }[]
+> = {
+  key_date: [
+    { description: "Pick the authoring frame", label: "Shape" },
+    { description: "Name this Template", label: "Name" },
+    { description: "Anchor to a Key Date", label: "Key Date" },
+    { description: "Place Template Tasks", label: "Tasks" },
+    { description: "Preview and save", label: "Save" },
+  ],
+  monthly: PERIOD_FLOW_STEPS_LABELS("monthly"),
+  quarterly: PERIOD_FLOW_STEPS_LABELS("quarterly"),
+  weekly_service: [
+    { description: "Pick the authoring frame", label: "Shape" },
+    { description: "Name this Template", label: "Details" },
+    { description: "Choose the service weekday", label: "Schedule" },
+    { description: "Place Template Tasks", label: "Tasks" },
+    { description: "Preview and save", label: "Save" },
+  ],
+  yearly: PERIOD_FLOW_STEPS_LABELS("yearly"),
+};
+
+function PERIOD_FLOW_STEPS_LABELS(
+  shape: PeriodTemplatePlacementShape,
+): readonly { readonly label: string; readonly description: string }[] {
+  return [
+    { description: "Pick the authoring frame", label: "Shape" },
+    { description: "Name this Template", label: "Details" },
+    { description: `${SHAPE_META[shape].badge} cadence`, label: "Schedule" },
+    { description: "Place Template Tasks", label: "Tasks" },
+    { description: "Preview and save", label: "Save" },
+  ];
+}
+
+export function templateFlowStepCount(shape: TemplateShape): number {
+  return TEMPLATE_FLOW_STEPS[shape].length;
+}
+
+/**
+ * Footer navigation for a single stepper screen inside the create-Template big
+ * action. Renders Back/Next on the left/right, with an optional primary action
+ * (Save) on the final screen supplied by the step itself.
+ */
+function StepNav({
+  canAdvance = true,
+  isFirst,
+  isLast,
+  nextLabel = "Next",
+  onBack,
+  onNext,
+  primary,
+}: {
+  readonly canAdvance?: boolean;
+  readonly isFirst: boolean;
+  readonly isLast: boolean;
+  readonly nextLabel?: string;
+  readonly onBack: () => void;
+  readonly onNext: () => void;
+  readonly primary?: ReactNode;
+}) {
+  return (
+    <div className="mt-2 flex items-center justify-between gap-3 pl-9">
+      <Button disabled={isFirst} onClick={onBack} type="button" variant="ghost">
+        Back
+      </Button>
+      {isLast ? (
+        primary
+      ) : (
+        <Button disabled={!canAdvance} onClick={onNext} type="button">
+          {nextLabel}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The create-Template flow, rendered one stepper screen at a time. Step 0 is the
+ * shared shape picker; subsequent steps delegate to the per-shape orchestrator,
+ * which holds all authoring state and renders only its active screen.
+ */
+export function TemplateAuthoringFlow({
+  shape,
+  step,
+  onShapeChange,
+  onStepChange,
+  onClose,
+}: {
+  readonly shape: TemplateShape;
+  readonly step: number;
+  readonly onShapeChange: (shape: TemplateShape) => void;
+  readonly onStepChange: (step: number) => void;
+  readonly onClose: () => void;
+}) {
+  const goBack = () => onStepChange(Math.max(step - 1, 0));
+  const goForward = () => onStepChange(step + 1);
+
+  if (step === 0) {
+    return (
+      <div className="flex flex-col gap-6">
+        <ShapeStep onSelect={onShapeChange} shape={shape} />
+        <StepNav isFirst isLast={false} onBack={goBack} onNext={goForward} />
+      </div>
+    );
+  }
+
+  return shape === "key_date" ? (
+    <KeyDateAuthoring goBack={goBack} goForward={goForward} onClose={onClose} step={step} />
+  ) : (
+    <WeeklyServiceAuthoring
+      goBack={goBack}
+      goForward={goForward}
+      initialShape={shape}
+      onClose={onClose}
+      onShapeChange={onShapeChange}
+      step={step}
+    />
+  );
+}
+
 /**
  * The weekly service Template authoring flow. A single guided surface that
  * mirrors Church Task's planning language: choose the service weekday, place
@@ -254,10 +378,24 @@ export function TemplateAuthoring() {
 function WeeklyServiceAuthoring({
   initialShape,
   onShapeChange,
+  step = 4,
+  goBack,
+  goForward,
+  onClose,
 }: {
   readonly initialShape: TemplateAuthoringShape;
   readonly onShapeChange: (shape: TemplateAuthoringShape) => void;
+  /**
+   * The active stepper screen (1-based; step 0 is the shared shape picker handled
+   * by the parent flow). When omitted, the legacy stacked layout renders all
+   * steps at once (used by the standalone authoring page).
+   */
+  readonly step?: number;
+  readonly goBack?: () => void;
+  readonly goForward?: () => void;
+  readonly onClose?: () => void;
 }) {
+  const stepped = step !== undefined;
   const { currentOrgOpt: activeChurch, loading: churchLoading } = useCurrentOrgOpt();
   const churchId = activeChurch?.id ?? null;
   const currentUserId = activeChurch?.currentUserId ?? null;
@@ -445,89 +583,137 @@ function WeeklyServiceAuthoring({
 
   const dataLoading = churchLoading;
 
-  return (
-    <div className="flex flex-col gap-8">
-      <PeriodShapeStep
-        name={name}
-        onNameChange={(next) => {
-          setSaved(false);
-          setName(next);
-        }}
-        onShapeChange={(next) => {
-          setSaved(false);
-          selectShape(next);
-          setSchedule(true);
-        }}
-        shape={shape}
-      />
+  const shapeStep = (
+    <PeriodShapeStep
+      name={name}
+      onNameChange={(next) => {
+        setSaved(false);
+        setName(next);
+      }}
+      onShapeChange={(next) => {
+        setSaved(false);
+        selectShape(next);
+        setSchedule(true);
+      }}
+      shape={shape}
+    />
+  );
 
-      {shape === "weekly_service" ? (
-        <ScheduleStep
-          onWeekdayChange={(next) => {
-            setSaved(false);
-            setServiceWeekday(next);
-          }}
-          serviceWeekday={serviceWeekday}
-          startDate={startDate}
-          step={2}
-        />
-      ) : (
-        <PeriodScheduleStep
-          frame={periodFrame}
-          onRepeatYearlyChange={(next) => {
-            setSaved(false);
-            setRepeatYearly(next);
-          }}
-          repeatYearly={repeatYearly}
-          shape={shape}
-          startDate={periodStartDate}
-        />
-      )}
-
-      {shape === "weekly_service" ? (
-        <CycleCalendarStep
-          addTask={addTask}
-          fieldProps={taskFieldProps}
-          loading={dataLoading}
-          removeTask={removeTask}
-          serviceWeekday={serviceWeekday}
-          step={3}
-          tasks={tasks}
-          updateTask={updateTask}
-        />
-      ) : (
-        <PeriodFrameStep
-          addTask={addTask}
-          fieldProps={taskFieldProps}
-          frame={periodFrame}
-          loading={dataLoading}
-          removeTask={removeTask}
-          shape={shape}
-          tasks={tasks}
-          teamsAvailable={teamsCollection.length > 0}
-          updateTask={updateTask}
-        />
-      )}
-
-      <SaveStep
-        canSave={Boolean(churchId) && placedCount > 0}
-        error={error}
-        frame={periodFrame}
-        onSave={save}
-        onScheduleChange={(next) => {
+  const scheduleStep =
+    shape === "weekly_service" ? (
+      <ScheduleStep
+        onWeekdayChange={(next) => {
           setSaved(false);
-          setSchedule(next);
+          setServiceWeekday(next);
         }}
-        placedCount={placedCount}
-        repeatYearly={repeatYearly}
-        saved={saved}
-        saving={saving}
-        schedule={schedule}
         serviceWeekday={serviceWeekday}
+        startDate={startDate}
+        step={2}
+      />
+    ) : (
+      <PeriodScheduleStep
+        frame={periodFrame}
+        onRepeatYearlyChange={(next) => {
+          setSaved(false);
+          setRepeatYearly(next);
+        }}
+        repeatYearly={repeatYearly}
         shape={shape}
-        startDate={shape === "weekly_service" ? startDate : periodStartDate}
-        step={4}
-        templateName={name}
+        startDate={periodStartDate}
+      />
+    );
+
+  const tasksStep =
+    shape === "weekly_service" ? (
+      <CycleCalendarStep
+        addTask={addTask}
+        fieldProps={taskFieldProps}
+        loading={dataLoading}
+        removeTask={removeTask}
+        serviceWeekday={serviceWeekday}
+        step={3}
+        tasks={tasks}
+        updateTask={updateTask}
+      />
+    ) : (
+      <PeriodFrameStep
+        addTask={addTask}
+        fieldProps={taskFieldProps}
+        frame={periodFrame}
+        loading={dataLoading}
+        removeTask={removeTask}
+        shape={shape}
+        tasks={tasks}
+        teamsAvailable={teamsCollection.length > 0}
+        updateTask={updateTask}
+      />
+    );
+
+  const saveStep = (
+    <SaveStep
+      canSave={Boolean(churchId) && placedCount > 0}
+      error={error}
+      frame={periodFrame}
+      onSave={save}
+      onScheduleChange={(next) => {
+        setSaved(false);
+        setSchedule(next);
+      }}
+      placedCount={placedCount}
+      repeatYearly={repeatYearly}
+      saved={saved}
+      saving={saving}
+      schedule={schedule}
+      serviceWeekday={serviceWeekday}
+      shape={shape}
+      startDate={shape === "weekly_service" ? startDate : periodStartDate}
+      step={4}
+      templateName={name}
+    />
+  );
+
+  if (!stepped) {
+    return (
+      <div className="flex flex-col gap-8">
+        {shapeStep}
+        {scheduleStep}
+        {tasksStep}
+        {saveStep}
+      </div>
+    );
+  }
+
+  // Stepper screens (parent owns step 0, the shape picker). Steps here are
+  // 1: shape/name, 2: schedule, 3: tasks, 4: preview & save.
+  const screen = (() => {
+    switch (step) {
+      case 1:
+        return { canAdvance: name.trim().length > 0, content: shapeStep };
+      case 2:
+        return { canAdvance: true, content: scheduleStep };
+      case 3:
+        return { canAdvance: placedCount > 0, content: tasksStep };
+      default:
+        return { canAdvance: true, content: saveStep };
+    }
+  })();
+
+  return (
+    <div className="flex flex-col gap-6">
+      {screen.content}
+      <StepNav
+        canAdvance={screen.canAdvance}
+        isFirst={false}
+        isLast={step >= 4}
+        onBack={goBack ?? (() => undefined)}
+        onNext={goForward ?? (() => undefined)}
+        primary={
+          saved ? (
+            <Button onClick={onClose} type="button" variant="outline">
+              Done
+            </Button>
+          ) : undefined
+        }
       />
     </div>
   );
@@ -562,7 +748,18 @@ function cycleMondayFor(localDate: string): Date {
  * Template Schedule. Template Tasks carry planning fields only (see CONTEXT.md
  * "Template Task").
  */
-function KeyDateAuthoring() {
+function KeyDateAuthoring({
+  step,
+  goBack,
+  goForward,
+  onClose,
+}: {
+  readonly step?: number;
+  readonly goBack?: () => void;
+  readonly goForward?: () => void;
+  readonly onClose?: () => void;
+} = {}) {
+  const stepped = step !== undefined;
   const { currentOrgOpt: activeChurch, loading: churchLoading } = useCurrentOrgOpt();
   const churchId = activeChurch?.id ?? null;
   const currentUserId = activeChurch?.currentUserId ?? null;
@@ -736,66 +933,116 @@ function KeyDateAuthoring() {
     else setError(result.error.message);
   };
 
+  const nameStep = (
+    <NameStep
+      description="Name this Template — usually the Key Date plus what it prepares."
+      label="Key Date Template name"
+      name={name}
+      onNameChange={(next) => {
+        setSaved(false);
+        setName(next);
+      }}
+      placeholder="Easter prep"
+      step={1}
+    />
+  );
+
+  const keyDateStep = (
+    <KeyDateStep
+      churchId={churchId}
+      keyDates={keyDates.keyDatesCollection}
+      loading={churchLoading || keyDates.loading}
+      occurrenceDate={occurrenceDate}
+      onCreateKeyDate={createAndSelectKeyDate}
+      onSelect={selectKeyDate}
+      selectedKeyDate={selectedKeyDate}
+      step={2}
+    />
+  );
+
+  const calendarStep = (
+    <KeyDateCalendarStep
+      addTask={addTask}
+      assigneeOptions={assigneeOptions}
+      churchLabels={labels.labelsCollection}
+      currentUserId={currentUserId}
+      cycleDates={cycleDates}
+      loading={churchLoading}
+      memberTeamIds={memberTeamIds}
+      memberships={memberships.teamMembershipsCollection}
+      occurrenceWeekday={occurrenceWeekday}
+      removeTask={removeTask}
+      selectedKeyDate={selectedKeyDate}
+      step={3}
+      tasks={tasks}
+      teamPickerOptions={teamPickerOptions}
+      teams={teamsCollection}
+      updateTask={updateTask}
+    />
+  );
+
+  const saveStep = (
+    <KeyDateSaveStep
+      canSave={Boolean(churchId) && Boolean(selectedKeyDate) && placedCount > 0}
+      error={error}
+      occurrenceDate={occurrenceDate}
+      onRepeatChange={(next) => {
+        setSaved(false);
+        setRepeatYearly(next);
+      }}
+      onSave={save}
+      placedCount={placedCount}
+      repeatYearly={repeatYearly}
+      saved={saved}
+      saving={saving}
+      selectedKeyDate={selectedKeyDate}
+      step={4}
+      templateName={name}
+    />
+  );
+
+  if (!stepped) {
+    return (
+      <div className="flex flex-col gap-8">
+        {nameStep}
+        {keyDateStep}
+        {calendarStep}
+        {saveStep}
+      </div>
+    );
+  }
+
+  // Stepper screens (parent owns step 0, the shape picker). Steps here are
+  // 1: name, 2: Key Date, 3: tasks, 4: preview & save.
+  const screen = (() => {
+    switch (step) {
+      case 1:
+        return { canAdvance: name.trim().length > 0, content: nameStep };
+      case 2:
+        return { canAdvance: Boolean(selectedKeyDate), content: keyDateStep };
+      case 3:
+        return { canAdvance: placedCount > 0, content: calendarStep };
+      default:
+        return { canAdvance: true, content: saveStep };
+    }
+  })();
+
   return (
-    <div className="flex flex-col gap-8">
-      <NameStep
-        description="Name this Template — usually the Key Date plus what it prepares."
-        label="Key Date Template name"
-        name={name}
-        onNameChange={(next) => {
-          setSaved(false);
-          setName(next);
-        }}
-        placeholder="Easter prep"
-        step={1}
-      />
-
-      <KeyDateStep
-        churchId={churchId}
-        keyDates={keyDates.keyDatesCollection}
-        loading={churchLoading || keyDates.loading}
-        occurrenceDate={occurrenceDate}
-        onCreateKeyDate={createAndSelectKeyDate}
-        onSelect={selectKeyDate}
-        selectedKeyDate={selectedKeyDate}
-        step={2}
-      />
-
-      <KeyDateCalendarStep
-        addTask={addTask}
-        assigneeOptions={assigneeOptions}
-        churchLabels={labels.labelsCollection}
-        currentUserId={currentUserId}
-        cycleDates={cycleDates}
-        loading={churchLoading}
-        memberTeamIds={memberTeamIds}
-        memberships={memberships.teamMembershipsCollection}
-        occurrenceWeekday={occurrenceWeekday}
-        removeTask={removeTask}
-        selectedKeyDate={selectedKeyDate}
-        step={3}
-        tasks={tasks}
-        teamPickerOptions={teamPickerOptions}
-        teams={teamsCollection}
-        updateTask={updateTask}
-      />
-
-      <KeyDateSaveStep
-        canSave={Boolean(churchId) && Boolean(selectedKeyDate) && placedCount > 0}
-        error={error}
-        occurrenceDate={occurrenceDate}
-        onRepeatChange={(next) => {
-          setSaved(false);
-          setRepeatYearly(next);
-        }}
-        onSave={save}
-        placedCount={placedCount}
-        repeatYearly={repeatYearly}
-        saved={saved}
-        saving={saving}
-        selectedKeyDate={selectedKeyDate}
-        step={4}
-        templateName={name}
+    <div className="flex flex-col gap-6">
+      {screen.content}
+      <StepNav
+        canAdvance={screen.canAdvance}
+        isFirst={false}
+        isLast={step >= 4}
+        onBack={goBack ?? (() => undefined)}
+        onNext={goForward ?? (() => undefined)}
+        primary={
+          saved ? (
+            <Button onClick={onClose} type="button" variant="outline">
+              Done
+            </Button>
+          ) : undefined
+        }
       />
     </div>
   );

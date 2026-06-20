@@ -15,6 +15,7 @@ export enum FilterKeys {
   Orgs = "orgs-filters",
   Users = "users-filters",
   Tasks = "tasks-filters",
+  Templates = "templates-filters",
   Default = "default-filters",
 }
 

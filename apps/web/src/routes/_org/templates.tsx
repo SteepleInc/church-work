@@ -1,7 +1,6 @@
 import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router";
 
-import { MainContainer, PageContainer } from "@/components/pageComponents";
-import { TemplateAuthoring } from "@/features/templates/template-authoring";
+import { TemplatesPage } from "@/features/templates/template-library";
 
 export const Route = createFileRoute("/_org/templates")({
   component: RouteComponent,
@@ -12,11 +11,5 @@ function RouteComponent() {
 
   if (pathname !== "/templates") return <Outlet />;
 
-  return (
-    <MainContainer>
-      <PageContainer wrapperClassName="mx-auto w-full max-w-3xl pb-16">
-        <TemplateAuthoring />
-      </PageContainer>
-    </MainContainer>
-  );
+  return <TemplatesPage tab="schedules" />;
 }

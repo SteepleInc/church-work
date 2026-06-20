@@ -1,3 +1,5 @@
 import type { FC } from "react";
 
-export const BigActions: FC = () => <></>;
+import { TemplateBigAction } from "@/features/big-actions/template-big-action";
+
+export const BigActions: FC = () => <TemplateBigAction />;

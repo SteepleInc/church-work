@@ -22,14 +22,6 @@ import {
 } from "@/components/ui/empty";
 import { PageTabs, PageTabsList, PageTabsTrigger } from "@/components/ui/page-tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import {
   formatTemplateScheduleOccurrence,
@@ -38,6 +30,7 @@ import {
   useTemplatesCollection,
 } from "@/data/templates/templatesData.app";
 import { SettingsKeyDatesPanel } from "@/features/settings/key-date-settings";
+import { TemplatesCollection } from "@/features/templates/templates-collection";
 import {
   canManageTemplates,
   DeleteScheduleDialog,
@@ -59,7 +52,7 @@ type TabConfig = {
 };
 
 const TEMPLATE_TABS: readonly TabConfig[] = [
-  { label: "Schedules", to: "/templates", value: "schedules" },
+  { label: "Templates", to: "/templates", value: "schedules" },
   { label: "Library", to: "/templates/library", value: "library" },
   { label: "Key Dates", to: "/templates/key-dates", value: "key-dates" },
 ];
@@ -83,18 +76,42 @@ export function TemplatesPage({ tab }: { readonly tab: TemplateLibraryTab }) {
 
   const canManage = activeChurch ? canManageTemplates(activeChurch.role) : false;
 
+  const header = (
+    <>
+      <div className="flex flex-col gap-1">
+        <h1 className="font-semibold text-2xl tracking-tight">Templates</h1>
+        <p className="max-w-3xl text-balance text-muted-foreground text-sm">{PAGE_DESCRIPTION}</p>
+      </div>
+
+      <PageTabs className="gap-6" value={tab}>
+        <PageTabsList aria-label="Template sections" className="h-10">
+          {TEMPLATE_TABS.map((entry) => (
+            <PageTabsTrigger
+              key={entry.value}
+              render={<Link preload="intent" replace to={entry.to} />}
+              value={entry.value}
+            >
+              {entry.label}
+            </PageTabsTrigger>
+          ))}
+        </PageTabsList>
+      </PageTabs>
+    </>
+  );
+
+  // The Templates tab hosts the generic Collection, which owns its own scroll
+  // and grows to fill the viewport — so it renders outside the page ScrollArea.
+  if (tab === "schedules") {
+    return (
+      <MainContainer>
+        <div className="flex flex-col gap-6 px-4 pt-0 md:pt-1">{header}</div>
+        <TemplatesCollection />
+      </MainContainer>
+    );
+  }
+
   const renderCurrentTab = () => {
     switch (tab) {
-      case "schedules":
-        return (
-          <TemplateSchedulesPanel
-            canManage={canManage}
-            churchId={churchId}
-            description={TAB_DESCRIPTION.schedules}
-            loading={templatesLoading}
-            schedules={schedules.templateSchedulesCollection}
-          />
-        );
       case "library":
         return (
           <TemplateLibraryPanel
@@ -113,147 +130,10 @@ export function TemplatesPage({ tab }: { readonly tab: TemplateLibraryTab }) {
   return (
     <MainContainer>
       <PageContainer wrapperClassName="gap-6">
-        <div className="flex flex-col gap-1">
-          <h1 className="font-semibold text-2xl tracking-tight">Templates</h1>
-          <p className="max-w-3xl text-balance text-muted-foreground text-sm">{PAGE_DESCRIPTION}</p>
-        </div>
-
-        <PageTabs className="gap-6" value={tab}>
-          <PageTabsList aria-label="Template sections" className="h-10">
-            {TEMPLATE_TABS.map((entry) => (
-              <PageTabsTrigger
-                key={entry.value}
-                render={<Link preload="intent" replace to={entry.to} />}
-                value={entry.value}
-              >
-                {entry.label}
-              </PageTabsTrigger>
-            ))}
-          </PageTabsList>
-        </PageTabs>
-
+        {header}
         {renderCurrentTab()}
       </PageContainer>
     </MainContainer>
-  );
-}
-
-function TemplateSchedulesPanel({
-  canManage,
-  churchId,
-  description,
-  loading,
-  schedules,
-}: {
-  readonly canManage: boolean;
-  readonly churchId: string | null;
-  readonly description: string;
-  readonly loading: boolean;
-  readonly schedules: readonly TemplateScheduleCollectionItem[];
-}) {
-  const { removeSchedule } = useTemplateSoftDelete();
-  const [pendingSchedule, setPendingSchedule] = useState<TemplateScheduleCollectionItem | null>(
-    null,
-  );
-  const confirmDeleteSchedule = (cleanupCurrentOccurrence: boolean) => {
-    if (!churchId || !pendingSchedule) {
-      return Promise.resolve({ error: { message: "Select a Schedule to delete." }, ok: false });
-    }
-    return removeSchedule({ churchId, cleanupCurrentOccurrence, schedule: pendingSchedule });
-  };
-
-  if (loading) return <TemplateListSkeleton />;
-  if (schedules.length === 0) {
-    return (
-      <Empty className="min-h-64 rounded-xl border bg-card">
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <CalendarClock />
-          </EmptyMedia>
-          <EmptyTitle>No Template Schedules yet</EmptyTitle>
-          <EmptyDescription>
-            Schedule a Template to project its recurring work into upcoming Weeks.
-          </EmptyDescription>
-        </EmptyHeader>
-      </Empty>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-3">
-      <p className="text-muted-foreground text-sm">{description}</p>
-      <div className="overflow-hidden rounded-xl border bg-card">
-        <Table>
-          <TableHeader className="bg-card">
-            <TableRow className="hover:bg-transparent">
-              <TableHead className="pl-4">Schedule</TableHead>
-              <TableHead>Template</TableHead>
-              <TableHead>Kind</TableHead>
-              <TableHead className="text-right">Next occurrence</TableHead>
-              <TableHead className="w-10 pr-2" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {schedules.map((schedule) => (
-              <TableRow className="group" key={schedule.id}>
-                <TableCell className="pl-4 font-medium">{schedule.name}</TableCell>
-                <TableCell>
-                  <Link
-                    className="text-muted-foreground transition-colors hover:text-foreground hover:underline"
-                    params={{ templateId: schedule.templateId }}
-                    to="/templates/$templateId"
-                  >
-                    {schedule.templateName}
-                  </Link>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="secondary">{schedule.kindLabel}</Badge>
-                </TableCell>
-                <TableCell className="text-right text-muted-foreground tabular-nums">
-                  {formatTemplateScheduleOccurrence(schedule.nextOccurrence)}
-                </TableCell>
-                <TableCell className="pr-2 text-right">
-                  {canManage ? (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        render={
-                          <Button
-                            aria-label={`Schedule actions for ${schedule.name}`}
-                            className="text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
-                            size="icon-sm"
-                            variant="ghost"
-                          />
-                        }
-                      >
-                        <MoreHorizontal />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" side="bottom">
-                        <DropdownMenuItem
-                          onClick={() => setPendingSchedule(schedule)}
-                          variant="destructive"
-                        >
-                          <Trash2 />
-                          Stop Schedule
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  ) : null}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-
-      <DeleteScheduleDialog
-        onConfirm={confirmDeleteSchedule}
-        onOpenChange={(open) => {
-          if (!open) setPendingSchedule(null);
-        }}
-        open={pendingSchedule !== null}
-        schedule={pendingSchedule}
-      />
-    </div>
   );
 }
 
@@ -585,23 +465,6 @@ export function TemplateDetailPage({ templateId }: { readonly templateId: string
         )}
       </PageContainer>
     </MainContainer>
-  );
-}
-
-function TemplateListSkeleton() {
-  return (
-    <div className="overflow-hidden rounded-xl border bg-card">
-      <div className="flex h-10 items-center border-b px-4">
-        <Skeleton className="h-3.5 w-24" />
-      </div>
-      {[0, 1, 2, 3].map((item) => (
-        <div className="flex items-center gap-4 border-b px-4 py-3 last:border-b-0" key={item}>
-          <Skeleton className="h-4 w-40" />
-          <Skeleton className="h-4 w-28" />
-          <Skeleton className="ml-auto h-5 w-16 rounded-full" />
-        </div>
-      ))}
-    </div>
   );
 }
 
