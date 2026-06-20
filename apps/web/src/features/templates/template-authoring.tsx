@@ -66,6 +66,7 @@ import {
   useCreatePeriodTemplate,
   useCreateWeeklyServiceTemplate,
 } from "@/data/templates/templatesData.app";
+import { BigActionFooter } from "@/features/big-actions/big-action-components";
 import { cn } from "@/lib/utils";
 
 // --- Weekday model ----------------------------------------------------------
@@ -308,7 +309,7 @@ function StepNav({
   readonly primary?: ReactNode;
 }) {
   return (
-    <div className="mt-2 flex items-center justify-between gap-3 pl-9">
+    <BigActionFooter className="-mx-6 -mb-6 mt-auto justify-between bg-background px-3 py-2">
       <Button disabled={isFirst} onClick={onBack} type="button" variant="ghost">
         Back
       </Button>
@@ -319,7 +320,7 @@ function StepNav({
           {nextLabel}
         </Button>
       )}
-    </div>
+    </BigActionFooter>
   );
 }
 
@@ -346,8 +347,10 @@ export function TemplateAuthoringFlow({
 
   if (step === 0) {
     return (
-      <div className="flex flex-col gap-6">
-        <ShapeStep onSelect={onShapeChange} shape={shape} />
+      <div className="flex min-h-full flex-col">
+        <div className="flex flex-col gap-6 pb-6">
+          <ShapeStep onSelect={onShapeChange} shape={shape} />
+        </div>
         <StepNav isFirst isLast={false} onBack={goBack} onNext={goForward} />
       </div>
     );
@@ -699,8 +702,8 @@ function WeeklyServiceAuthoring({
   })();
 
   return (
-    <div className="flex flex-col gap-6">
-      {screen.content}
+    <div className="flex min-h-full flex-col">
+      <div className="flex flex-col gap-6 pb-6">{screen.content}</div>
       <StepNav
         canAdvance={screen.canAdvance}
         isFirst={false}
@@ -1028,8 +1031,8 @@ function KeyDateAuthoring({
   })();
 
   return (
-    <div className="flex flex-col gap-6">
-      {screen.content}
+    <div className="flex min-h-full flex-col">
+      <div className="flex flex-col gap-6 pb-6">{screen.content}</div>
       <StepNav
         canAdvance={screen.canAdvance}
         isFirst={false}

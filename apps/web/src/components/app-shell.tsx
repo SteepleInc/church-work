@@ -38,9 +38,9 @@ export function AppShell() {
         <AppNavigation />
         <SidebarInset className="overflow-hidden md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-0">
           <header className="flex h-11 shrink-0 items-center gap-4 px-4">
-            <div className="flex min-w-0 items-center gap-2">
+            <div className="flex min-w-0 items-center gap-1">
               <SidebarTrigger className="-ml-1" />
-              <Separator className="mr-2 h-4" orientation="vertical" />
+              <Separator className="mr-0.5 h-4 data-vertical:self-center" orientation="vertical" />
               <AppHeaderSlotAnchor>
                 <AppBreadcrumbs />
               </AppHeaderSlotAnchor>
