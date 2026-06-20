@@ -396,7 +396,7 @@ export function TemplateAuthoring() {
         onShapeChange={(next) => {
           setSaved(false);
           setShape(next);
-          setSchedule(next === "yearly" ? false : true);
+          setSchedule(true);
         }}
         shape={shape}
       />
