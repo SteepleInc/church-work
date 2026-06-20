@@ -242,12 +242,40 @@ const KeyDateTemplateScheduleRuleArg = Schema.Struct({
 });
 const CycleAdjustmentOverrideArg = Schema.Union([
   Schema.Struct({ field: Schema.Literal("title"), value: Schema.String }),
+  Schema.Struct({
+    field: Schema.Literal("description"),
+    value: Schema.Union([Schema.String, Schema.Null]),
+  }),
+  Schema.Struct({
+    field: Schema.Literal("assignedUserId"),
+    value: Schema.Union([Schema.String, Schema.Null]),
+  }),
+  Schema.Struct({ field: Schema.Literal("teamId"), value: Schema.String }),
   Schema.Struct({ field: Schema.Literal("dueDate"), value: Schema.String }),
+  Schema.Struct({ field: Schema.Literal("labelIds"), value: Schema.Array(Schema.String) }),
+  Schema.Struct({
+    field: Schema.Literal("estimate"),
+    value: Schema.Union([Schema.String, Schema.Null]),
+  }),
   Schema.Struct({
     field: Schema.Literal("parentTemplateTaskId"),
     value: Schema.Union([Schema.String, Schema.Null]),
   }),
 ]);
+type CycleAdjustmentOverrideInput = typeof CycleAdjustmentOverrideArg.Type;
+
+const mergeCycleAdjustmentOverrides = (
+  existingOverrides: readonly CycleAdjustmentOverrideInput[],
+  incomingOverrides: readonly CycleAdjustmentOverrideInput[],
+) => {
+  const overridesByField = new Map<
+    CycleAdjustmentOverrideInput["field"],
+    CycleAdjustmentOverrideInput
+  >();
+  for (const override of existingOverrides) overridesByField.set(override.field, override);
+  for (const override of incomingOverrides) overridesByField.set(override.field, override);
+  return [...overridesByField.values()];
+};
 const UpsertCycleArgs = toZeroSchema(
   Schema.Struct({
     church_id: Schema.String,
@@ -353,6 +381,8 @@ const SetCycleAdjustmentsArgs = toZeroSchema(
         cycle_id: Schema.String,
         lifecycle: Schema.Union([Schema.Literal("active"), Schema.Literal("skipped")]),
         overrides: Schema.Array(CycleAdjustmentOverrideArg),
+        source_template_occurrence_key: Schema.String,
+        source_template_schedule_id: Schema.String,
         template_task_id: Schema.String,
       }),
     ),
@@ -662,8 +692,12 @@ const requireCurrentCycleId = async (
 };
 
 type TemplateTaskRow = {
+  readonly assigned_user_id?: string | null;
+  readonly description?: string | null;
+  readonly estimate?: string | null;
   readonly id: string;
   readonly key: string;
+  readonly label_ids?: string;
   readonly parent_template_task_id: string | null;
   readonly scheduling_rule: string;
   readonly template_team_id: string;
@@ -790,7 +824,12 @@ const buildEffectiveTemplateCycleTasks = (args: {
     const merged = mergeTemplateTaskProjection(
       {
         dueDate,
+        assignedUserId: templateTask.assigned_user_id ?? null,
+        description: templateTask.description ?? null,
+        estimate: templateTask.estimate ?? null,
+        labelIds: parseJson<readonly string[]>(templateTask.label_ids ?? "[]", []),
         parentTemplateTaskId: templateTask.parent_template_task_id,
+        teamId: templateTeam.mapped_team_id,
         templateTaskId: templateTask.id,
         templateTaskKey: templateTask.key,
         title: templateTask.title,
@@ -2221,19 +2260,33 @@ export const mutators = defineMutators({
       const now = new Date();
       for (const adjustment of args.adjustments) {
         const existing = (await db
-          .select({ id: cycle_adjustments.id })
+          .select({ id: cycle_adjustments.id, overrides: cycle_adjustments.overrides })
           .from(cycle_adjustments)
           .where(
             and(
               eq(cycle_adjustments.church_id, args.church_id),
               eq(cycle_adjustments.cycle_id, adjustment.cycle_id),
+              eq(
+                cycle_adjustments.source_template_schedule_id,
+                adjustment.source_template_schedule_id,
+              ),
               eq(cycle_adjustments.template_task_id, adjustment.template_task_id),
+              eq(
+                cycle_adjustments.source_template_occurrence_key,
+                adjustment.source_template_occurrence_key,
+              ),
               isNull(cycle_adjustments.deleted_at),
             ),
-          )) as Array<{ readonly id: string }>;
+          )) as Array<{ readonly id: string; readonly overrides: string }>;
+        const mergedOverrides = existing[0]
+          ? mergeCycleAdjustmentOverrides(
+              parseJson<readonly CycleAdjustmentOverrideInput[]>(existing[0].overrides, []),
+              adjustment.overrides,
+            )
+          : adjustment.overrides;
         const values = {
           lifecycle: adjustment.lifecycle,
-          overrides: stringifyJson(adjustment.overrides),
+          overrides: stringifyJson(mergedOverrides),
           updated_at: now,
           updated_by: session.user_id,
         };
@@ -2252,6 +2305,8 @@ export const mutators = defineMutators({
             created_by: session.user_id,
             cycle_id: adjustment.cycle_id,
             id: getCycleAdjustmentId(),
+            source_template_occurrence_key: adjustment.source_template_occurrence_key,
+            source_template_schedule_id: adjustment.source_template_schedule_id,
             template_task_id: adjustment.template_task_id,
           });
         }

@@ -43,6 +43,19 @@ test("authors and schedules a weekly service Template", async ({ page }, testInf
   await expect(
     projectedTask.getByLabel(/From Template Schedule Sunday Service Template/),
   ).toBeVisible();
+
+  await projectedTask.getByRole("combobox", { name: "Change estimate" }).click();
+  await page.getByRole("option", { exact: true, name: "L" }).click();
+  await expect(projectedTask.getByLabel("Adjusted for this Cycle")).toBeVisible({
+    timeout: 20_000,
+  });
+
+  await page.reload();
+  const adjustedProjectedTask = page.getByLabel("Task card Plan worship set");
+  await expect(adjustedProjectedTask.getByLabel("Adjusted for this Cycle")).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(adjustedProjectedTask.getByLabel("Estimate: L")).toBeVisible();
 });
 
 test("authors and schedules a Key Date Template", async ({ page }, testInfo) => {

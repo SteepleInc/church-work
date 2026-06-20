@@ -350,9 +350,11 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     } else if (AUTO_MERGE_PRS && autoMergeEnabled) {
       const merged = await waitForPrMerge(prUrl);
       if (!merged) {
-        const status = getPrMergeStatus(prUrl);
-        if (status.mergeStateStatus === "BEHIND") {
-          console.warn(`  PR is still behind ${BASE_BRANCH}; leaving auto-merge enabled: ${prUrl}`);
+        const ready = await ensurePrBranchUpToDate({ issue, prUrl });
+        if (!ready) {
+          console.warn(`  PR is still not mergeable; leaving auto-merge enabled: ${prUrl}`);
+          process.exitCode = 1;
+          break;
         } else {
           console.log(
             `  Auto-merge did not complete in time; attempting GitHub merge now: ${prUrl}`,
@@ -458,6 +460,28 @@ async function ensurePrBranchUpToDate({
     }
 
     if (status.mergeStateStatus !== "BEHIND") {
+      if (isConflictedPrStatus(status)) {
+        console.log(
+          `  PR has merge conflicts against ${BASE_BRANCH}; running conflict repair (${attempt}/${MAX_REPAIR_ATTEMPTS}): ${prUrl}`,
+        );
+        await repairPrConflicts({ issue, prUrl });
+
+        const checks = await waitForChecks(prUrl);
+        const failedChecks = checks.filter(
+          (check) => check.bucket === "fail" || check.conclusion === "failure",
+        );
+
+        if (failedChecks.length > 0) {
+          console.log(`  Conflict repair introduced failing checks; running check repair agent.`);
+          const repaired = await repairFailedPrChecks({ issue, prUrl });
+          if (!repaired) {
+            return false;
+          }
+        }
+
+        continue;
+      }
+
       return true;
     }
 
@@ -482,7 +506,50 @@ async function ensurePrBranchUpToDate({
     }
   }
 
-  return getPrMergeStatus(prUrl).mergeStateStatus !== "BEHIND";
+  const finalStatus = getPrMergeStatus(prUrl);
+  return finalStatus.mergeStateStatus !== "BEHIND" && !isConflictedPrStatus(finalStatus);
+}
+
+function isConflictedPrStatus(status: PrMergeStatus) {
+  return status.mergeStateStatus === "DIRTY" || status.mergeable === "CONFLICTING";
+}
+
+async function repairPrConflicts({
+  issue,
+  prUrl,
+}: {
+  issue: z.infer<typeof planSchema>["issues"][number];
+  prUrl: string;
+}) {
+  const sandbox = await sandcastle.createSandbox({
+    branch: issue.branch,
+    sandbox: sandboxProvider(),
+    hooks,
+    copyToWorktree,
+  });
+
+  try {
+    await sandbox.run({
+      name: `pr-conflict-repair-${issue.id}`,
+      maxIterations: 30,
+      agent: allAroundAgent(),
+      promptFile: "./.sandcastle/pr-conflict-repair-prompt.md",
+      promptArgs: {
+        BASE_BRANCH,
+        BRANCH: issue.branch,
+        ISSUE_TITLE: issue.title,
+        PR_URL: prUrl,
+        TASK_ID: issue.id,
+      },
+    });
+  } finally {
+    await sandbox.close();
+  }
+
+  sh(`git push origin ${quote(issue.branch)}`);
+  if (AUTO_MERGE_PRS) {
+    enableAutoMerge(prUrl);
+  }
 }
 
 function updatePrBranch(prUrl: string) {
@@ -511,6 +578,10 @@ async function waitForPrMerge(prUrl: string) {
     }
 
     if (status.mergeStateStatus === "BEHIND") {
+      return false;
+    }
+
+    if (isConflictedPrStatus(status)) {
       return false;
     }
 

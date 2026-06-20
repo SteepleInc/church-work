@@ -514,6 +514,8 @@ export const cycle_adjustments = pgTable(
     ...baseEntityFields,
     church_id: text("church_id").notNull(),
     cycle_id: text("cycle_id").notNull(),
+    source_template_schedule_id: text("source_template_schedule_id"),
+    source_template_occurrence_key: text("source_template_occurrence_key"),
     template_task_id: text("template_task_id").notNull(),
     lifecycle: text("lifecycle").notNull(),
     overrides: text("overrides").notNull().default("[]"),
@@ -521,8 +523,13 @@ export const cycle_adjustments = pgTable(
   (table) => [
     index("cycle_adjustments_church_id_idx").on(table.church_id),
     index("cycle_adjustments_church_cycle_id_idx").on(table.church_id, table.cycle_id),
-    uniqueIndex("cycle_adjustments_cycle_template_task_live_idx")
-      .on(table.cycle_id, table.template_task_id)
+    uniqueIndex("cycle_adjustments_source_live_idx")
+      .on(
+        table.cycle_id,
+        table.source_template_schedule_id,
+        table.template_task_id,
+        table.source_template_occurrence_key,
+      )
       .where(sql`${table.deleted_at} IS NULL`),
   ],
 );

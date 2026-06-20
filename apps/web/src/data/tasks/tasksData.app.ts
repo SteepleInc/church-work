@@ -9,8 +9,10 @@ import {
 import {
   mutators,
   queries,
-  type ListArgs,
+  type CycleAdjustment,
   type KeyDate,
+  type Label,
+  type ListArgs,
   type Task,
   type Team,
   type TemplateSchedule,
@@ -61,6 +63,12 @@ export type TaskCollectionItem = {
    * (dashed/ghost) treatment so projections read distinctly from real Tasks.
    */
   readonly isProjected: boolean;
+  /**
+   * True when a projected Template Task carries a Cycle Adjustment with one or
+   * more planning overrides for this occurrence. Surfaces use this to mark the
+   * projection as edited-for-this-Cycle without it ceasing to be a projection.
+   */
+  readonly isAdjusted: boolean;
 };
 
 export type TemplateSourceBadge = {
@@ -96,8 +104,18 @@ type CycleProjectionContext = {
   readonly endDate: string;
 };
 
+type ProjectedTaskAdjustmentOverride =
+  | { readonly field: "title"; readonly value: string }
+  | { readonly field: "description"; readonly value: string | null }
+  | { readonly field: "assignedUserId"; readonly value: string | null }
+  | { readonly field: "teamId"; readonly value: string }
+  | { readonly field: "dueDate"; readonly value: string }
+  | { readonly field: "labelIds"; readonly value: readonly string[] }
+  | { readonly field: "estimate"; readonly value: TaskEstimate | null };
+
 export type TaskUpdateFields = {
   readonly title?: string;
+  readonly description?: string | null;
   readonly assignedUserId?: string | null;
   readonly teamId?: string;
   readonly workflowStatusId?: string;
@@ -114,6 +132,52 @@ export type TaskUpdateFields = {
   readonly boardOrder?: string;
   readonly labelIds?: readonly string[];
   readonly estimate?: TaskEstimate | null;
+};
+
+const applyProjectedTaskOverrides = (
+  task: TaskCollectionItem,
+  overrides: readonly ProjectedTaskAdjustmentOverride[],
+): TaskCollectionItem => {
+  let next = task;
+  for (const override of overrides) {
+    switch (override.field) {
+      case "assignedUserId":
+        next = { ...next, assignedUserId: override.value };
+        break;
+      case "description":
+        next = { ...next, description: override.value };
+        break;
+      case "dueDate":
+        next = { ...next, dueDate: override.value };
+        break;
+      case "estimate":
+        next = { ...next, estimate: override.value };
+        break;
+      case "labelIds":
+        next = { ...next, labelIds: override.value };
+        break;
+      case "teamId":
+        next = { ...next, teamId: override.value };
+        break;
+      case "title":
+        next = { ...next, title: override.value };
+        break;
+    }
+  }
+  return next;
+};
+
+const scopedLabelIdsForTeam = (
+  labelIds: readonly string[],
+  teamId: string,
+  labels: readonly Pick<Label, "id" | "team_id">[],
+) => {
+  if (labels.length === 0) return labelIds;
+  const labelsById = new Map(labels.map((label) => [label.id, label]));
+  return labelIds.filter((labelId) => {
+    const label = labelsById.get(labelId);
+    return !label || label.team_id === null || label.team_id === teamId;
+  });
 };
 
 type TargetCycleFields = NonNullable<TaskUpdateFields["targetCycle"]>;
@@ -304,6 +368,7 @@ const mapTask = (
   finishedAt: timestampToIso(task.finished_at),
   id: task.id,
   identifier: formatTaskIdentifier(teamsById.get(task.team_id)?.identifier ?? "TEAM", task.number),
+  isAdjusted: false,
   isProjected: false,
   labelIds: parseStringArray(task.label_ids),
   number: task.number,
@@ -358,6 +423,8 @@ export function buildProjectedTemplateTasksForCycle(args: {
   readonly templateTeams: readonly TemplateTeam[];
   readonly workflows: readonly Workflow[];
   readonly workflowStatuses: readonly WorkflowStatus[];
+  readonly cycleAdjustments?: readonly CycleAdjustment[];
+  readonly labels?: readonly Label[];
   readonly teamFilterId?: string;
 }): readonly TaskCollectionItem[] {
   const templateTeamsById = new Map(args.templateTeams.map((team) => [team.id, team]));
@@ -378,6 +445,12 @@ export function buildProjectedTemplateTasksForCycle(args: {
     ),
   );
   const projected: TaskCollectionItem[] = [];
+  const adjustmentBySourceKey = new Map(
+    (args.cycleAdjustments ?? []).map((adjustment) => [
+      `${adjustment.source_template_schedule_id ?? ""}:${adjustment.template_task_id}:${adjustment.source_template_occurrence_key ?? ""}:${adjustment.cycle_id}`,
+      adjustment,
+    ]),
+  );
 
   const projectOccurrence = (params: {
     readonly schedule: TemplateSchedule;
@@ -389,7 +462,7 @@ export function buildProjectedTemplateTasksForCycle(args: {
     for (const templateTask of params.scheduleTasks) {
       const templateTeam = templateTeamsById.get(templateTask.template_team_id);
       const teamId = templateTeam?.mapped_team_id;
-      if (!teamId || (args.teamFilterId && args.teamFilterId !== teamId)) continue;
+      if (!teamId) continue;
       const placementWeekday = templateTask.placement_weekday ?? params.anchorWeekday;
       const dueDate = addDays(
         params.occurrenceDate,
@@ -399,10 +472,25 @@ export function buildProjectedTemplateTasksForCycle(args: {
       if (dueDate < args.cycle.startDate || dueDate > args.cycle.endDate) continue;
       const sourceKey = `${params.schedule.id}:${templateTask.id}:${params.occurrenceKey}:${args.cycle.id}`;
       if (existingSourceKeys.has(sourceKey)) continue;
-      const workflow = workflowsByTeamId.get(teamId);
-      const todo = workflow ? todoByWorkflowId.get(workflow.id) : null;
-      if (!workflow || !todo) continue;
-      projected.push({
+      const baseLabelIds = parseStringArray(templateTask.label_ids);
+      const adjustment = adjustmentBySourceKey.get(sourceKey);
+      const overrides = parseJson<readonly ProjectedTaskAdjustmentOverride[]>(
+        adjustment?.overrides,
+        [],
+      );
+      const adjustedTeamOverride = overrides.find((override) => override.field === "teamId");
+      const effectiveTeamId = adjustedTeamOverride?.value ?? teamId;
+      const adjustedLabelsOverride = overrides.find((override) => override.field === "labelIds");
+      const effectiveLabelIds = scopedLabelIdsForTeam(
+        adjustedLabelsOverride?.value ?? baseLabelIds,
+        effectiveTeamId,
+        args.labels ?? [],
+      );
+      if (args.teamFilterId && args.teamFilterId !== effectiveTeamId) continue;
+      const effectiveWorkflow = workflowsByTeamId.get(effectiveTeamId);
+      const todo = effectiveWorkflow ? todoByWorkflowId.get(effectiveWorkflow.id) : null;
+      if (!effectiveWorkflow || !todo) continue;
+      const baseProjection: TaskCollectionItem = {
         assignedUserId: templateTask.assigned_user_id ?? null,
         boardOrder: `template:${params.schedule.id}:${params.occurrenceKey}:${templateTask.id}`,
         churchId: params.schedule.church_id,
@@ -415,8 +503,9 @@ export function buildProjectedTemplateTasksForCycle(args: {
         finishedAt: null,
         id: `projected-template-task:${params.schedule.id}:${templateTask.id}:${params.occurrenceKey}:${args.cycle.id}`,
         identifier: "Projected",
+        isAdjusted: overrides.length > 0,
         isProjected: true,
-        labelIds: parseStringArray(templateTask.label_ids),
+        labelIds: effectiveLabelIds,
         number: 0,
         parentTaskId: null,
         previousIdentifiers: [],
@@ -431,11 +520,13 @@ export function buildProjectedTemplateTasksForCycle(args: {
         sourceTemplateSyncEnabled: true,
         sourceTemplateTaskId: templateTask.id,
         taskState: "todo",
-        teamId,
+        teamId: effectiveTeamId,
         title: templateTask.title,
-        workflowId: workflow.id,
+        workflowId: effectiveWorkflow.id,
         workflowStatusId: todo.id,
-      });
+      };
+      if (adjustment?.lifecycle === "skipped") continue;
+      projected.push(applyProjectedTaskOverrides(baseProjection, overrides));
     }
   };
 
@@ -530,6 +621,7 @@ const targetCycleToZero = (targetCycle: TargetCycleFields) => ({
 const taskFieldsToZero = (fields: TaskUpdateFields) => ({
   ...(fields.assignedUserId !== undefined ? { assigned_user_id: fields.assignedUserId } : {}),
   ...(fields.boardOrder !== undefined ? { board_order: fields.boardOrder } : {}),
+  ...(fields.description !== undefined ? { description: fields.description } : {}),
   ...(fields.cycleId !== undefined ? { cycle_id: fields.cycleId } : {}),
   ...(fields.dueDate !== undefined ? { due_date: fields.dueDate } : {}),
   ...(fields.estimate !== undefined ? { estimate: fields.estimate } : {}),
@@ -544,6 +636,28 @@ const taskFieldsToZero = (fields: TaskUpdateFields) => ({
     : {}),
   ...(fields.workflowStatusId !== undefined ? { workflow_status_id: fields.workflowStatusId } : {}),
 });
+
+const taskFieldsToProjectedOverrides = (
+  fields: TaskUpdateFields,
+): readonly ProjectedTaskAdjustmentOverride[] => [
+  ...(fields.title !== undefined ? [{ field: "title" as const, value: fields.title }] : []),
+  ...(fields.description !== undefined
+    ? [{ field: "description" as const, value: fields.description }]
+    : []),
+  ...(fields.assignedUserId !== undefined
+    ? [{ field: "assignedUserId" as const, value: fields.assignedUserId }]
+    : []),
+  ...(fields.teamId !== undefined ? [{ field: "teamId" as const, value: fields.teamId }] : []),
+  ...(fields.dueDate !== undefined && fields.dueDate !== null
+    ? [{ field: "dueDate" as const, value: fields.dueDate }]
+    : []),
+  ...(fields.labelIds !== undefined
+    ? [{ field: "labelIds" as const, value: fields.labelIds }]
+    : []),
+  ...(fields.estimate !== undefined
+    ? [{ field: "estimate" as const, value: fields.estimate }]
+    : []),
+];
 
 export function useTasksCollection(params: {
   readonly churchId: string | null;
@@ -583,6 +697,12 @@ export function useTasksCollection(params: {
   const [workflowStatusRows] = useQuery(
     queries.workflow_statuses.by_church({ church_id: params.churchId ?? "__no_church__" }),
   );
+  const [cycleAdjustmentRows] = useQuery(
+    queries.cycle_adjustments.by_church({ church_id: params.churchId ?? "__no_church__" }),
+  );
+  const [labelRows] = useQuery(
+    queries.labels.by_church({ church_id: params.churchId ?? "__no_church__" }),
+  );
   const teamsById = new Map(teamRows.map((team) => [team.id, team]));
   const schedulesById = new Map(scheduleRows.map((schedule) => [schedule.id, schedule]));
   const materializedCollection =
@@ -596,6 +716,8 @@ export function useTasksCollection(params: {
           existingTasks: materializedCollection,
           keyDates: keyDateRows,
           schedules: scheduleRows,
+          cycleAdjustments: cycleAdjustmentRows,
+          labels: labelRows,
           teamFilterId: params.filters?.teamId,
           templateTasks: templateTaskRows,
           templateTeams: templateTeamRows,
@@ -678,6 +800,38 @@ export function useUpdateTaskMutation() {
           }),
         ),
       "Could not update Task.",
+    );
+}
+
+export function useAdjustProjectedTemplateTaskMutation() {
+  const zero = useZero();
+
+  return (params: {
+    readonly churchId: string;
+    readonly cycleId: string;
+    readonly sourceTemplateScheduleId: string;
+    readonly sourceTemplateOccurrenceKey: string;
+    readonly sourceTemplateTaskId: string;
+    readonly fields: TaskUpdateFields;
+  }) =>
+    zeroMutationResult(
+      () =>
+        zero.mutate(
+          mutators.cycle_adjustments.set({
+            adjustments: [
+              {
+                cycle_id: params.cycleId,
+                lifecycle: "active",
+                overrides: taskFieldsToProjectedOverrides(params.fields),
+                source_template_occurrence_key: params.sourceTemplateOccurrenceKey,
+                source_template_schedule_id: params.sourceTemplateScheduleId,
+                template_task_id: params.sourceTemplateTaskId,
+              },
+            ],
+            church_id: params.churchId,
+          }),
+        ),
+      "Could not adjust projected Template Task.",
     );
 }
 
