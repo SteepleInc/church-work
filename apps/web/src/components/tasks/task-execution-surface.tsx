@@ -824,15 +824,16 @@ function MaterializeProjectedTaskDialog({
               <>
                 “{pending.task.title}” is projected from{" "}
                 {scheduleName ? <span className="font-medium">{scheduleName}</span> : "a Template"}
-                {occurrenceLabel ? <> ({occurrenceLabel})</> : null}. Moving it
+                {occurrenceLabel ? <> ({occurrenceLabel})</> : null}.{" "}
                 {statusName ? (
                   <>
-                    {" "}
-                    to <span className="font-medium">{statusName}</span>
+                    Moving it to <span className="font-medium">{statusName}</span> creates
                   </>
-                ) : null}{" "}
-                creates a real, numbered Task in this Week. It becomes assignable, counts toward
-                Week progress, and stays even if the projection later changes.
+                ) : (
+                  "This creates"
+                )}{" "}
+                a real, numbered Task in this Week. It becomes assignable, counts toward Week
+                progress, and stays even if the projection later changes.
               </>
             ) : null}
           </AlertDialogDescription>

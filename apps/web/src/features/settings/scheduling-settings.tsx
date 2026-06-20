@@ -182,17 +182,23 @@ function SchedulingForm({ activeChurch }: { readonly activeChurch: CurrentOrg })
                 </SelectContent>
               </Select>
               {isExpanding ? (
-                <p className="flex items-start gap-1.5 text-amber-600 text-xs dark:text-amber-500">
-                  <HugeiconsIcon
-                    className="mt-px size-3.5 shrink-0"
-                    icon={Alert02Icon}
-                    strokeWidth={2}
-                  />
-                  <span>
-                    Widening the window will create real Tasks for the next {addedCycles}{" "}
-                    {addedCycles === 1 ? "Week" : "Weeks"} of scheduled work.
-                  </span>
-                </p>
+                <div className="flex flex-col gap-1">
+                  <p className="text-muted-foreground text-xs">
+                    Currently materializing {windowLabel(savedWindow).toLowerCase()} ahead.
+                  </p>
+                  <p className="flex items-start gap-1.5 text-amber-600 text-xs dark:text-amber-500">
+                    <HugeiconsIcon
+                      className="mt-px size-3.5 shrink-0"
+                      icon={Alert02Icon}
+                      strokeWidth={2}
+                    />
+                    <span>
+                      Widening to {windowLabel(draftWindow).toLowerCase()} will create real Tasks
+                      for the next {addedCycles} {addedCycles === 1 ? "Week" : "Weeks"} of scheduled
+                      work.
+                    </span>
+                  </p>
+                </div>
               ) : (
                 <p className="text-muted-foreground text-xs">{summary}</p>
               )}
