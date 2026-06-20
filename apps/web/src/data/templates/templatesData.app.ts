@@ -17,7 +17,7 @@ type TemplateMutationResult = Promise<
   { readonly ok: true } | { readonly ok: false; readonly error: { readonly message: string } }
 >;
 
-type WeeklyTemplateTaskInput = {
+type TemplateTaskInput = {
   readonly assignedUserId: string | null;
   readonly description: string | null;
   readonly estimate: string | null;
@@ -225,7 +225,7 @@ export function useCreateWeeklyServiceTemplate() {
       readonly serviceWeekday: number;
       readonly startDate: string;
       readonly schedule: boolean;
-      readonly tasks: readonly WeeklyTemplateTaskInput[];
+      readonly tasks: readonly TemplateTaskInput[];
       readonly templateTeams: readonly {
         readonly key: string;
         readonly mapped_team_id: string;
@@ -292,7 +292,7 @@ export function useCreatePeriodTemplate() {
       readonly schedule: boolean;
       readonly scheduleDefaults: PeriodTemplateScheduleDefaults;
       readonly shape: PeriodTemplateShape;
-      readonly tasks: readonly WeeklyTemplateTaskInput[];
+      readonly tasks: readonly TemplateTaskInput[];
       readonly templateTeams: readonly {
         readonly key: string;
         readonly mapped_team_id: string;

@@ -174,25 +174,39 @@ const startOfCycle = (localDate: string) => {
 
 const periodKeyForDate = (shape: PeriodTemplatePlacementShape, localDate: string) => {
   const { month, year } = parseLocalDate(localDate);
-  if (shape === "monthly") return `${year}-${String(month).padStart(2, "0")}`;
-  if (shape === "quarterly") return `${year}-Q${Math.floor((month - 1) / 3) + 1}`;
-  return `${year}`;
+  switch (shape) {
+    case "monthly":
+      return `${year}-${String(month).padStart(2, "0")}`;
+    case "quarterly":
+      return `${year}-Q${Math.floor((month - 1) / 3) + 1}`;
+    case "yearly":
+      return `${year}`;
+  }
 };
 
 const nextPeriodStart = (shape: PeriodTemplatePlacementShape, localDate: string) => {
   const { month, year } = parseLocalDate(localDate);
-  if (shape === "monthly") return new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10);
-  if (shape === "quarterly") {
-    const nextQuarterMonth = Math.floor((month - 1) / 3) * 3 + 4;
-    return new Date(Date.UTC(year, nextQuarterMonth - 1, 1)).toISOString().slice(0, 10);
+  switch (shape) {
+    case "monthly":
+      return new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10);
+    case "quarterly": {
+      const nextQuarterMonth = Math.floor((month - 1) / 3) * 3 + 4;
+      return new Date(Date.UTC(year, nextQuarterMonth - 1, 1)).toISOString().slice(0, 10);
+    }
+    case "yearly":
+      return new Date(Date.UTC(year + 1, 0, 1)).toISOString().slice(0, 10);
   }
-  return new Date(Date.UTC(year + 1, 0, 1)).toISOString().slice(0, 10);
 };
 
 const frameSizeForShape = (shape: PeriodTemplatePlacementShape) => {
-  if (shape === "monthly") return 5;
-  if (shape === "quarterly") return 13;
-  return 52;
+  switch (shape) {
+    case "monthly":
+      return 5;
+    case "quarterly":
+      return 13;
+    case "yearly":
+      return 52;
+  }
 };
 
 const majorityOwnedPeriodKey = (

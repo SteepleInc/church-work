@@ -1441,6 +1441,11 @@ function SaveStep({
   readonly onSave: () => void;
 }) {
   const isWeekly = shape === "weekly_service";
+  const savedMessage = (() => {
+    if (!schedule) return "Template saved.";
+    if (isWeekly) return `Template saved and scheduled for ${WEEKDAY_NAMES[serviceWeekday]}s.`;
+    return "Template saved and scheduled.";
+  })();
   const fallbackName = isWeekly ? "Weekly Service" : `${SHAPE_META[shape].badge} Template`;
   const cadence = (() => {
     if (isWeekly) return schedule ? "Repeats every week" : "Saved, not scheduled";
@@ -1532,11 +1537,7 @@ function SaveStep({
           {saved ? (
             <span className="inline-flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-2.5 py-1 font-medium text-emerald-700 text-sm dark:text-emerald-400">
               <Check className="size-4" />
-              {schedule
-                ? isWeekly
-                  ? `Template saved and scheduled for ${WEEKDAY_NAMES[serviceWeekday]}s.`
-                  : "Template saved and scheduled."
-                : "Template saved."}
+              {savedMessage}
             </span>
           ) : !canSave ? (
             <span className="text-muted-foreground text-sm">
