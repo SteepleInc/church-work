@@ -78,7 +78,11 @@ test("soft-deletes and restores a scheduled Template from the Library", async ({
   await page.getByRole("button", { name: "Save and schedule" }).click();
   await expect(page.getByText(/Template saved/)).toBeVisible({ timeout: 20_000 });
 
-  await page.getByRole("link", { name: "Library" }).click();
+  await page
+    .locator("span", { hasText: /Template saved/ })
+    .getByRole("link", { exact: true, name: "Library" })
+    .click();
+  await expect(page).toHaveURL(/\/templates\/library$/);
   const templateCard = page.getByRole("link", { name: /Template To Restore/ }).locator("..");
   await expect(templateCard).toBeVisible({ timeout: 20_000 });
 
