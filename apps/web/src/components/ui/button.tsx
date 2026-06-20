@@ -67,7 +67,11 @@ function Button({
   const content = (child: ReactNode) => (
     <>
       <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-        <Spinner className="size-4 opacity-0 group-data-[loading=true]/button:opacity-100" />
+        <Spinner
+          aria-hidden="true"
+          role="presentation"
+          className="size-4 opacity-0 group-data-[loading=true]/button:opacity-100"
+        />
       </span>
       <span
         className={cn(

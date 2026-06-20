@@ -531,6 +531,7 @@ export function buildProjectedTemplateTasksForCycle(args: {
   };
 
   for (const schedule of args.schedules) {
+    if (schedule.deleted_at != null) continue;
     if (schedule.kind !== "weekly" && schedule.kind !== "key_date") continue;
     const rule = parseJson<{
       kind?: string;
@@ -539,7 +540,7 @@ export function buildProjectedTemplateTasksForCycle(args: {
       repeat?: string;
     }>(schedule.rule, {});
     const scheduleTasks = args.templateTasks.filter(
-      (task) => task.template_id === schedule.template_id,
+      (task) => task.template_id === schedule.template_id && task.deleted_at == null,
     );
 
     if (schedule.kind === "key_date") {

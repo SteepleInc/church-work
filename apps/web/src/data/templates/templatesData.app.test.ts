@@ -75,6 +75,7 @@ describe("template library data seams", () => {
       }),
     ).toEqual([
       {
+        currentOccurrenceKey: "weekly:2026-06-21:sunday",
         id: "schedule-1",
         key: "sunday-am",
         kind: "weekly",
@@ -87,6 +88,7 @@ describe("template library data seams", () => {
         templateName: "Sunday Service",
       },
       {
+        currentOccurrenceKey: null,
         id: "schedule-2",
         key: "easter",
         kind: "key_date",

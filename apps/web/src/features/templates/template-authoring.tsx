@@ -1,4 +1,5 @@
 import type { KeyDateRule } from "@church-task/domain";
+import { Link } from "@tanstack/react-router";
 import {
   CalendarDays,
   CalendarHeart,
@@ -2477,9 +2478,14 @@ function SaveStep({
             {schedule ? "Save and schedule" : "Save Template"}
           </Button>
           {saved ? (
-            <span className="inline-flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-2.5 py-1 font-medium text-emerald-700 text-sm dark:text-emerald-400">
-              <Check className="size-4" />
-              {savedMessage}
+            <span className="inline-flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-2.5 py-1 font-medium text-emerald-700 text-sm dark:text-emerald-400">
+                <Check className="size-4" />
+                {savedMessage}
+              </span>
+              <Button asChild size="sm" variant="outline">
+                <Link to="/templates/library">Library</Link>
+              </Button>
             </span>
           ) : !canSave ? (
             <span className="text-muted-foreground text-sm">

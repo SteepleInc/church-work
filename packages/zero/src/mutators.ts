@@ -424,12 +424,63 @@ const SetCycleAdjustmentsArgs = toZeroSchema(
 const ProjectTemplateCycleArgs = toZeroSchema(
   Schema.Struct({ church_id: Schema.String, cycle_id: Schema.String, template_id: Schema.String }),
 );
+const TemplateEntityMutationArgs = toZeroSchema(
+  Schema.Struct({ church_id: Schema.String, id: Schema.String }),
+);
+const DeleteTemplateScheduleArgs = toZeroSchema(
+  Schema.Struct({
+    church_id: Schema.String,
+    cleanup_current_occurrence: Schema.Boolean,
+    current_date: Schema.String,
+    current_occurrence_key: Schema.Union([Schema.String, Schema.Null]),
+    id: Schema.String,
+  }),
+);
 
 const defineChurchTaskMutator = defineMutatorWithType<
   ZeroSchema,
   OptionalZeroSessionContext,
   unknown
 >();
+
+const softDeleteEntity = async (params: {
+  readonly db: ReturnType<typeof serverDb> extends infer Db ? NonNullable<Db> : never;
+  readonly table: typeof templates | typeof template_tasks | typeof template_schedules;
+  readonly church_id: string;
+  readonly id: string;
+  readonly user_id: string;
+  readonly now: Date;
+}) => {
+  await params.db
+    .update(params.table)
+    .set({
+      deleted_at: params.now,
+      deleted_by: params.user_id,
+      updated_at: params.now,
+      updated_by: params.user_id,
+    })
+    .where(
+      and(
+        eq(params.table.id, params.id),
+        eq(params.table.church_id, params.church_id),
+        isNull(params.table.deleted_at),
+      ),
+    );
+};
+
+const restoreEntity = async (params: {
+  readonly db: ReturnType<typeof serverDb> extends infer Db ? NonNullable<Db> : never;
+  readonly table: typeof templates | typeof template_tasks | typeof template_schedules;
+  readonly church_id: string;
+  readonly id: string;
+  readonly user_id: string;
+  readonly now: Date;
+}) => {
+  await params.db
+    .update(params.table)
+    .set({ deleted_at: null, deleted_by: null, updated_at: params.now, updated_by: params.user_id })
+    .where(and(eq(params.table.id, params.id), eq(params.table.church_id, params.church_id)));
+};
 
 const requireTeamManager = (ctx: OptionalZeroSessionContext, church_id: string) => {
   const session = requireActiveChurchAccess(ctx, church_id);
@@ -2104,6 +2155,52 @@ export const mutators = defineMutators({
         }),
       );
     }),
+    delete: defineChurchTaskMutator(TemplateEntityMutationArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+      const session = requireTemplateManager(ctx, args.church_id);
+      const now = new Date();
+      await softDeleteEntity({
+        church_id: args.church_id,
+        db,
+        id: args.id,
+        now,
+        table: templates,
+        user_id: session.user_id,
+      });
+      await writeActivity(db, {
+        actor_id: session.user_id,
+        church_id: args.church_id,
+        entity_id: args.id,
+        entity_type: "template",
+        event_type: "template.deleted",
+        metadata: {},
+        occurred_at: now,
+      });
+    }),
+    restore: defineChurchTaskMutator(TemplateEntityMutationArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+      const session = requireTemplateManager(ctx, args.church_id);
+      const now = new Date();
+      await restoreEntity({
+        church_id: args.church_id,
+        db,
+        id: args.id,
+        now,
+        table: templates,
+        user_id: session.user_id,
+      });
+      await writeActivity(db, {
+        actor_id: session.user_id,
+        church_id: args.church_id,
+        entity_id: args.id,
+        entity_type: "template",
+        event_type: "template.restored",
+        metadata: {},
+        occurred_at: now,
+      });
+    }),
     project_cycle: defineChurchTaskMutator(ProjectTemplateCycleArgs, async ({ args, ctx, tx }) => {
       const db = serverDb(tx);
       if (!db) return;
@@ -2281,6 +2378,140 @@ export const mutators = defineMutators({
           .set({ next_task_number, updated_at: new Date(), updated_by: session.user_id })
           .where(eq(teams.id, team_id));
       }
+    }),
+  },
+  template_tasks: {
+    delete: defineChurchTaskMutator(TemplateEntityMutationArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+      const session = requireTemplateManager(ctx, args.church_id);
+      const now = new Date();
+      await softDeleteEntity({
+        church_id: args.church_id,
+        db,
+        id: args.id,
+        now,
+        table: template_tasks,
+        user_id: session.user_id,
+      });
+      await writeActivity(db, {
+        actor_id: session.user_id,
+        church_id: args.church_id,
+        entity_id: args.id,
+        entity_type: "template_task",
+        event_type: "template_task.deleted",
+        metadata: {},
+        occurred_at: now,
+      });
+    }),
+    restore: defineChurchTaskMutator(TemplateEntityMutationArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+      const session = requireTemplateManager(ctx, args.church_id);
+      const now = new Date();
+      await restoreEntity({
+        church_id: args.church_id,
+        db,
+        id: args.id,
+        now,
+        table: template_tasks,
+        user_id: session.user_id,
+      });
+      await writeActivity(db, {
+        actor_id: session.user_id,
+        church_id: args.church_id,
+        entity_id: args.id,
+        entity_type: "template_task",
+        event_type: "template_task.restored",
+        metadata: {},
+        occurred_at: now,
+      });
+    }),
+  },
+  template_schedules: {
+    delete: defineChurchTaskMutator(DeleteTemplateScheduleArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+      const session = requireTemplateManager(ctx, args.church_id);
+      const now = new Date();
+      await softDeleteEntity({
+        church_id: args.church_id,
+        db,
+        id: args.id,
+        now,
+        table: template_schedules,
+        user_id: session.user_id,
+      });
+      if (args.cleanup_current_occurrence && args.current_occurrence_key) {
+        await db
+          .update(cycle_adjustments)
+          .set({
+            deleted_at: now,
+            deleted_by: session.user_id,
+            updated_at: now,
+            updated_by: session.user_id,
+          })
+          .where(
+            and(
+              eq(cycle_adjustments.church_id, args.church_id),
+              eq(cycle_adjustments.source_template_schedule_id, args.id),
+              eq(cycle_adjustments.source_template_occurrence_key, args.current_occurrence_key),
+              isNull(cycle_adjustments.deleted_at),
+            ),
+          );
+        await db
+          .update(tasks)
+          .set({
+            deleted_at: now,
+            deleted_by: session.user_id,
+            updated_at: now,
+            updated_by: session.user_id,
+          })
+          .where(
+            and(
+              eq(tasks.church_id, args.church_id),
+              eq(tasks.source_template_schedule_id, args.id),
+              eq(tasks.source_template_occurrence_key, args.current_occurrence_key),
+              gte(tasks.due_date, args.current_date),
+              isNull(tasks.deleted_at),
+            ),
+          );
+      }
+      await writeActivity(db, {
+        actor_id: session.user_id,
+        church_id: args.church_id,
+        entity_id: args.id,
+        entity_type: "template_schedule",
+        event_type: "template_schedule.deleted",
+        metadata: {
+          cleanup_current_occurrence: args.cleanup_current_occurrence,
+          current_occurrence_key: args.current_occurrence_key,
+        },
+        occurred_at: now,
+      });
+    }),
+    restore: defineChurchTaskMutator(TemplateEntityMutationArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+      const session = requireTemplateManager(ctx, args.church_id);
+      const now = new Date();
+      await restoreEntity({
+        church_id: args.church_id,
+        db,
+        id: args.id,
+        now,
+        table: template_schedules,
+        user_id: session.user_id,
+      });
+      await writeActivity(db, {
+        actor_id: session.user_id,
+        church_id: args.church_id,
+        entity_id: args.id,
+        entity_type: "template_schedule",
+        event_type: "template_schedule.restored",
+        metadata: {},
+        occurred_at: now,
+      });
     }),
   },
   cycle_adjustments: {

@@ -58,6 +58,53 @@ test("authors and schedules a weekly service Template", async ({ page }, testInf
   await expect(adjustedProjectedTask.getByLabel("Estimate: L")).toBeVisible();
 });
 
+test("soft-deletes and restores a scheduled Template from the Library", async ({
+  page,
+}, testInfo) => {
+  test.slow();
+
+  const email = `templates-delete-${Date.now()}-${testInfo.workerIndex}@example.com`;
+  const churchName = `E2E Template Delete Church ${Date.now()}`;
+
+  await signInAndCompleteOnboarding(page, { churchName, email });
+
+  await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Templates" }).click();
+  await expect(page).toHaveURL(/\/templates$/);
+
+  await page.getByLabel("Template name").fill("Template To Restore");
+  await page.getByRole("button", { exact: true, name: "Sun" }).click();
+  await page.getByRole("button", { name: "Add Template Task" }).first().click();
+  await page.getByPlaceholder("Template Task title").fill("Prepare restoration plan");
+  await page.getByRole("button", { name: "Save and schedule" }).click();
+  await expect(page.getByText(/Template saved/)).toBeVisible({ timeout: 20_000 });
+
+  await page.getByRole("link", { exact: true, name: "Library" }).click();
+  await expect(page).toHaveURL(/\/templates\/library$/);
+  const templateCard = page.getByRole("link", { name: /Template To Restore/ }).locator("..");
+  await expect(templateCard).toBeVisible({ timeout: 20_000 });
+
+  await templateCard.hover();
+  await templateCard
+    .getByRole("button", { name: "Template actions for Template To Restore" })
+    .click();
+  await page.getByRole("menuitem", { name: "Delete Template" }).click();
+
+  await expect(page.getByRole("heading", { name: "Delete “Template To Restore”?" })).toBeVisible();
+  await expect(page.getByText("stops projecting future work")).toBeVisible();
+  await page.getByRole("button", { name: "Delete Template" }).click();
+
+  await expect(page.getByText("Template deleted")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("link", { name: /Template To Restore/ })).toBeHidden({
+    timeout: 20_000,
+  });
+
+  await page.getByRole("button", { name: "Restore" }).click();
+  await expect(page.getByText("Template To Restore restored")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("link", { name: /Template To Restore/ })).toBeVisible({
+    timeout: 20_000,
+  });
+});
+
 test("authors and schedules a Key Date Template", async ({ page }, testInfo) => {
   const email = `key-date-template-${Date.now()}-${testInfo.workerIndex}@example.com`;
   const churchName = `E2E Key Date Templates Church ${Date.now()}`;
