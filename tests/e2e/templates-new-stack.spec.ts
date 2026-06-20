@@ -73,7 +73,7 @@ test("authors and schedules a Key Date Template", async ({ page }, testInfo) => 
   await page.getByLabel("Key Date Template name").fill("Easter Prep Template");
   await page.getByRole("button", { name: "Select Key Date" }).click();
   await page.getByRole("button", { name: /Easter/ }).click();
-  await expect(page.getByText("Next occurrence")).toBeVisible();
+  await expect(page.locator("dt").filter({ hasText: /^Next occurrence$/ })).toBeVisible();
 
   await page.getByRole("button", { name: "Add Template Task" }).first().click();
   await page.getByPlaceholder("Template Task title").fill("Prepare Easter volunteers");
