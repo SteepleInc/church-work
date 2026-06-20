@@ -10,13 +10,30 @@ import {
 import { cn } from "@/lib/utils";
 
 /** Slugify a Key Date name into a stable, URL-safe key. */
-export const slugifyKey = (name: string) =>
+export const slugifyKeyDateKey = (name: string) =>
   name
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 64) || "key-date";
+
+/** Back-compat alias for `slugifyKeyDateKey`. */
+export const slugifyKey = slugifyKeyDateKey;
+
+/** Builds a slug for `name` that doesn't collide with `usedKeys` (ignoring `ignore`). */
+export function uniqueKeyDateKey(
+  usedKeys: ReadonlySet<string>,
+  name: string,
+  ignore?: string,
+): string {
+  const base = slugifyKeyDateKey(name);
+  if (!usedKeys.has(base) || base === ignore) return base;
+  for (let bump = 2; ; bump += 1) {
+    const candidate = `${base}-${bump}`;
+    if (!usedKeys.has(candidate) || candidate === ignore) return candidate;
+  }
+}
 
 const KEY_DATE_KINDS: readonly KeyDateScheduleKind[] = ["computedYearly", "fixedYearly", "oneTime"];
 

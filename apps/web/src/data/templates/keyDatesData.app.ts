@@ -120,6 +120,31 @@ export function useKeyDatesCollection(params: { readonly churchId: string | null
   };
 }
 
+/**
+ * The Key Dates Collection shaped for the generic `Collection` component:
+ * client-side name filtering driven by the URL filter, plus the pagination
+ * fields the component expects (Key Dates are not server-paginated, so the
+ * whole filtered set is returned in one page).
+ */
+export function useKeyDatesCollectionWithFilters(params: {
+  readonly churchId: string | null;
+  readonly nameFilter: string;
+}) {
+  const { collection, loading } = useKeyDatesCollection({ churchId: params.churchId });
+  const needle = params.nameFilter.trim().toLowerCase();
+  const filtered = needle
+    ? collection.filter((keyDate) => keyDate.name.toLowerCase().includes(needle))
+    : collection;
+
+  return {
+    keyDatesCollection: filtered,
+    limit: filtered.length,
+    loading,
+    nextPage: () => {},
+    pageSize: filtered.length,
+  };
+}
+
 export function useCreateKeyDate() {
   const zero = useZero();
   return useCallback(

@@ -27,9 +27,20 @@ import {
   useUpdateKeyDate,
   type KeyDateItem,
 } from "@/data/templates/keyDatesData.app";
-import { ScheduleEditor, slugifyKey } from "@/features/settings/key-date-schedule";
+import {
+  defaultScheduleForKind,
+  ScheduleEditor,
+  slugifyKey,
+  slugifyKeyDateKey,
+  uniqueKeyDateKey,
+} from "@/features/settings/key-date-schedule";
 import { useQuickActionOpeners } from "@/features/quick-actions/quick-actions-state";
 import { cn } from "@/lib/utils";
+
+// Re-exported so Key Date collection surfaces can import schedule helpers from a
+// single module. The implementations live in key-date-schedule.tsx, which has
+// no quick-actions dependency (avoids an import cycle).
+export { defaultScheduleForKind, ScheduleEditor, slugifyKeyDateKey, uniqueKeyDateKey };
 
 type KeyDateMutationResult =
   | { readonly ok: true }
@@ -212,24 +223,27 @@ function KeyDatesSettingsPanel({
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-3">
-        <div className="relative w-full max-w-xs">
-          <Search className="-translate-y-1/2 absolute top-1/2 left-2.5 size-4 text-muted-foreground" />
+      <div className="flex min-h-10 items-center gap-2">
+        {/* biome-ignore lint/a11y/noLabelWithoutControl: search field label wraps the input */}
+        <label className="relative flex w-full shrink-1 flex-row items-center gap-2 lg:max-w-64">
+          <Search className="-translate-y-1/2 absolute top-1/2 left-3 size-4 text-muted-foreground" />
           <Input
-            className="pl-8"
+            className="flex-1 rounded-full px-9!"
             onChange={(event) => setFilter(event.currentTarget.value)}
-            placeholder="Filter by name..."
+            placeholder="Search Key Dates"
             value={filter}
           />
-        </div>
+        </label>
         {canManage ? (
           <Button
+            className="ml-auto"
             disabled={!churchId}
             onClick={() => {
               if (!churchId) return;
               setError(null);
               openCreateKeyDate({ churchId });
             }}
+            size="sm"
             type="button"
           >
             <Plus />
@@ -286,7 +300,7 @@ function KeyDatesSettingsPanel({
 }
 
 /** A text field that commits on Enter/blur and cancels on Escape. */
-function KeyDateNameInput({
+export function KeyDateNameInput({
   defaultValue,
   onSubmit,
   onCancel,
@@ -344,7 +358,7 @@ function KeyDateNameInput({
 }
 
 /** A read-only schedule summary that opens the schedule editor when managed. */
-function ScheduleCell({
+export function ScheduleCell({
   schedule,
   onChange,
   canManage,
@@ -383,7 +397,7 @@ function ScheduleCell({
 }
 
 /** The trailing per-row "..." actions menu. */
-function KeyDateRowActions({
+export function KeyDateRowActions({
   onRename,
   onDelete,
 }: {
