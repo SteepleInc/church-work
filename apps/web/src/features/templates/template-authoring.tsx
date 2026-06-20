@@ -200,7 +200,7 @@ function nextPeriodStartDate(shape: PeriodTemplatePlacementShape) {
   return formatLocalDate(new Date(today.getFullYear() + 1, 0, 1));
 }
 
-type TemplateShape = "weekly_service" | "key_date";
+type TemplateShape = "key_date" | TemplateAuthoringShape;
 
 /**
  * The Template authoring surface. Picks the Template Placement Shape, then
@@ -220,7 +220,9 @@ export function TemplateAuthoring() {
           <span>Templates</span>
         </div>
         <h1 className="font-semibold text-2xl tracking-tight">
-          {shape === "key_date" ? "New Key Date Template" : "New weekly service Template"}
+          {shape === "key_date"
+            ? "New Key Date Template"
+            : `New ${SHAPE_META[shape].title} Template`}
         </h1>
         <p className="max-w-2xl text-muted-foreground text-sm">
           {shape === "key_date"
@@ -231,7 +233,11 @@ export function TemplateAuthoring() {
 
       <ShapeStep onSelect={setShape} shape={shape} />
 
-      {shape === "key_date" ? <KeyDateAuthoring /> : <WeeklyServiceAuthoring />}
+      {shape === "key_date" ? (
+        <KeyDateAuthoring />
+      ) : (
+        <WeeklyServiceAuthoring initialShape={shape} onShapeChange={setShape} />
+      )}
     </div>
   );
 }
@@ -244,7 +250,13 @@ export function TemplateAuthoring() {
  * Schedule). Template Tasks carry planning fields only — no Workflow Status or
  * Task State (see CONTEXT.md "Template Task").
  */
-function WeeklyServiceAuthoring() {
+function WeeklyServiceAuthoring({
+  initialShape,
+  onShapeChange,
+}: {
+  readonly initialShape: TemplateAuthoringShape;
+  readonly onShapeChange: (shape: TemplateAuthoringShape) => void;
+}) {
   const { currentOrgOpt: activeChurch, loading: churchLoading } = useCurrentOrgOpt();
   const churchId = activeChurch?.id ?? null;
   const currentUserId = activeChurch?.currentUserId ?? null;
@@ -260,7 +272,7 @@ function WeeklyServiceAuthoring() {
   const defaultTeamId = teamsCollection[0]?.id ?? "";
 
   const [name, setName] = useState("Weekly Service");
-  const [shape, setShape] = useState<TemplateAuthoringShape>("weekly_service");
+  const [shape, setShape] = useState<TemplateAuthoringShape>(initialShape);
   const [serviceWeekday, setServiceWeekday] = useState(0); // Sunday default
   const [schedule, setSchedule] = useState(true);
   const [repeatYearly, setRepeatYearly] = useState(false);
@@ -270,6 +282,16 @@ function WeeklyServiceAuthoring() {
   const [tasks, setTasks] = useState<readonly DraftTask[]>([]);
 
   const startDate = useMemo(() => nextWeekdayDate(serviceWeekday), [serviceWeekday]);
+
+  useEffect(() => {
+    setShape(initialShape);
+  }, [initialShape]);
+
+  const selectShape = (next: TemplateAuthoringShape) => {
+    setShape(next);
+    onShapeChange(next);
+  };
+
   const periodStartDate = useMemo(
     () => (shape === "weekly_service" ? startDate : nextPeriodStartDate(shape)),
     [shape, startDate],
@@ -424,20 +446,6 @@ function WeeklyServiceAuthoring() {
 
   return (
     <div className="flex flex-col gap-8">
-      <header className="flex flex-col gap-1.5">
-        <div className="flex items-center gap-2 text-muted-foreground text-sm">
-          <Layers className="size-4" />
-          <span>Templates</span>
-        </div>
-        <h1 className="font-semibold text-2xl tracking-tight">
-          New {SHAPE_META[shape].title} Template
-        </h1>
-        <p className="max-w-2xl text-muted-foreground text-sm">
-          Author a reusable Template, place its Template Tasks across normalized Cycle frames, and
-          schedule it to project work into upcoming Cycles.
-        </p>
-      </header>
-
       <PeriodShapeStep
         name={name}
         onNameChange={(next) => {
@@ -446,7 +454,7 @@ function WeeklyServiceAuthoring() {
         }}
         onShapeChange={(next) => {
           setSaved(false);
-          setShape(next);
+          selectShape(next);
           setSchedule(true);
         }}
         shape={shape}
