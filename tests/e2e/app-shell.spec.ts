@@ -59,10 +59,10 @@ test("shell navigation keeps work and settings routes inside the sidebar layout"
   await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Templates" }).click();
   await expect(page).toHaveURL(/\/templates$/);
   await expect(page.getByRole("heading", { name: "Templates" })).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Schedules" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Templates" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Library" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Key Dates" })).toBeVisible();
-  await expect(page.getByText("No Template Schedules yet")).toBeVisible();
+  await expect(page.getByText("No Templates yet")).toBeVisible();
 
   await page.getByRole("tab", { name: "Library" }).click();
   await expect(page).toHaveURL(/\/templates\/library$/);

@@ -198,6 +198,40 @@ export async function signInAndCompleteOnboarding(
   await completeOnboarding(page, args.churchName);
 }
 
+/**
+ * Opens the create-Template stepper big action from the /templates Collection.
+ * Works from both the empty state ("Create a Template") and the populated
+ * toolbar ("New Template"). The flow opens on step 0, the shape picker.
+ */
+export async function openTemplateCreate(page: Page) {
+  await expect(page).toHaveURL(/\/templates$/);
+  const createButton = page
+    .getByRole("button", { name: "Create a Template" })
+    .or(page.getByRole("button", { name: "New Template" }))
+    .first();
+  await expect(createButton).toBeVisible({ timeout: 20_000 });
+  await createButton.click();
+  // Step 0: shape picker.
+  await expect(page.getByRole("heading", { name: "Template shape" })).toBeVisible({
+    timeout: 20_000,
+  });
+}
+
+/**
+ * Selects a Template shape on step 0 of the create flow and advances to step 1.
+ * `shapeLabel` matches the visible shape label (e.g. "Weekly service",
+ * "Key Date", "Monthly").
+ */
+export async function selectTemplateShape(page: Page, shapeLabel: string) {
+  await page.getByRole("button", { name: `${shapeLabel} Template shape` }).click();
+  await page.getByRole("button", { exact: true, name: "Next" }).click();
+}
+
+/** Advances to the next stepper screen in the create-Template flow. */
+export async function stepperNext(page: Page) {
+  await page.getByRole("button", { exact: true, name: "Next" }).click();
+}
+
 export async function dragTaskCardToStatus(page: Page, taskTitle: string, statusName: string) {
   const taskCard = page.getByLabel(`Task card ${taskTitle}`);
   const destination = page.getByLabel(`${statusName} Tasks`);
