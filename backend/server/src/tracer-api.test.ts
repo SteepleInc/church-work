@@ -1,5 +1,15 @@
 import { createAuth } from "@church-task/auth";
-import { activities, invitation, tasks, teams, workflow_statuses } from "@church-task/db/schema";
+import {
+  activities,
+  cycles,
+  invitation,
+  tasks,
+  template_schedules,
+  template_tasks,
+  templates,
+  teams,
+  workflow_statuses,
+} from "@church-task/db/schema";
 import { startPostgresHarness } from "@church-task/test-harness";
 import { and, eq } from "drizzle-orm";
 import { describe, expect, test } from "vitest";
@@ -411,11 +421,92 @@ describe("tracer API", () => {
         tasks: [expect.objectContaining({ id: created.task?.id, title: "Create from new MCP" })],
       });
 
-      await expect(authRuntime.db.select().from(tasks)).resolves.toHaveLength(1);
+      const templateCreateResponse = await api.fetch(
+        new Request("http://127.0.0.1/api/mcp/tools/template-create-weekly-service", {
+          body: JSON.stringify({
+            churchId: org?.id,
+            name: "Sunday Service",
+            startDate: "2026-06-01",
+            teamId: team!.id,
+            weekday: 6,
+          }),
+          headers: { "content-type": "application/json", cookie },
+          method: "POST",
+        }),
+      );
+      expect(templateCreateResponse.ok).toBe(true);
+      const templateCreated = (await templateCreateResponse.json()) as {
+        template?: { id?: string };
+        templateSchedule?: { id?: string };
+      };
+      expect(templateCreated.template?.id).toMatch(/^template_/);
+      expect(templateCreated.templateSchedule?.id).toMatch(/^templateschedule_/);
+
+      const templateTaskResponse = await api.fetch(
+        new Request("http://127.0.0.1/api/mcp/tools/template-task-add-at-placement", {
+          body: JSON.stringify({
+            churchId: org?.id,
+            cycleOffset: -1,
+            teamId: team!.id,
+            templateId: templateCreated.template?.id,
+            title: "Prepare slides",
+            weekday: 4,
+          }),
+          headers: { "content-type": "application/json", cookie },
+          method: "POST",
+        }),
+      );
+      const templateTaskCreated = (await templateTaskResponse.json()) as {
+        templateTask?: { id?: string };
+      };
+      expect(templateTaskCreated.templateTask?.id).toMatch(/^templatetask_/);
+
+      const [cycle] = await authRuntime.db
+        .select()
+        .from(cycles)
+        .where(eq(cycles.church_id, org!.id))
+        .limit(1);
+      expect(cycle?.id).toMatch(/^cycle_/);
+
+      const materializeResponse = await api.fetch(
+        new Request("http://127.0.0.1/api/mcp/tools/projected-template-task-materialize", {
+          body: JSON.stringify({
+            churchId: org?.id,
+            cycleId: cycle!.id,
+            occurrenceKey: "2026-06-07",
+            teamId: team!.id,
+            templateId: templateCreated.template?.id,
+            templateScheduleId: templateCreated.templateSchedule?.id,
+            templateTaskId: templateTaskCreated.templateTask?.id,
+            title: "Prepare slides",
+            workflowStatusId: todoStatus!.id,
+          }),
+          headers: { "content-type": "application/json", cookie },
+          method: "POST",
+        }),
+      );
+      await expect(materializeResponse.json()).resolves.toMatchObject({
+        deduped: false,
+        ok: true,
+        task: { title: "Prepare slides" },
+      });
+
+      await expect(authRuntime.db.select().from(tasks)).resolves.toHaveLength(2);
+      await expect(authRuntime.db.select().from(templates)).resolves.toHaveLength(1);
+      await expect(authRuntime.db.select().from(template_schedules)).resolves.toHaveLength(1);
+      await expect(authRuntime.db.select().from(template_tasks)).resolves.toHaveLength(1);
       await expect(authRuntime.db.select().from(activities)).resolves.toEqual(
         expect.arrayContaining([
           expect.objectContaining({ entity_id: created.task?.id, event_type: "task.created" }),
           expect.objectContaining({ entity_id: created.task?.id, event_type: "task.status_moved" }),
+          expect.objectContaining({
+            entity_id: templateCreated.template?.id,
+            event_type: "template.created",
+          }),
+          expect.objectContaining({
+            entity_id: templateTaskCreated.templateTask?.id,
+            event_type: "template_task.created",
+          }),
         ]),
       );
 
