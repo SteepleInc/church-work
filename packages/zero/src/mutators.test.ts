@@ -5,6 +5,7 @@ import { describe, expect, test } from "vitest";
 
 import {
   activities,
+  cycle_adjustments,
   cycles,
   key_dates,
   labels,
@@ -36,6 +37,84 @@ const signedInContext = {
 } as const;
 
 describe("Zero Cycle mutators", () => {
+  test("soft-deletes and restores Templates without hard delete", async () => {
+    const updateCalls: Array<{ readonly table: unknown; readonly set: Record<string, unknown> }> =
+      [];
+    const insertCalls: Array<{ readonly table: unknown; readonly values: unknown }> = [];
+    const tx = {
+      dbTransaction: {
+        wrappedTransaction: {
+          insert: (table: unknown) => ({
+            values: async (values: unknown) => insertCalls.push({ table, values }),
+          }),
+          update: (table: unknown) => ({
+            set: (set: Record<string, unknown>) => ({
+              where: async () => updateCalls.push({ table, set }),
+            }),
+          }),
+        },
+      },
+      location: "server",
+    } as never;
+
+    await mustGetMutator(mutators, "templates.delete").fn({
+      args: { church_id: "org_test", id: "template_service" },
+      ctx: signedInContext,
+      tx,
+    });
+    await mustGetMutator(mutators, "templates.restore").fn({
+      args: { church_id: "org_test", id: "template_service" },
+      ctx: signedInContext,
+      tx,
+    });
+
+    expect(updateCalls[0]?.table).toBe(templates);
+    expect(updateCalls[0]?.set.deleted_at).toBeInstanceOf(Date);
+    expect(updateCalls[1]?.table).toBe(templates);
+    expect(updateCalls[1]?.set).toMatchObject({ deleted_at: null, deleted_by: null });
+    expect(insertCalls.map((call) => (call.values as { event_type?: string }).event_type)).toEqual([
+      "template.deleted",
+      "template.restored",
+    ]);
+  });
+
+  test("schedule cleanup soft-deletes future occurrence Tasks and adjustments", async () => {
+    const updateCalls: Array<{ readonly table: unknown; readonly set: Record<string, unknown> }> =
+      [];
+    const tx = {
+      dbTransaction: {
+        wrappedTransaction: {
+          insert: () => ({ values: async () => {} }),
+          update: (table: unknown) => ({
+            set: (set: Record<string, unknown>) => ({
+              where: async () => updateCalls.push({ table, set }),
+            }),
+          }),
+        },
+      },
+      location: "server",
+    } as never;
+
+    await mustGetMutator(mutators, "template_schedules.delete").fn({
+      args: {
+        church_id: "org_test",
+        cleanup_current_occurrence: true,
+        current_date: "2026-06-15",
+        current_occurrence_key: "weekly:2026-06-21:sunday",
+        id: "templateschedule_sunday_service",
+      },
+      ctx: signedInContext,
+      tx,
+    });
+
+    expect(updateCalls.map((call) => call.table)).toEqual([
+      template_schedules,
+      cycle_adjustments,
+      tasks,
+    ]);
+    expect(updateCalls.every((call) => call.set.deleted_at instanceof Date)).toBe(true);
+  });
+
   test("keeps existing Week details when ensuring an existing Week", async () => {
     const updateCalls: Array<{
       readonly table: unknown;

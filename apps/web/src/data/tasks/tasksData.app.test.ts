@@ -90,6 +90,65 @@ describe("scheduled Template projections for Cycle surfaces", () => {
     });
   });
 
+  test("suppresses projections for soft-deleted schedules and Template Tasks", () => {
+    const baseArgs = {
+      cycle: { endDate: "2026-06-14", id: "cycle_2026_06_08", startDate: "2026-06-08" },
+      existingTasks: [],
+      templateTeams: [{ id: "templateteam_worship", mapped_team_id: "team_worship" }],
+      workflows: [{ id: "workflow_worship", team_id: "team_worship" }],
+      workflowStatuses: [
+        { id: "workflowstatus_todo", task_state: "todo", workflow_id: "workflow_worship" },
+      ],
+    } as const;
+    const schedule = {
+      church_id: "church_1",
+      deleted_at: null,
+      end_date: null,
+      id: "templateschedule_sunday_service",
+      kind: "weekly",
+      name: "Sunday Service",
+      recurrence: "repeating",
+      rule: JSON.stringify({ kind: "weekly", weekdays: [0] }),
+      start_date: "2026-06-21",
+      template_id: "template_service",
+    };
+    const templateTask = {
+      assigned_user_id: null,
+      deleted_at: null,
+      description: null,
+      estimate: null,
+      id: "templatetask_plan_setlist",
+      label_ids: JSON.stringify([]),
+      placement_cycle_offset: -1,
+      placement_weekday: 3,
+      template_id: "template_service",
+      template_team_id: "templateteam_worship",
+      title: "Plan setlist",
+    };
+
+    expect(
+      buildProjectedTemplateTasksForCycle({
+        ...baseArgs,
+        schedules: [{ ...schedule, deleted_at: 1 }],
+        templateTasks: [templateTask],
+      } as never),
+    ).toHaveLength(0);
+    expect(
+      buildProjectedTemplateTasksForCycle({
+        ...baseArgs,
+        schedules: [schedule],
+        templateTasks: [{ ...templateTask, deleted_at: 1 }],
+      } as never),
+    ).toHaveLength(0);
+    expect(
+      buildProjectedTemplateTasksForCycle({
+        ...baseArgs,
+        schedules: [schedule],
+        templateTasks: [templateTask],
+      } as never),
+    ).toHaveLength(1);
+  });
+
   test("derives a stable native dot color per Template Schedule", () => {
     expect(getTemplateScheduleDotClassName("templateschedule_sunday_service")).toBe(
       getTemplateScheduleDotClassName("templateschedule_sunday_service"),

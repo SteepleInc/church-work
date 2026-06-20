@@ -17,6 +17,12 @@ type TemplateMutationResult = Promise<
   { readonly ok: true } | { readonly ok: false; readonly error: { readonly message: string } }
 >;
 
+export type DeleteTemplateScheduleOptions = {
+  readonly cleanupCurrentOccurrence: boolean;
+  readonly currentDate: string;
+  readonly currentOccurrenceKey: string | null;
+};
+
 type TemplateTaskInput = {
   readonly assignedUserId: string | null;
   readonly description: string | null;
@@ -443,5 +449,84 @@ export function useTemplateSchedulesCollection(params: { readonly churchId: stri
       params.churchId !== null &&
       (templatesResult.type !== "complete" || schedulesResult.type !== "complete"),
     templateSchedulesCollection: collection,
+  };
+}
+
+export function useTemplateSoftDeleteActions() {
+  const zero = useZero();
+  return {
+    deleteTemplate: useCallback(
+      (params: { readonly churchId: string; readonly templateId: string }) =>
+        mutationResult(() =>
+          zero.mutate(
+            mutators.templates.delete({ church_id: params.churchId, id: params.templateId }),
+          ),
+        ),
+      [zero],
+    ),
+    deleteTemplateSchedule: useCallback(
+      (params: {
+        readonly churchId: string;
+        readonly scheduleId: string;
+        readonly options: DeleteTemplateScheduleOptions;
+      }) =>
+        mutationResult(() =>
+          zero.mutate(
+            mutators.template_schedules.delete({
+              church_id: params.churchId,
+              cleanup_current_occurrence: params.options.cleanupCurrentOccurrence,
+              current_date: params.options.currentDate,
+              current_occurrence_key: params.options.currentOccurrenceKey,
+              id: params.scheduleId,
+            }),
+          ),
+        ),
+      [zero],
+    ),
+    deleteTemplateTask: useCallback(
+      (params: { readonly churchId: string; readonly templateTaskId: string }) =>
+        mutationResult(() =>
+          zero.mutate(
+            mutators.template_tasks.delete({
+              church_id: params.churchId,
+              id: params.templateTaskId,
+            }),
+          ),
+        ),
+      [zero],
+    ),
+    restoreTemplate: useCallback(
+      (params: { readonly churchId: string; readonly templateId: string }) =>
+        mutationResult(() =>
+          zero.mutate(
+            mutators.templates.restore({ church_id: params.churchId, id: params.templateId }),
+          ),
+        ),
+      [zero],
+    ),
+    restoreTemplateSchedule: useCallback(
+      (params: { readonly churchId: string; readonly scheduleId: string }) =>
+        mutationResult(() =>
+          zero.mutate(
+            mutators.template_schedules.restore({
+              church_id: params.churchId,
+              id: params.scheduleId,
+            }),
+          ),
+        ),
+      [zero],
+    ),
+    restoreTemplateTask: useCallback(
+      (params: { readonly churchId: string; readonly templateTaskId: string }) =>
+        mutationResult(() =>
+          zero.mutate(
+            mutators.template_tasks.restore({
+              church_id: params.churchId,
+              id: params.templateTaskId,
+            }),
+          ),
+        ),
+      [zero],
+    ),
   };
 }
