@@ -185,6 +185,24 @@ const UpdateTasksBatchArgs = toZeroSchema(
     updates: Schema.Array(Schema.Struct({ fields: TaskFieldsArg, task_id: Schema.String })),
   }),
 );
+const MaterializeProjectedTaskArgs = toZeroSchema(
+  Schema.Struct({
+    assigned_user_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
+    church_id: Schema.String,
+    cycle_id: Schema.String,
+    description: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
+    due_date: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
+    estimate: Schema.optional(TaskEstimateArg),
+    label_ids: Schema.optional(Schema.Array(Schema.String)),
+    source_template_id: Schema.String,
+    source_template_occurrence_key: Schema.String,
+    source_template_schedule_id: Schema.String,
+    source_template_task_id: Schema.String,
+    team_id: Schema.String,
+    title: Schema.String,
+    workflow_status_id: Schema.String,
+  }),
+);
 const TaskTransitionArgs = toZeroSchema(
   Schema.Struct({ church_id: Schema.String, task_id: Schema.String }),
 );
@@ -237,6 +255,11 @@ const TemplateScheduleRuleArg = Schema.Union([
     weekdays: Schema.Array(Schema.Number),
   }),
   Schema.Struct({
+    keyDateId: Schema.String,
+    kind: Schema.Literal("keyDate"),
+    repeat: Schema.Union([Schema.Literal("none"), Schema.Literal("yearly")]),
+  }),
+  Schema.Struct({
     kind: Schema.Literal("monthly"),
     repeat: Schema.Union([Schema.Literal("none"), Schema.Literal("monthly")]),
   }),
@@ -251,12 +274,40 @@ const TemplateScheduleRuleArg = Schema.Union([
 ]);
 const CycleAdjustmentOverrideArg = Schema.Union([
   Schema.Struct({ field: Schema.Literal("title"), value: Schema.String }),
+  Schema.Struct({
+    field: Schema.Literal("description"),
+    value: Schema.Union([Schema.String, Schema.Null]),
+  }),
+  Schema.Struct({
+    field: Schema.Literal("assignedUserId"),
+    value: Schema.Union([Schema.String, Schema.Null]),
+  }),
+  Schema.Struct({ field: Schema.Literal("teamId"), value: Schema.String }),
   Schema.Struct({ field: Schema.Literal("dueDate"), value: Schema.String }),
+  Schema.Struct({ field: Schema.Literal("labelIds"), value: Schema.Array(Schema.String) }),
+  Schema.Struct({
+    field: Schema.Literal("estimate"),
+    value: Schema.Union([Schema.String, Schema.Null]),
+  }),
   Schema.Struct({
     field: Schema.Literal("parentTemplateTaskId"),
     value: Schema.Union([Schema.String, Schema.Null]),
   }),
 ]);
+type CycleAdjustmentOverrideInput = typeof CycleAdjustmentOverrideArg.Type;
+
+const mergeCycleAdjustmentOverrides = (
+  existingOverrides: readonly CycleAdjustmentOverrideInput[],
+  incomingOverrides: readonly CycleAdjustmentOverrideInput[],
+) => {
+  const overridesByField = new Map<
+    CycleAdjustmentOverrideInput["field"],
+    CycleAdjustmentOverrideInput
+  >();
+  for (const override of existingOverrides) overridesByField.set(override.field, override);
+  for (const override of incomingOverrides) overridesByField.set(override.field, override);
+  return [...overridesByField.values()];
+};
 const UpsertCycleArgs = toZeroSchema(
   Schema.Struct({
     church_id: Schema.String,
@@ -362,6 +413,8 @@ const SetCycleAdjustmentsArgs = toZeroSchema(
         cycle_id: Schema.String,
         lifecycle: Schema.Union([Schema.Literal("active"), Schema.Literal("skipped")]),
         overrides: Schema.Array(CycleAdjustmentOverrideArg),
+        source_template_occurrence_key: Schema.String,
+        source_template_schedule_id: Schema.String,
         template_task_id: Schema.String,
       }),
     ),
@@ -671,8 +724,12 @@ const requireCurrentCycleId = async (
 };
 
 type TemplateTaskRow = {
+  readonly assigned_user_id?: string | null;
+  readonly description?: string | null;
+  readonly estimate?: string | null;
   readonly id: string;
   readonly key: string;
+  readonly label_ids?: string;
   readonly parent_template_task_id: string | null;
   readonly scheduling_rule: string;
   readonly template_team_id: string;
@@ -799,7 +856,12 @@ const buildEffectiveTemplateCycleTasks = (args: {
     const merged = mergeTemplateTaskProjection(
       {
         dueDate,
+        assignedUserId: templateTask.assigned_user_id ?? null,
+        description: templateTask.description ?? null,
+        estimate: templateTask.estimate ?? null,
+        labelIds: parseJson<readonly string[]>(templateTask.label_ids ?? "[]", []),
         parentTemplateTaskId: templateTask.parent_template_task_id,
+        teamId: templateTeam.mapped_team_id,
         templateTaskId: templateTask.id,
         templateTaskKey: templateTask.key,
         title: templateTask.title,
@@ -2230,19 +2292,33 @@ export const mutators = defineMutators({
       const now = new Date();
       for (const adjustment of args.adjustments) {
         const existing = (await db
-          .select({ id: cycle_adjustments.id })
+          .select({ id: cycle_adjustments.id, overrides: cycle_adjustments.overrides })
           .from(cycle_adjustments)
           .where(
             and(
               eq(cycle_adjustments.church_id, args.church_id),
               eq(cycle_adjustments.cycle_id, adjustment.cycle_id),
+              eq(
+                cycle_adjustments.source_template_schedule_id,
+                adjustment.source_template_schedule_id,
+              ),
               eq(cycle_adjustments.template_task_id, adjustment.template_task_id),
+              eq(
+                cycle_adjustments.source_template_occurrence_key,
+                adjustment.source_template_occurrence_key,
+              ),
               isNull(cycle_adjustments.deleted_at),
             ),
-          )) as Array<{ readonly id: string }>;
+          )) as Array<{ readonly id: string; readonly overrides: string }>;
+        const mergedOverrides = existing[0]
+          ? mergeCycleAdjustmentOverrides(
+              parseJson<readonly CycleAdjustmentOverrideInput[]>(existing[0].overrides, []),
+              adjustment.overrides,
+            )
+          : adjustment.overrides;
         const values = {
           lifecycle: adjustment.lifecycle,
-          overrides: stringifyJson(adjustment.overrides),
+          overrides: stringifyJson(mergedOverrides),
           updated_at: now,
           updated_by: session.user_id,
         };
@@ -2261,6 +2337,8 @@ export const mutators = defineMutators({
             created_by: session.user_id,
             cycle_id: adjustment.cycle_id,
             id: getCycleAdjustmentId(),
+            source_template_occurrence_key: adjustment.source_template_occurrence_key,
+            source_template_schedule_id: adjustment.source_template_schedule_id,
             template_task_id: adjustment.template_task_id,
           });
         }
@@ -2489,6 +2567,144 @@ export const mutators = defineMutators({
         });
       }
     }),
+    materialize_projected: defineChurchTaskMutator(
+      MaterializeProjectedTaskArgs,
+      async ({ args, ctx, tx }) => {
+        const db = serverDb(tx);
+        if (!db) return;
+
+        const session = requireActiveChurchAccess(ctx, args.church_id);
+        const now = new Date();
+        const existing = (await db
+          .select({ id: tasks.id })
+          .from(tasks)
+          .where(
+            and(
+              eq(tasks.church_id, args.church_id),
+              eq(tasks.source_template_schedule_id, args.source_template_schedule_id),
+              eq(tasks.source_template_task_id, args.source_template_task_id),
+              eq(tasks.source_template_occurrence_key, args.source_template_occurrence_key),
+              isNull(tasks.deleted_at),
+            ),
+          )
+          .limit(1)) as Array<{ readonly id: string }>;
+        if (existing[0]) {
+          await db
+            .update(tasks)
+            .set(
+              await taskPatchForFields(db, {
+                church_id: args.church_id,
+                fields: { workflow_status_id: args.workflow_status_id },
+                session_user_id: session.user_id,
+                task_id: existing[0].id,
+              }),
+            )
+            .where(eq(tasks.id, existing[0].id));
+          return;
+        }
+
+        const [team] = (await db
+          .select({ id: teams.id, next_task_number: teams.next_task_number })
+          .from(teams)
+          .where(
+            and(
+              eq(teams.id, args.team_id),
+              eq(teams.church_id, args.church_id),
+              isNull(teams.deleted_at),
+            ),
+          )
+          .limit(1)) as Array<{ readonly id: string; readonly next_task_number: number }>;
+        if (!team) throw new Error("Team not found.");
+        const [status] = (await db
+          .select({
+            id: workflow_statuses.id,
+            task_state: workflow_statuses.task_state,
+            workflow_id: workflow_statuses.workflow_id,
+          })
+          .from(workflow_statuses)
+          .where(
+            and(
+              eq(workflow_statuses.id, args.workflow_status_id),
+              eq(workflow_statuses.church_id, args.church_id),
+              isNull(workflow_statuses.deleted_at),
+            ),
+          )
+          .limit(1)) as Array<{
+          readonly id: string;
+          readonly task_state: string;
+          readonly workflow_id: string;
+        }>;
+        if (!status) throw new Error("Workflow Status not found.");
+        const [workflow] = (await db
+          .select({ id: workflows.id })
+          .from(workflows)
+          .where(
+            and(
+              eq(workflows.id, status.workflow_id),
+              eq(workflows.team_id, team.id),
+              eq(workflows.church_id, args.church_id),
+              isNull(workflows.deleted_at),
+            ),
+          )
+          .limit(1)) as Array<{ readonly id: string }>;
+        if (!workflow) throw new Error("Workflow Status is not in this Team's Workflow.");
+
+        const taskId = getTaskId();
+        await db.insert(tasks).values({
+          _tag: "task",
+          assigned_user_id: args.assigned_user_id ?? null,
+          board_order: appendBoardOrderKey(null),
+          church_id: args.church_id,
+          created_at: now,
+          created_by: session.user_id,
+          created_by_user_id: session.user_id,
+          cycle_id: args.cycle_id,
+          description: args.description ?? null,
+          due_date: args.due_date ?? null,
+          estimate: args.estimate ?? null,
+          finished_at: status.task_state === "done" ? now : null,
+          id: taskId,
+          label_ids: serializeStringArray(args.label_ids ?? []),
+          number: team.next_task_number,
+          parent_task_id: null,
+          previous_identifiers: "[]",
+          source_template_cycle_id: null,
+          source_template_id: args.source_template_id,
+          source_template_occurrence_key: args.source_template_occurrence_key,
+          source_template_schedule_id: args.source_template_schedule_id,
+          source_template_sync_enabled: false,
+          source_template_task_id: args.source_template_task_id,
+          task_state: status.task_state,
+          team_id: team.id,
+          title: args.title.trim(),
+          updated_at: now,
+          updated_by: session.user_id,
+          workflow_id: workflow.id,
+          workflow_status_id: status.id,
+        });
+        await db
+          .update(teams)
+          .set({
+            next_task_number: team.next_task_number + 1,
+            updated_at: now,
+            updated_by: session.user_id,
+          })
+          .where(eq(teams.id, team.id));
+        await writeActivity(db, {
+          actor_id: session.user_id,
+          church_id: args.church_id,
+          cycle_id: args.cycle_id,
+          entity_id: taskId,
+          entity_type: "task",
+          event_type: "task.template_materialized",
+          metadata: {
+            source_template_occurrence_key: args.source_template_occurrence_key,
+            source_template_schedule_id: args.source_template_schedule_id,
+            source_template_task_id: args.source_template_task_id,
+          },
+        });
+      },
+    ),
     complete: defineChurchTaskMutator(TaskTransitionArgs, async ({ args, ctx, tx }) => {
       const db = serverDb(tx);
       if (!db) return;

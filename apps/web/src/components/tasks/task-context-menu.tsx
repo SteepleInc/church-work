@@ -164,6 +164,11 @@ export function TaskContextMenu({
 
   const ids = targetTaskIds.length > 0 ? targetTaskIds : [task.id];
   const multiple = ids.length > 1;
+  // A projected Template Task has no Task row yet: its Cycle Adjustment only
+  // carries planning fields (assignee, estimate, labels, due date, etc.), so
+  // Workflow Status, state transitions, and Open/Copy reference actions don't
+  // apply until it materializes.
+  const isProjected = task.isProjected ?? false;
 
   // The status picker offers only the Task's own Team Workflow's statuses
   // (ADR 0013) — relevant on cross-team surfaces fed every Team's statuses.
@@ -256,6 +261,7 @@ export function TaskContextMenu({
               onValueChange={applyEstimate}
               openRef={estimateOpenRef}
               trigger={hiddenTrigger}
+              triggerLabel="Context menu estimate picker"
               value={multiple ? "no_estimate" : ((task.estimate ?? "no_estimate") as TaskEstimate)}
             />
           ) : null}
@@ -271,7 +277,7 @@ export function TaskContextMenu({
       </ContextMenuTrigger>
       <ContextMenuContent className="w-56">
         <ContextMenuGroup>
-          {onChangeTaskStatus ? (
+          {onChangeTaskStatus && !isProjected ? (
             <ContextMenuItem
               disabled={statusItems.length === 0}
               onClick={() => openPicker(statusOpenRef)}
@@ -311,7 +317,7 @@ export function TaskContextMenu({
           ) : null}
         </ContextMenuGroup>
 
-        {onTransitionTask ? (
+        {onTransitionTask && !isProjected ? (
           <>
             <ContextMenuSeparator />
             <ContextMenuSub>
@@ -344,11 +350,15 @@ export function TaskContextMenu({
             Copy
           </ContextMenuSubTrigger>
           <ContextMenuSubContent className="w-52">
-            <ContextMenuItem onClick={() => void copyText(task.identifier, "ID")}>
-              <Hash />
-              Copy ID
-            </ContextMenuItem>
-            {buildTaskUrl ? (
+            {/* A projection has no Task Identifier or link yet ("Projected"),
+                so only the copyable planning text is offered. */}
+            {!isProjected ? (
+              <ContextMenuItem onClick={() => void copyText(task.identifier, "ID")}>
+                <Hash />
+                Copy ID
+              </ContextMenuItem>
+            ) : null}
+            {buildTaskUrl && !isProjected ? (
               <ContextMenuItem onClick={() => void copyText(buildTaskUrl(task.identifier), "Link")}>
                 <LinkIcon />
                 Copy link
@@ -365,7 +375,7 @@ export function TaskContextMenu({
           </ContextMenuSubContent>
         </ContextMenuSub>
 
-        {onOpenTask ? (
+        {onOpenTask && !isProjected ? (
           <>
             <ContextMenuSeparator />
             <ContextMenuItem onClick={() => onOpenTask(task.identifier)}>

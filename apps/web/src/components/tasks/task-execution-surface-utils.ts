@@ -31,6 +31,7 @@ export type TaskSummary = {
   readonly boardOrder?: string;
   readonly labelIds?: readonly string[];
   readonly isProjected?: boolean;
+  readonly isAdjusted?: boolean;
   readonly sourceBadge?: {
     readonly scheduleName: string;
     readonly occurrenceLabel: string;
@@ -38,6 +39,7 @@ export type TaskSummary = {
     readonly occurrencePeriod: string | null;
     readonly periodLabel: string | null;
     readonly dotClassName: string;
+    readonly occurrenceKind?: "keyDate" | "weekly" | "other";
   } | null;
 };
 

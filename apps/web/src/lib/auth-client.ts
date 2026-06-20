@@ -89,6 +89,10 @@ export const authClient = createAuthClient({
               type: "number",
               required: false,
             },
+            rollingMaterializationWindowCycles: {
+              type: "number",
+              required: false,
+            },
             size: {
               type: "string",
               required: false,

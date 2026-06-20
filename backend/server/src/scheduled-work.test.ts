@@ -20,6 +20,7 @@ import {
 import {
   buildCycleForInstant,
   buildCycleForLocalDate,
+  normalizeMaterializationWindowCycles,
   runScheduledCycleMaintenance,
 } from "./scheduled-work";
 
@@ -45,6 +46,14 @@ describe("scheduled work", () => {
     expect(cycle.end_date).toBe("2026-06-21");
     expect(cycle.starts_at.toISOString()).toBe("2026-06-15T07:00:00.000Z");
     expect(cycle.ends_at.toISOString()).toBe("2026-06-22T07:00:00.000Z");
+  });
+
+  test("constrains Rolling Materialization Window to one through fifty-two Cycles", () => {
+    expect(normalizeMaterializationWindowCycles(undefined)).toBe(3);
+    expect(normalizeMaterializationWindowCycles(0)).toBe(1);
+    expect(normalizeMaterializationWindowCycles(53)).toBe(52);
+    expect(normalizeMaterializationWindowCycles(6.9)).toBe(6);
+    expect(normalizeMaterializationWindowCycles(Number.NaN)).toBe(3);
   });
 
   test("maintains cycles, rolls unfinished tasks, and projects Template work", async () => {

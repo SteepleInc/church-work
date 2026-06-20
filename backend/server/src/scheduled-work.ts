@@ -21,6 +21,7 @@ import {
   teams,
   template_tasks,
   template_teams,
+  template_schedules,
   templates,
   workflow_statuses,
   workflows,
@@ -32,6 +33,69 @@ export const sundayCycleMaintenanceCron = "0 8 * * 0";
 
 type DbTransaction = Parameters<Parameters<ChurchTaskDb["transaction"]>[0]>[0];
 type DbExecutor = ChurchTaskDb | DbTransaction;
+const MATERIALIZATION_WINDOW_MIN_CYCLES = 1;
+const MATERIALIZATION_WINDOW_MAX_CYCLES = 52;
+const MATERIALIZATION_WINDOW_DEFAULT_CYCLES = 3;
+
+export const normalizeMaterializationWindowCycles = (value: number | null | undefined) => {
+  const cycles = value ?? MATERIALIZATION_WINDOW_DEFAULT_CYCLES;
+  if (!Number.isFinite(cycles)) return MATERIALIZATION_WINDOW_DEFAULT_CYCLES;
+
+  return Math.max(
+    MATERIALIZATION_WINDOW_MIN_CYCLES,
+    Math.min(MATERIALIZATION_WINDOW_MAX_CYCLES, Math.trunc(cycles)),
+  );
+};
+
+const weekdayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+const dateWeekday = (localDate: string) => {
+  const [year, month, day] = localDate.split("-").map(Number);
+  if (!year || !month || !day) {
+    throw new Error(`Invalid local date: ${localDate}`);
+  }
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+};
+const mondayFirstPosition = (weekday: number) => (weekday + 6) % 7;
+const addDaysUntilWeekday = (localDate: string, weekday: number) =>
+  addLocalDateDays(localDate, (weekday - dateWeekday(localDate) + 7) % 7);
+
+const groupByCycleStartDate = <Task extends { readonly due_date: string }>(
+  tasks: readonly Task[],
+) => {
+  const groups = new Map<string, Task[]>();
+  for (const task of tasks) {
+    const cycleStartDate = cycleStartDateForLocalDate(task.due_date);
+    groups.set(cycleStartDate, [...(groups.get(cycleStartDate) ?? []), task]);
+  }
+  return groups;
+};
+
+const parseWeeklyScheduleRule = (ruleJson: string): number | null => {
+  try {
+    const rule = JSON.parse(ruleJson || "{}") as { kind?: string; weekdays?: readonly number[] };
+    const serviceWeekday = rule.weekdays?.[0];
+    if (rule.kind !== "weekly") return null;
+    if (!Number.isInteger(serviceWeekday)) return null;
+    if (serviceWeekday === undefined || serviceWeekday < 0 || serviceWeekday > 6) return null;
+    return serviceWeekday;
+  } catch {
+    return null;
+  }
+};
+
+type ScheduledExistingProjectedTask = {
+  readonly id: string;
+  readonly source_template_occurrence_key: string | null;
+  readonly source_template_schedule_id: string | null;
+  readonly source_template_task_id: string;
+};
+
+const hasSourceTemplateTaskId = (task: {
+  readonly id: string;
+  readonly source_template_occurrence_key: string | null;
+  readonly source_template_schedule_id: string | null;
+  readonly source_template_task_id: string | null;
+}): task is ScheduledExistingProjectedTask => task.source_template_task_id !== null;
 
 type CycleMaintenanceResult = {
   readonly createdCycleIds: readonly string[];
@@ -159,7 +223,7 @@ const ensureCycle = async (
   return { created: true as const, cycle: created };
 };
 
-const materializeTemplateCycleTasks = async (
+const materializeLegacyTemplateCycleTasks = async (
   db: DbExecutor,
   args: {
     readonly church_id: string;
@@ -375,12 +439,188 @@ const materializeTemplateCycleTasks = async (
   return createdTaskIds;
 };
 
+const materializeScheduledTemplateTasksForWindow = async (
+  db: DbExecutor,
+  args: {
+    readonly church_id: string;
+    readonly church_time_zone: string;
+    readonly current_cycle_start_date: string;
+    readonly now: Date;
+    readonly window_cycles: number;
+  },
+) => {
+  const windowEndDate = addLocalDateDays(args.current_cycle_start_date, args.window_cycles * 7 - 1);
+  const scheduleRows = await db
+    .select()
+    .from(template_schedules)
+    .where(
+      and(eq(template_schedules.church_id, args.church_id), isNull(template_schedules.deleted_at)),
+    );
+  const createdTaskIds: string[] = [];
+
+  for (const schedule of scheduleRows) {
+    if (schedule.kind !== "weekly") continue;
+    const serviceWeekday = parseWeeklyScheduleRule(schedule.rule);
+    if (serviceWeekday === null) continue;
+
+    for (
+      let occurrenceDate = addDaysUntilWeekday(schedule.start_date, serviceWeekday);
+      occurrenceDate <= addLocalDateDays(windowEndDate, 371);
+      occurrenceDate = addLocalDateDays(occurrenceDate, 7)
+    ) {
+      if (schedule.end_date && occurrenceDate > schedule.end_date) break;
+
+      const templateTaskRows = await db
+        .select({
+          id: template_tasks.id,
+          key: template_tasks.key,
+          parent_template_task_id: template_tasks.parent_template_task_id,
+          placement_cycle_offset: template_tasks.placement_cycle_offset,
+          placement_weekday: template_tasks.placement_weekday,
+          scheduling_rule: template_tasks.scheduling_rule,
+          template_team_id: template_tasks.template_team_id,
+          title: template_tasks.title,
+        })
+        .from(template_tasks)
+        .where(
+          and(
+            eq(template_tasks.church_id, args.church_id),
+            eq(template_tasks.template_id, schedule.template_id),
+            isNull(template_tasks.deleted_at),
+          ),
+        );
+      const effectiveTemplateTasks = templateTaskRows
+        .map((task) => {
+          const placementCycleOffset = task.placement_cycle_offset ?? 0;
+          const placementWeekday = task.placement_weekday ?? serviceWeekday;
+          const dueDate = addLocalDateDays(
+            occurrenceDate,
+            placementCycleOffset * 7 +
+              (mondayFirstPosition(placementWeekday) - mondayFirstPosition(serviceWeekday)),
+          );
+          return {
+            ...task,
+            due_date: dueDate,
+            scheduling_rule: JSON.stringify({ kind: "fixedDate", localDate: dueDate }),
+          };
+        })
+        .filter(
+          (task) =>
+            task.due_date >= args.current_cycle_start_date && task.due_date <= windowEndDate,
+        );
+      if (effectiveTemplateTasks.length === 0) continue;
+
+      const effectiveTemplateTasksByCycleStartDate = groupByCycleStartDate(effectiveTemplateTasks);
+
+      const templateTeamRows = await db
+        .select({ id: template_teams.id, mapped_team_id: template_teams.mapped_team_id })
+        .from(template_teams)
+        .where(
+          and(
+            eq(template_teams.church_id, args.church_id),
+            eq(template_teams.template_id, schedule.template_id),
+            isNull(template_teams.deleted_at),
+          ),
+        );
+      const mappedTeamIds = templateTeamRows.map((templateTeam) => templateTeam.mapped_team_id);
+      if (mappedTeamIds.length === 0) continue;
+      const existingProjectedTasks = await db
+        .select({
+          id: tasks.id,
+          source_template_occurrence_key: tasks.source_template_occurrence_key,
+          source_template_schedule_id: tasks.source_template_schedule_id,
+          source_template_task_id: tasks.source_template_task_id,
+        })
+        .from(tasks)
+        .where(and(eq(tasks.church_id, args.church_id), isNull(tasks.deleted_at)));
+      const teamRows = await db
+        .select({ id: teams.id, next_task_number: teams.next_task_number })
+        .from(teams)
+        .where(
+          and(
+            eq(teams.church_id, args.church_id),
+            inArray(teams.id, mappedTeamIds),
+            isNull(teams.deleted_at),
+          ),
+        );
+      const workflowRows = await db
+        .select({ id: workflows.id, team_id: workflows.team_id })
+        .from(workflows)
+        .where(
+          and(
+            eq(workflows.church_id, args.church_id),
+            inArray(workflows.team_id, mappedTeamIds),
+            isNull(workflows.deleted_at),
+          ),
+        );
+      const statusRows = await db
+        .select({ id: workflow_statuses.id, workflow_id: workflow_statuses.workflow_id })
+        .from(workflow_statuses)
+        .where(
+          and(
+            eq(workflow_statuses.church_id, args.church_id),
+            eq(workflow_statuses.task_state, "todo"),
+            isNull(workflow_statuses.deleted_at),
+          ),
+        );
+      const occurrenceKey = `weekly:${occurrenceDate}:${weekdayNames[serviceWeekday]}`;
+      let nextNumberByTeamId = new Map(teamRows.map((team) => [team.id, team.next_task_number]));
+      for (const [cycleStartDate, cycleTemplateTasks] of effectiveTemplateTasksByCycleStartDate) {
+        const cycle = await ensureCycle(db, {
+          church_id: args.church_id,
+          church_time_zone: args.church_time_zone,
+          local_date: cycleStartDate,
+        });
+        const projection = buildTemplateCycleTaskInserts({
+          adjustments: [],
+          church_id: args.church_id,
+          cycle: cycle.cycle,
+          existing_projected_tasks: existingProjectedTasks.filter(hasSourceTemplateTaskId),
+          focus_windows: [],
+          key_date_occurrences: [],
+          now: args.now,
+          session_user_id: "system",
+          source_template_occurrence_key: occurrenceKey,
+          source_template_schedule_id: schedule.id,
+          start_number_by_team_id: nextNumberByTeamId,
+          template_id: schedule.template_id,
+          template_tasks: cycleTemplateTasks,
+          template_teams: templateTeamRows,
+          todo_status_by_workflow_id: new Map(
+            statusRows.map((status) => [status.workflow_id, status]),
+          ),
+          workflow_by_team_id: new Map(
+            workflowRows.map((workflow) => [workflow.team_id, workflow]),
+          ),
+        });
+        nextNumberByTeamId = projection.nextNumberByTeamId;
+        const systemInserts = projection.inserts.map((insert) => ({
+          ...insert,
+          created_by: null,
+          created_by_user_id: null,
+          updated_by: null,
+        }));
+        if (systemInserts.length > 0) await db.insert(tasks).values(systemInserts);
+        createdTaskIds.push(...systemInserts.map((task) => task.id));
+      }
+      for (const [team_id, next_task_number] of nextNumberByTeamId.entries()) {
+        await db
+          .update(teams)
+          .set({ next_task_number, updated_at: args.now, updated_by: null })
+          .where(eq(teams.id, team_id));
+      }
+    }
+  }
+  return createdTaskIds;
+};
+
 export const maintainCyclesForChurch = Effect.fn("maintainCyclesForChurch")(function* (
   db: ChurchTaskDb,
   args: {
     readonly church_id: string;
     readonly church_time_zone: string;
     readonly now?: Date | string;
+    readonly rolling_materialization_window_cycles?: number;
   },
 ) {
   const now = typeof args.now === "string" ? new Date(args.now) : (args.now ?? new Date());
@@ -521,10 +761,20 @@ export const maintainCyclesForChurch = Effect.fn("maintainCyclesForChurch")(func
             .limit(1);
           if (currentCycle) {
             materializedTaskIds.push(
-              ...(await materializeTemplateCycleTasks(tx, {
+              ...(await materializeLegacyTemplateCycleTasks(tx, {
                 church_id: args.church_id,
                 cycle: currentCycle,
                 now,
+              })),
+              ...(await materializeScheduledTemplateTasksForWindow(tx, {
+                church_id: args.church_id,
+                church_time_zone: args.church_time_zone,
+                current_cycle_start_date: currentCycle.start_date,
+                now,
+                window_cycles: normalizeMaterializationWindowCycles(
+                  (args as { rolling_materialization_window_cycles?: number })
+                    .rolling_materialization_window_cycles,
+                ),
               })),
             );
           }
@@ -543,7 +793,11 @@ export const runScheduledCycleMaintenance = Effect.fn("runScheduledCycleMaintena
     catch: (cause) => cause,
     try: () =>
       db
-        .select({ church_time_zone: organization.churchTimeZone, id: organization.id })
+        .select({
+          church_time_zone: organization.churchTimeZone,
+          id: organization.id,
+          rolling_materialization_window_cycles: organization.rollingMaterializationWindowCycles,
+        })
         .from(organization),
   });
   const resultsByChurchId: Record<string, CycleMaintenanceResult> = {};
@@ -554,6 +808,7 @@ export const runScheduledCycleMaintenance = Effect.fn("runScheduledCycleMaintena
       church_id: church.id,
       church_time_zone: church.church_time_zone,
       now: args.now,
+      rolling_materialization_window_cycles: church.rolling_materialization_window_cycles,
     });
     resultsByChurchId[church.id] = result;
     maintainedChurchIds.push(church.id);

@@ -34,6 +34,7 @@ import { Route as OrgDevDataRouteImport } from './routes/_org/dev.data'
 import { Route as OrgAdminUsersRouteImport } from './routes/_org/admin.users'
 import { Route as OrgAdminOrgsRouteImport } from './routes/_org/admin.orgs'
 import { Route as AuthAcceptInvitationIdRouteImport } from './routes/_auth/accept-invitation.$id'
+import { Route as SettingsSettingsWorkspaceSchedulingRouteImport } from './routes/_settings/settings.workspace.scheduling'
 import { Route as SettingsSettingsWorkspaceMembersRouteImport } from './routes/_settings/settings.workspace.members'
 import { Route as SettingsSettingsWorkspaceLabelsRouteImport } from './routes/_settings/settings.workspace.labels'
 import { Route as SettingsSettingsWorkspaceKeyDatesRouteImport } from './routes/_settings/settings.workspace.key-dates'
@@ -166,6 +167,12 @@ const AuthAcceptInvitationIdRoute = AuthAcceptInvitationIdRouteImport.update({
   path: '/accept-invitation/$id',
   getParentRoute: () => AuthRouteRoute,
 } as any)
+const SettingsSettingsWorkspaceSchedulingRoute =
+  SettingsSettingsWorkspaceSchedulingRouteImport.update({
+    id: '/workspace/scheduling',
+    path: '/workspace/scheduling',
+    getParentRoute: () => SettingsSettingsRoute,
+  } as any)
 const SettingsSettingsWorkspaceMembersRoute =
   SettingsSettingsWorkspaceMembersRouteImport.update({
     id: '/workspace/members',
@@ -261,6 +268,7 @@ export interface FileRoutesByFullPath {
   '/settings/workspace/key-dates': typeof SettingsSettingsWorkspaceKeyDatesRoute
   '/settings/workspace/labels': typeof SettingsSettingsWorkspaceLabelsRoute
   '/settings/workspace/members': typeof SettingsSettingsWorkspaceMembersRoute
+  '/settings/workspace/scheduling': typeof SettingsSettingsWorkspaceSchedulingRoute
   '/team/$teamIdentifier/week/$weekNumber': typeof OrgTeamTeamIdentifierWeekWeekNumberRoute
   '/settings/teams/$teamId/general': typeof SettingsSettingsTeamsTeamIdGeneralRoute
   '/settings/teams/$teamId/members': typeof SettingsSettingsTeamsTeamIdMembersRoute
@@ -293,6 +301,7 @@ export interface FileRoutesByTo {
   '/settings/workspace/key-dates': typeof SettingsSettingsWorkspaceKeyDatesRoute
   '/settings/workspace/labels': typeof SettingsSettingsWorkspaceLabelsRoute
   '/settings/workspace/members': typeof SettingsSettingsWorkspaceMembersRoute
+  '/settings/workspace/scheduling': typeof SettingsSettingsWorkspaceSchedulingRoute
   '/team/$teamIdentifier/week/$weekNumber': typeof OrgTeamTeamIdentifierWeekWeekNumberRoute
   '/settings/teams/$teamId/general': typeof SettingsSettingsTeamsTeamIdGeneralRoute
   '/settings/teams/$teamId/members': typeof SettingsSettingsTeamsTeamIdMembersRoute
@@ -332,6 +341,7 @@ export interface FileRoutesById {
   '/_settings/settings/workspace/key-dates': typeof SettingsSettingsWorkspaceKeyDatesRoute
   '/_settings/settings/workspace/labels': typeof SettingsSettingsWorkspaceLabelsRoute
   '/_settings/settings/workspace/members': typeof SettingsSettingsWorkspaceMembersRoute
+  '/_settings/settings/workspace/scheduling': typeof SettingsSettingsWorkspaceSchedulingRoute
   '/_org/team/$teamIdentifier_/week/$weekNumber': typeof OrgTeamTeamIdentifierWeekWeekNumberRoute
   '/_settings/settings/teams/$teamId/general': typeof SettingsSettingsTeamsTeamIdGeneralRoute
   '/_settings/settings/teams/$teamId/members': typeof SettingsSettingsTeamsTeamIdMembersRoute
@@ -367,6 +377,7 @@ export interface FileRouteTypes {
     | '/settings/workspace/key-dates'
     | '/settings/workspace/labels'
     | '/settings/workspace/members'
+    | '/settings/workspace/scheduling'
     | '/team/$teamIdentifier/week/$weekNumber'
     | '/settings/teams/$teamId/general'
     | '/settings/teams/$teamId/members'
@@ -399,6 +410,7 @@ export interface FileRouteTypes {
     | '/settings/workspace/key-dates'
     | '/settings/workspace/labels'
     | '/settings/workspace/members'
+    | '/settings/workspace/scheduling'
     | '/team/$teamIdentifier/week/$weekNumber'
     | '/settings/teams/$teamId/general'
     | '/settings/teams/$teamId/members'
@@ -437,6 +449,7 @@ export interface FileRouteTypes {
     | '/_settings/settings/workspace/key-dates'
     | '/_settings/settings/workspace/labels'
     | '/_settings/settings/workspace/members'
+    | '/_settings/settings/workspace/scheduling'
     | '/_org/team/$teamIdentifier_/week/$weekNumber'
     | '/_settings/settings/teams/$teamId/general'
     | '/_settings/settings/teams/$teamId/members'
@@ -629,6 +642,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/accept-invitation/$id'
       preLoaderRoute: typeof AuthAcceptInvitationIdRouteImport
       parentRoute: typeof AuthRouteRoute
+    }
+    '/_settings/settings/workspace/scheduling': {
+      id: '/_settings/settings/workspace/scheduling'
+      path: '/workspace/scheduling'
+      fullPath: '/settings/workspace/scheduling'
+      preLoaderRoute: typeof SettingsSettingsWorkspaceSchedulingRouteImport
+      parentRoute: typeof SettingsSettingsRoute
     }
     '/_settings/settings/workspace/members': {
       id: '/_settings/settings/workspace/members'
@@ -837,6 +857,7 @@ interface SettingsSettingsRouteChildren {
   SettingsSettingsWorkspaceKeyDatesRoute: typeof SettingsSettingsWorkspaceKeyDatesRoute
   SettingsSettingsWorkspaceLabelsRoute: typeof SettingsSettingsWorkspaceLabelsRoute
   SettingsSettingsWorkspaceMembersRoute: typeof SettingsSettingsWorkspaceMembersRoute
+  SettingsSettingsWorkspaceSchedulingRoute: typeof SettingsSettingsWorkspaceSchedulingRoute
 }
 
 const SettingsSettingsRouteChildren: SettingsSettingsRouteChildren = {
@@ -848,6 +869,8 @@ const SettingsSettingsRouteChildren: SettingsSettingsRouteChildren = {
     SettingsSettingsWorkspaceKeyDatesRoute,
   SettingsSettingsWorkspaceLabelsRoute: SettingsSettingsWorkspaceLabelsRoute,
   SettingsSettingsWorkspaceMembersRoute: SettingsSettingsWorkspaceMembersRoute,
+  SettingsSettingsWorkspaceSchedulingRoute:
+    SettingsSettingsWorkspaceSchedulingRoute,
 }
 
 const SettingsSettingsRouteWithChildren =

@@ -39,6 +39,9 @@ export type TaskBoardTask = {
   } | null;
   // UI-only Task projected from a Template Schedule, not yet materialized.
   readonly isProjected?: boolean;
+  // A projected Template Task whose occurrence carries a Cycle Adjustment with
+  // planning overrides — edited for this Cycle without becoming a real Task.
+  readonly isAdjusted?: boolean;
   readonly sourceBadge?: {
     readonly scheduleName: string;
     readonly occurrenceLabel: string;
@@ -46,6 +49,7 @@ export type TaskBoardTask = {
     readonly occurrencePeriod: string | null;
     readonly periodLabel: string | null;
     readonly dotClassName: string;
+    readonly occurrenceKind?: "keyDate" | "weekly" | "other";
   } | null;
 };
 

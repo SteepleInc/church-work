@@ -149,6 +149,16 @@ const cycleAdjustmentsTable = {
       optional: false,
       customType: null as unknown as string,
     },
+    source_template_schedule_id: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    source_template_occurrence_key: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
     template_task_id: {
       type: "string",
       optional: false,
@@ -742,6 +752,12 @@ const organizationTable = {
       optional: true,
       customType: null as unknown as string,
       serverName: "church_time_zone",
+    },
+    rollingMaterializationWindowCycles: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+      serverName: "rolling_materialization_window_cycles",
     },
     completedOnboarding: {
       type: "boolean",

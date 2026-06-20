@@ -345,6 +345,86 @@ export function useCreatePeriodTemplate() {
   );
 }
 
+export function useCreateKeyDateTemplate() {
+  const zero = useZero();
+  return useCallback(
+    (params: {
+      readonly churchId: string;
+      readonly key: string;
+      readonly name: string;
+      readonly keyDateId: string;
+      readonly occurrenceDate: string;
+      readonly repeatYearly: boolean;
+      readonly tasks: readonly TemplateTaskInput[];
+      readonly templateTeams: readonly {
+        readonly key: string;
+        readonly mapped_team_id: string;
+        readonly name: string;
+      }[];
+    }) => {
+      const occurrenceWeekday = new Date(`${params.occurrenceDate}T00:00:00.000Z`).getUTCDay();
+      return mutationResult(() =>
+        zero.mutate(
+          mutators.templates.create({
+            church_id: params.churchId,
+            focus_windows: [
+              {
+                anchor_date: params.occurrenceDate,
+                end_date: params.occurrenceDate,
+                key: `${params.key}-key-date`,
+                key_date_id: params.keyDateId,
+                name: params.name,
+                start_date: params.occurrenceDate,
+                type: "key_date",
+              },
+            ],
+            key: params.key,
+            name: params.name,
+            placement_shape: "key_date",
+            recurrence: params.repeatYearly ? "yearly" : "one_off",
+            template_schedule: {
+              end_date: params.repeatYearly ? null : params.occurrenceDate,
+              key: `${params.key}-schedule`,
+              kind: "key_date",
+              name: params.name,
+              recurrence: params.repeatYearly ? "repeating" : "oneOff",
+              rule: {
+                keyDateId: params.keyDateId,
+                kind: "keyDate",
+                repeat: params.repeatYearly ? "yearly" : "none",
+              },
+              start_date: params.occurrenceDate,
+            },
+            template_tasks: params.tasks.map((task) => ({
+              assigned_user_id: task.assignedUserId,
+              description: task.description,
+              estimate: task.estimate,
+              key: task.key,
+              label_ids: [...task.labelIds],
+              parent_template_task_key: null,
+              placement_cycle_offset: task.placementCycleOffset,
+              placement_weekday: task.placementWeekday,
+              scheduling_rule: {
+                baseLocalDate: params.occurrenceDate,
+                dayOffset: cycleDayOffset({
+                  placementWeekday: task.placementWeekday,
+                  serviceWeekday: occurrenceWeekday,
+                }),
+                kind: "cycleOffset",
+                offsetCycles: task.placementCycleOffset,
+              },
+              template_team_key: task.templateTeamKey,
+              title: task.title,
+            })),
+            template_teams: [...params.templateTeams],
+          }),
+        ),
+      );
+    },
+    [zero],
+  );
+}
+
 export function useTemplateSchedulesCollection(params: { readonly churchId: string | null }) {
   const queryChurchId = params.churchId ?? NO_CHURCH_ID;
   const [templateRows, templatesResult] = useQuery(

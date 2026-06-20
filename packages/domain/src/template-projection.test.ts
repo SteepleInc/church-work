@@ -11,6 +11,7 @@ import {
   assertTemplateScheduleContract,
   buildPeriodPlacementFrame,
   defaultTemplateScheduleForPlacementShape,
+  mergeTemplateTaskProjection,
   resolvePeriodPlacementDueDate,
 } from "./template-projection";
 
@@ -232,6 +233,50 @@ describe("period Template Placement Shapes", () => {
     assert.deepEqual(defaultTemplateScheduleForPlacementShape("yearly", { repeatYearly: true }), {
       recurrence: "repeating",
       rule: { kind: "yearly", repeat: "yearly" },
+    });
+  });
+});
+
+describe("Cycle Adjustment projection merge", () => {
+  test("merges task-like planning fields into a projected Template Task", () => {
+    const merged = mergeTemplateTaskProjection(
+      {
+        assignedUserId: "user_old",
+        description: "Original notes",
+        dueDate: "2026-06-10",
+        estimate: "m",
+        labelIds: ["label_old"],
+        parentTemplateTaskId: null,
+        teamId: "team_worship",
+        templateTaskId: "templatetask_plan",
+        templateTaskKey: "plan",
+        title: "Plan setlist",
+      },
+      {
+        lifecycle: "active",
+        overrides: [
+          { field: "title", value: "Plan updated setlist" },
+          { field: "description", value: "Adjusted notes" },
+          { field: "assignedUserId", value: "user_new" },
+          { field: "teamId", value: "team_production" },
+          { field: "dueDate", value: "2026-06-11" },
+          { field: "labelIds", value: ["label_shared"] },
+          { field: "estimate", value: "l" },
+        ],
+      },
+    );
+
+    assert.deepEqual(merged.effectiveTask, {
+      assignedUserId: "user_new",
+      description: "Adjusted notes",
+      dueDate: "2026-06-11",
+      estimate: "l",
+      labelIds: ["label_shared"],
+      parentTemplateTaskId: null,
+      teamId: "team_production",
+      templateTaskId: "templatetask_plan",
+      templateTaskKey: "plan",
+      title: "Plan updated setlist",
     });
   });
 });

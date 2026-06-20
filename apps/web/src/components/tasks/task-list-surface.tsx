@@ -44,7 +44,7 @@ import type {
   TaskCardLabelsChange,
   TaskCardStatusChange,
 } from "./task-kanban-board";
-import { TemplateSourceBadge } from "./template-source-badge";
+import { ProjectedAdjustedBadge, TemplateSourceBadge } from "./template-source-badge";
 import { DEFAULT_TASK_VIEW_OPTIONS, type TaskDisplayProperty } from "./task-view-options";
 import { statusOptions } from "./task-kanban-board-utils";
 import { useTaskContextMenu } from "./task-context-menu";
@@ -454,6 +454,9 @@ function TaskListRow({
       keyboard?.toggleSelected(task.id);
       return;
     }
+    // A projected Template Task has no Task row to open yet; planning edits
+    // happen inline on the ghost row, so a body click is a no-op.
+    if (task.isProjected) return;
     // Task links carry the Task Identifier, not the database id (ADR 0013).
     onOpenTask?.(task.identifier);
   };
@@ -470,7 +473,7 @@ function TaskListRow({
         // Projected Template Tasks are planned, not yet created: a dashed, muted
         // row reads them as "ghost" placeholders distinct from real Tasks.
         task.isProjected && "border border-dashed bg-muted/20 text-muted-foreground",
-        onOpenTask && "cursor-pointer hover:bg-muted/70",
+        onOpenTask && !task.isProjected && "cursor-pointer hover:bg-muted/70",
         isFocused && "bg-accent/60",
         isSelected && "bg-primary/5",
       )}
@@ -558,6 +561,8 @@ function TaskListRow({
         {task.sourceBadge ? (
           <TemplateSourceBadge badge={task.sourceBadge} className="max-w-[16rem]" />
         ) : null}
+
+        {task.isProjected && task.isAdjusted ? <ProjectedAdjustedBadge /> : null}
 
         {showProperty("due_date") && dueDateLabel ? (
           <Badge className="text-muted-foreground" variant="outline">

@@ -10,6 +10,7 @@ export type CurrentOrg = {
   readonly name: string;
   readonly slug: string | null;
   readonly churchTimeZone: string | null;
+  readonly rollingMaterializationWindowCycles: number;
   readonly completedOnboarding: boolean;
   readonly url: string | null;
   readonly street: string | null;
@@ -52,6 +53,9 @@ export function useCurrentOrgOpt() {
         name: activeOrg.name,
         slug: activeOrg.slug ?? null,
         churchTimeZone: activeOrg.churchTimeZone ?? null,
+        rollingMaterializationWindowCycles:
+          (activeOrg as { readonly rollingMaterializationWindowCycles?: number | null })
+            .rollingMaterializationWindowCycles ?? 3,
         completedOnboarding: Boolean(activeOrg.completedOnboarding),
         url: activeOrg.url ?? null,
         street: activeOrg.street ?? null,

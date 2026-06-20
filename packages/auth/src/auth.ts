@@ -242,6 +242,12 @@ export const createAuthOptions = (
               countryCode: { input: true, required: false, type: "string" },
               latitude: { input: true, required: false, type: "number" },
               longitude: { input: true, required: false, type: "number" },
+              rollingMaterializationWindowCycles: {
+                defaultValue: 3,
+                input: true,
+                required: false,
+                type: "number",
+              },
               size: { input: true, required: false, type: "string" },
               state: { input: true, required: false, type: "string" },
               street: { input: true, required: false, type: "string" },

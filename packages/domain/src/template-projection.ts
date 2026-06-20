@@ -111,7 +111,12 @@ export type SchedulingRule =
 
 export type CycleAdjustmentOverride =
   | { readonly field: "title"; readonly value: string }
+  | { readonly field: "description"; readonly value: string | null }
+  | { readonly field: "assignedUserId"; readonly value: string | null }
+  | { readonly field: "teamId"; readonly value: string }
   | { readonly field: "dueDate"; readonly value: string }
+  | { readonly field: "labelIds"; readonly value: readonly string[] }
+  | { readonly field: "estimate"; readonly value: string | null }
   | { readonly field: "parentTemplateTaskId"; readonly value: string | null };
 
 export type CycleAdjustmentForMerge = {
@@ -123,8 +128,13 @@ export type TemplateTaskProjectionBase = {
   readonly templateTaskId: string;
   readonly templateTaskKey: string;
   readonly title: string;
+  readonly description: string | null;
+  readonly assignedUserId: string | null;
   readonly dueDate: string;
+  readonly estimate: string | null;
+  readonly labelIds: readonly string[];
   readonly parentTemplateTaskId: string | null;
+  readonly teamId: string;
 };
 
 export type MergedTemplateTaskProjection = {
@@ -356,15 +366,25 @@ export const mergeTemplateTaskProjection = (
   }
 
   const effectiveTask: {
+    assignedUserId: string | null;
+    description: string | null;
     parentTemplateTaskId: string | null;
     dueDate: string;
+    estimate: string | null;
+    labelIds: readonly string[];
+    teamId: string;
     templateTaskId: string;
     templateTaskKey: string;
     title: string;
   } = { ...base };
   for (const override of adjustment?.overrides ?? []) {
     if (override.field === "title") effectiveTask.title = override.value;
+    if (override.field === "description") effectiveTask.description = override.value;
+    if (override.field === "assignedUserId") effectiveTask.assignedUserId = override.value;
+    if (override.field === "teamId") effectiveTask.teamId = override.value;
     if (override.field === "dueDate") effectiveTask.dueDate = override.value;
+    if (override.field === "labelIds") effectiveTask.labelIds = override.value;
+    if (override.field === "estimate") effectiveTask.estimate = override.value;
     if (override.field === "parentTemplateTaskId")
       effectiveTask.parentTemplateTaskId = override.value;
   }

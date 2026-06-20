@@ -20,6 +20,8 @@ describe("Linear-style settings navigation", () => {
       "/settings/workspace/general",
       "/settings/workspace/members",
       "/settings/workspace/labels",
+      "/settings/workspace/key-dates",
+      "/settings/workspace/scheduling",
     ]);
   });
 
@@ -92,6 +94,7 @@ describe("Linear-style settings navigation", () => {
         longitude: null,
         name: "Grace Church",
         role: "owner",
+        rollingMaterializationWindowCycles: 3,
         size: null,
         slug: "grace-church",
         state: "TN",
