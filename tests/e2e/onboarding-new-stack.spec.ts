@@ -40,13 +40,18 @@ test("completes OTP sign-in through onboarding on the local Postgres and Zero st
   await expect(page.getByRole("heading", { name: "Key Dates" })).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole("row", { name: /Easter/ })).toBeVisible({ timeout: 20_000 });
 
+  // Creating a Key Date is a quick action: "New Key Date" opens the Create Key
+  // Date dialog rather than an inline table row.
   await page.getByRole("button", { name: "New Key Date" }).click();
-  await page.getByPlaceholder("Key Date name").fill(keyDateName);
-  await page.getByRole("button", { name: "Add" }).click();
+  const createKeyDateDialog = page.getByRole("dialog", { name: "Create Key Date" });
+  await expect(createKeyDateDialog).toBeVisible({ timeout: 20_000 });
+  await createKeyDateDialog.getByLabel("Key Date Name").fill(keyDateName);
+  await createKeyDateDialog.getByRole("button", { name: "Create Key Date" }).click();
   await expect(page.getByRole("row", { name: new RegExp(keyDateName) })).toBeVisible({
     timeout: 20_000,
   });
 
+  // Inline rename still lives on the Key Dates table row.
   await page
     .getByRole("row", { name: new RegExp(keyDateName) })
     .getByRole("button", { name: keyDateName })

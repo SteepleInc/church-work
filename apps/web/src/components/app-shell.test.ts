@@ -248,8 +248,10 @@ describe("quick action route behavior", () => {
   test("renders Church Task big actions and quick actions without PreachX product surfaces", () => {
     const actions = buildChurchTaskQuickActions({
       canInviteMembers: true,
+      canManageKeyDates: true,
       canManageTeams: true,
       closeQuickActions: () => {},
+      openCreateKeyDate: () => {},
       openCreateTask: () => {},
       openCreateTeam: () => {},
       navigateToSettings: () => {},
@@ -259,6 +261,7 @@ describe("quick action route behavior", () => {
     expect(actions.map((action) => [action.group, action.name])).toEqual([
       ["quick-action", "Create Task"],
       ["quick-action", "Create Team"],
+      ["quick-action", "Create Key Date"],
       ["quick-action", "Invite Member"],
       ["quick-action", "Team Settings"],
       ["quick-action", "Church Settings"],
@@ -272,8 +275,10 @@ describe("quick action route behavior", () => {
   test("disables Invite Member when the active Church role cannot invite", () => {
     const actions = buildChurchTaskQuickActions({
       canInviteMembers: false,
+      canManageKeyDates: false,
       canManageTeams: false,
       closeQuickActions: () => {},
+      openCreateKeyDate: () => {},
       openCreateTask: () => {},
       openCreateTeam: () => {},
       navigateToSettings: () => {},
@@ -287,6 +292,10 @@ describe("quick action route behavior", () => {
     expect(actions.find((action) => action.name === "Create Team")).toMatchObject({
       enabled: false,
       disabledReason: "Only Church owners and admins can create Teams.",
+    });
+    expect(actions.find((action) => action.name === "Create Key Date")).toMatchObject({
+      enabled: false,
+      disabledReason: "Only Church owners and admins can create Key Dates.",
     });
   });
 

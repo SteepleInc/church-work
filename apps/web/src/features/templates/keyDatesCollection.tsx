@@ -1,7 +1,6 @@
-import type { KeyDateRule } from "@church-task/domain";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Array, Option, pipe } from "effect";
-import { CalendarDays, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Collection } from "@/components/collections/collection";
@@ -15,18 +14,12 @@ import {
 } from "@/data/templates/keyDatesCollectionDef";
 import {
   type KeyDateItem,
-  useCreateKeyDate,
   useDeleteKeyDate,
   useKeyDatesCollectionWithFilters,
   useUpdateKeyDate,
 } from "@/data/templates/keyDatesData.app";
-import {
-  defaultScheduleForKind,
-  KeyDateNameInput,
-  KeyDateRowActions,
-  ScheduleEditor,
-  uniqueKeyDateKey,
-} from "@/features/settings/key-date-settings";
+import { KeyDateRowActions, uniqueKeyDateKey } from "@/features/settings/key-date-settings";
+import { useQuickActionOpeners } from "@/features/quick-actions/quick-actions-state";
 import { FilterKeys } from "@/shared/global-state";
 import { useFiltersValue } from "@/shared/hooks/useFilters";
 
@@ -58,15 +51,14 @@ export function KeyDatesCollection() {
   const churchId = activeChurch?.id ?? null;
   const canManage = activeChurch?.role === "owner" || activeChurch?.role === "admin";
 
-  const createKeyDate = useCreateKeyDate();
   const updateKeyDate = useUpdateKeyDate();
   const deleteKeyDate = useDeleteKeyDate();
+  const { openCreateKeyDate } = useQuickActionOpeners();
 
   const nameFilter = useKeyDateNameFilter();
   const { keyDatesCollection, limit, loading, nextPage, pageSize } =
     useKeyDatesCollectionWithFilters({ churchId, nameFilter });
 
-  const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -124,26 +116,13 @@ export function KeyDatesCollection() {
     [canManage, editingId, churchId, usedKeys, updateKeyDate],
   );
 
-  const onCreate = (name: string, schedule: KeyDateRule) => {
-    setCreating(false);
-    const trimmed = name.trim();
-    if (!churchId || !trimmed) return;
-    void run(() =>
-      createKeyDate({
-        churchId,
-        key: uniqueKeyDateKey(usedKeys, trimmed),
-        name: trimmed,
-        schedule,
-      }),
-    );
-  };
-
   const newKeyDateButton = canManage ? (
     <Button
-      disabled={!churchId || creating}
+      disabled={!churchId}
       onClick={() => {
+        if (!churchId) return;
         setError(null);
-        setCreating(true);
+        openCreateKeyDate({ churchId });
       }}
       size="sm"
       type="button"
@@ -159,14 +138,6 @@ export function KeyDatesCollection() {
         <Alert className="mx-4 mb-2 w-auto md:mr-4" variant="destructive">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
-      ) : null}
-
-      {creating ? (
-        <KeyDateCreateForm
-          className="mx-4 mb-2 md:mr-4"
-          onCancel={() => setCreating(false)}
-          onSubmit={onCreate}
-        />
       ) : null}
 
       <Collection<KeyDateItem>
@@ -208,51 +179,6 @@ export function KeyDatesCollection() {
             : undefined
         }
       />
-    </div>
-  );
-}
-
-/** The inline "create a Key Date" form shown above the table while creating. */
-function KeyDateCreateForm({
-  className,
-  onSubmit,
-  onCancel,
-}: {
-  readonly className?: string;
-  readonly onSubmit: (name: string, schedule: KeyDateRule) => void;
-  readonly onCancel: () => void;
-}) {
-  const [name, setName] = useState("");
-  const [schedule, setSchedule] = useState<KeyDateRule>(defaultScheduleForKind("computedYearly"));
-
-  return (
-    <div className={className}>
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-muted/40 p-3">
-        <CalendarDays className="size-4 shrink-0 text-muted-foreground" />
-        <KeyDateNameInput
-          autoFocus
-          defaultValue=""
-          onCancel={onCancel}
-          onSubmit={(committed) => onSubmit(committed, schedule)}
-          onValueChange={setName}
-          placeholder="Key Date name"
-          value={name}
-        />
-        <ScheduleEditor onChange={setSchedule} schedule={schedule} />
-        <div className="ml-auto flex items-center gap-2">
-          <Button onClick={onCancel} size="sm" type="button" variant="ghost">
-            Cancel
-          </Button>
-          <Button
-            disabled={!name.trim()}
-            onClick={() => onSubmit(name, schedule)}
-            size="sm"
-            type="button"
-          >
-            Add
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }

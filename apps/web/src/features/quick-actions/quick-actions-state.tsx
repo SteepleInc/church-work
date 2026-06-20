@@ -2,6 +2,7 @@ import { atom, useSetAtom } from "jotai";
 import { useMemo } from "react";
 
 import { inviteMemberDialogSourceAtom } from "@/features/settings/invite-member";
+import { createKeyDateQuickActionStateAtom } from "@/features/quick-actions/create-key-date-quick-action";
 import { createTaskQuickActionStateAtom } from "@/features/quick-actions/create-task-quick-action";
 import {
   editWeekQuickActionStateAtom,
@@ -14,6 +15,7 @@ export const quickActionsIsOpenAtom = atom(false);
 
 export function useQuickActionOpeners() {
   const setInviteMemberDialogSource = useSetAtom(inviteMemberDialogSourceAtom);
+  const setCreateKeyDateQuickActionState = useSetAtom(createKeyDateQuickActionStateAtom);
   const setCreateTaskQuickActionState = useSetAtom(createTaskQuickActionStateAtom);
   const setEditWeekQuickActionState = useSetAtom(editWeekQuickActionStateAtom);
   const setTeamQuickActionState = useSetAtom(teamQuickActionStateAtom);
@@ -36,6 +38,8 @@ export function useQuickActionOpeners() {
           teamId: options.teamId ?? null,
           parentTaskId: options.parentTaskId ?? null,
         }),
+      openCreateKeyDate: (options: { readonly churchId: string }) =>
+        setCreateKeyDateQuickActionState({ churchId: options.churchId }),
       openCreateTeam: (options: { readonly churchId: string }) =>
         setTeamQuickActionState({ mode: "create", churchId: options.churchId }),
       openEditTeam: (options: { readonly churchId: string; readonly teamId: string }) =>
@@ -48,6 +52,7 @@ export function useQuickActionOpeners() {
       openInviteMember: () => setInviteMemberDialogSource("quick-actions"),
     }),
     [
+      setCreateKeyDateQuickActionState,
       setCreateTaskQuickActionState,
       setEditWeekQuickActionState,
       setInviteMemberDialogSource,

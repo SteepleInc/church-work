@@ -1,5 +1,6 @@
 import {
   Building2Icon,
+  CalendarDaysIcon,
   ClipboardPlusIcon,
   SettingsIcon,
   UserPlusIcon,
@@ -18,8 +19,10 @@ export function canManageChurchTeams(currentRole: CurrentMemberRole) {
 
 type BuildChurchTaskQuickActionsInput = {
   readonly canInviteMembers: boolean;
+  readonly canManageKeyDates: boolean;
   readonly canManageTeams: boolean;
   readonly closeQuickActions: () => void;
+  readonly openCreateKeyDate: () => void;
   readonly openCreateTask: () => void;
   readonly openCreateTeam: () => void;
   readonly navigateToSettings: () => void;
@@ -28,8 +31,10 @@ type BuildChurchTaskQuickActionsInput = {
 
 export function buildChurchTaskQuickActions({
   canInviteMembers,
+  canManageKeyDates,
   canManageTeams,
   closeQuickActions,
+  openCreateKeyDate,
   openCreateTask,
   openCreateTeam,
   navigateToSettings,
@@ -61,6 +66,18 @@ export function buildChurchTaskQuickActions({
         ? undefined
         : "Only Church owners and admins can create Teams.",
       onSelect: selectAndClose(openCreateTeam),
+    },
+    {
+      group: "quick-action",
+      icon: CalendarDaysIcon,
+      name: "Create Key Date",
+      description: "Add a date your Church plans around.",
+      keywords: ["key date", "create", "easter", "christmas", "anniversary", "calendar"],
+      enabled: canManageKeyDates,
+      disabledReason: canManageKeyDates
+        ? undefined
+        : "Only Church owners and admins can create Key Dates.",
+      onSelect: selectAndClose(openCreateKeyDate),
     },
     {
       group: "quick-action",

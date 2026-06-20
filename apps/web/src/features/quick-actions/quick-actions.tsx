@@ -12,6 +12,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
+import { CreateKeyDateQuickAction } from "@/features/quick-actions/create-key-date-quick-action";
 import { CreateTaskQuickAction } from "@/features/quick-actions/create-task-quick-action";
 import { EditOrgQuickAction } from "@/features/quick-actions/edit-org-quick-action";
 import { EditWeekQuickAction } from "@/features/quick-actions/edit-week-quick-action";
@@ -43,7 +44,8 @@ export function QuickActions() {
   const disableQuickActions = useAtomValue(disableQuickActionsAtom);
   const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
   const navigate = useNavigate();
-  const { openCreateTask, openCreateTeam, openInviteMember } = useQuickActionOpeners();
+  const { openCreateKeyDate, openCreateTask, openCreateTeam, openInviteMember } =
+    useQuickActionOpeners();
 
   useEffect(() => {
     if (disableQuickActions) return;
@@ -83,8 +85,12 @@ export function QuickActions() {
     () =>
       buildChurchTaskQuickActions({
         canInviteMembers: canInviteChurchMembers(activeChurch?.role),
+        canManageKeyDates: activeChurchId !== null && canManageChurchTeams(activeChurch?.role),
         canManageTeams: activeChurchId !== null && canManageChurchTeams(activeChurch?.role),
         closeQuickActions: () => setQuickActionsIsOpen(false),
+        openCreateKeyDate: () => {
+          if (activeChurchId) openCreateKeyDate({ churchId: activeChurchId });
+        },
         openCreateTask: () => openCreateTask(),
         openCreateTeam: () => {
           if (activeChurchId) openCreateTeam({ churchId: activeChurchId });
@@ -96,6 +102,7 @@ export function QuickActions() {
       activeChurch?.role,
       activeChurchId,
       navigate,
+      openCreateKeyDate,
       openCreateTask,
       openCreateTeam,
       openInviteMember,
@@ -113,6 +120,7 @@ export function QuickActions() {
       >
         <CommandMenuContent actions={actions} />
       </CommandDialog>
+      <CreateKeyDateQuickAction />
       <CreateTaskQuickAction />
       {activeChurch ? (
         <InviteMemberQuickAction
