@@ -1,5 +1,17 @@
 import { addLocalDateDays } from "./template-projection";
 
+export {
+  buildPeriodPlacementFrame,
+  defaultTemplateScheduleForPlacementShape,
+  resolvePeriodPlacementDueDate,
+} from "./template-projection";
+export type {
+  PeriodTemplatePlacementShape,
+  TemplateScheduleContract,
+  TemplateScheduleRule,
+  TemplateTaskPlacement,
+} from "./template-projection";
+
 export const TEAM_COLORS = [
   "red",
   "orange",

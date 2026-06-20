@@ -18,7 +18,7 @@ test("authors and schedules a weekly service Template", async ({ page }, testInf
   await expect(page.getByRole("heading", { name: "New weekly service Template" })).toBeVisible();
 
   await page.getByLabel("Template name").fill("Sunday Service Template");
-  await page.getByRole("button", { name: "Sun" }).click();
+  await page.getByRole("button", { exact: true, name: "Sun" }).click();
   await page.getByRole("button", { name: "Add Template Task" }).first().click();
   await page.getByPlaceholder("Template Task title").fill("Plan worship set");
 
@@ -85,4 +85,39 @@ test("authors and schedules a Key Date Template", async ({ page }, testInfo) => 
   await expect(page.getByText(/Template saved and scheduled for Easter/)).toBeVisible({
     timeout: 20_000,
   });
+});
+
+test("authors monthly, quarterly, and yearly period Template shapes", async ({
+  page,
+}, testInfo) => {
+  const email = `period-templates-${Date.now()}-${testInfo.workerIndex}@example.com`;
+  const churchName = `E2E Period Templates Church ${Date.now()}`;
+
+  await signInAndCompleteOnboarding(page, { churchName, email });
+
+  await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Templates" }).click();
+  await expect(page).toHaveURL(/\/templates$/);
+
+  await page.getByRole("button", { name: /Monthly Template shape/ }).click();
+  await expect(page.getByRole("heading", { name: "New monthly Template" })).toBeVisible();
+  await expect(page.getByText("5 Cycles").first()).toBeVisible();
+  await expect(page.getByText("Repeats every month")).toBeVisible();
+  await page.getByRole("button", { name: "Add Template Task" }).first().click();
+  await page.getByPlaceholder("Template Task title").fill("Prepare monthly report");
+  await expect(page.getByText("1 Template Task")).toBeVisible();
+
+  await page.getByRole("button", { name: /Quarterly Template shape/ }).click();
+  await expect(page.getByRole("heading", { name: "New quarterly Template" })).toBeVisible();
+  await expect(page.getByText("13 Cycles").first()).toBeVisible();
+  await expect(page.getByText("Repeats every quarter")).toBeVisible();
+
+  await page.getByRole("button", { name: /Yearly Template shape/ }).click();
+  await expect(page.getByRole("heading", { name: "New yearly Template" })).toBeVisible();
+  await expect(page.getByText("52 Cycles").first()).toBeVisible();
+  await expect(page.getByText("Nearest one-off this year")).toBeVisible();
+  await page.getByText("Repeat every year").click();
+  await expect(page.getByText("Repeats every year")).toBeVisible();
+
+  await page.getByRole("button", { name: "Save and schedule" }).click();
+  await expect(page.getByText(/Template saved/)).toBeVisible({ timeout: 20_000 });
 });

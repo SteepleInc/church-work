@@ -45,6 +45,28 @@ export type TemplateTaskPlacement = {
   readonly weekday: number;
 };
 
+export type PeriodTemplatePlacementShape = "monthly" | "quarterly" | "yearly";
+
+export type PeriodPlacementFrameDay = {
+  readonly isPeriodBoundary: boolean;
+  readonly localDate: string;
+  readonly periodKey: string;
+};
+
+export type PeriodPlacementFrameCycle = {
+  readonly days: readonly PeriodPlacementFrameDay[];
+  readonly isInFocusPeriod: boolean;
+  readonly ownedPeriodKey: string;
+  readonly startLocalDate: string;
+};
+
+export type PeriodPlacementFrame = {
+  readonly cycles: readonly PeriodPlacementFrameCycle[];
+  readonly endCycleStartLocalDate: string;
+  readonly periodKey: string;
+  readonly shape: PeriodTemplatePlacementShape;
+};
+
 export type KeyDateSchedule =
   | { readonly kind: "fixedYearly"; readonly month: number; readonly day: number }
   | {
@@ -150,6 +172,143 @@ export const parseLocalDate = (localDate: string) => {
 export const addLocalDateDays = (localDate: string, days: number) => {
   const { day, month, year } = parseLocalDate(localDate);
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+};
+
+const jsWeekdayToMondayFirst = (jsWeekday: number) => (jsWeekday + 6) % 7;
+
+const startOfCycle = (localDate: string) => {
+  const { day, month, year } = parseLocalDate(localDate);
+  const jsWeekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return addLocalDateDays(localDate, -jsWeekdayToMondayFirst(jsWeekday));
+};
+
+const periodKeyForDate = (shape: PeriodTemplatePlacementShape, localDate: string) => {
+  const { month, year } = parseLocalDate(localDate);
+  switch (shape) {
+    case "monthly":
+      return `${year}-${String(month).padStart(2, "0")}`;
+    case "quarterly":
+      return `${year}-Q${Math.floor((month - 1) / 3) + 1}`;
+    case "yearly":
+      return `${year}`;
+  }
+};
+
+const nextPeriodStart = (shape: PeriodTemplatePlacementShape, localDate: string) => {
+  const { month, year } = parseLocalDate(localDate);
+  switch (shape) {
+    case "monthly":
+      return new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10);
+    case "quarterly": {
+      const nextQuarterMonth = Math.floor((month - 1) / 3) * 3 + 4;
+      return new Date(Date.UTC(year, nextQuarterMonth - 1, 1)).toISOString().slice(0, 10);
+    }
+    case "yearly":
+      return new Date(Date.UTC(year + 1, 0, 1)).toISOString().slice(0, 10);
+  }
+};
+
+const frameSizeForShape = (shape: PeriodTemplatePlacementShape) => {
+  switch (shape) {
+    case "monthly":
+      return 5;
+    case "quarterly":
+      return 13;
+    case "yearly":
+      return 52;
+  }
+};
+
+const majorityOwnedPeriodKey = (
+  shape: PeriodTemplatePlacementShape,
+  cycleStartLocalDate: string,
+) => {
+  const counts = new Map<string, number>();
+  for (let offset = 0; offset < 7; offset++) {
+    const key = periodKeyForDate(shape, addLocalDateDays(cycleStartLocalDate, offset));
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return (
+    [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? ""
+  );
+};
+
+export const buildPeriodPlacementFrame = (params: {
+  readonly periodStartLocalDate: string;
+  readonly shape: PeriodTemplatePlacementShape;
+}): PeriodPlacementFrame => {
+  const periodKey = periodKeyForDate(params.shape, params.periodStartLocalDate);
+  const firstCycleStart = startOfCycle(params.periodStartLocalDate);
+  const nextStart = nextPeriodStart(params.shape, params.periodStartLocalDate);
+  const frameSize = frameSizeForShape(params.shape);
+  const normalizedStarts = Array.from({ length: frameSize }, (_, index) =>
+    addLocalDateDays(firstCycleStart, index * 7),
+  );
+
+  const cycles = normalizedStarts.map((cycleStart) => {
+    const ownedPeriodKey = majorityOwnedPeriodKey(params.shape, cycleStart);
+    return {
+      days: Array.from({ length: 7 }, (_, offset) => {
+        const localDate = addLocalDateDays(cycleStart, offset);
+        const dayPeriodKey = periodKeyForDate(params.shape, localDate);
+        return {
+          isPeriodBoundary:
+            localDate === params.periodStartLocalDate ||
+            localDate === addLocalDateDays(nextStart, -1),
+          localDate,
+          periodKey: dayPeriodKey,
+        };
+      }),
+      isInFocusPeriod: ownedPeriodKey === periodKey,
+      ownedPeriodKey,
+      startLocalDate: cycleStart,
+    };
+  });
+
+  return {
+    cycles,
+    endCycleStartLocalDate: cycles.at(-1)?.startLocalDate ?? firstCycleStart,
+    periodKey,
+    shape: params.shape,
+  };
+};
+
+export const resolvePeriodPlacementDueDate = (params: {
+  readonly endCycleStartLocalDate: string;
+  readonly placement: TemplateTaskPlacement;
+}) =>
+  addLocalDateDays(
+    params.endCycleStartLocalDate,
+    params.placement.cycleOffsetFromEnd * 7 + params.placement.weekday,
+  );
+
+export const defaultTemplateScheduleForPlacementShape = (
+  shape: PeriodTemplatePlacementShape,
+  options?: { readonly repeatYearly?: boolean },
+):
+  | {
+      readonly recurrence: "repeating";
+      readonly rule: { readonly kind: "monthly"; readonly repeat: "monthly" };
+    }
+  | {
+      readonly recurrence: "repeating";
+      readonly rule: { readonly kind: "quarterly"; readonly repeat: "quarterly" };
+    }
+  | {
+      readonly recurrence: "oneOff";
+      readonly rule: { readonly kind: "yearly"; readonly repeat: "none" };
+    }
+  | {
+      readonly recurrence: "repeating";
+      readonly rule: { readonly kind: "yearly"; readonly repeat: "yearly" };
+    } => {
+  if (shape === "monthly")
+    return { recurrence: "repeating", rule: { kind: "monthly", repeat: "monthly" } };
+  if (shape === "quarterly")
+    return { recurrence: "repeating", rule: { kind: "quarterly", repeat: "quarterly" } };
+  return options?.repeatYearly
+    ? { recurrence: "repeating", rule: { kind: "yearly", repeat: "yearly" } }
+    : { recurrence: "oneOff", rule: { kind: "yearly", repeat: "none" } };
 };
 
 const daysBetween = (startLocalDate: string, endLocalDate: string) => {

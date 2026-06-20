@@ -1,4 +1,5 @@
 import { mutators, queries } from "@church-task/zero";
+import type { TemplateScheduleContract, TemplateScheduleRule } from "@church-task/domain";
 import { useQuery, useZero } from "@rocicorp/zero/react";
 import { useCallback } from "react";
 
@@ -16,7 +17,7 @@ type TemplateMutationResult = Promise<
   { readonly ok: true } | { readonly ok: false; readonly error: { readonly message: string } }
 >;
 
-type WeeklyTemplateTaskInput = {
+type TemplateTaskInput = {
   readonly assignedUserId: string | null;
   readonly description: string | null;
   readonly estimate: string | null;
@@ -26,6 +27,16 @@ type WeeklyTemplateTaskInput = {
   readonly placementWeekday: number;
   readonly templateTeamKey: string;
   readonly title: string;
+};
+
+type PeriodTemplateShape = "monthly" | "quarterly" | "yearly";
+
+type PeriodTemplateScheduleRule = Extract<
+  TemplateScheduleRule,
+  { readonly kind: PeriodTemplateShape }
+>;
+type PeriodTemplateScheduleDefaults = Pick<TemplateScheduleContract, "recurrence"> & {
+  readonly rule: PeriodTemplateScheduleRule;
 };
 
 const mutationResult = async (
@@ -214,7 +225,7 @@ export function useCreateWeeklyServiceTemplate() {
       readonly serviceWeekday: number;
       readonly startDate: string;
       readonly schedule: boolean;
-      readonly tasks: readonly WeeklyTemplateTaskInput[];
+      readonly tasks: readonly TemplateTaskInput[];
       readonly templateTeams: readonly {
         readonly key: string;
         readonly mapped_team_id: string;
@@ -270,6 +281,70 @@ export function useCreateWeeklyServiceTemplate() {
   );
 }
 
+export function useCreatePeriodTemplate() {
+  const zero = useZero();
+  return useCallback(
+    (params: {
+      readonly churchId: string;
+      readonly key: string;
+      readonly name: string;
+      readonly periodStartDate: string;
+      readonly schedule: boolean;
+      readonly scheduleDefaults: PeriodTemplateScheduleDefaults;
+      readonly shape: PeriodTemplateShape;
+      readonly tasks: readonly TemplateTaskInput[];
+      readonly templateTeams: readonly {
+        readonly key: string;
+        readonly mapped_team_id: string;
+        readonly name: string;
+      }[];
+    }) =>
+      mutationResult(() =>
+        zero.mutate(
+          mutators.templates.create({
+            church_id: params.churchId,
+            focus_windows: [],
+            key: params.key,
+            name: params.name,
+            placement_shape: params.shape,
+            recurrence: params.scheduleDefaults.rule.kind,
+            template_schedule: params.schedule
+              ? {
+                  end_date: null,
+                  key: `${params.key}-schedule`,
+                  kind: params.shape,
+                  name: params.name,
+                  recurrence: params.scheduleDefaults.recurrence,
+                  rule: params.scheduleDefaults.rule,
+                  start_date: params.periodStartDate,
+                }
+              : null,
+            template_tasks: params.tasks.map((task) => ({
+              assigned_user_id: task.assignedUserId,
+              description: task.description,
+              estimate: task.estimate,
+              key: task.key,
+              label_ids: [...task.labelIds],
+              parent_template_task_key: null,
+              placement_cycle_offset: task.placementCycleOffset,
+              placement_weekday: task.placementWeekday,
+              scheduling_rule: {
+                baseLocalDate: params.periodStartDate,
+                dayOffset: task.placementWeekday,
+                kind: "cycleOffset",
+                offsetCycles: task.placementCycleOffset,
+              },
+              template_team_key: task.templateTeamKey,
+              title: task.title,
+            })),
+            template_teams: [...params.templateTeams],
+          }),
+        ),
+      ),
+    [zero],
+  );
+}
+
 export function useCreateKeyDateTemplate() {
   const zero = useZero();
   return useCallback(
@@ -280,7 +355,7 @@ export function useCreateKeyDateTemplate() {
       readonly keyDateId: string;
       readonly occurrenceDate: string;
       readonly repeatYearly: boolean;
-      readonly tasks: readonly WeeklyTemplateTaskInput[];
+      readonly tasks: readonly TemplateTaskInput[];
       readonly templateTeams: readonly {
         readonly key: string;
         readonly mapped_team_id: string;
