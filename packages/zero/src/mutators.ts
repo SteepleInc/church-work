@@ -706,6 +706,40 @@ const writeActivity = async (
   });
 };
 
+type JsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | JsonValue[]
+  | { readonly [key: string]: JsonValue };
+
+const remapJsonFieldValues = (
+  value: JsonValue,
+  remaps: ReadonlyMap<string, ReadonlyMap<string, string>>,
+): JsonValue => {
+  if (Array.isArray(value)) return value.map((item) => remapJsonFieldValues(item, remaps));
+  if (value === null || typeof value !== "object") return value;
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => {
+      const replacement = typeof item === "string" ? remaps.get(key)?.get(item) : undefined;
+      return [key, replacement ?? remapJsonFieldValues(item, remaps)];
+    }),
+  );
+};
+
+const remapSerializedJsonFieldValues = (
+  value: string,
+  remaps: ReadonlyMap<string, ReadonlyMap<string, string>>,
+) => {
+  try {
+    return stringifyJson(remapJsonFieldValues(JSON.parse(value) as JsonValue, remaps));
+  } catch {
+    return value;
+  }
+};
+
 const requireTemplateManager = (ctx: OptionalZeroSessionContext, church_id: string) =>
   requireTeamManager(ctx, church_id);
 
@@ -2249,7 +2283,20 @@ export const mutators = defineMutators({
             eq(template_tasks.church_id, args.church_id),
             isNull(template_tasks.deleted_at),
           ),
-        )) as Array<any>;
+        )) as Array<{
+        readonly assigned_user_id: string | null;
+        readonly description: string | null;
+        readonly estimate: string | null;
+        readonly key: string;
+        readonly label_ids: string;
+        readonly parent_template_task_id: string | null;
+        readonly placement_cycle_offset: number | null;
+        readonly placement_weekday: number | null;
+        readonly scheduling_rule: string;
+        readonly source_id: string;
+        readonly template_team_id: string;
+        readonly title: string;
+      }>;
       const sourceSchedules = (await db
         .select({
           end_date: template_schedules.end_date,
@@ -2267,7 +2314,15 @@ export const mutators = defineMutators({
             eq(template_schedules.church_id, args.church_id),
             isNull(template_schedules.deleted_at),
           ),
-        )) as Array<any>;
+        )) as Array<{
+        readonly end_date: string | null;
+        readonly key: string;
+        readonly kind: string;
+        readonly name: string;
+        readonly recurrence: string;
+        readonly rule: string;
+        readonly start_date: string;
+      }>;
       const sourceFocusWindows = (await db
         .select({
           anchor_date: focus_windows.anchor_date,
@@ -2275,6 +2330,7 @@ export const mutators = defineMutators({
           key: focus_windows.key,
           key_date_id: focus_windows.key_date_id,
           name: focus_windows.name,
+          source_id: focus_windows.id,
           start_date: focus_windows.start_date,
           type: focus_windows.type,
         })
@@ -2285,7 +2341,16 @@ export const mutators = defineMutators({
             eq(focus_windows.church_id, args.church_id),
             isNull(focus_windows.deleted_at),
           ),
-        )) as Array<any>;
+        )) as Array<{
+        readonly anchor_date: string | null;
+        readonly end_date: string;
+        readonly key: string;
+        readonly key_date_id: string | null;
+        readonly name: string;
+        readonly source_id: string;
+        readonly start_date: string;
+        readonly type: string;
+      }>;
 
       const templateId = getTemplateId();
       const teamIdBySourceId = new Map(
@@ -2294,6 +2359,10 @@ export const mutators = defineMutators({
       const taskIdBySourceId = new Map(
         sourceTasks.map((task) => [task.source_id, getTemplateTaskId()]),
       );
+      const focusWindowIdBySourceId = new Map(
+        sourceFocusWindows.map((focusWindow) => [focusWindow.source_id, getFocusWindowId()]),
+      );
+      const jsonFieldRemaps = new Map([["focusWindowId", focusWindowIdBySourceId]]);
       await db.insert(templates).values({
         _tag: "template",
         church_id: args.church_id,
@@ -2307,21 +2376,20 @@ export const mutators = defineMutators({
         updated_at: now,
         updated_by: session.user_id,
       });
-      await db.insert(template_teams).values(
-        sourceTeams.map((team) => ({
-          _tag: "templateteam",
-          church_id: args.church_id,
-          created_at: now,
-          created_by: session.user_id,
-          id: teamIdBySourceId.get(team.source_id)!,
-          key: team.key,
-          mapped_team_id: team.mapped_team_id,
-          name: team.name,
-          template_id: templateId,
-          updated_at: now,
-          updated_by: session.user_id,
-        })),
-      );
+      const teamInserts = sourceTeams.map((team) => ({
+        _tag: "templateteam",
+        church_id: args.church_id,
+        created_at: now,
+        created_by: session.user_id,
+        id: teamIdBySourceId.get(team.source_id)!,
+        key: team.key,
+        mapped_team_id: team.mapped_team_id,
+        name: team.name,
+        template_id: templateId,
+        updated_at: now,
+        updated_by: session.user_id,
+      }));
+      if (teamInserts.length > 0) await db.insert(template_teams).values(teamInserts);
       if (sourceFocusWindows.length > 0) {
         await db.insert(focus_windows).values(
           sourceFocusWindows.map((focusWindow) => ({
@@ -2331,7 +2399,7 @@ export const mutators = defineMutators({
             created_at: now,
             created_by: session.user_id,
             end_date: focusWindow.end_date,
-            id: getFocusWindowId(),
+            id: focusWindowIdBySourceId.get(focusWindow.source_id)!,
             key: focusWindow.key,
             key_date_id: focusWindow.key_date_id,
             name: focusWindow.name,
@@ -2343,31 +2411,30 @@ export const mutators = defineMutators({
           })),
         );
       }
-      await db.insert(template_tasks).values(
-        sourceTasks.map((task) => ({
-          _tag: "templatetask",
-          assigned_user_id: task.assigned_user_id,
-          church_id: args.church_id,
-          created_at: now,
-          created_by: session.user_id,
-          description: task.description,
-          estimate: task.estimate,
-          id: taskIdBySourceId.get(task.source_id)!,
-          key: task.key,
-          label_ids: task.label_ids,
-          parent_template_task_id: task.parent_template_task_id
-            ? (taskIdBySourceId.get(task.parent_template_task_id) ?? null)
-            : null,
-          placement_cycle_offset: task.placement_cycle_offset,
-          placement_weekday: task.placement_weekday,
-          scheduling_rule: task.scheduling_rule,
-          template_id: templateId,
-          template_team_id: teamIdBySourceId.get(task.template_team_id)!,
-          title: task.title,
-          updated_at: now,
-          updated_by: session.user_id,
-        })),
-      );
+      const taskInserts = sourceTasks.map((task) => ({
+        _tag: "templatetask",
+        assigned_user_id: task.assigned_user_id,
+        church_id: args.church_id,
+        created_at: now,
+        created_by: session.user_id,
+        description: task.description,
+        estimate: task.estimate,
+        id: taskIdBySourceId.get(task.source_id)!,
+        key: task.key,
+        label_ids: task.label_ids,
+        parent_template_task_id: task.parent_template_task_id
+          ? (taskIdBySourceId.get(task.parent_template_task_id) ?? null)
+          : null,
+        placement_cycle_offset: task.placement_cycle_offset,
+        placement_weekday: task.placement_weekday,
+        scheduling_rule: remapSerializedJsonFieldValues(task.scheduling_rule, jsonFieldRemaps),
+        template_id: templateId,
+        template_team_id: teamIdBySourceId.get(task.template_team_id)!,
+        title: task.title,
+        updated_at: now,
+        updated_by: session.user_id,
+      }));
+      if (taskInserts.length > 0) await db.insert(template_tasks).values(taskInserts);
       await Promise.all(
         sourceTasks.map((task) =>
           writeActivity(db, {
@@ -2393,7 +2460,7 @@ export const mutators = defineMutators({
           kind: schedule.kind,
           name: schedule.name,
           recurrence: schedule.recurrence,
-          rule: schedule.rule,
+          rule: remapSerializedJsonFieldValues(schedule.rule, jsonFieldRemaps),
           start_date: schedule.start_date,
           template_id: templateId,
           updated_at: now,
