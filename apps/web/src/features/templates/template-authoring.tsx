@@ -635,21 +635,29 @@ function PeriodScheduleStep({
         </div>
 
         <div className="flex flex-col gap-2">
-          <div className="flex gap-0.5">
-            {cycles.map((cycle) => {
+          <div className="flex h-3 overflow-hidden rounded-full bg-muted/60">
+            {cycles.map((cycle, index) => {
               const hasBoundary = cycle.days.some((day) => day.isPeriodBoundary);
+              const prev = cycles[index - 1];
+              // A period seam sits where the owned period changes between two
+              // adjacent Cycles — the moment one month/quarter hands off to the
+              // next inside the normalized frame.
+              const startsNewPeriod =
+                index > 0 && prev !== undefined && prev.ownedPeriodKey !== cycle.ownedPeriodKey;
               return (
                 <Tooltip key={cycle.startLocalDate}>
                   <TooltipTrigger
                     className={cn(
-                      "h-2.5 flex-1 rounded-full transition-colors",
+                      "h-full flex-1 transition-colors",
                       cycle.isInFocusPeriod ? "bg-primary" : "bg-muted-foreground/25",
-                      hasBoundary && "ring-2 ring-amber-500/60 ring-offset-1 ring-offset-card",
+                      startsNewPeriod && "border-card border-l-2",
+                      hasBoundary && "bg-amber-500 dark:bg-amber-400",
                     )}
                   />
                   <TooltipContent>
-                    Cycle of {formatShortDate(cycle.startLocalDate)} · owns {cycle.ownedPeriodKey}
-                    {hasBoundary ? " · boundary" : ""}
+                    Cycle of {formatShortDate(cycle.startLocalDate)} · owns{" "}
+                    {ownedPeriodLabel(cycle.ownedPeriodKey)}
+                    {hasBoundary ? " · period boundary" : ""}
                   </TooltipContent>
                 </Tooltip>
               );
@@ -665,8 +673,12 @@ function PeriodScheduleStep({
               Carried Cycle
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <Flag className="size-3 text-amber-600 dark:text-amber-400" />
+              <span className="size-2 rounded-full bg-amber-500 dark:bg-amber-400" />
               Boundary Cycle
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="inline-block h-3 w-px bg-foreground/40" />
+              Period seam
             </span>
           </div>
         </div>
@@ -864,15 +876,25 @@ function PeriodFrameStep({
   const frameSize = cycles.length;
 
   // Group consecutive Cycles by their owned period so quarterly/yearly frames
-  // read as the months they cover instead of a flat 13/52-row wall.
+  // read as the months they cover instead of a flat 13/52-row wall. The focus
+  // period — the month/quarter the Template is actually for — is flagged so it
+  // reads as primary against the carried boundary periods on either side.
   const groups = useMemo(() => {
-    const result: { readonly label: string; readonly entries: number[] }[] = [];
+    const result: {
+      label: string;
+      readonly entries: number[];
+      readonly isFocusPeriod: boolean;
+    }[] = [];
     cycles.forEach((cycle, index) => {
       const last = result.at(-1);
       if (last && last.label === ownedPeriodLabel(cycle.ownedPeriodKey)) {
         last.entries.push(index);
       } else {
-        result.push({ entries: [index], label: ownedPeriodLabel(cycle.ownedPeriodKey) });
+        result.push({
+          entries: [index],
+          isFocusPeriod: cycle.isInFocusPeriod,
+          label: ownedPeriodLabel(cycle.ownedPeriodKey),
+        });
       }
     });
     return result;
@@ -902,15 +924,36 @@ function PeriodFrameStep({
           {groups.map((group) => (
             <div className="flex flex-col gap-2" key={group.label}>
               <div className="flex items-center gap-2 px-0.5">
-                <span className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+                <span
+                  className={cn(
+                    "font-medium text-xs uppercase tracking-wide",
+                    group.isFocusPeriod ? "text-foreground" : "text-muted-foreground",
+                  )}
+                >
                   {group.label}
                 </span>
-                <span className="h-px flex-1 bg-border" />
+                {group.isFocusPeriod ? (
+                  <span className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 font-medium text-[10px] text-primary uppercase tracking-wide">
+                    In period
+                  </span>
+                ) : (
+                  <span className="rounded bg-muted px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground uppercase tracking-wide">
+                    Carried
+                  </span>
+                )}
+                <span
+                  className={cn("h-px flex-1", group.isFocusPeriod ? "bg-primary/30" : "bg-border")}
+                />
                 <span className="text-muted-foreground text-xs">
                   {group.entries.length} {group.entries.length === 1 ? "Cycle" : "Cycles"}
                 </span>
               </div>
-              <div className="overflow-hidden rounded-xl border bg-card">
+              <div
+                className={cn(
+                  "overflow-hidden rounded-xl border bg-card",
+                  group.isFocusPeriod && "border-primary/30 ring-1 ring-primary/10",
+                )}
+              >
                 {group.entries.map((cycleIndex, rowInGroup) => {
                   const cycle = cycles[cycleIndex];
                   if (!cycle) return null;
@@ -1014,7 +1057,8 @@ function PeriodCycleRow({
       className={cn(
         "flex gap-3 px-3 py-3 sm:px-4",
         !isFirstRow && "border-t",
-        boundaryLabel && "bg-amber-500/[0.04]",
+        boundaryLabel &&
+          "border-l-2 border-l-amber-500 bg-amber-500/[0.05] pl-[calc(0.75rem-2px)] dark:border-l-amber-400 sm:pl-[calc(1rem-2px)]",
       )}
     >
       <div className="flex w-28 shrink-0 flex-col gap-1 pt-1.5">
@@ -1027,7 +1071,8 @@ function PeriodCycleRow({
             {formatShortDate(cycle.startLocalDate)}
           </TooltipTrigger>
           <TooltipContent>
-            Cycle of {formatLongDate(cycle.startLocalDate)} · owns {cycle.ownedPeriodKey}
+            Cycle of {formatLongDate(cycle.startLocalDate)} · owns{" "}
+            {ownedPeriodLabel(cycle.ownedPeriodKey)}
           </TooltipContent>
         </Tooltip>
         {boundaryLabel ? (
@@ -1039,7 +1084,10 @@ function PeriodCycleRow({
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         {boundaryLabel ? (
-          <span className="text-amber-700 text-xs dark:text-amber-400">{boundaryLabel}</span>
+          <span className="inline-flex items-center gap-1.5 text-amber-700 text-xs dark:text-amber-400">
+            <Flag className="size-3" />
+            {boundaryLabel}
+          </span>
         ) : null}
         {tasks.map((task) => (
           <TemplateTaskCard
