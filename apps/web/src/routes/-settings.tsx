@@ -3,6 +3,8 @@ import { Schema, SchemaGetter } from "effect";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { BaseAvatar } from "@/components/avatars/baseAvatar";
+import { UserAvatar } from "@/components/avatars/userAvatar";
 import { Form } from "@/components/form/form";
 import { useAppForm } from "@/components/form/ts-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -175,7 +177,9 @@ function SettingsProfileForm({
     <Form className="flex flex-col gap-8" form={form}>
       <SettingsSection card>
         <SettingsFieldRow
-          control={<UserAvatar image={user.image} name={user.name} />}
+          control={
+            <UserAvatar className="ml-auto" avatar={user.image} name={user.name} userId={user.id} />
+          }
           description="Recommended size is 256x256px"
           label="Photo"
         />
@@ -238,28 +242,6 @@ function SettingsProfileForm({
         }
       </form.Subscribe>
     </Form>
-  );
-}
-
-function UserAvatar({ image, name }: { readonly image?: string | null; readonly name: string }) {
-  const initial = name.trim().slice(0, 1).toLocaleUpperCase() || "U";
-
-  if (image) {
-    return (
-      <img
-        alt={name}
-        className="ml-auto size-10 rounded-full object-cover"
-        height={40}
-        src={image}
-        width={40}
-      />
-    );
-  }
-
-  return (
-    <div className="ml-auto flex size-10 items-center justify-center rounded-full bg-primary font-semibold text-base text-primary-foreground">
-      {initial}
-    </div>
   );
 }
 
@@ -345,7 +327,15 @@ function SettingsChurchForm({
       <fieldset className="contents" disabled={!canUpdate}>
         <SettingsSection card>
           <SettingsFieldRow
-            control={<ChurchAvatar name={activeChurch.name} slug={activeChurch.slug} />}
+            control={
+              <BaseAvatar
+                _tag="org"
+                avatar={null}
+                className="ml-auto"
+                name={activeChurch.name}
+                size={40}
+              />
+            }
             description="Recommended size is 256x256px"
             label="Logo"
           />
@@ -518,16 +508,6 @@ function SettingsChurchForm({
         </form.Subscribe>
       ) : null}
     </Form>
-  );
-}
-
-function ChurchAvatar({ name, slug }: { readonly name: string; readonly slug: string | null }) {
-  const initial = (slug ?? name).trim().slice(0, 1).toLocaleUpperCase() || "C";
-
-  return (
-    <div className="ml-auto flex size-10 items-center justify-center rounded-md bg-primary font-semibold text-base text-primary-foreground">
-      {initial}
-    </div>
   );
 }
 
