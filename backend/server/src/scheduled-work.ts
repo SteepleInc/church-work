@@ -430,12 +430,6 @@ const materializeScheduledTemplateTasksForWindow = async (
       if (schedule.end_date && occurrenceDate > schedule.end_date) break;
       if (dateWeekday(occurrenceDate) !== serviceWeekday) continue;
 
-      const cycleStartDate = cycleStartDateForLocalDate(occurrenceDate);
-      const cycle = await ensureCycle(db, {
-        church_id: args.church_id,
-        church_time_zone: args.church_time_zone,
-        local_date: cycleStartDate,
-      });
       const templateTaskRows = await db
         .select({
           id: template_tasks.id,
@@ -466,14 +460,19 @@ const materializeScheduledTemplateTasksForWindow = async (
           );
           return {
             ...task,
+            due_date: dueDate,
             scheduling_rule: JSON.stringify({ kind: "fixedDate", localDate: dueDate }),
           };
         })
-        .filter((task) => {
-          const dueDate = (JSON.parse(task.scheduling_rule) as { localDate: string }).localDate;
-          return dueDate >= args.current_cycle_start_date && dueDate <= windowEndDate;
-        });
+        .filter(
+          (task) =>
+            task.due_date >= args.current_cycle_start_date && task.due_date <= windowEndDate,
+        );
       if (effectiveTemplateTasks.length === 0) continue;
+
+      const effectiveTemplateTasksByCycleStartDate = Map.groupBy(effectiveTemplateTasks, (task) =>
+        cycleStartDateForLocalDate(task.due_date),
+      );
 
       const templateTeamRows = await db
         .select({ id: template_teams.id, mapped_team_id: template_teams.mapped_team_id })
@@ -527,37 +526,48 @@ const materializeScheduledTemplateTasksForWindow = async (
           ),
         );
       const occurrenceKey = `weekly:${occurrenceDate}:${weekdayNames[serviceWeekday]}`;
-      const projection = buildTemplateCycleTaskInserts({
-        adjustments: [],
-        church_id: args.church_id,
-        cycle: cycle.cycle,
-        existing_projected_tasks: existingProjectedTasks.filter(
-          (task) => task.source_template_task_id !== null,
-        ) as never,
-        focus_windows: [],
-        key_date_occurrences: [],
-        now: args.now,
-        session_user_id: "system",
-        source_template_occurrence_key: occurrenceKey,
-        source_template_schedule_id: schedule.id,
-        start_number_by_team_id: new Map(teamRows.map((team) => [team.id, team.next_task_number])),
-        template_id: schedule.template_id,
-        template_tasks: effectiveTemplateTasks,
-        template_teams: templateTeamRows,
-        todo_status_by_workflow_id: new Map(
-          statusRows.map((status) => [status.workflow_id, status]),
-        ),
-        workflow_by_team_id: new Map(workflowRows.map((workflow) => [workflow.team_id, workflow])),
-      });
-      const systemInserts = projection.inserts.map((insert) => ({
-        ...insert,
-        created_by: null,
-        created_by_user_id: null,
-        updated_by: null,
-      }));
-      if (systemInserts.length > 0) await db.insert(tasks).values(systemInserts);
-      createdTaskIds.push(...systemInserts.map((task) => task.id));
-      for (const [team_id, next_task_number] of projection.nextNumberByTeamId.entries()) {
+      let nextNumberByTeamId = new Map(teamRows.map((team) => [team.id, team.next_task_number]));
+      for (const [cycleStartDate, cycleTemplateTasks] of effectiveTemplateTasksByCycleStartDate) {
+        const cycle = await ensureCycle(db, {
+          church_id: args.church_id,
+          church_time_zone: args.church_time_zone,
+          local_date: cycleStartDate,
+        });
+        const projection = buildTemplateCycleTaskInserts({
+          adjustments: [],
+          church_id: args.church_id,
+          cycle: cycle.cycle,
+          existing_projected_tasks: existingProjectedTasks.filter(
+            (task) => task.source_template_task_id !== null,
+          ) as never,
+          focus_windows: [],
+          key_date_occurrences: [],
+          now: args.now,
+          session_user_id: "system",
+          source_template_occurrence_key: occurrenceKey,
+          source_template_schedule_id: schedule.id,
+          start_number_by_team_id: nextNumberByTeamId,
+          template_id: schedule.template_id,
+          template_tasks: cycleTemplateTasks,
+          template_teams: templateTeamRows,
+          todo_status_by_workflow_id: new Map(
+            statusRows.map((status) => [status.workflow_id, status]),
+          ),
+          workflow_by_team_id: new Map(
+            workflowRows.map((workflow) => [workflow.team_id, workflow]),
+          ),
+        });
+        nextNumberByTeamId = projection.nextNumberByTeamId;
+        const systemInserts = projection.inserts.map((insert) => ({
+          ...insert,
+          created_by: null,
+          created_by_user_id: null,
+          updated_by: null,
+        }));
+        if (systemInserts.length > 0) await db.insert(tasks).values(systemInserts);
+        createdTaskIds.push(...systemInserts.map((task) => task.id));
+      }
+      for (const [team_id, next_task_number] of nextNumberByTeamId.entries()) {
         await db
           .update(teams)
           .set({ next_task_number, updated_at: args.now, updated_by: null })
