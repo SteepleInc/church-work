@@ -214,25 +214,14 @@ export const buildPeriodPlacementFrame = (params: {
   readonly shape: PeriodTemplatePlacementShape;
 }): PeriodPlacementFrame => {
   const periodKey = periodKeyForDate(params.shape, params.periodStartLocalDate);
-  const nextStart = nextPeriodStart(params.shape, params.periodStartLocalDate);
   const firstCycleStart = startOfCycle(params.periodStartLocalDate);
-  const lastCycleStart = startOfCycle(addLocalDateDays(nextStart, -1));
-  const focusCycleStarts: string[] = [];
-  for (
-    let cycleStart = firstCycleStart;
-    cycleStart <= lastCycleStart;
-    cycleStart = addLocalDateDays(cycleStart, 7)
-  ) {
-    if (majorityOwnedPeriodKey(params.shape, cycleStart) === periodKey)
-      focusCycleStarts.push(cycleStart);
-  }
+  const nextStart = nextPeriodStart(params.shape, params.periodStartLocalDate);
+  const frameSize = frameSizeForShape(params.shape);
+  const normalizedStarts = Array.from({ length: frameSize }, (_, index) =>
+    addLocalDateDays(firstCycleStart, index * 7),
+  );
 
-  const normalizedStarts = [...focusCycleStarts];
-  while (normalizedStarts.length < frameSizeForShape(params.shape)) {
-    normalizedStarts.push(addLocalDateDays(normalizedStarts.at(-1) ?? firstCycleStart, 7));
-  }
-
-  const cycles = normalizedStarts.slice(0, frameSizeForShape(params.shape)).map((cycleStart) => {
+  const cycles = normalizedStarts.map((cycleStart) => {
     const ownedPeriodKey = majorityOwnedPeriodKey(params.shape, cycleStart);
     return {
       days: Array.from({ length: 7 }, (_, offset) => {

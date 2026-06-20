@@ -137,7 +137,7 @@ describe("period Template Placement Shapes", () => {
     }
   });
 
-  test("assigns boundary-crossing Cycles by majority-days ownership", () => {
+  test("keeps boundary-crossing Cycles visible while assigning ownership by majority days", () => {
     const frame = buildPeriodPlacementFrame({
       periodStartLocalDate: "2026-02-01",
       shape: "monthly",
@@ -151,26 +151,47 @@ describe("period Template Placement Shapes", () => {
         cycle.isInFocusPeriod,
       ]),
       [
+        ["2026-01-26", "2026-01", false],
         ["2026-02-02", "2026-02", true],
         ["2026-02-09", "2026-02", true],
         ["2026-02-16", "2026-02", true],
         ["2026-02-23", "2026-02", true],
-        ["2026-03-02", "2026-03", false],
       ],
     );
     assert.deepEqual(
       frame.cycles[0]?.days.map((day) => [day.localDate, day.periodKey, day.isPeriodBoundary]),
       [
-        ["2026-02-02", "2026-02", false],
-        ["2026-02-03", "2026-02", false],
-        ["2026-02-04", "2026-02", false],
-        ["2026-02-05", "2026-02", false],
-        ["2026-02-06", "2026-02", false],
-        ["2026-02-07", "2026-02", false],
-        ["2026-02-08", "2026-02", false],
+        ["2026-01-26", "2026-01", false],
+        ["2026-01-27", "2026-01", false],
+        ["2026-01-28", "2026-01", false],
+        ["2026-01-29", "2026-01", false],
+        ["2026-01-30", "2026-01", false],
+        ["2026-01-31", "2026-01", false],
+        ["2026-02-01", "2026-02", true],
       ],
     );
-    assert.equal(frame.cycles[3]?.days.at(5)?.isPeriodBoundary, true);
+    assert.equal(frame.cycles[4]?.days.at(5)?.isPeriodBoundary, true);
+  });
+
+  test("normalizes variable month shapes from the real boundary Cycle", () => {
+    const january = buildPeriodPlacementFrame({
+      periodStartLocalDate: "2026-01-01",
+      shape: "monthly",
+    });
+    const february = buildPeriodPlacementFrame({
+      periodStartLocalDate: "2026-02-01",
+      shape: "monthly",
+    });
+
+    assert.deepEqual(
+      january.cycles.map((cycle) => cycle.startLocalDate),
+      ["2025-12-29", "2026-01-05", "2026-01-12", "2026-01-19", "2026-01-26"],
+    );
+    assert.deepEqual(
+      february.cycles.map((cycle) => cycle.startLocalDate),
+      ["2026-01-26", "2026-02-02", "2026-02-09", "2026-02-16", "2026-02-23"],
+    );
+    assert.equal(january.cycles.length, february.cycles.length);
   });
 
   test("maps period placements to real Cycle due dates", () => {
