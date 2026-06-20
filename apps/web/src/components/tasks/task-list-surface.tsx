@@ -411,15 +411,16 @@ function TaskListRow({
 
   const keyboard = useTaskSurfaceKeyboard();
   const wrapWithContextMenu = useTaskContextMenu();
-  const { isFocused, isSelected } = useRegisterTaskShortcuts(task.id, {
+  const { isFocused, isSelected, isKeyboardFocused, onHover } = useRegisterTaskShortcuts(task.id, {
     open: onOpenTask ? () => onOpenTask(task.identifier) : undefined,
     pickers,
   });
 
+  // Only keyboard nav (J/K) auto-scrolls; hover focus must not move the list.
   const rowRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    if (isFocused) rowRef.current?.scrollIntoView({ block: "nearest" });
-  }, [isFocused]);
+    if (isKeyboardFocused) rowRef.current?.scrollIntoView({ block: "nearest" });
+  }, [isKeyboardFocused]);
 
   const form = useAppForm({
     defaultValues: {
@@ -478,6 +479,7 @@ function TaskListRow({
         isSelected && "bg-primary/5",
       )}
       onClick={handleRowClick}
+      onMouseEnter={onHover}
     >
       {showProperty("priority") ? (
         <form.Field name="priority">

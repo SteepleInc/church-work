@@ -12,6 +12,7 @@ const newStackTestMatch = [
   /invitations\.spec\.ts$/,
   /labels-new-stack\.spec\.ts$/,
   /onboarding-new-stack\.spec\.ts$/,
+  /task-hover-keybindings\.spec\.ts$/,
   /tasks-boards-new-stack\.spec\.ts$/,
   /templates-new-stack\.spec\.ts$/,
   /teams-workflows-new-stack\.spec\.ts$/,

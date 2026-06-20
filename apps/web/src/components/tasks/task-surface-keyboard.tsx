@@ -52,6 +52,19 @@ type TaskSurfaceKeyboardContextValue = {
   readonly focusedTaskId: string | null;
   readonly selectedTaskIds: ReadonlySet<string>;
   readonly setFocusedTaskId: (taskId: string | null) => void;
+  /**
+   * Moves the cursor onto the hovered card. Like Linear, hovering a card makes
+   * its per-issue shortcuts (`S`/`A`/`P`/`L`/`Shift+E`, `Enter`, `X`) live.
+   * Unlike `J`/`K`, hover must not scroll the surface, so this records that the
+   * latest focus change came from the pointer (see {@link focusFromKeyboard}).
+   */
+  readonly setHoveredTaskId: (taskId: string | null) => void;
+  /**
+   * Whether the current focus was set by keyboard navigation (`J`/`K`/arrows)
+   * rather than the pointer. Cards gate `scrollIntoView` on this so hovering
+   * never yanks the surface under the mouse.
+   */
+  readonly focusFromKeyboard: boolean;
   readonly toggleSelected: (taskId: string) => void;
   readonly setSelection: (taskIds: ReadonlySet<string>) => void;
   readonly clearSelection: () => void;
@@ -87,6 +100,9 @@ export function TaskSurfaceKeyboardProvider({
 }) {
   const [focusedTaskId, setFocusedTaskIdState] = useState<string | null>(null);
   const [selectedTaskIds, setSelectedTaskIds] = useState<ReadonlySet<string>>(EMPTY_SELECTION);
+  // Tracks whether the cursor was last moved by keyboard nav vs. the pointer so
+  // cards only auto-scroll for keyboard moves, never for hover.
+  const [focusFromKeyboard, setFocusFromKeyboard] = useState(true);
 
   // Surfaces register their flat order; the latest registration wins (only one
   // surface — Board or List — is mounted at a time).
@@ -100,6 +116,18 @@ export function TaskSurfaceKeyboardProvider({
 
   const setFocusedTaskId = useCallback((taskId: string | null) => {
     focusedTaskIdRef.current = taskId;
+    setFocusFromKeyboard(true);
+    setFocusedTaskIdState(taskId);
+  }, []);
+
+  const setHoveredTaskId = useCallback((taskId: string | null) => {
+    // Leaving a card (null) doesn't drop the cursor — Linear keeps the last
+    // hovered card "armed" so you can move the mouse off it and still hit a
+    // shortcut. Only entering a card moves the cursor.
+    if (taskId === null) return;
+    if (focusedTaskIdRef.current === taskId) return;
+    focusedTaskIdRef.current = taskId;
+    setFocusFromKeyboard(false);
     setFocusedTaskIdState(taskId);
   }, []);
 
@@ -240,6 +268,8 @@ export function TaskSurfaceKeyboardProvider({
       focusedTaskId,
       selectedTaskIds,
       setFocusedTaskId,
+      setHoveredTaskId,
+      focusFromKeyboard,
       toggleSelected,
       setSelection,
       clearSelection,
@@ -250,6 +280,8 @@ export function TaskSurfaceKeyboardProvider({
       focusedTaskId,
       selectedTaskIds,
       setFocusedTaskId,
+      setHoveredTaskId,
+      focusFromKeyboard,
       toggleSelected,
       setSelection,
       clearSelection,
@@ -292,7 +324,14 @@ export function useRegisterSurfaceOrder(order: readonly string[]): void {
 export function useRegisterTaskShortcuts(
   taskId: string,
   handlers: TaskShortcutHandlers,
-): { readonly isFocused: boolean; readonly isSelected: boolean } {
+): {
+  readonly isFocused: boolean;
+  readonly isSelected: boolean;
+  /** True when this card's focus came from keyboard nav (safe to scroll into view). */
+  readonly isKeyboardFocused: boolean;
+  /** Arm this card's shortcuts on pointer enter (Linear-style hover focus). */
+  readonly onHover: () => void;
+} {
   const keyboard = useTaskSurfaceKeyboard();
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
@@ -308,8 +347,16 @@ export function useRegisterTaskShortcuts(
     });
   }, [keyboard, taskId]);
 
+  const setHoveredTaskId = keyboard?.setHoveredTaskId;
+  const onHover = useCallback(() => {
+    setHoveredTaskId?.(taskId);
+  }, [setHoveredTaskId, taskId]);
+
+  const isFocused = keyboard?.focusedTaskId === taskId;
   return {
-    isFocused: keyboard?.focusedTaskId === taskId,
+    isFocused,
     isSelected: keyboard?.selectedTaskIds.has(taskId) ?? false,
+    isKeyboardFocused: isFocused && (keyboard?.focusFromKeyboard ?? false),
+    onHover,
   };
 }

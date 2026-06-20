@@ -759,17 +759,24 @@ function TaskKanbanCard({
   );
 
   const wrapWithContextMenu = useTaskContextMenu();
-  const { isFocused, isSelected: selectedFromKeyboard } = useRegisterTaskShortcuts(task.id, {
+  const {
+    isFocused,
+    isSelected: selectedFromKeyboard,
+    isKeyboardFocused,
+    onHover,
+  } = useRegisterTaskShortcuts(task.id, {
     open: onOpenTask ? () => onOpenTask(task.identifier) : undefined,
     pickers,
   });
   const isSelected = selectedFromContext || selectedFromKeyboard;
 
   // Keep the keyboard-focused card scrolled into view as J/K walk the board.
+  // Hover-driven focus must not scroll (it would yank the board under the
+  // mouse), so gate on keyboard-originated focus.
   const cardRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    if (isFocused) cardRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [isFocused]);
+    if (isKeyboardFocused) cardRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [isKeyboardFocused]);
 
   const form = useAppForm({
     defaultValues: {
@@ -853,6 +860,7 @@ function TaskKanbanCard({
         className,
       )}
       onClick={handleCardClick}
+      onMouseEnter={onHover}
     >
       <CardHeader className="flex flex-row items-center justify-between gap-2 px-3 pt-3 pb-0">
         <div className="flex min-w-0 items-center gap-1.5">

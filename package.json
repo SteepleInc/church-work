@@ -61,6 +61,7 @@
     "test:e2e:onboarding": "bun --env-file=.env.e2e playwright test tests/e2e/onboarding-new-stack.spec.ts --workers=1",
     "test:e2e:labels": "bun --env-file=.env.e2e playwright test tests/e2e/labels-new-stack.spec.ts --workers=1",
     "test:e2e:tasks-boards": "bun --env-file=.env.e2e playwright test tests/e2e/tasks-boards-new-stack.spec.ts --workers=1",
+    "test:e2e:hover-keybindings": "bun --env-file=.env.e2e playwright test tests/e2e/task-hover-keybindings.spec.ts --workers=1",
     "test:e2e:templates": "bun --env-file=.env.e2e playwright test tests/e2e/templates-new-stack.spec.ts --workers=1",
     "test:e2e:teams-workflows": "bun --env-file=.env.e2e playwright test tests/e2e/teams-workflows-new-stack.spec.ts --workers=1",
     "test:e2e:invitations": "bun --env-file=.env.e2e playwright test tests/e2e/invitations.spec.ts --workers=1",
