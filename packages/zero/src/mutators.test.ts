@@ -815,14 +815,24 @@ describe("Zero Task mutators", () => {
               insertCalls.push({ table, values });
             },
           }),
-          select: () => ({
-            from: () => ({
-              leftJoin: () => ({
-                where: nextSelectResult,
-              }),
-              where: nextSelectResult,
-            }),
-          }),
+          select: () => {
+            // `.where(...)` is the terminal step: it resolves to the next canned
+            // select result when awaited, and also exposes `.limit(...)` for the
+            // queries that page their results. `leftJoin` is chainable so any
+            // number of joins works.
+            const terminal = () => {
+              const result = nextSelectResult();
+              return Object.assign(result, { limit: () => result });
+            };
+            const fromBuilder: {
+              leftJoin: () => typeof fromBuilder;
+              where: () => ReturnType<typeof terminal>;
+            } = {
+              leftJoin: () => fromBuilder,
+              where: terminal,
+            };
+            return { from: () => fromBuilder };
+          },
           update: (table: unknown) => ({
             set: (set: unknown) => ({
               where: async (where: unknown) => {
@@ -836,6 +846,20 @@ describe("Zero Task mutators", () => {
     } as never;
 
     return { insertCalls, tx, updateCalls };
+  };
+
+  // The extra current-value row returned by getTaskWithActivityFields' second
+  // select (title/assignee/due/estimate/priority/team name/status name), used to
+  // compute Activity before/after metadata. Tests that load a Task for update
+  // must supply this row right after the base getTaskWithTeamIdentifier row.
+  const taskActivityFieldsRow = {
+    assigned_user_id: null,
+    due_date: null,
+    estimate: null,
+    priority: null,
+    team_name: "Production",
+    title: "Existing task",
+    workflow_status_name: "To Do",
   };
 
   test("creates Tasks with per-Team numbers, board order, and URL-facing identifiers", async () => {
@@ -990,6 +1014,7 @@ describe("Zero Task mutators", () => {
           workflow_status_id: "workflowstatus_todo",
         },
       ],
+      [taskActivityFieldsRow],
       [
         {
           board_order: "a2",
@@ -1007,6 +1032,7 @@ describe("Zero Task mutators", () => {
           workflow_status_id: "workflowstatus_todo",
         },
       ],
+      [taskActivityFieldsRow],
     ]);
 
     await mustGetMutator(mutators, "tasks.update_batch").fn({
@@ -1186,10 +1212,12 @@ describe("Zero Task mutators", () => {
           workflow_status_id: "workflowstatus_todo",
         },
       ],
+      [taskActivityFieldsRow],
       [{ id: "cycle_viewed" }],
       [
         {
           id: "workflowstatus_in_progress",
+          name: "In Progress",
           task_state: "in_progress",
           workflow_id: "workflow_production",
         },
@@ -1247,9 +1275,11 @@ describe("Zero Task mutators", () => {
           workflow_status_id: "workflowstatus_todo",
         },
       ],
+      [taskActivityFieldsRow],
       [
         {
           id: "workflowstatus_done",
+          name: "Done",
           task_state: "done",
           workflow_id: "workflow_production",
         },
@@ -1296,7 +1326,8 @@ describe("Zero Task mutators", () => {
           workflow_status_id: "workflowstatus_todo_old",
         },
       ],
-      [{ id: "team_new", identifier: "NEW", next_task_number: 4 }],
+      [{ ...taskActivityFieldsRow, team_name: "Old Team" }],
+      [{ id: "team_new", identifier: "NEW", name: "New Team", next_task_number: 4 }],
       [{ id: "workflow_new" }],
       [{ id: "workflowstatus_todo_new", task_state: "todo" }],
       [
@@ -1382,6 +1413,92 @@ describe("Zero Task mutators", () => {
       task_state: "todo",
       workflow_status_id: "workflowstatus_todo",
     });
+  });
+
+  test("writes per-field Activities with from/to labels for status and assignee changes", async () => {
+    const { insertCalls, tx } = createServerTx([
+      // getTaskWithTeamIdentifier (base row)
+      [
+        {
+          board_order: "a1",
+          church_id: "org_test",
+          cycle_id: "cycle_current",
+          deleted_at: null,
+          finished_at: null,
+          id: "task_one",
+          label_ids: "[]",
+          number: 7,
+          previous_identifiers: "[]",
+          task_state: "todo",
+          team_id: "team_production",
+          team_identifier: "PRO",
+          workflow_id: "workflow_production",
+          workflow_status_id: "workflowstatus_todo",
+        },
+      ],
+      // getTaskWithActivityFields (extra current-value row)
+      [
+        {
+          assigned_user_id: "user_old",
+          due_date: null,
+          estimate: null,
+          priority: null,
+          team_name: "Production",
+          title: "Existing task",
+          workflow_status_name: "To Do",
+        },
+      ],
+      // workflow_status_id resolution
+      [
+        {
+          id: "workflowstatus_in_progress",
+          name: "In Progress",
+          task_state: "in_progress",
+          workflow_id: "workflow_production",
+        },
+      ],
+    ]);
+
+    await mustGetMutator(mutators, "tasks.update").fn({
+      args: {
+        church_id: "org_test",
+        fields: {
+          assigned_user_id: "user_new",
+          workflow_status_id: "workflowstatus_in_progress",
+        },
+        task_id: "task_one",
+      },
+      ctx: signedInContext,
+      tx,
+    });
+
+    const activityInserts = insertCalls
+      .filter((call) => call.table === activities)
+      .map((call) => {
+        const values = call.values as {
+          readonly entity_type: string;
+          readonly event_type: string;
+          readonly metadata: string;
+        };
+        return { ...values, metadata: JSON.parse(values.metadata) as Record<string, unknown> };
+      });
+
+    const assigneeActivity = activityInserts.find(
+      (activity) => activity.event_type === "task.assignee_changed",
+    );
+    const statusActivity = activityInserts.find(
+      (activity) => activity.event_type === "task.status_changed",
+    );
+
+    expect(assigneeActivity?.metadata).toEqual({
+      from: { id: "user_old", label: null },
+      to: { id: "user_new", label: null },
+    });
+    expect(statusActivity?.metadata).toEqual({
+      from: { id: "workflowstatus_todo", label: "To Do" },
+      to: { id: "workflowstatus_in_progress", label: "In Progress" },
+    });
+    expect(activityInserts.every((activity) => activity.entity_type === "task")).toBe(true);
   });
 });
 

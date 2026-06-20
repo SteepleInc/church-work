@@ -721,6 +721,38 @@ const writeActivity = async (
   });
 };
 
+/**
+ * Writes one Task Activity per field change produced by `taskPatchForFields`,
+ * so a single `update` that touched several fields shows as several Feed lines
+ * (ADR 0005). Each change already carries its own `event_type` and rich
+ * before/after `metadata`; they share a single `occurred_at` so they stay
+ * grouped and ordered together in the Feed.
+ */
+const writeTaskActivityChanges = async (
+  db: any,
+  args: {
+    readonly actor_id: string;
+    readonly changes: readonly { readonly event_type: string; readonly metadata: unknown }[];
+    readonly church_id: string;
+    readonly cycle_id: string | null;
+    readonly task_id: string;
+  },
+) => {
+  const occurredAt = new Date();
+  for (const change of args.changes) {
+    await writeActivity(db, {
+      actor_id: args.actor_id,
+      church_id: args.church_id,
+      cycle_id: args.cycle_id,
+      entity_id: args.task_id,
+      entity_type: "task",
+      event_type: change.event_type,
+      metadata: change.metadata,
+      occurred_at: occurredAt,
+    });
+  }
+};
+
 type JsonValue =
   | null
   | boolean
@@ -1125,6 +1157,83 @@ export const buildTemplateCycleTaskProjections = (args: {
   }));
 };
 
+/**
+ * One Feed-facing Activity emitted by a Task field change. Each carries an
+ * `event_type` and structured before/after `metadata` rich enough to render
+ * the line on its own (ADR 0005). Value fields store `{ value, label }`;
+ * record references store `{ id, label }` with the name snapshotted at change
+ * time so old lines stay truthful after renames/deletes.
+ */
+type TaskActivityChange = {
+  readonly event_type: string;
+  readonly metadata: Record<string, unknown>;
+};
+
+/** A plain (non-record) before/after value, e.g. title, priority, due date. */
+const valueRef = (value: string | null) =>
+  value === null ? null : ({ label: value, value } as const);
+
+/**
+ * A User reference (assignee) for Activity metadata. Unlike Workflow Statuses,
+ * Teams, and Labels, we do not snapshot the User's name here: the `user` table
+ * is Better Auth-owned and not a safe read target from inside a Zero mutator
+ * transaction, and Users are rarely deleted. The Feed resolves the display name
+ * live from the loaded church members, falling back to "Unknown user".
+ */
+const userRef = (userId: string | null) =>
+  userId === null ? null : ({ id: userId, label: null } as const);
+
+/**
+ * Loads the Task plus the extra current-value fields needed to compute Activity
+ * before/after metadata (title, assignee, due date, estimate, priority, current
+ * Workflow Status name, and Team name), on top of everything
+ * `getTaskWithTeamIdentifier` returns.
+ */
+const getTaskWithActivityFields = async (
+  db: ServerTx["dbTransaction"]["wrappedTransaction"],
+  task_id: string,
+  church_id: string,
+) => {
+  const base = await getTaskWithTeamIdentifier(db, task_id, church_id);
+  if (!base) return null;
+
+  const rows = (await db
+    .select({
+      assigned_user_id: tasks.assigned_user_id,
+      due_date: tasks.due_date,
+      estimate: tasks.estimate,
+      priority: tasks.priority,
+      team_name: teams.name,
+      title: tasks.title,
+      workflow_status_name: workflow_statuses.name,
+    })
+    .from(tasks)
+    .leftJoin(teams, eq(tasks.team_id, teams.id))
+    .leftJoin(workflow_statuses, eq(tasks.workflow_status_id, workflow_statuses.id))
+    .where(and(eq(tasks.id, task_id), eq(tasks.church_id, church_id)))
+    .limit(1)) as Array<{
+    readonly assigned_user_id: string | null;
+    readonly due_date: string | null;
+    readonly estimate: string | null;
+    readonly priority: string | null;
+    readonly team_name: string | null;
+    readonly title: string;
+    readonly workflow_status_name: string | null;
+  }>;
+  const extra = rows[0];
+
+  return {
+    ...base,
+    assigned_user_id: extra?.assigned_user_id ?? null,
+    due_date: extra?.due_date ?? null,
+    estimate: extra?.estimate ?? null,
+    priority: extra?.priority ?? null,
+    team_name: extra?.team_name ?? null,
+    title: extra?.title ?? "",
+    workflow_status_name: extra?.workflow_status_name ?? null,
+  };
+};
+
 const taskPatchForFields = async (
   db: ServerTx["dbTransaction"]["wrappedTransaction"],
   args: {
@@ -1133,21 +1242,65 @@ const taskPatchForFields = async (
     readonly session_user_id: string;
     readonly task_id: string;
   },
-) => {
-  const task = await getTaskWithTeamIdentifier(db, args.task_id, args.church_id);
+): Promise<{ readonly patch: TaskPatch; readonly changes: readonly TaskActivityChange[] }> => {
+  const task = await getTaskWithActivityFields(db, args.task_id, args.church_id);
   if (!task) throw new Error("Task not found.");
 
   const now = new Date();
   const patch: TaskPatch = { updated_at: now, updated_by: args.session_user_id };
+  const changes: TaskActivityChange[] = [];
 
-  if (args.fields.title !== undefined) patch.title = args.fields.title.trim();
-  if (args.fields.assigned_user_id !== undefined)
+  if (args.fields.title !== undefined) {
+    const nextTitle = args.fields.title.trim();
+    patch.title = nextTitle;
+    if (nextTitle !== task.title) {
+      changes.push({
+        event_type: "task.title_changed",
+        metadata: { from: valueRef(task.title), to: valueRef(nextTitle) },
+      });
+    }
+  }
+  if (args.fields.assigned_user_id !== undefined) {
     patch.assigned_user_id = args.fields.assigned_user_id;
-  if (args.fields.due_date !== undefined) patch.due_date = args.fields.due_date;
+    if (args.fields.assigned_user_id !== task.assigned_user_id) {
+      changes.push({
+        event_type: "task.assignee_changed",
+        metadata: {
+          from: userRef(task.assigned_user_id),
+          to: userRef(args.fields.assigned_user_id),
+        },
+      });
+    }
+  }
+  if (args.fields.due_date !== undefined) {
+    patch.due_date = args.fields.due_date;
+    if (args.fields.due_date !== task.due_date) {
+      changes.push({
+        event_type: "task.due_date_changed",
+        metadata: { from: valueRef(task.due_date), to: valueRef(args.fields.due_date) },
+      });
+    }
+  }
   if (args.fields.parent_task_id !== undefined) patch.parent_task_id = args.fields.parent_task_id;
   if (args.fields.board_order !== undefined) patch.board_order = args.fields.board_order;
-  if (args.fields.estimate !== undefined) patch.estimate = args.fields.estimate;
-  if (args.fields.priority !== undefined) patch.priority = args.fields.priority;
+  if (args.fields.estimate !== undefined) {
+    patch.estimate = args.fields.estimate;
+    if (args.fields.estimate !== task.estimate) {
+      changes.push({
+        event_type: "task.estimate_changed",
+        metadata: { from: valueRef(task.estimate), to: valueRef(args.fields.estimate) },
+      });
+    }
+  }
+  if (args.fields.priority !== undefined) {
+    patch.priority = args.fields.priority;
+    if (args.fields.priority !== task.priority) {
+      changes.push({
+        event_type: "task.priority_changed",
+        metadata: { from: valueRef(task.priority), to: valueRef(args.fields.priority) },
+      });
+    }
+  }
   if (args.fields.cycle_id !== undefined) patch.cycle_id = args.fields.cycle_id;
   if (args.fields.target_cycle !== undefined) {
     patch.cycle_id = await ensureTargetCycle(db, {
@@ -1156,11 +1309,21 @@ const taskPatchForFields = async (
       target_cycle: args.fields.target_cycle,
     });
   }
+  if (patch.cycle_id !== undefined && patch.cycle_id !== task.cycle_id) {
+    changes.push({
+      event_type: "task.cycle_changed",
+      metadata: {
+        from: task.cycle_id === null ? null : { id: task.cycle_id, label: null },
+        to: patch.cycle_id === null ? null : { id: patch.cycle_id, label: null },
+      },
+    });
+  }
 
   if (args.fields.workflow_status_id !== undefined) {
     const statusRows = (await db
       .select({
         id: workflow_statuses.id,
+        name: workflow_statuses.name,
         task_state: workflow_statuses.task_state,
         workflow_id: workflow_statuses.workflow_id,
       })
@@ -1173,6 +1336,7 @@ const taskPatchForFields = async (
         ),
       )) as Array<{
       readonly id: string;
+      readonly name: string;
       readonly task_state: string;
       readonly workflow_id: string;
     }>;
@@ -1180,6 +1344,15 @@ const taskPatchForFields = async (
     if (!status) throw new Error("Workflow Status not found.");
     if (status.workflow_id !== task.workflow_id)
       throw new Error("Workflow Status is not in this Task's Workflow.");
+    if (status.id !== task.workflow_status_id) {
+      changes.push({
+        event_type: "task.status_changed",
+        metadata: {
+          from: { id: task.workflow_status_id, label: task.workflow_status_name },
+          to: { id: status.id, label: status.name },
+        },
+      });
+    }
     patch.workflow_status_id = status.id;
     patch.task_state = status.task_state;
     patch.finished_at =
@@ -1197,6 +1370,7 @@ const taskPatchForFields = async (
       .select({
         id: teams.id,
         identifier: teams.identifier,
+        name: teams.name,
         next_task_number: teams.next_task_number,
       })
       .from(teams)
@@ -1209,10 +1383,18 @@ const taskPatchForFields = async (
       )) as Array<{
       readonly id: string;
       readonly identifier: string;
+      readonly name: string;
       readonly next_task_number: number;
     }>;
     const team = teamRows[0];
     if (!team) throw new Error("Team not found.");
+    changes.push({
+      event_type: "task.team_changed",
+      metadata: {
+        from: { id: task.team_id, label: task.team_name },
+        to: { id: team.id, label: team.name },
+      },
+    });
     const workflowRows = (await db
       .select({ id: workflows.id })
       .from(workflows)
@@ -1268,6 +1450,21 @@ const taskPatchForFields = async (
       team_id: effectiveTeamId,
     });
     patch.label_ids = serializeStringArray(args.fields.label_ids);
+
+    const labelNameById = new Map(churchLabels.map((label) => [label.id, label.name]));
+    const previousLabelIds = new Set(parseSerializedStringArray(task.label_ids));
+    const nextLabelIds = new Set(args.fields.label_ids);
+    const added = [...nextLabelIds].filter((id) => !previousLabelIds.has(id));
+    const removed = [...previousLabelIds].filter((id) => !nextLabelIds.has(id));
+    if (added.length > 0 || removed.length > 0) {
+      changes.push({
+        event_type: "task.labels_changed",
+        metadata: {
+          added: added.map((id) => ({ id, label: labelNameById.get(id) ?? null })),
+          removed: removed.map((id) => ({ id, label: labelNameById.get(id) ?? null })),
+        },
+      });
+    }
   } else if (patch.team_id !== undefined) {
     const churchLabels = await getChurchLabels(db, args.church_id);
     patch.label_ids = serializeStringArray(
@@ -1278,7 +1475,7 @@ const taskPatchForFields = async (
     );
   }
 
-  return patch;
+  return { changes, patch };
 };
 
 export const mutators = defineMutators({
@@ -3128,7 +3325,7 @@ export const mutators = defineMutators({
       if (!db) return;
 
       const session = requireActiveChurchAccess(ctx, args.church_id);
-      const patch = await taskPatchForFields(db, {
+      const { changes, patch } = await taskPatchForFields(db, {
         church_id: args.church_id,
         fields: args.fields,
         session_user_id: session.user_id,
@@ -3146,18 +3343,12 @@ export const mutators = defineMutators({
           ),
         );
 
-      await writeActivity(db, {
+      await writeTaskActivityChanges(db, {
         actor_id: session.user_id,
+        changes,
         church_id: args.church_id,
         cycle_id: patch.cycle_id ?? null,
-        entity_id: args.task_id,
-        entity_type: "task",
-        event_type: "task.updated",
-        metadata: {
-          updated_fields: Object.keys(patch).filter(
-            (key) => !["updated_at", "updated_by"].includes(key),
-          ),
-        },
+        task_id: args.task_id,
       });
     }),
     update_batch: defineChurchTaskMutator(UpdateTasksBatchArgs, async ({ args, ctx, tx }) => {
@@ -3166,7 +3357,7 @@ export const mutators = defineMutators({
 
       const session = requireActiveChurchAccess(ctx, args.church_id);
       for (const update of args.updates) {
-        const patch = await taskPatchForFields(db, {
+        const { changes, patch } = await taskPatchForFields(db, {
           church_id: args.church_id,
           fields: update.fields,
           session_user_id: session.user_id,
@@ -3183,18 +3374,12 @@ export const mutators = defineMutators({
             ),
           );
 
-        await writeActivity(db, {
+        await writeTaskActivityChanges(db, {
           actor_id: session.user_id,
+          changes,
           church_id: args.church_id,
           cycle_id: patch.cycle_id ?? null,
-          entity_id: update.task_id,
-          entity_type: "task",
-          event_type: "task.updated",
-          metadata: {
-            updated_fields: Object.keys(patch).filter(
-              (key) => !["updated_at", "updated_by"].includes(key),
-            ),
-          },
+          task_id: update.task_id,
         });
       }
     }),
@@ -3220,17 +3405,13 @@ export const mutators = defineMutators({
           )
           .limit(1)) as Array<{ readonly id: string }>;
         if (existing[0]) {
-          await db
-            .update(tasks)
-            .set(
-              await taskPatchForFields(db, {
-                church_id: args.church_id,
-                fields: { workflow_status_id: args.workflow_status_id },
-                session_user_id: session.user_id,
-                task_id: existing[0].id,
-              }),
-            )
-            .where(eq(tasks.id, existing[0].id));
+          const { patch } = await taskPatchForFields(db, {
+            church_id: args.church_id,
+            fields: { workflow_status_id: args.workflow_status_id },
+            session_user_id: session.user_id,
+            task_id: existing[0].id,
+          });
+          await db.update(tasks).set(patch).where(eq(tasks.id, existing[0].id));
           return;
         }
 

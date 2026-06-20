@@ -364,6 +364,24 @@ _Avoid_: Auth gate, loading screen
 The content a Collection or surface shows when its data has finished loading and is genuinely empty. Loading suppresses the Empty State; it must never flash while data is still arriving.
 _Avoid_: "No results" flash, "Loading X..." text
 
+## Activity
+
+**Activity**:
+A single recorded fact that a domain entity was created or meaningfully changed, written to the Church-scoped audit log in the same mutation transaction as the change. An Activity names the actor, the entity, an Event Type, when it occurred, and structured `metadata` rich enough to render what happened. Activities are an audit log, not event sourcing; current state always lives on the domain tables.
+_Avoid_: Event as the domain term, audit row, changelog entry
+
+**Event Type**:
+The kind of change an Activity records, such as `task.status_changed`, `task.assignee_changed`, or `task.created`. A change that alters a value uses a dedicated Event Type carrying `{ from, to }` so the Activity Feed can render the before and after; a single mutation that changes several fields writes one Activity per meaningful field.
+_Avoid_: Action, verb, generic `task.updated` for value changes that should read richly
+
+**Activity Feed**:
+The reverse-chronological list of Activities for one entity, shown on that entity's detail surface (initially the Task Details Pane). Each Activity renders as one human-readable line — "Izak moved this from To Do to In Progress", "assigned to Ankit", "set priority to High" — with a relative timestamp. The Activity Feed is read-only history; Comments are a separate, later concept.
+_Avoid_: History tab, audit log as the user-facing label, timeline
+
+**Actor**:
+Who or what caused an Activity. The initial Actor Type is a User; agent and system actors are anticipated, so an Activity stores both an Actor Type and an actor reference rather than assuming a User.
+_Avoid_: Author, user as the only actor
+
 ## Example Dialogue
 
 **Pastor**: We need the Easter graphics work to show up every year in the Cycle that contains Easter.
