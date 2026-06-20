@@ -29,7 +29,7 @@ import {
   useTemplateSchedulesCollection,
   useTemplatesCollection,
 } from "@/data/templates/templatesData.app";
-import { SettingsKeyDatesPanel } from "@/features/settings/key-date-settings";
+import { KeyDatesCollection } from "@/features/templates/keyDatesCollection";
 import { TemplatesCollection } from "@/features/templates/templates-collection";
 import {
   canManageTemplates,
@@ -76,8 +76,11 @@ export function TemplatesPage({ tab }: { readonly tab: TemplateLibraryTab }) {
 
   const canManage = activeChurch ? canManageTemplates(activeChurch.role) : false;
 
+  // The page header (title + tabs) stays pinned above the content for every
+  // tab, matching the PreachX entity layout (header → tabs → full-bleed
+  // collection that owns its own scroll).
   const header = (
-    <>
+    <div className="flex flex-col gap-6 px-4 pt-0 pb-2 md:pt-1">
       <div className="flex flex-col gap-1">
         <h1 className="font-semibold text-2xl tracking-tight">Templates</h1>
         <p className="max-w-3xl text-balance text-muted-foreground text-sm">{PAGE_DESCRIPTION}</p>
@@ -96,42 +99,43 @@ export function TemplatesPage({ tab }: { readonly tab: TemplateLibraryTab }) {
           ))}
         </PageTabsList>
       </PageTabs>
-    </>
+    </div>
   );
 
-  // The Templates tab hosts the generic Collection, which owns its own scroll
-  // and grows to fill the viewport — so it renders outside the page ScrollArea.
+  // The Templates and Key Dates tabs both host the generic Collection, which
+  // owns its own scroll and grows to fill the viewport — so they render outside
+  // the page ScrollArea, sharing one entity layout (header → tabs → Collection).
   if (tab === "schedules") {
     return (
       <MainContainer>
-        <div className="flex flex-col gap-6 px-4 pt-0 md:pt-1">{header}</div>
+        {header}
         <TemplatesCollection />
       </MainContainer>
     );
   }
 
-  const renderCurrentTab = () => {
-    switch (tab) {
-      case "library":
-        return (
-          <TemplateLibraryPanel
-            canManage={canManage}
-            churchId={churchId}
-            description={TAB_DESCRIPTION.library}
-            loading={templatesLoading}
-            templates={templates.templatesCollection}
-          />
-        );
-      case "key-dates":
-        return <SettingsKeyDatesPanel embedded />;
-    }
-  };
+  if (tab === "key-dates") {
+    return (
+      <MainContainer>
+        {header}
+        <KeyDatesCollection />
+      </MainContainer>
+    );
+  }
 
+  // The Library tab is a card grid, so it keeps the padded page ScrollArea below
+  // the pinned header.
   return (
     <MainContainer>
-      <PageContainer wrapperClassName="gap-6">
-        {header}
-        {renderCurrentTab()}
+      {header}
+      <PageContainer className="flex-1" wrapperClassName="gap-6 pt-4 md:pt-4">
+        <TemplateLibraryPanel
+          canManage={canManage}
+          churchId={churchId}
+          description={TAB_DESCRIPTION.library}
+          loading={templatesLoading}
+          templates={templates.templatesCollection}
+        />
       </PageContainer>
     </MainContainer>
   );

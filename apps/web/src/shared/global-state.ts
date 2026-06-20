@@ -16,6 +16,7 @@ export enum FilterKeys {
   Users = "users-filters",
   Tasks = "tasks-filters",
   Templates = "templates-filters",
+  KeyDates = "key-dates-filters",
   Default = "default-filters",
 }
 

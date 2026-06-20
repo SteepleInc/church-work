@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 
-export type CollectionTags = "orgs" | "users" | "templates" | "default";
+export type CollectionTags = "orgs" | "users" | "templates" | "key-dates" | "default";
 
 type ColumnHeaderProps<T> = {
   readonly column: Column<T>;

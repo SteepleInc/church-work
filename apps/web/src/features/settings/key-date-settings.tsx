@@ -37,13 +37,29 @@ type KeyDateMutationResult =
   | { readonly ok: true }
   | { readonly ok: false; readonly error: { readonly message: string } };
 
-const slugifyKey = (name: string) =>
+export const slugifyKeyDateKey = (name: string) =>
   name
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 64) || "key-date";
+
+const slugifyKey = slugifyKeyDateKey;
+
+/** Builds a slug for `name` that doesn't collide with `usedKeys` (ignoring `ignore`). */
+export function uniqueKeyDateKey(
+  usedKeys: ReadonlySet<string>,
+  name: string,
+  ignore?: string,
+): string {
+  const base = slugifyKey(name);
+  if (!usedKeys.has(base) || base === ignore) return base;
+  for (let bump = 2; ; bump += 1) {
+    const candidate = `${base}-${bump}`;
+    if (!usedKeys.has(candidate) || candidate === ignore) return candidate;
+  }
+}
 
 export function SettingsKeyDatesPanel({
   embedded = false,
@@ -232,23 +248,26 @@ function KeyDatesSettingsPanel({
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-3">
-        <div className="relative w-full max-w-xs">
-          <Search className="-translate-y-1/2 absolute top-1/2 left-2.5 size-4 text-muted-foreground" />
+      <div className="flex min-h-10 items-center gap-2">
+        {/* biome-ignore lint/a11y/noLabelWithoutControl: search field label wraps the input */}
+        <label className="relative flex w-full shrink-1 flex-row items-center gap-2 lg:max-w-64">
+          <Search className="-translate-y-1/2 absolute top-1/2 left-3 size-4 text-muted-foreground" />
           <Input
-            className="pl-8"
+            className="flex-1 rounded-full px-9!"
             onChange={(event) => setFilter(event.currentTarget.value)}
-            placeholder="Filter by name..."
+            placeholder="Search Key Dates"
             value={filter}
           />
-        </div>
+        </label>
         {canManage ? (
           <Button
+            className="ml-auto"
             disabled={!churchId || creating}
             onClick={() => {
               setError(null);
               setCreating(true);
             }}
+            size="sm"
             type="button"
           >
             <Plus />
@@ -310,7 +329,7 @@ function KeyDatesSettingsPanel({
 }
 
 /** The inline "create a Key Date" row pinned to the top of the table body. */
-function NewKeyDateRow({
+export function NewKeyDateRow({
   onSubmit,
   onCancel,
 }: {
@@ -355,7 +374,7 @@ function NewKeyDateRow({
 }
 
 /** A text field that commits on Enter/blur and cancels on Escape. */
-function KeyDateNameInput({
+export function KeyDateNameInput({
   defaultValue,
   onSubmit,
   onCancel,
@@ -413,7 +432,7 @@ function KeyDateNameInput({
 }
 
 /** A read-only schedule summary that opens the schedule editor when managed. */
-function ScheduleCell({
+export function ScheduleCell({
   schedule,
   onChange,
   canManage,
@@ -453,7 +472,7 @@ function ScheduleCell({
 
 const KEY_DATE_KINDS: readonly KeyDateScheduleKind[] = ["computedYearly", "fixedYearly", "oneTime"];
 
-const defaultScheduleForKind = (kind: KeyDateScheduleKind): KeyDateRule => {
+export const defaultScheduleForKind = (kind: KeyDateScheduleKind): KeyDateRule => {
   if (kind === "computedYearly") return { kind: "computedYearly", rule: "easter" };
   if (kind === "fixedYearly") return { day: 25, kind: "fixedYearly", month: 12 };
   return { kind: "oneTime", localDate: new Date().toISOString().slice(0, 10) };
@@ -464,7 +483,7 @@ const defaultScheduleForKind = (kind: KeyDateScheduleKind): KeyDateRule => {
  * schedule editor: a kind picker (Preset / Fixed annual / One-off) followed by
  * the inputs for the chosen kind.
  */
-function ScheduleEditor({
+export function ScheduleEditor({
   schedule,
   onChange,
 }: {
@@ -612,7 +631,7 @@ function FixedAnnualPicker({
 }
 
 /** The trailing per-row "..." actions menu. */
-function KeyDateRowActions({
+export function KeyDateRowActions({
   onRename,
   onDelete,
 }: {
