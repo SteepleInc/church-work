@@ -104,6 +104,11 @@ export type TaskCardEstimateChange = {
   readonly estimate: TaskBoardEstimate | null;
 };
 
+export type TaskCardPriorityChange = {
+  readonly taskId: string;
+  readonly priority: "urgent" | "high" | "medium" | "low" | null;
+};
+
 export type TaskBoardTeamOption = {
   readonly id: string;
   readonly name: string;
@@ -137,6 +142,7 @@ type TaskKanbanBoardProps = {
   readonly onChangeTaskStatus?: (change: TaskCardStatusChange) => void | Promise<void>;
   readonly onChangeTaskLabels?: (change: TaskCardLabelsChange) => void | Promise<void>;
   readonly onChangeTaskEstimate?: (change: TaskCardEstimateChange) => void | Promise<void>;
+  readonly onChangeTaskPriority?: (change: TaskCardPriorityChange) => void | Promise<void>;
   readonly onOpenTask?: (taskIdentifier: string) => void;
   readonly onAddTask?: (workflowStatusId: string) => void;
   readonly onToggleColumnHidden?: (workflowStatusId: string) => void;
@@ -186,6 +192,7 @@ export function TaskKanbanBoard({
   onChangeTaskStatus,
   onChangeTaskLabels,
   onChangeTaskEstimate,
+  onChangeTaskPriority,
   onOpenTask,
   onAddTask,
   onToggleColumnHidden,
@@ -388,6 +395,7 @@ export function TaskKanbanBoard({
               onChangeTaskStatus={onChangeTaskStatus}
               onChangeTaskLabels={onChangeTaskLabels}
               onChangeTaskEstimate={onChangeTaskEstimate}
+              onChangeTaskPriority={onChangeTaskPriority}
               onOpenTask={onOpenTask}
               onAddTask={grouping === "workflow_status" ? onAddTask : undefined}
               onHideColumn={grouping === "workflow_status" ? onToggleColumnHidden : undefined}
@@ -544,6 +552,7 @@ interface TaskKanbanColumnProps extends Omit<
   readonly onChangeTaskStatus?: TaskKanbanBoardProps["onChangeTaskStatus"];
   readonly onChangeTaskLabels?: TaskKanbanBoardProps["onChangeTaskLabels"];
   readonly onChangeTaskEstimate?: TaskKanbanBoardProps["onChangeTaskEstimate"];
+  readonly onChangeTaskPriority?: TaskKanbanBoardProps["onChangeTaskPriority"];
   readonly onOpenTask?: (taskIdentifier: string) => void;
   readonly onAddTask?: (workflowStatusId: string) => void;
   readonly onHideColumn?: (workflowStatusId: string) => void;
@@ -569,6 +578,7 @@ function TaskKanbanColumn({
   onChangeTaskStatus,
   onChangeTaskLabels,
   onChangeTaskEstimate,
+  onChangeTaskPriority,
   onOpenTask,
   onAddTask,
   onHideColumn,
@@ -667,6 +677,7 @@ function TaskKanbanColumn({
               onChangeTaskStatus={onChangeTaskStatus}
               onChangeTaskLabels={onChangeTaskLabels}
               onChangeTaskEstimate={onChangeTaskEstimate}
+              onChangeTaskPriority={onChangeTaskPriority}
               onOpenTask={onOpenTask}
               onToggleTaskSelected={onToggleTaskSelected}
             />
@@ -697,6 +708,7 @@ interface TaskKanbanCardProps extends Omit<
   readonly onChangeTaskStatus?: TaskKanbanBoardProps["onChangeTaskStatus"];
   readonly onChangeTaskLabels?: TaskKanbanBoardProps["onChangeTaskLabels"];
   readonly onChangeTaskEstimate?: TaskKanbanBoardProps["onChangeTaskEstimate"];
+  readonly onChangeTaskPriority?: TaskKanbanBoardProps["onChangeTaskPriority"];
   readonly onOpenTask?: (taskIdentifier: string) => void;
   readonly onToggleTaskSelected?: (taskId: string) => void;
 }
@@ -718,6 +730,7 @@ function TaskKanbanCard({
   onChangeTaskStatus,
   onChangeTaskLabels,
   onChangeTaskEstimate,
+  onChangeTaskPriority,
   onOpenTask,
   onToggleTaskSelected,
   className,
@@ -780,7 +793,7 @@ function TaskKanbanCard({
 
   const form = useAppForm({
     defaultValues: {
-      priority: "no_priority" as TaskPriority,
+      priority: (task.priority ?? "no_priority") as TaskPriority,
       estimate: (task.estimate ?? "no_estimate") as TaskEstimate,
       assignedUserId: task.assignedUserId ?? null,
       workflowStatusId: task.workflowStatusId,
@@ -918,7 +931,13 @@ function TaskKanbanCard({
               const Icon = meta.icon;
               return (
                 <PriorityComboboxSelector
-                  onValueChange={(next) => field.handleChange(next)}
+                  onValueChange={(next) => {
+                    field.handleChange(next);
+                    void onChangeTaskPriority?.({
+                      taskId: task.id,
+                      priority: next === "no_priority" ? null : next,
+                    });
+                  }}
                   openRef={priorityOpenRef}
                   trigger={
                     <span

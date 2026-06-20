@@ -30,10 +30,13 @@ import {
   AssigneeComboboxSelector,
   EstimateComboboxSelector,
   getEstimateMeta,
+  getPriorityMeta,
   LabelsComboboxSelector,
   labelDotClassName,
+  PriorityComboboxSelector,
   TeamComboboxSelector,
   type TaskEstimate,
+  type TaskPriority,
 } from "@/components/tasks/task-card-fields";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -96,6 +99,7 @@ type DraftTask = {
   readonly assigneeId: string | null;
   readonly labelIds: readonly string[];
   readonly estimate: TaskEstimate;
+  readonly priority: TaskPriority;
   /** JS weekday (0 = Sunday) the Template Task is due on within its Cycle. */
   readonly placementWeekday: number;
   /**
@@ -116,11 +120,20 @@ const ESTIMATE_TO_KEY: Record<TaskEstimate, string | null> = {
   xl: "xl",
 };
 
+const PRIORITY_TO_KEY: Record<TaskPriority, string | null> = {
+  no_priority: null,
+  urgent: "urgent",
+  high: "high",
+  medium: "medium",
+  low: "low",
+};
+
 const newDraftTask = (placementWeekday: number, teamId: string, cycleIndex = 0): DraftTask => ({
   assigneeId: null,
   cycleIndex,
   description: "",
   estimate: "no_estimate",
+  priority: "no_priority",
   id: crypto.randomUUID(),
   labelIds: [],
   placementWeekday,
@@ -537,6 +550,7 @@ function WeeklyServiceAuthoring({
           assignedUserId: task.assigneeId,
           description: task.description.trim() || null,
           estimate: ESTIMATE_TO_KEY[task.estimate],
+          priority: PRIORITY_TO_KEY[task.priority],
           key: `task-${index + 1}-${slugify(task.title)}`,
           labelIds: [...task.labelIds],
           placementCycleOffset: 0,
@@ -566,6 +580,7 @@ function WeeklyServiceAuthoring({
                 assignedUserId: task.assigneeId,
                 description: task.description.trim() || null,
                 estimate: ESTIMATE_TO_KEY[task.estimate],
+                priority: PRIORITY_TO_KEY[task.priority],
                 key: `task-${index + 1}-${slugify(task.title)}`,
                 labelIds: [...task.labelIds],
                 placementCycleOffset:
@@ -921,6 +936,7 @@ function KeyDateAuthoring({
           assignedUserId: task.assigneeId,
           description: task.description.trim() || null,
           estimate: ESTIMATE_TO_KEY[task.estimate],
+          priority: PRIORITY_TO_KEY[task.priority],
           key: `task-${index + 1}-${slugify(task.title)}`,
           labelIds: [...task.labelIds],
           placementCycleOffset: 0,
@@ -2366,6 +2382,8 @@ function TemplateTaskCard({
   const selectedTeam = teams.find((team) => team.id === task.teamId) ?? null;
   const selectedAssignee = assigneeOptions.find((option) => option.id === task.assigneeId) ?? null;
   const estimateMeta = getEstimateMeta(task.estimate);
+  const priorityMeta = getPriorityMeta(task.priority);
+  const PriorityIcon = priorityMeta.icon;
 
   // Members of the selected Team feed the assignee picker's "Team members".
   const teamMemberUserIds = useMemo(
@@ -2481,6 +2499,17 @@ function TemplateTaskCard({
             </FieldPill>
           }
           value={task.estimate}
+        />
+
+        <PriorityComboboxSelector
+          onValueChange={(next) => onChange({ priority: next })}
+          trigger={
+            <FieldPill muted={task.priority === "no_priority"}>
+              <PriorityIcon className={cn("size-3.5", priorityMeta.className)} />
+              {task.priority === "no_priority" ? "Priority" : priorityMeta.label}
+            </FieldPill>
+          }
+          value={task.priority}
         />
 
         <LabelsComboboxSelector

@@ -48,7 +48,7 @@ Team and Workflow Setup gives every new Church a useful starting set of default 
 
 Status: Implemented for the first real task execution surface; migration follow-up [#173](https://github.com/SteepleInc/church-task/issues/173) and original execution slices through [#71](https://github.com/SteepleInc/church-task/issues/71) are closed.
 
-Implementation now: My Work, Our Work, and Team board routes use the shared task execution surface with create/update/batch update behavior, workflow movement, assignments, due dates, labels, details panes, quick actions, and E2E smoke coverage. Some card controls are still explicitly local/stubbed, such as priority/estimate fields, so those should not be treated as fully persisted product semantics yet.
+Implementation now: My Work, Our Work, and Team board routes use the shared task execution surface with create/update/batch update behavior, workflow movement, assignments, due dates, labels, details panes, quick actions, and E2E smoke coverage. Some newer card controls may still be local/stubbed until wired through the data model, so each field should be checked before treating it as fully persisted product semantics.
 
 Task Execution and Assignment lets Users create, update, assign, move, and complete Tasks in the current weekly Cycle by default through both the web UI and MCP/CLI. The first web UI is a kanban-style Workflow view, using Team or Church default Workflow Statuses while preserving each Task's canonical Task State. It includes changing the Cycle when needed, optional Team/User assignment, batch-shaped operations, Subtasks, Due Dates, and Workflow movement, but does not include template authoring, saved views, or advanced weekly planning tools.
 

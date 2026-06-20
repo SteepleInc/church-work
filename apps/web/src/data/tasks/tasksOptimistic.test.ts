@@ -19,6 +19,7 @@ const baseTask: OptimisticTask = {
   parentTaskId: null,
   labelIds: [],
   estimate: null,
+  priority: null,
 };
 
 const lookup = workflowStatusStateLookup([
@@ -63,6 +64,14 @@ describe("applyTaskUpdate", () => {
 
     const cleared = applyTaskUpdate(sized, { estimate: null }, lookup);
     expect(cleared.estimate).toBeNull();
+  });
+
+  test("applies priority changes and supports clearing back to no priority", () => {
+    const prioritized = applyTaskUpdate(baseTask, { priority: "high" }, lookup);
+    expect(prioritized.priority).toBe("high");
+
+    const cleared = applyTaskUpdate(prioritized, { priority: null }, lookup);
+    expect(cleared.priority).toBeNull();
   });
 
   test("does not mutate the input Task", () => {

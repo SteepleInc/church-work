@@ -71,6 +71,10 @@ type TaskListSurfaceProps = {
   readonly onChangeTaskStatus?: (change: TaskCardStatusChange) => void | Promise<void>;
   readonly onChangeTaskLabels?: (change: TaskCardLabelsChange) => void | Promise<void>;
   readonly onChangeTaskEstimate?: (change: TaskCardEstimateChange) => void | Promise<void>;
+  readonly onChangeTaskPriority?: (change: {
+    readonly taskId: string;
+    readonly priority: "urgent" | "high" | "medium" | "low" | null;
+  }) => void | Promise<void>;
   readonly onOpenTask?: (taskIdentifier: string) => void;
   // The list shares the Board's per-group add affordance. The columnId means a
   // different field per grouping (Workflow Status id, User id, estimate, ...);
@@ -109,6 +113,7 @@ export function TaskListSurface({
   onChangeTaskStatus,
   onChangeTaskLabels,
   onChangeTaskEstimate,
+  onChangeTaskPriority,
   onOpenTask,
   onAddTask,
   className,
@@ -167,6 +172,7 @@ export function TaskListSurface({
             onChangeTaskStatus={onChangeTaskStatus}
             onChangeTaskLabels={onChangeTaskLabels}
             onChangeTaskEstimate={onChangeTaskEstimate}
+            onChangeTaskPriority={onChangeTaskPriority}
             onOpenTask={onOpenTask}
             onAddTask={onAddTask}
           />
@@ -191,6 +197,7 @@ type TaskListGroupProps = {
   readonly onChangeTaskStatus?: TaskListSurfaceProps["onChangeTaskStatus"];
   readonly onChangeTaskLabels?: TaskListSurfaceProps["onChangeTaskLabels"];
   readonly onChangeTaskEstimate?: TaskListSurfaceProps["onChangeTaskEstimate"];
+  readonly onChangeTaskPriority?: TaskListSurfaceProps["onChangeTaskPriority"];
   readonly onOpenTask?: (taskIdentifier: string) => void;
   readonly onAddTask?: (columnId: string) => void;
 };
@@ -210,6 +217,7 @@ function TaskListGroup({
   onChangeTaskStatus,
   onChangeTaskLabels,
   onChangeTaskEstimate,
+  onChangeTaskPriority,
   onOpenTask,
   onAddTask,
 }: TaskListGroupProps) {
@@ -291,6 +299,7 @@ function TaskListGroup({
             onChangeTaskStatus={onChangeTaskStatus}
             onChangeTaskLabels={onChangeTaskLabels}
             onChangeTaskEstimate={onChangeTaskEstimate}
+            onChangeTaskPriority={onChangeTaskPriority}
             onOpenTask={onOpenTask}
           />
         ))}
@@ -359,6 +368,7 @@ type TaskListRowProps = {
   readonly onChangeTaskStatus?: TaskListSurfaceProps["onChangeTaskStatus"];
   readonly onChangeTaskLabels?: TaskListSurfaceProps["onChangeTaskLabels"];
   readonly onChangeTaskEstimate?: TaskListSurfaceProps["onChangeTaskEstimate"];
+  readonly onChangeTaskPriority?: TaskListSurfaceProps["onChangeTaskPriority"];
   readonly onOpenTask?: (taskIdentifier: string) => void;
 };
 
@@ -375,6 +385,7 @@ function TaskListRow({
   onChangeTaskStatus,
   onChangeTaskLabels,
   onChangeTaskEstimate,
+  onChangeTaskPriority,
   onOpenTask,
 }: TaskListRowProps) {
   const currentStatus = workflowStatuses.find((status) => status.id === task.workflowStatusId);
@@ -424,7 +435,7 @@ function TaskListRow({
 
   const form = useAppForm({
     defaultValues: {
-      priority: "no_priority" as TaskPriority,
+      priority: (task.priority ?? "no_priority") as TaskPriority,
       estimate: (task.estimate ?? "no_estimate") as TaskEstimate,
       assignedUserId: task.assignedUserId ?? null,
       workflowStatusId: task.workflowStatusId,
@@ -488,7 +499,13 @@ function TaskListRow({
             const Icon = meta.icon;
             return (
               <PriorityComboboxSelector
-                onValueChange={(next) => field.handleChange(next)}
+                onValueChange={(next) => {
+                  field.handleChange(next);
+                  void onChangeTaskPriority?.({
+                    taskId: task.id,
+                    priority: next === "no_priority" ? null : next,
+                  });
+                }}
                 openRef={priorityOpenRef}
                 trigger={
                   <span

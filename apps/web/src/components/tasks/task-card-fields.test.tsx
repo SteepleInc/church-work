@@ -20,7 +20,7 @@ import {
 } from "./task-card-fields";
 import type { TaskBoardTaskState } from "./task-kanban-adapter";
 
-describe("Task card priority field (stub)", () => {
+describe("Task card priority field", () => {
   test("offers the Linear priority levels in display order", () => {
     expect(PRIORITY_OPTIONS.map((option) => option.value)).toEqual([
       "no_priority",

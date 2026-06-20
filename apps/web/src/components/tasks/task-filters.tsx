@@ -9,7 +9,11 @@ import type {
   ColumnOption,
   FilterItem,
 } from "@/components/data-table-filter/core/types";
-import { WorkflowStatusIcon } from "@/components/tasks/task-card-fields";
+import {
+  getPriorityMeta,
+  PRIORITY_OPTIONS,
+  WorkflowStatusIcon,
+} from "@/components/tasks/task-card-fields";
 import type {
   ExecutionSurface,
   TaskState,
@@ -102,6 +106,18 @@ function taskStateOptions(): readonly ColumnOption[] {
   }));
 }
 
+function priorityOptions(): readonly ColumnOption[] {
+  return PRIORITY_OPTIONS.map((priority) => {
+    const meta = getPriorityMeta(priority.value);
+    const Icon = meta.icon;
+    return {
+      value: priority.value,
+      label: priority.label,
+      icon: <Icon className={meta.className} />,
+    };
+  });
+}
+
 /**
  * The available filter fields for a Board surface (context-aware): team_board
  * hides Team (already pinned); my_work hides the field its active View Tab
@@ -173,6 +189,13 @@ export function buildTaskFilterFields(args: {
       .accessor((task) => task.taskState)
       .displayName("Status type")
       .options(taskStateOptions())
+      .build(),
+    dtf
+      .option()
+      .id("priority")
+      .accessor((task) => task.priority ?? "no_priority")
+      .displayName("Priority")
+      .options(priorityOptions())
       .build(),
   );
 
@@ -268,6 +291,9 @@ export function mapTaskFilterValuesForZero(
     return filter.values.map(toUserIdValue);
   }
   if (filter.columnId === "workflowStatus") return workflowStatusValues(filter.values);
+  if (filter.columnId === "priority") {
+    return filter.values.map((value) => (value === "no_priority" ? null : value));
+  }
 
   return undefined;
 }

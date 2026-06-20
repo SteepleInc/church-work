@@ -406,6 +406,7 @@ export const queries = defineQueries({
           "due_date",
           "id",
           "parent_task_id",
+          "priority",
           "task_state",
           "team_id",
           "workflow_status_id",

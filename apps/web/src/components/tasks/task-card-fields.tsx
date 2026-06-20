@@ -46,7 +46,7 @@ import { cn } from "@/lib/utils";
 
 import type { TaskBoardTaskState } from "./task-kanban-adapter";
 
-// --- Priority (stubbed: local-only, no backend yet) -------------------------
+// --- Priority ---------------------------------------------------------------
 
 export type TaskPriority = "no_priority" | "urgent" | "high" | "medium" | "low";
 

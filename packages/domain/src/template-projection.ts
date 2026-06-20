@@ -117,6 +117,7 @@ export type CycleAdjustmentOverride =
   | { readonly field: "dueDate"; readonly value: string }
   | { readonly field: "labelIds"; readonly value: readonly string[] }
   | { readonly field: "estimate"; readonly value: string | null }
+  | { readonly field: "priority"; readonly value: string | null }
   | { readonly field: "parentTemplateTaskId"; readonly value: string | null };
 
 export type CycleAdjustmentForMerge = {
@@ -132,6 +133,7 @@ export type TemplateTaskProjectionBase = {
   readonly assignedUserId: string | null;
   readonly dueDate: string;
   readonly estimate: string | null;
+  readonly priority: string | null;
   readonly labelIds: readonly string[];
   readonly parentTemplateTaskId: string | null;
   readonly teamId: string;
@@ -371,6 +373,7 @@ export const mergeTemplateTaskProjection = (
     parentTemplateTaskId: string | null;
     dueDate: string;
     estimate: string | null;
+    priority: string | null;
     labelIds: readonly string[];
     teamId: string;
     templateTaskId: string;
@@ -385,6 +388,7 @@ export const mergeTemplateTaskProjection = (
     if (override.field === "dueDate") effectiveTask.dueDate = override.value;
     if (override.field === "labelIds") effectiveTask.labelIds = override.value;
     if (override.field === "estimate") effectiveTask.estimate = override.value;
+    if (override.field === "priority") effectiveTask.priority = override.value;
     if (override.field === "parentTemplateTaskId")
       effectiveTask.parentTemplateTaskId = override.value;
   }

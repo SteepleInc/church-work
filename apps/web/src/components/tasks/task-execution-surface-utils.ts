@@ -28,6 +28,7 @@ export type TaskSummary = {
   readonly workflowStatusId: string;
   readonly taskState: TaskState;
   readonly estimate?: "xs" | "s" | "m" | "l" | "xl" | null;
+  readonly priority?: "urgent" | "high" | "medium" | "low" | null;
   readonly boardOrder?: string;
   readonly labelIds?: readonly string[];
   readonly isProjected?: boolean;

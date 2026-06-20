@@ -479,6 +479,12 @@ export function TaskExecutionSurface({
     onChangeTaskEstimate: (change: { taskId: string; estimate: TaskBoardEstimate | null }) => {
       editTask(change.taskId, { estimate: change.estimate });
     },
+    onChangeTaskPriority: (change: {
+      taskId: string;
+      priority: "urgent" | "high" | "medium" | "low" | null;
+    }) => {
+      editTask(change.taskId, { priority: change.priority });
+    },
     onOpenTask: (taskIdentifier: string) => {
       const url = openTaskDetailsPaneUrl({ id: taskIdentifier });
       void navigate({ to: url.to, search: url.search });
@@ -715,6 +721,7 @@ export function TaskExecutionSurface({
                 onChangeTaskStatus={sharedSurfaceProps.onChangeTaskStatus}
                 onChangeTaskLabels={sharedSurfaceProps.onChangeTaskLabels}
                 onChangeTaskEstimate={sharedSurfaceProps.onChangeTaskEstimate}
+                onChangeTaskPriority={sharedSurfaceProps.onChangeTaskPriority}
                 onOpenTask={(taskIdentifier) => {
                   const url = openTaskDetailsPaneUrl({ id: taskIdentifier });
                   void navigate({ to: url.to, search: url.search });
@@ -928,6 +935,7 @@ function toBoardTask(task: TaskSummary, tasks: readonly TaskSummary[]) {
     workflowStatusId: task.workflowStatusId,
     taskState: task.taskState,
     estimate: task.estimate ?? null,
+    priority: task.priority ?? null,
     boardOrder: task.boardOrder,
     labelIds: task.labelIds ?? [],
     isProjected: task.isProjected ?? false,

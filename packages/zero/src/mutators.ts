@@ -140,6 +140,13 @@ const TaskEstimateArg = Schema.Union([
   Schema.Literal("xl"),
   Schema.Null,
 ]);
+const TaskPriorityArg = Schema.Union([
+  Schema.Literal("urgent"),
+  Schema.Literal("high"),
+  Schema.Literal("medium"),
+  Schema.Literal("low"),
+  Schema.Null,
+]);
 const TargetCycleArg = Schema.Struct({
   church_time_zone: Schema.String,
   end_date: Schema.String,
@@ -154,6 +161,7 @@ const TaskFieldsArg = Schema.Struct({
   cycle_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
   due_date: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
   estimate: Schema.optional(TaskEstimateArg),
+  priority: Schema.optional(TaskPriorityArg),
   label_ids: Schema.optional(Schema.Array(Schema.String)),
   parent_task_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
   team_id: Schema.optional(Schema.String),
@@ -168,6 +176,7 @@ const CreateTaskArgs = toZeroSchema(
     description: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
     due_date: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
     estimate: Schema.optional(TaskEstimateArg),
+    priority: Schema.optional(TaskPriorityArg),
     label_ids: Schema.optional(Schema.Array(Schema.String)),
     parent_task_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
     team_id: Schema.String,
@@ -193,6 +202,7 @@ const MaterializeProjectedTaskArgs = toZeroSchema(
     description: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
     due_date: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
     estimate: Schema.optional(TaskEstimateArg),
+    priority: Schema.optional(TaskPriorityArg),
     label_ids: Schema.optional(Schema.Array(Schema.String)),
     source_template_id: Schema.String,
     source_template_occurrence_key: Schema.String,
@@ -287,6 +297,10 @@ const CycleAdjustmentOverrideArg = Schema.Union([
   Schema.Struct({ field: Schema.Literal("labelIds"), value: Schema.Array(Schema.String) }),
   Schema.Struct({
     field: Schema.Literal("estimate"),
+    value: Schema.Union([Schema.String, Schema.Null]),
+  }),
+  Schema.Struct({
+    field: Schema.Literal("priority"),
     value: Schema.Union([Schema.String, Schema.Null]),
   }),
   Schema.Struct({
@@ -391,6 +405,7 @@ const CreateTemplateArgs = toZeroSchema(
         assigned_user_id: Schema.Union([Schema.String, Schema.Null]),
         description: Schema.Union([Schema.String, Schema.Null]),
         estimate: Schema.Union([Schema.String, Schema.Null]),
+        priority: Schema.Union([Schema.String, Schema.Null]),
         key: Schema.String,
         label_ids: Schema.Array(Schema.String),
         parent_template_task_key: Schema.Union([Schema.String, Schema.Null]),
@@ -815,6 +830,7 @@ type TemplateTaskRow = {
   readonly assigned_user_id?: string | null;
   readonly description?: string | null;
   readonly estimate?: string | null;
+  readonly priority?: string | null;
   readonly id: string;
   readonly key: string;
   readonly label_ids?: string;
@@ -858,7 +874,9 @@ const templateTaskSourceKey = (source: {
 
 type EffectiveTemplateCycleTask = {
   readonly due_date: string;
+  readonly estimate: string | null;
   readonly parent_template_task_id: string | null;
+  readonly priority: string | null;
   readonly source_template_task_id: string;
   readonly team_id: string;
   readonly template_task_key: string;
@@ -867,7 +885,9 @@ type EffectiveTemplateCycleTask = {
 export type TemplateCycleTaskProjection = {
   readonly cycle_id: string;
   readonly due_date: string;
+  readonly estimate: string | null;
   readonly parent_template_task_id: string | null;
+  readonly priority: string | null;
   readonly skipped: false;
   readonly source_template_id: string;
   readonly source_template_task_id: string;
@@ -891,11 +911,13 @@ type ProjectionTaskInsert = {
   readonly created_by_user_id: string;
   readonly cycle_id: string;
   readonly due_date: string;
+  readonly estimate: string | null;
   readonly finished_at: null;
   readonly id: string;
   readonly label_ids: string;
   readonly number: number;
   parent_task_id: string | null;
+  readonly priority: string | null;
   readonly previous_identifiers: string;
   readonly source_template_cycle_id: string | null;
   readonly source_template_id: string;
@@ -947,6 +969,7 @@ const buildEffectiveTemplateCycleTasks = (args: {
         assignedUserId: templateTask.assigned_user_id ?? null,
         description: templateTask.description ?? null,
         estimate: templateTask.estimate ?? null,
+        priority: templateTask.priority ?? null,
         labelIds: parseJson<readonly string[]>(templateTask.label_ids ?? "[]", []),
         parentTemplateTaskId: templateTask.parent_template_task_id,
         teamId: templateTeam.mapped_team_id,
@@ -966,7 +989,9 @@ const buildEffectiveTemplateCycleTasks = (args: {
     return [
       {
         due_date: merged.effectiveTask.dueDate,
+        estimate: merged.effectiveTask.estimate,
         parent_template_task_id: merged.effectiveTask.parentTemplateTaskId,
+        priority: merged.effectiveTask.priority,
         source_template_task_id: templateTask.id,
         team_id: templateTeam.mapped_team_id,
         template_task_key: merged.effectiveTask.templateTaskKey,
@@ -1042,11 +1067,13 @@ export const buildTemplateCycleTaskInserts = (args: {
       created_by_user_id: args.session_user_id,
       cycle_id: args.cycle.id,
       due_date: effectiveTask.due_date,
+      estimate: effectiveTask.estimate,
       finished_at: null,
       id: taskId,
       label_ids: "[]",
       number,
       parent_task_id: null,
+      priority: effectiveTask.priority,
       previous_identifiers: "[]",
       source_template_cycle_id: args.cycle.id,
       source_template_id: args.template_id,
@@ -1086,7 +1113,9 @@ export const buildTemplateCycleTaskProjections = (args: {
   return buildEffectiveTemplateCycleTasks(args).map((effectiveTask) => ({
     cycle_id: args.cycle.id,
     due_date: effectiveTask.due_date,
+    estimate: effectiveTask.estimate,
     parent_template_task_id: effectiveTask.parent_template_task_id,
+    priority: effectiveTask.priority,
     skipped: false as const,
     source_template_id: args.template_id,
     source_template_task_id: effectiveTask.source_template_task_id,
@@ -1118,6 +1147,7 @@ const taskPatchForFields = async (
   if (args.fields.parent_task_id !== undefined) patch.parent_task_id = args.fields.parent_task_id;
   if (args.fields.board_order !== undefined) patch.board_order = args.fields.board_order;
   if (args.fields.estimate !== undefined) patch.estimate = args.fields.estimate;
+  if (args.fields.priority !== undefined) patch.priority = args.fields.priority;
   if (args.fields.cycle_id !== undefined) patch.cycle_id = args.fields.cycle_id;
   if (args.fields.target_cycle !== undefined) {
     patch.cycle_id = await ensureTargetCycle(db, {
@@ -2185,6 +2215,7 @@ export const mutators = defineMutators({
           key: templateTask.key,
           description: templateTask.description,
           estimate: templateTask.estimate,
+          priority: templateTask.priority,
           label_ids: stringifyJson(templateTask.label_ids),
           parent_template_task_id: templateTask.parent_template_task_key
             ? (templateTaskIdByKey.get(templateTask.parent_template_task_key) ?? null)
@@ -2266,6 +2297,7 @@ export const mutators = defineMutators({
           assigned_user_id: template_tasks.assigned_user_id,
           description: template_tasks.description,
           estimate: template_tasks.estimate,
+          priority: template_tasks.priority,
           key: template_tasks.key,
           label_ids: template_tasks.label_ids,
           parent_template_task_id: template_tasks.parent_template_task_id,
@@ -2287,6 +2319,7 @@ export const mutators = defineMutators({
         readonly assigned_user_id: string | null;
         readonly description: string | null;
         readonly estimate: string | null;
+        readonly priority: string | null;
         readonly key: string;
         readonly label_ids: string;
         readonly parent_template_task_id: string | null;
@@ -2419,6 +2452,7 @@ export const mutators = defineMutators({
         created_by: session.user_id,
         description: task.description,
         estimate: task.estimate,
+        priority: task.priority,
         id: taskIdBySourceId.get(task.source_id)!,
         key: task.key,
         label_ids: task.label_ids,
@@ -3049,6 +3083,7 @@ export const mutators = defineMutators({
         description: args.description ?? null,
         due_date: args.due_date ?? null,
         estimate: args.estimate ?? null,
+        priority: args.priority ?? null,
         finished_at: status.task_state === "done" ? now : null,
         id: taskId,
         label_ids: serializeStringArray(labelIds),
@@ -3258,6 +3293,7 @@ export const mutators = defineMutators({
           description: args.description ?? null,
           due_date: args.due_date ?? null,
           estimate: args.estimate ?? null,
+          priority: args.priority ?? null,
           finished_at: status.task_state === "done" ? now : null,
           id: taskId,
           label_ids: serializeStringArray(args.label_ids ?? []),

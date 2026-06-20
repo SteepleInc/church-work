@@ -23,7 +23,7 @@ import {
   getTemplateTaskId,
   getTemplateTeamId,
 } from "@church-task/shared/get-ids";
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { Effect } from "effect";
 
 import {
@@ -108,6 +108,7 @@ const toTaskDto = (
   churchId: task.church_id,
   cycleId: task.cycle_id,
   dueDate: task.due_date,
+  priority: task.priority,
   finishedAt: task.finished_at?.toISOString() ?? null,
   id: task.id,
   identifier: team ? formatTaskIdentifier(team.identifier, task.number) : undefined,
@@ -417,6 +418,16 @@ const runTaskTool = (
         });
       }
       case "list-tasks": {
+        const priorityValues = Array.isArray(body.priority)
+          ? body.priority.filter(
+              (value): value is string | null => value === null || typeof value === "string",
+            )
+          : body.priority !== undefined
+            ? [body.priority].filter(
+                (value): value is string | null => value === null || typeof value === "string",
+              )
+            : [];
+        const priorityStrings = priorityValues.filter((value): value is string => value !== null);
         const rows = yield* Effect.tryPromise({
           catch: (cause) => cause,
           try: () =>
@@ -424,7 +435,20 @@ const runTaskTool = (
               .select({ task: tasks, team: { identifier: teams.identifier } })
               .from(tasks)
               .innerJoin(teams, eq(teams.id, tasks.team_id))
-              .where(and(eq(tasks.church_id, churchId), isNull(tasks.deleted_at)))
+              .where(
+                and(
+                  eq(tasks.church_id, churchId),
+                  isNull(tasks.deleted_at),
+                  priorityValues.length > 0
+                    ? or(
+                        priorityStrings.length > 0
+                          ? inArray(tasks.priority, priorityStrings)
+                          : undefined,
+                        priorityValues.includes(null) ? isNull(tasks.priority) : undefined,
+                      )
+                    : undefined,
+                ),
+              )
               .orderBy(asc(tasks.board_order)),
         });
         return json({ ok: true, tasks: rows.map((row) => toTaskDto(row.task, row.team)), tool });
@@ -474,6 +498,7 @@ const runTaskTool = (
           created_by_user_id: session.user.id,
           cycle_id: null,
           due_date: typeof body.dueDate === "string" ? body.dueDate : null,
+          priority: maybeString(body, "priority") ?? null,
           id: getTaskId(),
           number: team.next_task_number,
           parent_task_id: typeof body.parentTaskId === "string" ? body.parentTaskId : null,
@@ -524,6 +549,8 @@ const runTaskTool = (
             patch.assigned_user_id = body.assignedUserId;
           if (typeof body.parentTaskId === "string" || body.parentTaskId === null)
             patch.parent_task_id = body.parentTaskId;
+          if (typeof body.priority === "string" || body.priority === null)
+            patch.priority = body.priority;
           if (typeof body.teamId === "string") patch.team_id = body.teamId;
           if (typeof body.workflowStatusId === "string") {
             const [status] = yield* Effect.promise(() =>
@@ -711,6 +738,7 @@ const runTaskTool = (
             created_by: session.user.id,
             description: maybeString(body, "description") ?? null,
             estimate: maybeString(body, "estimate") ?? null,
+            priority: maybeString(body, "priority") ?? null,
             id,
             key: maybeString(body, "key") ?? slugKey(title),
             label_ids: JSON.stringify(Array.isArray(body.labelIds) ? body.labelIds : []),
@@ -883,6 +911,7 @@ const runTaskTool = (
                 description: "description",
                 assignedUserId: "assigned_user_id",
                 estimate: "estimate",
+                priority: "priority",
                 cycleOffset: "placement_cycle_offset",
                 weekday: "placement_weekday",
               }
@@ -1202,6 +1231,7 @@ const runTaskTool = (
           description: maybeString(body, "description") ?? null,
           due_date: maybeString(body, "dueDate") ?? null,
           estimate: maybeString(body, "estimate") ?? null,
+          priority: maybeString(body, "priority") ?? null,
           finished_at: null,
           id,
           label_ids: JSON.stringify(Array.isArray(body.labelIds) ? body.labelIds : []),

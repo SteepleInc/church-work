@@ -48,6 +48,7 @@ export type TaskCollectionItem = {
   readonly workflowStatusId: string;
   readonly taskState: TaskStatus;
   readonly estimate: TaskEstimate | null;
+  readonly priority: TaskPriorityValue | null;
   readonly boardOrder: string;
   readonly finishedAt: string | null;
   readonly sourceTemplateId: string | null;
@@ -70,6 +71,8 @@ export type TaskCollectionItem = {
    */
   readonly isAdjusted: boolean;
 };
+
+export type TaskPriorityValue = "urgent" | "high" | "medium" | "low";
 
 export type TemplateSourceBadge = {
   readonly scheduleId: string;
@@ -111,7 +114,8 @@ type ProjectedTaskAdjustmentOverride =
   | { readonly field: "teamId"; readonly value: string }
   | { readonly field: "dueDate"; readonly value: string }
   | { readonly field: "labelIds"; readonly value: readonly string[] }
-  | { readonly field: "estimate"; readonly value: TaskEstimate | null };
+  | { readonly field: "estimate"; readonly value: TaskEstimate | null }
+  | { readonly field: "priority"; readonly value: TaskPriorityValue | null };
 
 export type TaskUpdateFields = {
   readonly title?: string;
@@ -132,6 +136,7 @@ export type TaskUpdateFields = {
   readonly boardOrder?: string;
   readonly labelIds?: readonly string[];
   readonly estimate?: TaskEstimate | null;
+  readonly priority?: TaskPriorityValue | null;
 };
 
 const applyProjectedTaskOverrides = (
@@ -152,6 +157,9 @@ const applyProjectedTaskOverrides = (
         break;
       case "estimate":
         next = { ...next, estimate: override.value };
+        break;
+      case "priority":
+        next = { ...next, priority: override.value };
         break;
       case "labelIds":
         next = { ...next, labelIds: override.value };
@@ -213,6 +221,30 @@ const taskEstimate = (value: string | null | undefined): TaskEstimate | null => 
 
   return null;
 };
+
+const taskPriority = (value: string | null | undefined): TaskPriorityValue | null => {
+  if (value === "urgent" || value === "high" || value === "medium" || value === "low") {
+    return value;
+  }
+
+  return null;
+};
+
+const priorityFilterValues = (
+  listArgs: ListArgs | undefined,
+): readonly (string | null)[] | null => {
+  const filter = listArgs?.filters?.find((item) => item.column_id === "priority");
+  return filter
+    ? filter.values.filter(
+        (value): value is string | null => value === null || typeof value === "string",
+      )
+    : null;
+};
+
+const matchesPriorityFilter = (
+  task: TaskCollectionItem,
+  values: readonly (string | null)[] | null,
+) => values === null || values.some((value) => value === task.priority);
 
 const timestampToIso = (value: number | null | undefined): string | null =>
   typeof value === "number" ? new Date(value).toISOString() : null;
@@ -365,6 +397,7 @@ const mapTask = (
   description: task.description ?? null,
   dueDate: task.due_date ?? null,
   estimate: taskEstimate(task.estimate),
+  priority: taskPriority(task.priority),
   finishedAt: timestampToIso(task.finished_at),
   id: task.id,
   identifier: formatTaskIdentifier(teamsById.get(task.team_id)?.identifier ?? "TEAM", task.number),
@@ -500,6 +533,7 @@ export function buildProjectedTemplateTasksForCycle(args: {
         description: templateTask.description ?? null,
         dueDate,
         estimate: taskEstimate(templateTask.estimate),
+        priority: taskPriority(templateTask.priority),
         finishedAt: null,
         id: `projected-template-task:${params.schedule.id}:${templateTask.id}:${params.occurrenceKey}:${args.cycle.id}`,
         identifier: "Projected",
@@ -626,6 +660,7 @@ const taskFieldsToZero = (fields: TaskUpdateFields) => ({
   ...(fields.cycleId !== undefined ? { cycle_id: fields.cycleId } : {}),
   ...(fields.dueDate !== undefined ? { due_date: fields.dueDate } : {}),
   ...(fields.estimate !== undefined ? { estimate: fields.estimate } : {}),
+  ...(fields.priority !== undefined ? { priority: fields.priority } : {}),
   ...(fields.labelIds !== undefined ? { label_ids: [...fields.labelIds] } : {}),
   ...(fields.parentTaskId !== undefined ? { parent_task_id: fields.parentTaskId } : {}),
   ...(fields.teamId !== undefined ? { team_id: fields.teamId } : {}),
@@ -657,6 +692,9 @@ const taskFieldsToProjectedOverrides = (
     : []),
   ...(fields.estimate !== undefined
     ? [{ field: "estimate" as const, value: fields.estimate }]
+    : []),
+  ...(fields.priority !== undefined
+    ? [{ field: "priority" as const, value: fields.priority }]
     : []),
 ];
 
@@ -724,7 +762,7 @@ export function useTasksCollection(params: {
           templateTeams: templateTeamRows,
           workflows: workflowRows,
           workflowStatuses: workflowStatusRows,
-        })
+        }).filter((task) => matchesPriorityFilter(task, priorityFilterValues(params.listArgs)))
       : [];
   const collection = [...materializedCollection, ...projectedCollection];
 
@@ -750,6 +788,7 @@ export function useCreateTaskMutation() {
     readonly parentTaskId?: string | null;
     readonly labelIds?: readonly string[];
     readonly estimate?: TaskEstimate | null;
+    readonly priority?: TaskPriorityValue | null;
     readonly targetCycle?: TargetCycleFields;
   }) => {
     const result = await zeroMutationResult<{
@@ -763,6 +802,7 @@ export function useCreateTaskMutation() {
             description: params.description ?? null,
             due_date: params.dueDate ?? null,
             estimate: params.estimate ?? null,
+            priority: params.priority ?? null,
             label_ids: [...(params.labelIds ?? [])],
             parent_task_id: params.parentTaskId ?? null,
             ...(params.targetCycle
@@ -850,6 +890,7 @@ export function useMaterializeProjectedTemplateTaskMutation() {
             description: params.task.description,
             due_date: params.task.dueDate,
             estimate: params.task.estimate,
+            priority: params.task.priority,
             label_ids: [...params.task.labelIds],
             source_template_id: params.task.sourceTemplateId ?? "",
             source_template_occurrence_key: params.task.sourceTemplateOccurrenceKey ?? "",

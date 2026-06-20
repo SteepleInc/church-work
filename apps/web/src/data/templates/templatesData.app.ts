@@ -27,6 +27,7 @@ type TemplateTaskInput = {
   readonly assignedUserId: string | null;
   readonly description: string | null;
   readonly estimate: string | null;
+  readonly priority: string | null;
   readonly key: string;
   readonly labelIds: readonly string[];
   readonly placementCycleOffset: number;
@@ -325,6 +326,7 @@ export function useCreateWeeklyServiceTemplate() {
               assigned_user_id: task.assignedUserId,
               description: task.description,
               estimate: task.estimate,
+              priority: task.priority,
               key: task.key,
               label_ids: [...task.labelIds],
               parent_template_task_key: null,
@@ -392,6 +394,7 @@ export function useCreatePeriodTemplate() {
               assigned_user_id: task.assignedUserId,
               description: task.description,
               estimate: task.estimate,
+              priority: task.priority,
               key: task.key,
               label_ids: [...task.labelIds],
               parent_template_task_key: null,
@@ -468,6 +471,7 @@ export function useCreateKeyDateTemplate() {
               assigned_user_id: task.assignedUserId,
               description: task.description,
               estimate: task.estimate,
+              priority: task.priority,
               key: task.key,
               label_ids: [...task.labelIds],
               parent_template_task_key: null,

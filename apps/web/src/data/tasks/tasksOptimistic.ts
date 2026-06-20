@@ -17,6 +17,7 @@ export type OptimisticTask = {
   readonly parentTaskId: string | null;
   readonly labelIds: readonly string[];
   readonly estimate: TaskEstimate | null;
+  readonly priority: "urgent" | "high" | "medium" | "low" | null;
 };
 
 /**
@@ -34,6 +35,7 @@ export type TaskUpdateFields = {
   readonly boardOrder?: string;
   readonly labelIds?: readonly string[];
   readonly estimate?: TaskEstimate | null;
+  readonly priority?: "urgent" | "high" | "medium" | "low" | null;
 };
 
 /**
@@ -73,6 +75,7 @@ export function applyTaskUpdate<Task extends OptimisticTask>(
     ...(fields.boardOrder !== undefined ? { boardOrder: fields.boardOrder } : {}),
     ...(fields.labelIds !== undefined ? { labelIds: fields.labelIds } : {}),
     ...(fields.estimate !== undefined ? { estimate: fields.estimate } : {}),
+    ...(fields.priority !== undefined ? { priority: fields.priority } : {}),
     workflowStatusId: nextWorkflowStatusId,
     taskState: nextTaskState,
   };

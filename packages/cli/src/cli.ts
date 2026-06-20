@@ -473,6 +473,7 @@ const runTemplateTaskAddAtPlacement = (args: ReadonlyArray<string>) =>
     addOptionalValue(body, "description", optionValueFromArgs(args, "--description"));
     addOptionalValue(body, "assignedUserId", nullableIdFromArgs(args, "--assigned-user-id"));
     addOptionalValue(body, "estimate", nullableIdFromArgs(args, "--estimate"));
+    addOptionalValue(body, "priority", nullableIdFromArgs(args, "--priority"));
     return yield* runTaskTool("template-task-add-at-placement", body);
   });
 
@@ -494,6 +495,7 @@ const runTaskList = (args: ReadonlyArray<string>) =>
     );
     addOptionalValue(body, "workflowStatusId", optionValueFromArgs(args, "--workflow-status-id"));
     addOptionalValue(body, "taskState", optionValueFromArgs(args, "--task-state"));
+    addOptionalValue(body, "priority", nullableIdFromArgs(args, "--priority"));
 
     return yield* runTaskTool("list-tasks", body);
   });
@@ -521,6 +523,7 @@ const runTaskCreate = (args: ReadonlyArray<string>) =>
 
     addOptionalValue(body, "assignedUserId", nullableIdFromArgs(args, "--assigned-user-id"));
     addOptionalValue(body, "parentTaskId", nullableIdFromArgs(args, "--parent-task-id"));
+    addOptionalValue(body, "priority", nullableIdFromArgs(args, "--priority"));
 
     return yield* runTaskTool("create-task", body);
   });
@@ -536,6 +539,7 @@ const runTaskUpdate = (args: ReadonlyArray<string>) =>
     addOptionalValue(body, "workflowStatusId", optionValueFromArgs(args, "--workflow-status-id"));
     addOptionalValue(body, "dueDate", optionValueFromArgs(args, "--due-date"));
     addOptionalValue(body, "cycleId", optionValueFromArgs(args, "--cycle-id"));
+    addOptionalValue(body, "priority", nullableIdFromArgs(args, "--priority"));
 
     if (args.includes("--unassign-user")) {
       body.assignedUserId = null;

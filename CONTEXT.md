@@ -289,7 +289,7 @@ The manual, user-defined ordering of Tasks within a Board Column, changed by dra
 _Avoid_: Rank as a user-facing term, sort order of creation
 
 **Priority**:
-A per-Task importance attribute: No priority, Urgent, High, Medium, or Low. Priority describes a Task; it does not order the Board — Board Order does. Priority is currently UI-only and not yet persisted in the data model.
+A per-Task or Template Task importance attribute: No priority, Urgent, High, Medium, or Low. Priority describes a Task; it does not order the Board — Board Order does. When a Template Task becomes a Task, the Task starts with the Template Task's Priority.
 _Avoid_: Rank, severity, using priority to mean Board position
 
 **Estimate**:

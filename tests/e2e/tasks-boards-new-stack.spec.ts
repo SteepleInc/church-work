@@ -33,7 +33,11 @@ async function chooseCardOption(task: Locator, label: string, optionName: string
     .click();
 }
 
-async function createTask(page: Page, title: string, options: { readonly team?: string } = {}) {
+async function createTask(
+  page: Page,
+  title: string,
+  options: { readonly team?: string; readonly priority?: string } = {},
+) {
   await page.getByRole("main").getByRole("button", { name: "Create Task" }).click();
   const dialog = page.getByRole("dialog", { name: /New Task/ });
   await expect(dialog).toBeVisible();
@@ -44,6 +48,12 @@ async function createTask(page: Page, title: string, options: { readonly team?: 
   if (options.team) {
     await teamPicker.click();
     await page.getByRole("option", { name: options.team }).click();
+  }
+  if (options.priority) {
+    await dialog.getByRole("combobox", { name: "Change priority" }).click();
+    await page
+      .getByRole("option", { name: new RegExp(`^${escapeRegExp(options.priority)}`) })
+      .click();
   }
 
   await dialog.getByRole("button", { name: "Create Task" }).click();
@@ -67,6 +77,7 @@ test("creates, assigns, moves, and preserves Task board state on the local Postg
   const email = `tasks-boards-${suffix}@example.com`;
   const userName = "E2E Task Owner";
   const sharedTaskTitle = `Shared Board Task ${suffix}`;
+  const lowPriorityTaskTitle = `Low Priority Task ${suffix}`;
 
   await startAuthenticatedSession(page, {
     churchName: `E2E Tasks Boards Church ${suffix}`,
@@ -184,19 +195,30 @@ test("creates, assigns, moves, and preserves Task board state on the local Postg
   await page.keyboard.press("Escape");
   await expect(weekDialog).not.toBeVisible();
 
-  await createTask(page, sharedTaskTitle, { team: "Worship" });
+  await createTask(page, sharedTaskTitle, { team: "Worship", priority: "High" });
   await expect(taskCard(page, sharedTaskTitle)).toBeVisible({ timeout: 20_000 });
   await expect(taskCard(page, sharedTaskTitle)).toContainText(/[A-Z0-9]+-\d+/);
+  await expect(taskCard(page, sharedTaskTitle).getByLabel("Priority: High")).toBeVisible();
+
+  await page.reload();
+  await expect(taskCard(page, sharedTaskTitle).getByLabel("Priority: High")).toBeVisible({
+    timeout: 20_000,
+  });
+
+  await createTask(page, lowPriorityTaskTitle, { team: "Worship", priority: "Low" });
+  await expect(taskCard(page, lowPriorityTaskTitle).getByLabel("Priority: Low")).toBeVisible({
+    timeout: 20_000,
+  });
 
   await weekActions.click();
-  await expect(page.getByRole("menuitem", { name: /Export tasks as CSV.*1/ })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: /Export tasks as CSV.*2/ })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "Copy link" })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "Open in new tab" })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "Open in new window" })).toBeVisible();
 
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    page.getByRole("menuitem", { name: /Export tasks as CSV.*1/ }).click(),
+    page.getByRole("menuitem", { name: /Export tasks as CSV.*2/ }).click(),
   ]);
   expect(download.suggestedFilename()).toMatch(/^week-\d{4}-\d{2}-\d{2}-tasks\.csv$/);
   const downloadPath = await download.path();
@@ -221,6 +243,12 @@ test("creates, assigns, moves, and preserves Task board state on the local Postg
   await expect(page).toHaveURL(/\/my-work$/);
   await expect(page.getByRole("navigation", { name: "Week" })).toHaveCount(0);
   await expect(taskCard(page, sharedTaskTitle)).toBeVisible({ timeout: 20_000 });
+
+  await page.getByRole("button", { name: "Filter" }).click();
+  await page.getByText("Priority", { exact: true }).click();
+  await page.getByRole("option", { name: /^High/ }).click();
+  await expect(taskCard(page, sharedTaskTitle)).toBeVisible({ timeout: 20_000 });
+  await expect(taskCard(page, lowPriorityTaskTitle)).toHaveCount(0);
 
   await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Our Work" }).click();
   await expect(page).toHaveURL(/\/our-work$/);

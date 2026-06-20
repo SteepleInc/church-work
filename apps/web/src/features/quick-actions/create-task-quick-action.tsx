@@ -108,8 +108,6 @@ const CreateTaskSchema = Schema.Struct({
   workflowStatusId: Schema.String,
   teamId: Schema.NullOr(Schema.String),
   dueDate: Schema.NullOr(Schema.String),
-  // Priority and labels are UI-only (no backend persistence yet); estimate is
-  // persisted ("no_estimate" maps to null at the create call).
   priority: Schema.Literals(["no_priority", "urgent", "high", "medium", "low"]),
   estimate: Schema.Literals(["no_estimate", "xs", "s", "m", "l", "xl"]),
   // Label ids; persisted on the created Task.
@@ -327,6 +325,7 @@ export function CreateTaskQuickAction() {
         parentTaskId: state?.parentTaskId ?? null,
         labelIds: [...value.labels],
         estimate: value.estimate === "no_estimate" ? null : value.estimate,
+        priority: value.priority === "no_priority" ? null : value.priority,
         ...(effectiveTargetCycle ? { targetCycle: effectiveTargetCycle } : {}),
       });
 
