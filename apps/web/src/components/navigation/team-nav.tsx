@@ -638,6 +638,7 @@ export function YourTeamsAddMenu({
 }) {
   const addTeamMember = useAddTeamMemberMutation();
   const setTeamQuickAction = useSetAtom(teamQuickActionStateAtom);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const handleCreate = () => {
     // Reuse the existing team creation quick action (name + identifier form)
@@ -655,35 +656,45 @@ export function YourTeamsAddMenu({
     toast.success(`Joined ${team.name}.`);
   };
 
+  // When there are no Teams to join, the menu would only ever show a single
+  // "Create new team..." item, so skip the nested menu and open the create
+  // quick action directly from the + button.
+  if (joinableTeams.length === 0) {
+    return (
+      <SidebarGroupAction aria-label="Create a team" onClick={handleCreate}>
+        <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />
+      </SidebarGroupAction>
+    );
+  }
+
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={setMenuOpen} open={menuOpen}>
       <DropdownMenuTrigger
         render={
-          <SidebarGroupAction aria-label="Add a team">
+          <SidebarGroupAction
+            aria-label="Add a team"
+            className="aria-expanded:bg-sidebar-accent aria-expanded:text-sidebar-accent-foreground"
+          >
             <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />
           </SidebarGroupAction>
         }
       />
-      <DropdownMenuContent align="start" className="min-w-56" side="right">
+      <DropdownMenuContent align="end" className="min-w-56" side="bottom">
         <DropdownMenuItem onClick={handleCreate}>
           <HugeiconsIcon icon={PlusSignIcon} strokeWidth={2} />
           Create new team...
         </DropdownMenuItem>
-        {joinableTeams.length > 0 ? (
-          <>
-            <DropdownMenuSeparator />
-            {joinableTeams.map((team) => (
-              <DropdownMenuItem
-                disabled={!currentUserId}
-                key={team.id}
-                onClick={() => void handleJoin(team)}
-              >
-                <TeamAvatar color={team.color} name={team.name} size={20} />
-                <span className="truncate">{team.name}</span>
-              </DropdownMenuItem>
-            ))}
-          </>
-        ) : null}
+        <DropdownMenuSeparator />
+        {joinableTeams.map((team) => (
+          <DropdownMenuItem
+            disabled={!currentUserId}
+            key={team.id}
+            onClick={() => void handleJoin(team)}
+          >
+            <TeamAvatar color={team.color} name={team.name} size={20} />
+            <span className="truncate">{team.name}</span>
+          </DropdownMenuItem>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );
