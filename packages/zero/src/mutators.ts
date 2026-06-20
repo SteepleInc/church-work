@@ -427,6 +427,9 @@ const ProjectTemplateCycleArgs = toZeroSchema(
 const TemplateEntityMutationArgs = toZeroSchema(
   Schema.Struct({ church_id: Schema.String, id: Schema.String }),
 );
+const DuplicateTemplateArgs = toZeroSchema(
+  Schema.Struct({ church_id: Schema.String, template_id: Schema.String }),
+);
 const DeleteTemplateScheduleArgs = toZeroSchema(
   Schema.Struct({
     church_id: Schema.String,
@@ -701,6 +704,40 @@ const writeActivity = async (
     updated_at: occurredAt,
     updated_by: args.actor_id,
   });
+};
+
+type JsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | JsonValue[]
+  | { readonly [key: string]: JsonValue };
+
+const remapJsonFieldValues = (
+  value: JsonValue,
+  remaps: ReadonlyMap<string, ReadonlyMap<string, string>>,
+): JsonValue => {
+  if (Array.isArray(value)) return value.map((item) => remapJsonFieldValues(item, remaps));
+  if (value === null || typeof value !== "object") return value;
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => {
+      const replacement = typeof item === "string" ? remaps.get(key)?.get(item) : undefined;
+      return [key, replacement ?? remapJsonFieldValues(item, remaps)];
+    }),
+  );
+};
+
+const remapSerializedJsonFieldValues = (
+  value: string,
+  remaps: ReadonlyMap<string, ReadonlyMap<string, string>>,
+) => {
+  try {
+    return stringifyJson(remapJsonFieldValues(JSON.parse(value) as JsonValue, remaps));
+  } catch {
+    return value;
+  }
 };
 
 const requireTemplateManager = (ctx: OptionalZeroSessionContext, church_id: string) =>
@@ -2103,13 +2140,14 @@ export const mutators = defineMutators({
       }
 
       if (args.template_schedule) {
+        const templateScheduleId = getTemplateScheduleId();
         await db.insert(template_schedules).values({
           _tag: "templateschedule",
           church_id: args.church_id,
           created_at: now,
           created_by: session.user_id,
           end_date: args.template_schedule.end_date,
-          id: getTemplateScheduleId(),
+          id: templateScheduleId,
           key: args.template_schedule.key,
           kind: args.template_schedule.kind,
           name: args.template_schedule.name,
@@ -2120,40 +2158,338 @@ export const mutators = defineMutators({
           updated_at: now,
           updated_by: session.user_id,
         });
+        await writeActivity(db, {
+          actor_id: session.user_id,
+          church_id: args.church_id,
+          entity_id: templateScheduleId,
+          entity_type: "template_schedule",
+          event_type: "template_schedule.created",
+          metadata: { kind: args.template_schedule.kind, template_id: templateId },
+          occurred_at: now,
+        });
       }
 
-      await db.insert(template_tasks).values(
-        args.template_tasks.map((templateTask) => {
-          const templateTeamKey = templateTask.template_team_key ?? args.template_teams[0]?.key;
-          const templateTeamId = templateTeamKey
-            ? templateTeamIdByKey.get(templateTeamKey)
-            : undefined;
-          if (!templateTeamId) throw new Error("Template Task must reference a Template Team.");
-          return {
-            _tag: "templatetask",
+      const templateTaskInserts = args.template_tasks.map((templateTask) => {
+        const templateTeamKey = templateTask.template_team_key ?? args.template_teams[0]?.key;
+        const templateTeamId = templateTeamKey
+          ? templateTeamIdByKey.get(templateTeamKey)
+          : undefined;
+        if (!templateTeamId) throw new Error("Template Task must reference a Template Team.");
+        return {
+          _tag: "templatetask",
+          church_id: args.church_id,
+          created_at: now,
+          created_by: session.user_id,
+          assigned_user_id: templateTask.assigned_user_id,
+          id: templateTaskIdByKey.get(templateTask.key)!,
+          key: templateTask.key,
+          description: templateTask.description,
+          estimate: templateTask.estimate,
+          label_ids: stringifyJson(templateTask.label_ids),
+          parent_template_task_id: templateTask.parent_template_task_key
+            ? (templateTaskIdByKey.get(templateTask.parent_template_task_key) ?? null)
+            : null,
+          placement_cycle_offset: templateTask.placement_cycle_offset,
+          placement_weekday: templateTask.placement_weekday,
+          scheduling_rule: stringifyJson(templateTask.scheduling_rule),
+          template_id: templateId,
+          template_team_id: templateTeamId,
+          title: templateTask.title,
+          updated_at: now,
+          updated_by: session.user_id,
+        };
+      });
+      await db.insert(template_tasks).values(templateTaskInserts);
+      await Promise.all(
+        templateTaskInserts.map((templateTask) =>
+          writeActivity(db, {
+            actor_id: session.user_id,
+            church_id: args.church_id,
+            entity_id: templateTask.id,
+            entity_type: "template_task",
+            event_type: "template_task.created",
+            metadata: { template_id: templateId, title: templateTask.title },
+            occurred_at: now,
+          }),
+        ),
+      );
+    }),
+    duplicate: defineChurchTaskMutator(DuplicateTemplateArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+      const session = requireTemplateManager(ctx, args.church_id);
+      const now = new Date();
+      const [source] = (await db
+        .select({
+          key: templates.key,
+          name: templates.name,
+          placement_shape: templates.placement_shape,
+          recurrence: templates.recurrence,
+        })
+        .from(templates)
+        .where(
+          and(
+            eq(templates.id, args.template_id),
+            eq(templates.church_id, args.church_id),
+            isNull(templates.deleted_at),
+          ),
+        )) as Array<{
+        readonly key: string;
+        readonly name: string;
+        readonly placement_shape: string | null;
+        readonly recurrence: string;
+      }>;
+      if (!source) throw new Error("Template not found.");
+
+      const sourceTeams = (await db
+        .select({
+          key: template_teams.key,
+          mapped_team_id: template_teams.mapped_team_id,
+          name: template_teams.name,
+          source_id: template_teams.id,
+        })
+        .from(template_teams)
+        .where(
+          and(
+            eq(template_teams.template_id, args.template_id),
+            eq(template_teams.church_id, args.church_id),
+            isNull(template_teams.deleted_at),
+          ),
+        )) as Array<{
+        readonly key: string;
+        readonly mapped_team_id: string;
+        readonly name: string;
+        readonly source_id: string;
+      }>;
+      const sourceTasks = (await db
+        .select({
+          assigned_user_id: template_tasks.assigned_user_id,
+          description: template_tasks.description,
+          estimate: template_tasks.estimate,
+          key: template_tasks.key,
+          label_ids: template_tasks.label_ids,
+          parent_template_task_id: template_tasks.parent_template_task_id,
+          placement_cycle_offset: template_tasks.placement_cycle_offset,
+          placement_weekday: template_tasks.placement_weekday,
+          scheduling_rule: template_tasks.scheduling_rule,
+          source_id: template_tasks.id,
+          template_team_id: template_tasks.template_team_id,
+          title: template_tasks.title,
+        })
+        .from(template_tasks)
+        .where(
+          and(
+            eq(template_tasks.template_id, args.template_id),
+            eq(template_tasks.church_id, args.church_id),
+            isNull(template_tasks.deleted_at),
+          ),
+        )) as Array<{
+        readonly assigned_user_id: string | null;
+        readonly description: string | null;
+        readonly estimate: string | null;
+        readonly key: string;
+        readonly label_ids: string;
+        readonly parent_template_task_id: string | null;
+        readonly placement_cycle_offset: number | null;
+        readonly placement_weekday: number | null;
+        readonly scheduling_rule: string;
+        readonly source_id: string;
+        readonly template_team_id: string;
+        readonly title: string;
+      }>;
+      const sourceSchedules = (await db
+        .select({
+          end_date: template_schedules.end_date,
+          key: template_schedules.key,
+          kind: template_schedules.kind,
+          name: template_schedules.name,
+          recurrence: template_schedules.recurrence,
+          rule: template_schedules.rule,
+          start_date: template_schedules.start_date,
+        })
+        .from(template_schedules)
+        .where(
+          and(
+            eq(template_schedules.template_id, args.template_id),
+            eq(template_schedules.church_id, args.church_id),
+            isNull(template_schedules.deleted_at),
+          ),
+        )) as Array<{
+        readonly end_date: string | null;
+        readonly key: string;
+        readonly kind: string;
+        readonly name: string;
+        readonly recurrence: string;
+        readonly rule: string;
+        readonly start_date: string;
+      }>;
+      const sourceFocusWindows = (await db
+        .select({
+          anchor_date: focus_windows.anchor_date,
+          end_date: focus_windows.end_date,
+          key: focus_windows.key,
+          key_date_id: focus_windows.key_date_id,
+          name: focus_windows.name,
+          source_id: focus_windows.id,
+          start_date: focus_windows.start_date,
+          type: focus_windows.type,
+        })
+        .from(focus_windows)
+        .where(
+          and(
+            eq(focus_windows.template_id, args.template_id),
+            eq(focus_windows.church_id, args.church_id),
+            isNull(focus_windows.deleted_at),
+          ),
+        )) as Array<{
+        readonly anchor_date: string | null;
+        readonly end_date: string;
+        readonly key: string;
+        readonly key_date_id: string | null;
+        readonly name: string;
+        readonly source_id: string;
+        readonly start_date: string;
+        readonly type: string;
+      }>;
+
+      const templateId = getTemplateId();
+      const teamIdBySourceId = new Map(
+        sourceTeams.map((team) => [team.source_id, getTemplateTeamId()]),
+      );
+      const taskIdBySourceId = new Map(
+        sourceTasks.map((task) => [task.source_id, getTemplateTaskId()]),
+      );
+      const focusWindowIdBySourceId = new Map(
+        sourceFocusWindows.map((focusWindow) => [focusWindow.source_id, getFocusWindowId()]),
+      );
+      const jsonFieldRemaps = new Map([["focusWindowId", focusWindowIdBySourceId]]);
+      await db.insert(templates).values({
+        _tag: "template",
+        church_id: args.church_id,
+        created_at: now,
+        created_by: session.user_id,
+        id: templateId,
+        key: `${source.key}-copy-${templateId.slice(-8)}`,
+        name: `${source.name} Copy`,
+        placement_shape: source.placement_shape,
+        recurrence: source.recurrence,
+        updated_at: now,
+        updated_by: session.user_id,
+      });
+      const teamInserts = sourceTeams.map((team) => ({
+        _tag: "templateteam",
+        church_id: args.church_id,
+        created_at: now,
+        created_by: session.user_id,
+        id: teamIdBySourceId.get(team.source_id)!,
+        key: team.key,
+        mapped_team_id: team.mapped_team_id,
+        name: team.name,
+        template_id: templateId,
+        updated_at: now,
+        updated_by: session.user_id,
+      }));
+      if (teamInserts.length > 0) await db.insert(template_teams).values(teamInserts);
+      if (sourceFocusWindows.length > 0) {
+        await db.insert(focus_windows).values(
+          sourceFocusWindows.map((focusWindow) => ({
+            _tag: "focuswindow",
+            anchor_date: focusWindow.anchor_date,
             church_id: args.church_id,
             created_at: now,
             created_by: session.user_id,
-            assigned_user_id: templateTask.assigned_user_id,
-            id: templateTaskIdByKey.get(templateTask.key)!,
-            key: templateTask.key,
-            description: templateTask.description,
-            estimate: templateTask.estimate,
-            label_ids: stringifyJson(templateTask.label_ids),
-            parent_template_task_id: templateTask.parent_template_task_key
-              ? (templateTaskIdByKey.get(templateTask.parent_template_task_key) ?? null)
-              : null,
-            placement_cycle_offset: templateTask.placement_cycle_offset,
-            placement_weekday: templateTask.placement_weekday,
-            scheduling_rule: stringifyJson(templateTask.scheduling_rule),
+            end_date: focusWindow.end_date,
+            id: focusWindowIdBySourceId.get(focusWindow.source_id)!,
+            key: focusWindow.key,
+            key_date_id: focusWindow.key_date_id,
+            name: focusWindow.name,
+            start_date: focusWindow.start_date,
             template_id: templateId,
-            template_team_id: templateTeamId,
-            title: templateTask.title,
+            type: focusWindow.type,
             updated_at: now,
             updated_by: session.user_id,
-          };
-        }),
+          })),
+        );
+      }
+      const taskInserts = sourceTasks.map((task) => ({
+        _tag: "templatetask",
+        assigned_user_id: task.assigned_user_id,
+        church_id: args.church_id,
+        created_at: now,
+        created_by: session.user_id,
+        description: task.description,
+        estimate: task.estimate,
+        id: taskIdBySourceId.get(task.source_id)!,
+        key: task.key,
+        label_ids: task.label_ids,
+        parent_template_task_id: task.parent_template_task_id
+          ? (taskIdBySourceId.get(task.parent_template_task_id) ?? null)
+          : null,
+        placement_cycle_offset: task.placement_cycle_offset,
+        placement_weekday: task.placement_weekday,
+        scheduling_rule: remapSerializedJsonFieldValues(task.scheduling_rule, jsonFieldRemaps),
+        template_id: templateId,
+        template_team_id: teamIdBySourceId.get(task.template_team_id)!,
+        title: task.title,
+        updated_at: now,
+        updated_by: session.user_id,
+      }));
+      if (taskInserts.length > 0) await db.insert(template_tasks).values(taskInserts);
+      await Promise.all(
+        sourceTasks.map((task) =>
+          writeActivity(db, {
+            actor_id: session.user_id,
+            church_id: args.church_id,
+            entity_id: taskIdBySourceId.get(task.source_id)!,
+            entity_type: "template_task",
+            event_type: "template_task.created",
+            metadata: { source_template_task_id: task.source_id, template_id: templateId },
+            occurred_at: now,
+          }),
+        ),
       );
+      if (sourceSchedules.length > 0) {
+        const scheduleInserts = sourceSchedules.map((schedule) => ({
+          _tag: "templateschedule",
+          church_id: args.church_id,
+          created_at: now,
+          created_by: session.user_id,
+          end_date: schedule.end_date,
+          id: getTemplateScheduleId(),
+          key: `${schedule.key}-copy-${templateId.slice(-8)}`,
+          kind: schedule.kind,
+          name: schedule.name,
+          recurrence: schedule.recurrence,
+          rule: remapSerializedJsonFieldValues(schedule.rule, jsonFieldRemaps),
+          start_date: schedule.start_date,
+          template_id: templateId,
+          updated_at: now,
+          updated_by: session.user_id,
+        }));
+        await db.insert(template_schedules).values(scheduleInserts);
+        await Promise.all(
+          scheduleInserts.map((schedule) =>
+            writeActivity(db, {
+              actor_id: session.user_id,
+              church_id: args.church_id,
+              entity_id: schedule.id,
+              entity_type: "template_schedule",
+              event_type: "template_schedule.created",
+              metadata: { source_template_id: args.template_id, template_id: templateId },
+              occurred_at: now,
+            }),
+          ),
+        );
+      }
+      await writeActivity(db, {
+        actor_id: session.user_id,
+        church_id: args.church_id,
+        entity_id: templateId,
+        entity_type: "template",
+        event_type: "template.duplicated",
+        metadata: { source_template_id: args.template_id },
+        occurred_at: now,
+      });
     }),
     delete: defineChurchTaskMutator(TemplateEntityMutationArgs, async ({ args, ctx, tx }) => {
       const db = serverDb(tx);
@@ -2559,7 +2895,22 @@ export const mutators = defineMutators({
             .update(cycle_adjustments)
             .set(values)
             .where(eq(cycle_adjustments.id, existing[0].id));
+          await writeActivity(db, {
+            actor_id: session.user_id,
+            church_id: args.church_id,
+            cycle_id: adjustment.cycle_id,
+            entity_id: existing[0].id,
+            entity_type: "cycle_adjustment",
+            event_type: "cycle_adjustment.updated",
+            metadata: {
+              source_template_occurrence_key: adjustment.source_template_occurrence_key,
+              source_template_schedule_id: adjustment.source_template_schedule_id,
+              template_task_id: adjustment.template_task_id,
+            },
+            occurred_at: now,
+          });
         } else {
+          const cycleAdjustmentId = getCycleAdjustmentId();
           await db.insert(cycle_adjustments).values({
             ...values,
             _tag: "cycleadjustment",
@@ -2567,10 +2918,24 @@ export const mutators = defineMutators({
             created_at: now,
             created_by: session.user_id,
             cycle_id: adjustment.cycle_id,
-            id: getCycleAdjustmentId(),
+            id: cycleAdjustmentId,
             source_template_occurrence_key: adjustment.source_template_occurrence_key,
             source_template_schedule_id: adjustment.source_template_schedule_id,
             template_task_id: adjustment.template_task_id,
+          });
+          await writeActivity(db, {
+            actor_id: session.user_id,
+            church_id: args.church_id,
+            cycle_id: adjustment.cycle_id,
+            entity_id: cycleAdjustmentId,
+            entity_type: "cycle_adjustment",
+            event_type: "cycle_adjustment.created",
+            metadata: {
+              source_template_occurrence_key: adjustment.source_template_occurrence_key,
+              source_template_schedule_id: adjustment.source_template_schedule_id,
+              template_task_id: adjustment.template_task_id,
+            },
+            occurred_at: now,
           });
         }
       }

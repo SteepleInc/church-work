@@ -1,7 +1,8 @@
 import type { LinkProps } from "@tanstack/react-router";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, CalendarClock, LibraryBig, MoreHorizontal, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarClock, Copy, LibraryBig, MoreHorizontal, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { MainContainer, PageContainer } from "@/components/pageComponents";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +33,7 @@ import {
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import {
   formatTemplateScheduleOccurrence,
+  useDuplicateTemplateAction,
   useTemplateSchedulesCollection,
   useTemplatesCollection,
 } from "@/data/templates/templatesData.app";
@@ -268,8 +270,18 @@ function TemplateLibraryPanel({
   readonly loading: boolean;
   readonly templates: readonly TemplateCollectionItem[];
 }) {
+  const duplicateTemplate = useDuplicateTemplateAction();
   const { removeTemplate } = useTemplateSoftDelete();
   const [pendingTemplate, setPendingTemplate] = useState<TemplateCollectionItem | null>(null);
+  const onDuplicateTemplate = async (template: TemplateCollectionItem) => {
+    if (!churchId) return;
+    const result = await duplicateTemplate({ churchId, templateId: template.id });
+    if (result.ok) {
+      toast.success(`${template.name} duplicated`);
+    } else {
+      toast.error(result.error.message);
+    }
+  };
   const confirmDeleteTemplate = () => {
     if (!churchId || !pendingTemplate) {
       return Promise.resolve({ error: { message: "Select a Template to delete." }, ok: false });
@@ -333,6 +345,10 @@ function TemplateLibraryPanel({
                     <MoreHorizontal />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" side="bottom">
+                    <DropdownMenuItem onClick={() => void onDuplicateTemplate(template)}>
+                      <Copy />
+                      Duplicate Template
+                    </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => setPendingTemplate(template)}
                       variant="destructive"
@@ -385,6 +401,7 @@ export function TemplateDetailPage({ templateId }: { readonly templateId: string
   );
   const loading = orgLoading || templates.loading || schedules.loading;
 
+  const duplicateTemplate = useDuplicateTemplateAction();
   const { removeSchedule, removeTemplate } = useTemplateSoftDelete();
   const [deleteTemplateOpen, setDeleteTemplateOpen] = useState(false);
   const [pendingSchedule, setPendingSchedule] = useState<TemplateScheduleCollectionItem | null>(
@@ -395,6 +412,16 @@ export function TemplateDetailPage({ templateId }: { readonly templateId: string
       return Promise.resolve({ error: { message: "Select a Schedule to delete." }, ok: false });
     }
     return removeSchedule({ churchId, cleanupCurrentOccurrence, schedule: pendingSchedule });
+  };
+  const onDuplicateTemplate = async () => {
+    if (!churchId || !template) return;
+    const result = await duplicateTemplate({ churchId, templateId: template.id });
+    if (result.ok) {
+      toast.success(`${template.name} duplicated`);
+      await navigate({ to: "/templates/library" });
+    } else {
+      toast.error(result.error.message);
+    }
   };
 
   return (
@@ -448,6 +475,10 @@ export function TemplateDetailPage({ templateId }: { readonly templateId: string
                     <MoreHorizontal />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" side="bottom">
+                    <DropdownMenuItem onClick={() => void onDuplicateTemplate()}>
+                      <Copy />
+                      Duplicate Template
+                    </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => setDeleteTemplateOpen(true)}
                       variant="destructive"

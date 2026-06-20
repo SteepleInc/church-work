@@ -7,6 +7,7 @@ import {
   activities,
   cycle_adjustments,
   cycles,
+  focus_windows,
   key_dates,
   labels,
   tasks,
@@ -1472,6 +1473,167 @@ describe("Zero Template and Cycle projection", () => {
       rule: JSON.stringify({ kind: "weekly", weekdays: [0] }),
       start_date: "2026-06-21",
     });
+  });
+
+  test("duplicates Templates into fresh Template Team, Task, and Schedule identities", async () => {
+    const insertCalls: Array<{ readonly table: unknown; readonly values: unknown }> = [];
+    const selectedRowsByTable = new Map<unknown, readonly unknown[]>([
+      [
+        templates,
+        [
+          {
+            key: "weekly-service",
+            name: "Weekly Service",
+            placement_shape: "weekly_service",
+            recurrence: "weekly",
+          },
+        ],
+      ],
+      [
+        template_teams,
+        [
+          {
+            key: "worship",
+            mapped_team_id: "team_worship",
+            name: "Worship",
+            source_id: "templateteam_source",
+          },
+        ],
+      ],
+      [
+        template_tasks,
+        [
+          {
+            assigned_user_id: "user_worship",
+            description: "Confirm songs.",
+            estimate: "30m",
+            key: "plan-setlist",
+            label_ids: JSON.stringify(["label_music"]),
+            parent_template_task_id: null,
+            placement_cycle_offset: -1,
+            placement_weekday: 3,
+            scheduling_rule: JSON.stringify({
+              edge: "start",
+              focusWindowId: "focuswindow_source",
+              kind: "relativeToFocusWindow",
+              offsetDays: -2,
+            }),
+            source_id: "templatetask_source",
+            template_team_id: "templateteam_source",
+            title: "Plan setlist",
+          },
+        ],
+      ],
+      [
+        template_schedules,
+        [
+          {
+            end_date: null,
+            key: "sunday-service",
+            kind: "weekly",
+            name: "Sunday Service",
+            recurrence: "repeating",
+            rule: JSON.stringify({ kind: "weekly", weekdays: [0] }),
+            start_date: "2026-06-21",
+          },
+        ],
+      ],
+      [
+        focus_windows,
+        [
+          {
+            anchor_date: null,
+            end_date: "2026-06-22",
+            key: "sunday-service-week",
+            key_date_id: null,
+            name: "Sunday Service Week",
+            source_id: "focuswindow_source",
+            start_date: "2026-06-15",
+            type: "preparation",
+          },
+        ],
+      ],
+    ]);
+    const tx = {
+      dbTransaction: {
+        wrappedTransaction: {
+          insert: (table: unknown) => ({
+            values: async (values: unknown) => insertCalls.push({ table, values }),
+          }),
+          select: () => ({
+            from: (table: unknown) => ({
+              where: async () => selectedRowsByTable.get(table) ?? [],
+            }),
+          }),
+        },
+      },
+      location: "server",
+    } as never;
+
+    await mustGetMutator(mutators, "templates.duplicate").fn({
+      args: { church_id: "org_test", template_id: "template_source" },
+      ctx: signedInContext,
+      tx,
+    });
+
+    const templateInsert = insertCalls.find((call) => call.table === templates)?.values as {
+      readonly id: string;
+      readonly name: string;
+    };
+    const teamInsert = (
+      (insertCalls.find((call) => call.table === template_teams)?.values ?? []) as readonly {
+        readonly id: string;
+        readonly template_id: string;
+      }[]
+    )[0];
+    const taskInsert = (
+      (insertCalls.find((call) => call.table === template_tasks)?.values ?? []) as readonly {
+        readonly id: string;
+        readonly scheduling_rule: string;
+        readonly template_id: string;
+        readonly template_team_id: string;
+      }[]
+    )[0];
+    const scheduleInsert = (
+      (insertCalls.find((call) => call.table === template_schedules)?.values ?? []) as readonly {
+        readonly id: string;
+        readonly rule: string;
+        readonly template_id: string;
+      }[]
+    )[0];
+    const focusWindowInsert = (
+      (insertCalls.find((call) => call.table === focus_windows)?.values ?? []) as readonly {
+        readonly id: string;
+      }[]
+    )[0];
+    expect(teamInsert).toBeDefined();
+    expect(taskInsert).toBeDefined();
+    expect(scheduleInsert).toBeDefined();
+    expect(focusWindowInsert).toBeDefined();
+    if (!teamInsert || !taskInsert || !scheduleInsert || !focusWindowInsert)
+      throw new Error("Expected duplicate inserts.");
+    expect(templateInsert.name).toBe("Weekly Service Copy");
+    expect(getIdType(templateInsert.id)).toBe("template");
+    expect(getIdType(teamInsert.id)).toBe("templateteam");
+    expect(getIdType(taskInsert.id)).toBe("templatetask");
+    expect(getIdType(scheduleInsert.id)).toBe("templateschedule");
+    expect(getIdType(focusWindowInsert.id)).toBe("focuswindow");
+    expect(teamInsert.id).not.toBe("templateteam_source");
+    expect(taskInsert.id).not.toBe("templatetask_source");
+    expect(taskInsert.template_team_id).toBe(teamInsert.id);
+    expect(teamInsert.template_id).toBe(templateInsert.id);
+    expect(taskInsert.template_id).toBe(templateInsert.id);
+    expect(scheduleInsert.template_id).toBe(templateInsert.id);
+    expect(JSON.parse(taskInsert.scheduling_rule)).toMatchObject({
+      focusWindowId: focusWindowInsert.id,
+    });
+    expect(insertCalls.some((call) => call.table === cycle_adjustments)).toBe(false);
+    expect(insertCalls.some((call) => call.table === tasks)).toBe(false);
+    expect(
+      insertCalls
+        .filter((call) => call.table === activities)
+        .map((call) => (call.values as { event_type: string }).event_type),
+    ).toEqual(["template_task.created", "template_schedule.created", "template.duplicated"]);
   });
 
   test("materializes adjusted Template Tasks into Cycle Tasks with local-date due dates", () => {

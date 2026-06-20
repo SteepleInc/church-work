@@ -568,3 +568,19 @@ export function useTemplateSoftDeleteActions() {
     ),
   };
 }
+
+export function useDuplicateTemplateAction() {
+  const zero = useZero();
+  return useCallback(
+    (params: { readonly churchId: string; readonly templateId: string }) =>
+      mutationResult(() =>
+        zero.mutate(
+          mutators.templates.duplicate({
+            church_id: params.churchId,
+            template_id: params.templateId,
+          }),
+        ),
+      ),
+    [zero],
+  );
+}

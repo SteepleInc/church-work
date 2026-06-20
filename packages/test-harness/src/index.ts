@@ -154,6 +154,7 @@ export const startZeroCacheHarness = async (options: {
       ZERO_QUERY_FORWARD_COOKIES: "true",
       ZERO_QUERY_URL: `${options.apiBaseUrl}/api/zero/query`,
       ZERO_REPLICA_FILE: replicaFile,
+      ZERO_TASK_ID: `${appId}-e2e`,
       ZERO_UPSTREAM_DB: options.databaseUrl,
       ZERO_UPSTREAM_MAX_CONNS: "6",
     },
