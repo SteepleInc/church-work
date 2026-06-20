@@ -172,6 +172,18 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     console.log(`  ${issue.id}: ${issue.title} → ${issue.branch}`);
   }
 
+  const existingPrIssues = issues
+    .map((issue) => ({ issue, prUrl: findIssuePr(issue) }))
+    .filter((entry): entry is { issue: (typeof issues)[number]; prUrl: string } =>
+      Boolean(entry.prUrl),
+    );
+  const existingPrIssueIds = new Set(existingPrIssues.map((entry) => entry.issue.id));
+  const issuesToBuild = issues.filter((issue) => !existingPrIssueIds.has(issue.id));
+
+  for (const entry of existingPrIssues) {
+    console.log(`  ${entry.issue.id}: existing PR in flight → ${entry.prUrl}`);
+  }
+
   // -------------------------------------------------------------------------
   // Phase 2: Execute + Review
   //
@@ -183,7 +195,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // -------------------------------------------------------------------------
 
   const settled = await Promise.allSettled(
-    issues.map(async (issue) => {
+    issuesToBuild.map(async (issue) => {
       const releaseSlot = await acquireSlot();
 
       try {
@@ -257,19 +269,21 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // Log any agents that threw (network error, sandbox crash, etc.).
   for (const [i, outcome] of settled.entries()) {
     if (outcome.status === "rejected") {
-      console.error(`  ✗ ${issues[i]!.id} (${issues[i]!.branch}) failed: ${outcome.reason}`);
+      console.error(
+        `  ✗ ${issuesToBuild[i]!.id} (${issuesToBuild[i]!.branch}) failed: ${outcome.reason}`,
+      );
     }
   }
 
   const failedIssues = settled
-    .map((outcome, i) => ({ outcome, issue: issues[i]! }))
+    .map((outcome, i) => ({ outcome, issue: issuesToBuild[i]! }))
     .filter((entry) => entry.outcome.status === "rejected")
     .map((entry) => entry.issue);
 
   // Only publish branches that actually produced commits.
   // An agent that ran successfully but made no commits has nothing to publish.
   const completedIssues = settled
-    .map((outcome, i) => ({ outcome, issue: issues[i]! }))
+    .map((outcome, i) => ({ outcome, issue: issuesToBuild[i]! }))
     .filter(
       (entry) => entry.outcome.status === "fulfilled" && entry.outcome.value.commits.length > 0,
     )
@@ -282,7 +296,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     console.log(`  ${branch}`);
   }
 
-  if (completedBranches.length === 0) {
+  if (completedBranches.length === 0 && existingPrIssues.length === 0) {
     if (failedIssues.length > 0) {
       console.error(
         `Stopping because ${failedIssues.length} issue pipeline(s) failed and no branches were ready to publish.`,
@@ -303,18 +317,29 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // GitHub. This gives us PR checks, review comments, and normal GitHub merge
   // semantics instead of a local mega-merge branch.
   // -------------------------------------------------------------------------
-  for (const issue of completedIssues) {
-    const prUrl = publishIssuePr({ baseBranch: BASE_BRANCH, issue });
+  let stopRun = false;
+  const prWorkItems = [
+    ...existingPrIssues.map((entry) => ({ ...entry, skipPostPrReview: true })),
+    ...completedIssues.map((issue) => ({ issue, prUrl: undefined, skipPostPrReview: false })),
+  ];
+
+  for (const { issue, prUrl: existingPrUrl, skipPostPrReview } of prWorkItems) {
+    const prUrl = existingPrUrl ?? publishIssuePr({ baseBranch: BASE_BRANCH, issue });
     console.log(`  PR ready for ${issue.id}: ${prUrl}`);
 
     const readyForReview = await ensurePrBranchUpToDate({ issue, prUrl });
     if (!readyForReview) {
       console.warn(`  PR branch could not be brought up to date before review: ${prUrl}`);
       process.exitCode = 1;
+      stopRun = true;
       break;
     }
 
-    await runPostPrReview({ issue, prUrl });
+    if (skipPostPrReview) {
+      console.log(`  Skipping post-PR review for existing PR: ${prUrl}`);
+    } else {
+      await runPostPrReview({ issue, prUrl });
+    }
 
     const autoMergeEnabled = AUTO_MERGE_PRS ? enableAutoMerge(prUrl) : false;
     if (autoMergeEnabled) {
@@ -335,6 +360,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     if (!checksReadyToMerge) {
       console.warn(`  PR is not ready to merge after repair attempts: ${prUrl}`);
       process.exitCode = 1;
+      stopRun = true;
       break;
     }
 
@@ -342,6 +368,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     if (!branchUpToDate) {
       console.warn(`  PR branch could not be brought up to date with ${BASE_BRANCH}: ${prUrl}`);
       process.exitCode = 1;
+      stopRun = true;
       break;
     }
 
@@ -354,6 +381,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
         if (!ready) {
           console.warn(`  PR is still not mergeable; leaving auto-merge enabled: ${prUrl}`);
           process.exitCode = 1;
+          stopRun = true;
           break;
         } else {
           console.log(
@@ -370,6 +398,10 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   }
 
   console.log("\nBranches published as GitHub PRs.");
+
+  if (stopRun) {
+    break;
+  }
 }
 
 console.log("\nAll done.");
@@ -424,6 +456,10 @@ function publishIssuePr({
     ],
     { encoding: "utf8" },
   ).trim();
+}
+
+function findIssuePr(issue: z.infer<typeof planSchema>["issues"][number]) {
+  return safeSh(`gh pr view ${quote(issue.branch)} --json url --jq .url`).trim() || undefined;
 }
 
 function enableAutoMerge(prUrl: string) {
