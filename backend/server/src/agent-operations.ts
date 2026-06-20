@@ -7,6 +7,7 @@ import {
   parseTaskIdentifier,
   TaskStatus,
   calculateKeyDateOccurrence,
+  type KeyDateRule,
   type ActiveChurchResponse,
   type CoreWorkBatchReadResponse,
   type CoreWorkBatchWriteResponse,
@@ -239,6 +240,31 @@ const maybeString = (body: Record<string, unknown>, key: string) =>
 
 const maybeNumber = (body: Record<string, unknown>, key: string) =>
   typeof body[key] === "number" ? body[key] : undefined;
+
+const isKeyDateRule = (value: unknown): value is KeyDateRule => {
+  if (!value || typeof value !== "object") return false;
+  const rule = value as Record<string, unknown>;
+  switch (rule.kind) {
+    case "fixedYearly":
+      return typeof rule.month === "number" && typeof rule.day === "number";
+    case "computedYearly":
+      return typeof rule.rule === "string";
+    case "oneTime":
+      return typeof rule.localDate === "string";
+    default:
+      return false;
+  }
+};
+
+const templateSoftDeleteTarget = (tool: string) => {
+  if (tool.startsWith("template-task")) {
+    return { idField: "templateTaskId", table: template_tasks } as const;
+  }
+  if (tool.startsWith("template-schedule")) {
+    return { idField: "templateScheduleId", table: template_schedules } as const;
+  }
+  return { idField: "templateId", table: templates } as const;
+};
 
 const requireString = (body: Record<string, unknown>, key: string) => {
   const value = maybeString(body, key);
@@ -741,7 +767,11 @@ const runTaskTool = (
             .select()
             .from(template_tasks)
             .where(
-              and(eq(template_tasks.template_id, templateId), isNull(template_tasks.deleted_at)),
+              and(
+                eq(template_tasks.template_id, templateId),
+                eq(template_tasks.church_id, churchId),
+                isNull(template_tasks.deleted_at),
+              ),
             ),
         );
         const schedules = yield* Effect.promise(() =>
@@ -751,6 +781,7 @@ const runTaskTool = (
             .where(
               and(
                 eq(template_schedules.template_id, templateId),
+                eq(template_schedules.church_id, churchId),
                 isNull(template_schedules.deleted_at),
               ),
             ),
@@ -789,19 +820,8 @@ const runTaskTool = (
       case "template-schedule-delete":
       case "template-schedule-restore": {
         const isRestore = tool.endsWith("restore");
-        const table = tool.startsWith("template-task")
-          ? template_tasks
-          : tool.startsWith("template-schedule")
-            ? template_schedules
-            : templates;
-        const id = requireString(
-          body,
-          tool.startsWith("template-task")
-            ? "templateTaskId"
-            : tool.startsWith("template-schedule")
-              ? "templateScheduleId"
-              : "templateId",
-        );
+        const { idField, table } = templateSoftDeleteTarget(tool);
+        const id = requireString(body, idField);
         const now = new Date();
         const patch = isRestore
           ? { deleted_at: null, deleted_by: null, updated_at: now, updated_by: session.user.id }
@@ -908,6 +928,7 @@ const runTaskTool = (
           });
         if (tool === "key-date-preview-occurrences") {
           const schedule = body.schedule ?? parseJsonText(maybeString(body, "scheduleJson"), null);
+          if (!isKeyDateRule(schedule)) throw new Error("A valid Key Date schedule is required.");
           const startYear = maybeNumber(body, "startYear") ?? new Date().getUTCFullYear();
           const endYear = maybeNumber(body, "endYear") ?? startYear;
           const occurrences = Array.from(
@@ -916,7 +937,7 @@ const runTaskTool = (
           )
             .map((year) => ({
               year,
-              localDate: calculateKeyDateOccurrence(schedule as never, year),
+              localDate: calculateKeyDateOccurrence(schedule, year),
             }))
             .filter((o) => o.localDate);
           return json({ ok: true, tool, occurrences });
