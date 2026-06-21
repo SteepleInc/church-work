@@ -10,7 +10,7 @@ The base branch is: {{BASE_BRANCH}}
 1. Update local refs with `git fetch origin {{BASE_BRANCH}}`.
 2. Merge `origin/{{BASE_BRANCH}}` into `{{BRANCH}}`.
 3. Resolve conflicts carefully, preserving the issue's intent and the latest base-branch behavior.
-4. Run targeted checks, then `bun run check` and `bun run check-types` when relevant.
+4. Run targeted checks, then `bun check:e2e` before handing the PR back when practical.
 5. Commit the merge/conflict resolution and push the branch.
 
 # RULES

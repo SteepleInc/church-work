@@ -15,7 +15,7 @@ The PR is: {{PR_URL}}
 1. Inspect the failed checks and their logs/details using `gh`.
 2. Reproduce failures locally with the narrowest relevant Bun command.
 3. Fix the root cause on this branch.
-4. Run targeted verification, then `bun run check-types` and `bun run check` when relevant.
+4. Run targeted verification, then `bun check:e2e` before handing the PR back when practical.
 5. Commit the fix and push the branch.
 
 # RULES

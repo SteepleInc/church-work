@@ -37,7 +37,7 @@ Recent commits:
 2. Improve layout, hierarchy, empty/loading/error states, affordances, and interaction details.
 3. Preserve the domain language in `CONTEXT.md`.
 4. Keep changes scoped to this issue.
-5. Run targeted checks when practical, especially `bun run check-types` if TypeScript changed.
+5. Run targeted checks when practical. The verify/fixer phase owns the final `bun check:e2e` gate.
 
 # COMMIT
 

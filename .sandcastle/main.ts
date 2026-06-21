@@ -25,6 +25,7 @@
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { execFileSync, execSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { z } from "zod";
 
 // The planner emits its plan as JSON inside <plan> tags; Output.object extracts
@@ -463,16 +464,21 @@ function findIssuePr(issue: z.infer<typeof planSchema>["issues"][number]) {
 }
 
 function pushIssueBranch(branch: string) {
+  const cwd = issueBranchWorktreePath(branch) ?? ".";
   const remoteBranchExists = safeSh(
-    `git fetch origin ${quote(branch)} && git rev-parse --verify ${quote(`origin/${branch}`)}`,
+    `git -C ${quote(cwd)} fetch origin ${quote(branch)} && git -C ${quote(cwd)} rev-parse --verify ${quote(`origin/${branch}`)}`,
   ).trim();
 
   if (remoteBranchExists) {
-    sh(`git switch ${quote(branch)}`);
-    sh(`git rebase ${quote(`origin/${branch}`)}`);
+    sh(`git -C ${quote(cwd)} rebase ${quote(`origin/${branch}`)}`);
   }
 
-  sh(`git push --set-upstream origin ${quote(branch)}`);
+  sh(`git -C ${quote(cwd)} push --set-upstream origin ${quote(branch)}`);
+}
+
+function issueBranchWorktreePath(branch: string) {
+  const path = `.sandcastle/worktrees/${branch.replaceAll("/", "-")}`;
+  return existsSync(path) ? path : undefined;
 }
 
 function enableAutoMerge(prUrl: string) {
