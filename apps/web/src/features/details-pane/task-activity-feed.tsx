@@ -3,7 +3,7 @@ import {
   CalendarIcon,
   CircleDot,
   CirclePlus,
-  Paperclip,
+  MessageSquare,
   RotateCcw,
   Tag,
   Triangle,
@@ -59,6 +59,7 @@ export type ActivityActor = {
 
 type ActivityFeedProps = {
   readonly churchId: string | null;
+  readonly currentUserId: string | null;
   readonly taskEntityId: string;
   readonly resolvers: ActivityResolvers;
   /** Resolves an actor user id to a display name; null when the user is gone. */
@@ -110,7 +111,7 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
       {loading ? (
         <ActivityFeedSkeleton />
       ) : ordered.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No activity yet.</p>
+        <ActivityFeedEmpty />
       ) : (
         <ol aria-label="Activity" className="grid gap-2.5">
           {ordered.map((activity) => (
@@ -126,8 +127,26 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
         </ol>
       )}
 
-      <ActivityCommentComposer onSubmit={createComment} />
+      <ActivityCommentComposer
+        currentUserId={props.currentUserId}
+        currentUserName={
+          props.currentUserId ? (props.resolveActorName(props.currentUserId) ?? null) : null
+        }
+        onSubmit={createComment}
+      />
     </section>
+  );
+}
+
+function ActivityFeedEmpty() {
+  return (
+    <div className="flex flex-col items-center gap-1.5 rounded-lg border border-dashed py-6 text-center">
+      <MessageSquare className="size-5 text-muted-foreground" />
+      <p className="text-muted-foreground text-sm">No activity yet.</p>
+      <p className="text-muted-foreground/70 text-xs">
+        Leave the first comment to start the conversation.
+      </p>
+    </div>
   );
 }
 
@@ -201,23 +220,24 @@ function TaskCommentCard({
   readonly title: string;
 }) {
   const actorName = resolveActorName(comment.authored_by_user_id) ?? "Unknown user";
+  const createdAt = comment.created_at ?? now;
 
   return (
-    <li className="flex items-start gap-2.5" title={title}>
+    <li className="flex items-start gap-2.5 py-0.5">
       <UserAvatar
-        className="mt-1 shrink-0"
+        className="mt-0.5 shrink-0"
         name={actorName}
-        size={24}
+        size={28}
         userId={comment.authored_by_user_id}
       />
-      <article className="min-w-0 flex-1 rounded-lg border bg-card px-3 py-2.5 shadow-xs">
-        <header className="mb-1.5 flex items-center gap-1.5 text-sm">
-          <span className="font-medium text-foreground">{actorName}</span>
-          <span className="text-muted-foreground">
-            · {formatActivityTime(comment.created_at ?? now, now)}
+      <article className="min-w-0 flex-1 rounded-lg border bg-card shadow-xs">
+        <header className="flex items-center gap-1.5 border-b px-3 py-1.5 text-sm">
+          <span className="truncate font-medium text-foreground">{actorName}</span>
+          <span className="shrink-0 text-muted-foreground text-xs" title={title}>
+            {formatActivityTime(createdAt, now)}
           </span>
         </header>
-        <p className="whitespace-pre-wrap break-words text-sm text-foreground/90 leading-5">
+        <p className="whitespace-pre-wrap break-words px-3 py-2.5 text-foreground/90 text-sm leading-relaxed">
           {comment.body}
         </p>
       </article>
@@ -226,19 +246,25 @@ function TaskCommentCard({
 }
 
 function ActivityCommentComposer({
+  currentUserId,
+  currentUserName,
   onSubmit,
 }: {
+  readonly currentUserId: string | null;
+  readonly currentUserName: string | null;
   readonly onSubmit: (body: string) => Promise<void>;
 }) {
   const [body, setBody] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const canSubmit = body.trim().length > 0 && !submitting;
+  const [focused, setFocused] = useState(false);
+  const trimmed = body.trim();
+  const canSubmit = trimmed.length > 0 && !submitting;
 
   const submit = async () => {
     if (!canSubmit) return;
     setSubmitting(true);
     try {
-      await onSubmit(body);
+      await onSubmit(trimmed);
       setBody("");
     } finally {
       setSubmitting(false);
@@ -246,27 +272,56 @@ function ActivityCommentComposer({
   };
 
   return (
-    <div className="rounded-lg border bg-card p-2">
-      <Textarea
-        aria-label="Add a comment"
-        className="min-h-24 resize-y border-0 bg-transparent p-1 shadow-none focus-visible:ring-0"
-        onChange={(event) => setBody(event.target.value)}
-        onKeyDown={(event) => {
-          if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-            event.preventDefault();
-            void submit();
-          }
-        }}
-        placeholder="Leave a comment..."
-        value={body}
-      />
-      <div className="mt-2 flex items-center justify-between">
-        <Button disabled size="icon" type="button" variant="ghost">
-          <Paperclip className="size-4" />
-        </Button>
-        <Button disabled={!canSubmit} onClick={() => void submit()} size="sm" type="button">
-          Comment
-        </Button>
+    <div className="flex items-start gap-2.5">
+      {currentUserId ? (
+        <UserAvatar
+          className="mt-0.5 hidden shrink-0 sm:block"
+          name={currentUserName}
+          size={28}
+          userId={currentUserId}
+        />
+      ) : null}
+      <div
+        className={cn(
+          "min-w-0 flex-1 rounded-lg border bg-card p-2 transition-colors",
+          focused && "border-ring ring-3 ring-ring/20",
+        )}
+      >
+        <Textarea
+          aria-label="Add a comment"
+          className="min-h-20 resize-y border-0 bg-transparent p-1 shadow-none focus-visible:ring-0"
+          onBlur={() => setFocused(false)}
+          onChange={(event) => setBody(event.target.value)}
+          onFocus={() => setFocused(true)}
+          onKeyDown={(event) => {
+            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+              event.preventDefault();
+              void submit();
+            }
+          }}
+          placeholder="Leave a comment..."
+          value={body}
+        />
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <span className="text-muted-foreground/70 text-xs">
+            <kbd className="rounded border bg-muted px-1 py-0.5 font-medium font-sans text-[10px] text-muted-foreground">
+              ⌘
+            </kbd>
+            <kbd className="ml-0.5 rounded border bg-muted px-1 py-0.5 font-medium font-sans text-[10px] text-muted-foreground">
+              ↵
+            </kbd>
+            <span className="ml-1.5">to comment</span>
+          </span>
+          <Button
+            disabled={!canSubmit}
+            loading={submitting}
+            onClick={() => void submit()}
+            size="sm"
+            type="button"
+          >
+            Comment
+          </Button>
+        </div>
       </div>
     </div>
   );
