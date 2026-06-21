@@ -164,4 +164,53 @@ test.describe("Task details Activity Feed", () => {
       timeout: 20_000,
     });
   });
+
+  test("edits and deletes Task Comments as visible tombstones", async ({ page }, testInfo) => {
+    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
+    await startAuthenticatedSession(page, {
+      churchName: `E2E Activity Moderate Church ${suffix}`,
+      email: `activity-moderate-${suffix}@example.com`,
+      userName: "E2E Moderate Owner",
+    });
+
+    const pane = await openTaskDetails(page, `Activity Moderate Task ${suffix}`, "Worship");
+    const originalBody = `Original comment to edit ${suffix}`;
+    const editedBody = `Edited comment body ${suffix}`;
+
+    await pane.getByRole("textbox", { name: "Add a comment" }).fill(originalBody);
+    await pane.getByRole("button", { name: "Comment" }).click();
+
+    const commentCard = activityFeed(page).getByRole("listitem").filter({ hasText: originalBody });
+    await expect(commentCard).toBeVisible({ timeout: 20_000 });
+
+    await commentCard.hover();
+    await commentCard.getByLabel("Comment actions").click();
+    await page.getByRole("menuitem", { name: "Edit" }).click();
+    await commentCard.getByRole("textbox", { name: "Edit comment" }).fill(editedBody);
+    await commentCard.getByRole("button", { name: "Save" }).click();
+
+    await expect(activityFeed(page).getByText(editedBody)).toBeVisible({ timeout: 20_000 });
+    await expect(activityFeed(page).getByText(originalBody)).not.toBeVisible();
+    const editedCommentCard = activityFeed(page)
+      .getByRole("listitem")
+      .filter({ hasText: editedBody });
+    await expect(editedCommentCard.getByText("(edited)")).toBeVisible();
+
+    await editedCommentCard.hover();
+    await editedCommentCard.getByLabel("Comment actions").click();
+    await page.getByRole("menuitem", { name: /Delete/ }).click();
+    await page.getByRole("button", { name: "Delete comment" }).click();
+
+    await expect(activityFeed(page).getByText("This comment was deleted.")).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(activityFeed(page).getByText(editedBody)).not.toBeVisible();
+
+    await page.reload();
+    await expect(detailsPane(page)).toBeVisible();
+    await expect(activityFeed(page).getByText("This comment was deleted.")).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(activityFeed(page).getByText(editedBody)).not.toBeVisible();
+  });
 });
