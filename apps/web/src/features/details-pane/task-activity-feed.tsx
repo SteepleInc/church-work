@@ -18,7 +18,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -153,6 +153,7 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
     currentUserId: props.currentUserId,
   });
   const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null);
+  const clearHighlightTimeoutRef = useRef<number | null>(null);
 
   const now = Date.now();
   const commentsById = useMemo(
@@ -182,12 +183,14 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
   const ordered = useMemo(() => [...activitiesCollection].reverse(), [activitiesCollection]);
 
   useEffect(() => {
-    let timeoutId: number | undefined;
-
     const highlightHashTarget = () => {
       const commentId = getTaskCommentIdFromHash(window.location.hash);
       if (!commentId) return;
       if (!commentsById.has(commentId)) return;
+
+      if (clearHighlightTimeoutRef.current !== null) {
+        window.clearTimeout(clearHighlightTimeoutRef.current);
+      }
 
       setHighlightedCommentId(commentId);
       window.requestAnimationFrame(() => {
@@ -197,14 +200,20 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
           block: "center",
         });
       });
-      timeoutId = window.setTimeout(() => setHighlightedCommentId(null), TASK_COMMENT_HIGHLIGHT_MS);
+      clearHighlightTimeoutRef.current = window.setTimeout(() => {
+        setHighlightedCommentId(null);
+        clearHighlightTimeoutRef.current = null;
+      }, TASK_COMMENT_HIGHLIGHT_MS);
     };
 
     highlightHashTarget();
     window.addEventListener("hashchange", highlightHashTarget);
     return () => {
       window.removeEventListener("hashchange", highlightHashTarget);
-      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      if (clearHighlightTimeoutRef.current !== null) {
+        window.clearTimeout(clearHighlightTimeoutRef.current);
+        clearHighlightTimeoutRef.current = null;
+      }
     };
   }, [commentsById]);
 
