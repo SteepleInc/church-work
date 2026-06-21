@@ -2486,7 +2486,7 @@ function TemplateTaskCard({
         <LabelsComboboxSelector
           onValueChange={(next) => onChange({ labelIds: next })}
           options={labelOptions}
-          trigger={<TaskLabelsPillTrigger labels={selectedLabels} />}
+          trigger={<TaskLabelsPillTrigger labels={selectedLabels} showEmptyIcon={false} />}
           value={task.labelIds}
         />
 

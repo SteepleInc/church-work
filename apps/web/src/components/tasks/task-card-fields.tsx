@@ -1260,12 +1260,18 @@ export function TaskTeamPillTrigger({
   );
 }
 
-export function TaskLabelsPillTrigger({ labels }: { readonly labels: readonly TaskLabelOption[] }) {
+export function TaskLabelsPillTrigger({
+  labels,
+  showEmptyIcon = true,
+}: {
+  readonly labels: readonly TaskLabelOption[];
+  readonly showEmptyIcon?: boolean;
+}) {
   return (
     <TaskPropertyPill muted={labels.length === 0}>
       {labels.length === 0 ? (
         <>
-          <Tag className="size-3.5" />
+          {showEmptyIcon ? <Tag className="size-3.5" /> : null}
           Labels
         </>
       ) : (
