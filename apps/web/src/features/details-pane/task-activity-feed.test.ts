@@ -1,6 +1,20 @@
 import { describe, expect, test } from "bun:test";
 
+import { buildTaskPrefillFromComment } from "./task-activity-feed";
+
 const source = await Bun.file(new URL("./task-activity-feed.tsx", import.meta.url)).text();
+
+const sourceTask = {
+  id: "task_db_id",
+  identifier: "CT-42",
+  title: "Plan the welcome service",
+  assignedUserId: "user_1",
+  teamId: "team_1",
+  priority: "high" as const,
+  estimate: "m" as const,
+  labelIds: ["label_1"] as const,
+  dueDate: "2026-07-01",
+};
 
 describe("TaskActivityFeed task comments", () => {
   test("keeps the top-level comment composer after the visible activity timeline", () => {
@@ -167,6 +181,53 @@ describe("TaskActivityFeed task comments", () => {
     expect(source).toContain("@${actorName} said in ${sourceTask.identifier} ${sourceTask.title}");
     expect(source).toContain("parentTaskId: sourceTask.id");
     expect(source).toContain("parentTaskId: null");
+  });
+
+  test("attaches a parent reference only when creating a Subtask", () => {
+    const taskPrefill = buildTaskPrefillFromComment({
+      actorName: "Pastor Sam",
+      body: "Follow up on greeters",
+      parentTaskId: null,
+      sourceTask,
+    });
+    expect(taskPrefill?.parentTaskId).toBeNull();
+    expect(taskPrefill?.parentTaskLabel).toBeNull();
+
+    const subtaskPrefill = buildTaskPrefillFromComment({
+      actorName: "Pastor Sam",
+      body: "Follow up on greeters",
+      parentTaskId: sourceTask.id,
+      sourceTask,
+    });
+    expect(subtaskPrefill?.parentTaskId).toBe(sourceTask.id);
+    expect(subtaskPrefill?.parentTaskLabel).toEqual({
+      identifier: sourceTask.identifier,
+      title: sourceTask.title,
+    });
+  });
+
+  test("derives the title from the first non-empty comment line and quotes the body", () => {
+    const prefill = buildTaskPrefillFromComment({
+      actorName: "Pastor Sam",
+      body: "\n  Fix the projector  \nIt flickers during worship",
+      parentTaskId: null,
+      sourceTask,
+    });
+    expect(prefill?.title).toBe("Fix the projector");
+    expect(prefill?.description).toContain("@Pastor Sam said in CT-42 Plan the welcome service");
+    expect(prefill?.description).toContain("> Fix the projector");
+    expect(prefill?.description).toContain("> It flickers during worship");
+  });
+
+  test("returns null for an empty or whitespace-only comment body", () => {
+    expect(
+      buildTaskPrefillFromComment({
+        actorName: "Pastor Sam",
+        body: "   \n  \n",
+        parentTaskId: null,
+        sourceTask,
+      }),
+    ).toBeNull();
   });
 
   test("scrolls to and briefly highlights comment fragments including tombstones", () => {

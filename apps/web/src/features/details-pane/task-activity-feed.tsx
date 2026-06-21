@@ -146,6 +146,13 @@ export type TaskCommentTaskPrefill = {
   readonly labelIds: readonly string[];
   readonly dueDate: string | null;
   readonly parentTaskId: string | null;
+  // Human-readable parent reference (Identifier + title) shown in the create
+  // dialog header so a Subtask-from-comment makes its lineage obvious; null for
+  // top-level Tasks.
+  readonly parentTaskLabel: {
+    readonly identifier: string;
+    readonly title: string;
+  } | null;
 };
 
 const TASK_COMMENT_PREFILL_TITLE_MAX_LENGTH = 80;
@@ -189,6 +196,9 @@ export function buildTaskPrefillFromComment({
     labelIds: sourceTask.labelIds,
     dueDate: sourceTask.dueDate,
     parentTaskId,
+    parentTaskLabel: parentTaskId
+      ? { identifier: sourceTask.identifier, title: sourceTask.title }
+      : null,
   };
 }
 

@@ -3,7 +3,7 @@ import { revalidateLogic } from "@tanstack/react-form";
 import { Schema } from "effect";
 import { atom, useAtom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
-import { CalendarDays, ChevronRight, Maximize2, Minimize2, X } from "lucide-react";
+import { CalendarDays, ChevronRight, ListTree, Maximize2, Minimize2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -65,6 +65,12 @@ export type CreateTaskQuickActionState = {
   readonly teamId?: string | null;
   // Creating a subtask: openers pass the parent Task plus its Team preset.
   readonly parentTaskId?: string | null;
+  // Human-readable parent reference (Identifier + title) shown in the header
+  // so a Subtask makes its lineage obvious; null/absent for top-level Tasks.
+  readonly parentTaskLabel?: {
+    readonly identifier: string;
+    readonly title: string;
+  } | null;
   readonly title?: string;
   readonly description?: string;
   readonly priority?: TaskPriority;
@@ -128,6 +134,32 @@ function TargetWeekPill({
       <CalendarDays aria-hidden className="size-3.5" />
       <span className="hidden sm:inline">Week of </span>
       {dateRange}
+    </span>
+  );
+}
+
+/**
+ * A compact, read-only cue that this Task is being created as a Subtask of an
+ * existing Task — surfaced when the dialog opens from a Task Comment's "New
+ * Subtask" action. It mirrors the parent breadcrumb shown in the Details Pane
+ * (muted Identifier + truncated title) so the lineage is unmistakable before
+ * the User commits.
+ */
+function ParentTaskPill({
+  parentTaskLabel,
+}: {
+  readonly parentTaskLabel: NonNullable<CreateTaskQuickActionState>["parentTaskLabel"];
+}) {
+  if (!parentTaskLabel) return null;
+  return (
+    <span
+      aria-label={`Subtask of ${parentTaskLabel.identifier} ${parentTaskLabel.title}`}
+      className="inline-flex h-7 max-w-56 items-center gap-1.5 rounded-md bg-muted px-2 text-muted-foreground text-xs font-medium"
+      title={`${parentTaskLabel.identifier} ${parentTaskLabel.title}`}
+    >
+      <ListTree aria-hidden className="size-3.5 shrink-0" />
+      <span className="shrink-0">{parentTaskLabel.identifier}</span>
+      <span className="truncate text-muted-foreground/80">{parentTaskLabel.title}</span>
     </span>
   );
 }
@@ -493,7 +525,10 @@ export function CreateTaskQuickAction() {
                 }}
               </form.Subscribe>
               <ChevronRight className="size-3.5 text-muted-foreground" />
-              <span>New Task</span>
+              <span>{state?.parentTaskLabel ? "New Subtask" : "New Task"}</span>
+              {state?.parentTaskLabel ? (
+                <ParentTaskPill parentTaskLabel={state.parentTaskLabel} />
+              ) : null}
               {effectiveTargetCycle ? <TargetWeekPill targetCycle={effectiveTargetCycle} /> : null}
             </span>
           </QuickActionsTitle>
@@ -726,7 +761,7 @@ export function CreateTaskQuickAction() {
                   }}
                   type="submit"
                 >
-                  Create Task
+                  {state?.parentTaskLabel ? "Create Subtask" : "Create Task"}
                   <Kbd>mod enter</Kbd>
                 </Button>
               )}

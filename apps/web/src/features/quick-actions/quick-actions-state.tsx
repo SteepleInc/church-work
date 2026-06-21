@@ -31,6 +31,12 @@ export function useQuickActionOpeners() {
           // Subtask openers pass the parent Task and preset its Team
           // (ADR 0013: subtasks inherit the parent's Team by default).
           readonly parentTaskId?: string | null;
+          // Optional human-readable parent reference shown in the dialog
+          // header so a Subtask makes its lineage obvious.
+          readonly parentTaskLabel?: {
+            readonly identifier: string;
+            readonly title: string;
+          } | null;
           readonly title?: string;
           readonly description?: string;
           readonly priority?: TaskPriority;
@@ -44,6 +50,7 @@ export function useQuickActionOpeners() {
           workflowStatusId: options.workflowStatusId ?? null,
           teamId: options.teamId ?? null,
           parentTaskId: options.parentTaskId ?? null,
+          parentTaskLabel: options.parentTaskLabel ?? null,
           title: options.title,
           description: options.description,
           priority: options.priority,
