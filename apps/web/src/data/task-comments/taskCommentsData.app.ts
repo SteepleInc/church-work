@@ -11,6 +11,15 @@ type SessionWithRoles = {
   readonly userRole?: string | null;
 };
 
+function getSessionRoles(session: unknown): SessionWithRoles {
+  if (session === null || typeof session !== "object") return {};
+  const roles = session as Record<string, unknown>;
+  return {
+    orgRole: typeof roles.orgRole === "string" ? roles.orgRole : null,
+    userRole: typeof roles.userRole === "string" ? roles.userRole : null,
+  };
+}
+
 /**
  * Resolves the current viewer's moderation capabilities for Task Comments,
  * mirroring the server `canModerateTaskComment` inputs (author / Church
@@ -21,12 +30,12 @@ export function useTaskCommentModerationViewer(params: {
   readonly currentUserId: string | null;
 }): TaskCommentModerationViewer {
   const { data } = authClient.useSession();
-  const session = data?.session as SessionWithRoles | undefined;
+  const session = getSessionRoles(data?.session);
 
   return {
     currentUserId: params.currentUserId,
-    churchRole: session?.orgRole ?? null,
-    isAppAdmin: session?.userRole === "admin",
+    churchRole: session.orgRole ?? null,
+    isAppAdmin: session.userRole === "admin",
   };
 }
 
