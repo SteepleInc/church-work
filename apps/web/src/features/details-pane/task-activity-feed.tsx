@@ -3,6 +3,7 @@ import {
   CalendarIcon,
   CircleDot,
   CirclePlus,
+  CornerDownRight,
   MessageSquare,
   RotateCcw,
   Tag,
@@ -72,7 +73,7 @@ type ActivityFeedProps = {
  * Renders one reverse-chronological line per Activity, leading with the actor's
  * avatar, an event glyph, the human-readable phrase, and a compact relative
  * timestamp (absolute time in the line's `title`). Task Comments render inline
- * as cards; replies and subscriptions are deferred.
+ * as cards with one-level replies; subscriptions are deferred.
  */
 export function TaskActivityFeed(props: ActivityFeedProps) {
   const { activitiesCollection, loading } = useActivitiesForEntityCollection({
@@ -94,6 +95,17 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
     () => new Map(taskCommentsCollection.map((comment) => [comment.id, comment])),
     [taskCommentsCollection],
   );
+  const repliesByParentCommentId = useMemo(() => {
+    const grouped = new Map<string, TaskCommentCollectionItem[]>();
+    for (const comment of taskCommentsCollection) {
+      const parentId = comment.parent_comment_id;
+      if (!parentId) continue;
+      const replies = grouped.get(parentId) ?? [];
+      replies.push(comment);
+      grouped.set(parentId, replies);
+    }
+    return grouped;
+  }, [taskCommentsCollection]);
 
   // The query returns newest-first; the feed reads oldest-first like Linear.
   const ordered = useMemo(() => [...activitiesCollection].reverse(), [activitiesCollection]);
@@ -125,7 +137,10 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
               key={activity.id}
               now={now}
               commentsById={commentsById}
+              createComment={createComment}
+              currentUserId={props.currentUserId}
               resolveActorName={props.resolveActorName}
+              repliesByParentCommentId={repliesByParentCommentId}
               resolvers={props.resolvers}
             />
           ))}
@@ -159,25 +174,35 @@ function ActivityRow({
   activity,
   now,
   commentsById,
+  createComment,
+  currentUserId,
   resolvers,
   resolveActorName,
+  repliesByParentCommentId,
 }: {
   readonly activity: ActivityCollectionItem;
   readonly commentsById: ReadonlyMap<string, TaskCommentCollectionItem>;
+  readonly createComment: (body: string, parentCommentId?: string | null) => Promise<void>;
+  readonly currentUserId: string | null;
   readonly now: number;
   readonly resolvers: ActivityResolvers;
   readonly resolveActorName: (userId: string) => string | null;
+  readonly repliesByParentCommentId: ReadonlyMap<string, readonly TaskCommentCollectionItem[]>;
 }) {
   const metadata = parseMetadata(activity.metadata);
   if (activity.event_type === "comment_created") {
     const commentId = getCommentId(metadata);
     const comment = commentId ? commentsById.get(commentId) : undefined;
     if (!comment) return null;
+    if (comment.parent_comment_id) return null;
 
     return (
       <TaskCommentCard
         comment={comment}
+        currentUserId={currentUserId}
         now={now}
+        onReply={(body) => createComment(body, comment.id)}
+        replies={repliesByParentCommentId.get(comment.id) ?? []}
         resolveActorName={resolveActorName}
         title={new Date(activity.occurred_at).toLocaleString()}
       />
@@ -219,17 +244,26 @@ function getCommentId(metadata: unknown): string | null {
 
 function TaskCommentCard({
   comment,
+  currentUserId,
   now,
+  onReply,
+  replies,
   resolveActorName,
   title,
 }: {
   readonly comment: TaskCommentCollectionItem;
+  readonly currentUserId: string | null;
   readonly now: number;
+  readonly onReply: (body: string) => Promise<void>;
+  readonly replies: readonly TaskCommentCollectionItem[];
   readonly resolveActorName: (userId: string) => string | null;
   readonly title: string;
 }) {
   const actorName = resolveActorName(comment.authored_by_user_id) ?? "Unknown user";
   const createdAt = comment.created_at ?? now;
+  const [composing, setComposing] = useState(false);
+  const canReply = currentUserId !== null;
+  const hasReplies = replies.length > 0;
 
   return (
     <li className="flex items-start gap-2.5 py-0.5">
@@ -249,8 +283,177 @@ function TaskCommentCard({
         <p className="whitespace-pre-wrap break-words px-3 py-2.5 text-foreground/90 text-sm leading-relaxed">
           {comment.body}
         </p>
+
+        {hasReplies ? (
+          <ol aria-label="Replies" className="grid border-t">
+            {replies.map((reply) => (
+              <TaskCommentReply
+                key={reply.id}
+                now={now}
+                reply={reply}
+                resolveActorName={resolveActorName}
+              />
+            ))}
+          </ol>
+        ) : null}
+
+        <footer className="border-t px-3 py-1.5">
+          {composing ? (
+            <TaskCommentReplyComposer
+              currentUserId={currentUserId}
+              currentUserName={
+                currentUserId ? (resolveActorName(currentUserId) ?? "Unknown user") : null
+              }
+              onCancel={() => setComposing(false)}
+              onSubmit={async (reply) => {
+                await onReply(reply);
+                setComposing(false);
+              }}
+            />
+          ) : (
+            <button
+              className={cn(
+                "-mx-1 flex items-center gap-1.5 rounded-md px-1 py-0.5 font-medium text-muted-foreground text-xs transition-colors",
+                canReply ? "hover:text-foreground" : "cursor-not-allowed opacity-60",
+              )}
+              disabled={!canReply}
+              onClick={() => setComposing(true)}
+              type="button"
+            >
+              <CornerDownRight className="size-3.5" />
+              {canReply ? (hasReplies ? "Add a reply" : "Reply") : "Sign in to reply"}
+            </button>
+          )}
+        </footer>
       </article>
     </li>
+  );
+}
+
+function TaskCommentReply({
+  now,
+  reply,
+  resolveActorName,
+}: {
+  readonly now: number;
+  readonly reply: TaskCommentCollectionItem;
+  readonly resolveActorName: (userId: string) => string | null;
+}) {
+  const actorName = resolveActorName(reply.authored_by_user_id) ?? "Unknown user";
+  const createdAt = reply.created_at ?? now;
+
+  return (
+    <li className="flex items-start gap-2.5 px-3 py-2 not-last:border-b">
+      <UserAvatar
+        className="mt-0.5 shrink-0"
+        name={actorName}
+        size={22}
+        userId={reply.authored_by_user_id}
+      />
+      <div className="min-w-0 flex-1">
+        <p className="flex items-baseline gap-1.5 text-sm leading-5">
+          <span className="min-w-0 truncate font-medium text-foreground">{actorName}</span>
+          <span
+            className="shrink-0 text-muted-foreground text-xs"
+            title={new Date(createdAt).toLocaleString()}
+          >
+            {formatActivityTime(createdAt, now)}
+          </span>
+        </p>
+        <p className="mt-0.5 whitespace-pre-wrap break-words text-foreground/90 text-sm leading-relaxed">
+          {reply.body}
+        </p>
+      </div>
+    </li>
+  );
+}
+
+function TaskCommentReplyComposer({
+  currentUserId,
+  currentUserName,
+  onCancel,
+  onSubmit,
+}: {
+  readonly currentUserId: string | null;
+  readonly currentUserName: string | null;
+  readonly onCancel: () => void;
+  readonly onSubmit: (body: string) => Promise<void>;
+}) {
+  const [body, setBody] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const trimmed = body.trim();
+  const canReply = currentUserId !== null;
+  const canSubmit = canReply && trimmed.length > 0 && !submitting;
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    try {
+      await onSubmit(trimmed);
+      setBody("");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="flex items-start gap-2 py-0.5">
+      {currentUserId ? (
+        <UserAvatar
+          className="mt-1 shrink-0"
+          name={currentUserName}
+          size={22}
+          userId={currentUserId}
+        />
+      ) : null}
+      <div
+        className={cn(
+          "min-w-0 flex-1 rounded-md border bg-background/60 px-2 py-1.5 transition-colors",
+          focused && "border-ring ring-3 ring-ring/50",
+        )}
+      >
+        <Textarea
+          aria-label="Add a reply"
+          autoFocus
+          className="min-h-9 resize-y border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
+          disabled={!canReply}
+          onBlur={() => setFocused(false)}
+          onChange={(event) => setBody(event.target.value)}
+          onFocus={() => setFocused(true)}
+          onKeyDown={(event) => {
+            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+              event.preventDefault();
+              void submit();
+              return;
+            }
+            // Escape abandons the reply when the field is empty so the card
+            // collapses back to its compact "Reply" affordance.
+            if (event.key === "Escape" && trimmed.length === 0) {
+              event.preventDefault();
+              onCancel();
+            }
+          }}
+          placeholder={canReply ? "Leave a reply..." : "Sign in to reply"}
+          value={body}
+        />
+        <div className="mt-1 flex items-center justify-end gap-1">
+          <Button onClick={onCancel} size="sm" type="button" variant="ghost">
+            Cancel
+          </Button>
+          <Button
+            disabled={!canSubmit}
+            loading={submitting}
+            onClick={() => void submit()}
+            size="sm"
+            type="button"
+          >
+            Reply
+            <Kbd className="ml-1.5">mod enter</Kbd>
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 

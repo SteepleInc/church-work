@@ -26,4 +26,26 @@ describe("TaskActivityFeed task comments", () => {
     expect(source).toContain("rounded-lg border bg-card shadow-xs");
     expect(source).toContain("whitespace-pre-wrap break-words");
   });
+
+  test("renders one-level replies inside the parent comment card", () => {
+    expect(source).toContain("repliesByParentCommentId");
+    expect(source).toContain("const parentId = comment.parent_comment_id");
+    expect(source).toContain("if (!parentId) continue");
+    expect(source).toContain('placeholder={canReply ? "Leave a reply..."');
+    expect(source).toContain("<TaskCommentReply");
+  });
+
+  test("keeps the reply composer collapsed behind a lightweight Reply affordance", () => {
+    // The card leads with a compact Reply trigger and only mounts the composer
+    // once the User opts in, keeping the feed scannable and Linear-like.
+    expect(source).toContain("const [composing, setComposing] = useState(false)");
+    expect(source).toContain("onClick={() => setComposing(true)}");
+    expect(source).toContain("<CornerDownRight");
+  });
+
+  test("lets the reply composer be dismissed via Cancel or Escape", () => {
+    expect(source).toContain("readonly onCancel: () => void");
+    expect(source).toContain('event.key === "Escape"');
+    expect(source).toContain("onClick={onCancel}");
+  });
 });

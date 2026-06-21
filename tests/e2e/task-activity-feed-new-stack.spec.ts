@@ -127,4 +127,41 @@ test.describe("Task details Activity Feed", () => {
     await expect(detailsPane(page)).toBeVisible();
     await expect(activityFeed(page).getByText(commentBody)).toBeVisible({ timeout: 20_000 });
   });
+
+  test("adds one-level replies inside a Task Comment card", async ({ page }, testInfo) => {
+    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
+    await startAuthenticatedSession(page, {
+      churchName: `E2E Activity Reply Church ${suffix}`,
+      email: `activity-reply-${suffix}@example.com`,
+      userName: "E2E Reply Owner",
+    });
+
+    const pane = await openTaskDetails(page, `Activity Reply Task ${suffix}`, "Worship");
+    const commentBody = `Parent comment for reply ${suffix}`;
+    const replyBody = `Nested one-level reply ${suffix}`;
+
+    await pane.getByRole("textbox", { name: "Add a comment" }).fill(commentBody);
+    await pane.getByRole("button", { name: "Comment" }).click();
+
+    const commentCard = activityFeed(page).getByRole("listitem").filter({ hasText: commentBody });
+    await expect(commentCard).toBeVisible({ timeout: 20_000 });
+    await commentCard.getByRole("button", { name: "Reply" }).click();
+    await commentCard.getByRole("textbox", { name: "Add a reply" }).fill(replyBody);
+    await commentCard.getByRole("button", { name: "Reply" }).click();
+
+    await expect(
+      commentCard.getByRole("list", { name: "Replies" }).getByText(replyBody),
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(activityFeed(page).getByText("replied", { exact: false })).toHaveCount(0);
+
+    await page.reload();
+    const reloadedCard = activityFeed(page).getByRole("listitem").filter({ hasText: commentBody });
+    await expect(
+      reloadedCard.getByRole("list", { name: "Replies" }).getByText(replyBody),
+    ).toBeVisible({
+      timeout: 20_000,
+    });
+  });
 });

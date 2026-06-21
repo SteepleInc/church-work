@@ -219,7 +219,12 @@ const TaskTransitionArgs = toZeroSchema(
   Schema.Struct({ church_id: Schema.String, task_id: Schema.String }),
 );
 const CreateTaskCommentArgs = toZeroSchema(
-  Schema.Struct({ body: Schema.String, church_id: Schema.String, task_id: Schema.String }),
+  Schema.Struct({
+    body: Schema.String,
+    church_id: Schema.String,
+    parent_comment_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
+    task_id: Schema.String,
+  }),
 );
 const KeyDateScheduleArg = Schema.Union([
   Schema.Struct({ kind: Schema.Literal("fixedYearly"), month: Schema.Number, day: Schema.Number }),
@@ -3199,6 +3204,25 @@ export const mutators = defineMutators({
       const task = taskRows[0];
       if (!task) throw new Error("Task not found.");
 
+      const parentCommentId = args.parent_comment_id ?? null;
+
+      if (parentCommentId) {
+        const parentRows = (await db
+          .select({ id: task_comments.id, parent_comment_id: task_comments.parent_comment_id })
+          .from(task_comments)
+          .where(
+            and(
+              eq(task_comments.id, parentCommentId),
+              eq(task_comments.church_id, args.church_id),
+              eq(task_comments.task_id, args.task_id),
+              isNull(task_comments.deleted_at),
+            ),
+          )) as Array<{ readonly id: string; readonly parent_comment_id: string | null }>;
+        const parent = parentRows[0];
+        if (!parent) throw new Error("Parent comment not found.");
+        if (parent.parent_comment_id) throw new Error("Replies can only be one level deep.");
+      }
+
       const now = new Date();
       const commentId = getTaskCommentId();
       await db.insert(task_comments).values({
@@ -3211,7 +3235,7 @@ export const mutators = defineMutators({
         deleted_at: null,
         deleted_by: null,
         id: commentId,
-        parent_comment_id: null,
+        parent_comment_id: parentCommentId,
         task_id: args.task_id,
         updated_at: now,
         updated_by: session.user_id,
@@ -3223,8 +3247,10 @@ export const mutators = defineMutators({
         cycle_id: task.cycle_id,
         entity_id: args.task_id,
         entity_type: "task",
-        event_type: "comment_created",
-        metadata: { comment_id: commentId },
+        event_type: parentCommentId ? "reply_created" : "comment_created",
+        metadata: parentCommentId
+          ? { comment_id: commentId, parent_comment_id: parentCommentId }
+          : { comment_id: commentId },
         occurred_at: now,
       });
     }),

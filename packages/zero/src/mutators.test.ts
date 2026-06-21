@@ -964,6 +964,66 @@ describe("Zero Task mutators", () => {
     expect(JSON.parse(activityInsert.metadata)).toMatchObject({ comment_id: commentInsert.id });
   });
 
+  test("creates one-level Task Comment replies and logs hidden reply-created Activity", async () => {
+    const { insertCalls, tx } = createServerTx([
+      [{ id: "task_test", cycle_id: "cycle_test" }],
+      [{ id: "taskcomment_root", parent_comment_id: null }],
+    ]);
+
+    await mustGetMutator(mutators, "task_comments.create").fn({
+      args: {
+        body: "Reply line one\nReply line two",
+        church_id: "org_test",
+        parent_comment_id: "taskcomment_root",
+        task_id: "task_test",
+      },
+      ctx: signedInContext,
+      tx,
+    });
+
+    const commentInsert = insertCalls.find((call) => call.table === task_comments)?.values as {
+      readonly body: string;
+      readonly id: string;
+      readonly parent_comment_id: string | null;
+    };
+    const activityInsert = insertCalls.find((call) => call.table === activities)?.values as {
+      readonly event_type: string;
+      readonly metadata: string;
+    };
+
+    expect(commentInsert).toMatchObject({
+      body: "Reply line one\nReply line two",
+      parent_comment_id: "taskcomment_root",
+    });
+    expect(activityInsert.event_type).toBe("reply_created");
+    expect(JSON.parse(activityInsert.metadata)).toMatchObject({
+      comment_id: commentInsert.id,
+      parent_comment_id: "taskcomment_root",
+    });
+  });
+
+  test("rejects replies to Task Comment replies", async () => {
+    const { insertCalls, tx } = createServerTx([
+      [{ id: "task_test", cycle_id: "cycle_test" }],
+      [{ id: "taskcomment_reply", parent_comment_id: "taskcomment_root" }],
+    ]);
+
+    await expect(
+      mustGetMutator(mutators, "task_comments.create").fn({
+        args: {
+          body: "Nested reply",
+          church_id: "org_test",
+          parent_comment_id: "taskcomment_reply",
+          task_id: "task_test",
+        },
+        ctx: signedInContext,
+        tx,
+      }),
+    ).rejects.toThrow("Replies can only be one level deep.");
+
+    expect(insertCalls).toEqual([]);
+  });
+
   test("creates Week-context Tasks in an existing Cycle", async () => {
     const { insertCalls, tx } = createServerTx([
       [{ id: "workflowstatus_todo", task_state: "todo", workflow_id: "workflow_production" }],

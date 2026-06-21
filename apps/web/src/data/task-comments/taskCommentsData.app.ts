@@ -26,12 +26,13 @@ export function useCreateTaskCommentMutation(params: {
 }) {
   const zero = useZero();
 
-  return async (body: string) => {
+  return async (body: string, parentCommentId?: string | null) => {
     if (params.churchId === null) throw new Error("Church is required to comment.");
     await zero.mutate(
       mutators.task_comments.create({
         body,
         church_id: params.churchId,
+        parent_comment_id: parentCommentId ?? null,
         task_id: params.taskId,
       }),
     );
