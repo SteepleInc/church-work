@@ -7,6 +7,7 @@ import {
   CirclePlus,
   CornerDownRight,
   Copy,
+  Link as LinkIcon,
   MessageSquare,
   MoreHorizontal,
   Paperclip,
@@ -847,7 +848,7 @@ function CommentActions({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-36">
           <DropdownMenuItem onClick={() => void onCopyLink()}>
-            <Copy />
+            <LinkIcon />
             Copy link
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => void onCopyMarkdown()}>
