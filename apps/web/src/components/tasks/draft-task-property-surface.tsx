@@ -1,4 +1,4 @@
-import { CalendarDays, Tag, Triangle, User, Users, Workflow } from "lucide-react";
+import { CalendarDays, SignalHigh, Tag, Triangle, User, Users, Workflow } from "lucide-react";
 import { useEffect, useRef, type MutableRefObject, type ReactNode } from "react";
 
 import {
@@ -10,11 +10,18 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 
+import { cn } from "@/lib/utils";
+
 import { resolveTaskFieldShortcut, type TaskShortcutField } from "./task-surface-keyboard-utils";
 
 export type DraftTaskPickerRefs = Partial<
   Record<TaskShortcutField, MutableRefObject<(() => void) | null>>
 >;
+
+// The canonical "armed" hover affordance shared with Board cards and sub-task
+// rows: a faint resting ring that brightens on hover so the keyboard-armed
+// state reads the same across every Task surface.
+const ARMED_RING = "ring-foreground/10 transition-colors hover:ring-1 hover:ring-foreground/20";
 
 const FIELD_ITEMS: readonly {
   readonly field: TaskShortcutField;
@@ -24,7 +31,9 @@ const FIELD_ITEMS: readonly {
 }[] = [
   { field: "status", label: "Status", shortcut: "S", icon: <Workflow /> },
   { field: "assignee", label: "Assignee", shortcut: "A", icon: <User /> },
-  { field: "priority", label: "Priority", shortcut: "P", icon: <Triangle /> },
+  // SignalHigh mirrors the Priority field's signal-bar identity (Triangle is the
+  // Estimate glyph), so the two property rows never share an icon.
+  { field: "priority", label: "Priority", shortcut: "P", icon: <SignalHigh /> },
   { field: "estimate", label: "Estimate", shortcut: "⇧E", icon: <Triangle /> },
   { field: "labels", label: "Labels", shortcut: "L", icon: <Tag /> },
   { field: "dueDate", label: "Due date", shortcut: "D", icon: <CalendarDays /> },
@@ -39,10 +48,18 @@ export function DraftTaskPropertySurface({
   children,
   pickerRefs,
   className = "relative",
+  /**
+   * Show the shared armed hover-ring on the surface itself. Card-shaped create
+   * surfaces (inline sub-task creator, Template Task card) opt in so they echo
+   * the Board card / sub-task row affordance; the dialog-body create-task
+   * surface leaves it off because the dialog already frames the content.
+   */
+  showArmedRing = false,
 }: {
   readonly children: ReactNode;
   readonly pickerRefs: DraftTaskPickerRefs;
   readonly className?: string;
+  readonly showArmedRing?: boolean;
 }) {
   const armedRef = useRef(false);
 
@@ -67,7 +84,18 @@ export function DraftTaskPropertySurface({
         onPointerEnter={() => {
           armedRef.current = true;
         }}
-        render={<div className={className} data-task-draft-property-surface="true" />}
+        // Disarm when the pointer leaves so the hover-armed keys only fire while
+        // the surface is actually hovered (matches the per-row arming on the
+        // view surfaces and avoids a stale-armed surface stealing keystrokes).
+        onPointerLeave={() => {
+          armedRef.current = false;
+        }}
+        render={
+          <div
+            className={cn(className, showArmedRing && ARMED_RING)}
+            data-task-draft-property-surface="true"
+          />
+        }
       >
         {children}
       </ContextMenuTrigger>

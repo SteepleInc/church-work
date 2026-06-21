@@ -235,6 +235,7 @@ export function SubTaskCreator({
     <DraftTaskPropertySurface
       className="relative grid gap-3 rounded-lg border bg-background/60 p-3"
       pickerRefs={pickerRefs}
+      showArmedRing
     >
       <input
         aria-label="Sub-task title"

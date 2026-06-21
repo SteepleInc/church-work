@@ -2436,6 +2436,7 @@ function TemplateTaskCard({
     <DraftTaskPropertySurface
       className="group/task relative flex flex-col gap-2 rounded-lg border bg-background p-2.5 shadow-xs"
       pickerRefs={pickerRefs}
+      showArmedRing
     >
       <div className="flex items-start gap-2">
         <Input
