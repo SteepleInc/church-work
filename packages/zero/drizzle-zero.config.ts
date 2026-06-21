@@ -26,6 +26,7 @@ export default drizzleZeroConfig(drizzleSchema, {
     labels: true,
     member: true,
     organization: true,
+    task_comments: true,
     team_memberships: true,
     teams: true,
     template_tasks: true,

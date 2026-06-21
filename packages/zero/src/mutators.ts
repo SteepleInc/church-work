@@ -25,6 +25,7 @@ import {
   getTemplateTaskId,
   getTemplateTeamId,
   getTaskId,
+  getTaskCommentId,
   getTeamId,
   getTeamMembershipId,
   getWorkflowId,
@@ -44,6 +45,7 @@ import {
   key_dates,
   labels,
   tasks,
+  task_comments,
   team_memberships,
   teams,
   template_schedules,
@@ -215,6 +217,9 @@ const MaterializeProjectedTaskArgs = toZeroSchema(
 );
 const TaskTransitionArgs = toZeroSchema(
   Schema.Struct({ church_id: Schema.String, task_id: Schema.String }),
+);
+const CreateTaskCommentArgs = toZeroSchema(
+  Schema.Struct({ body: Schema.String, church_id: Schema.String, task_id: Schema.String }),
 );
 const KeyDateScheduleArg = Schema.Union([
   Schema.Struct({ kind: Schema.Literal("fixedYearly"), month: Schema.Number, day: Schema.Number }),
@@ -3170,6 +3175,58 @@ export const mutators = defineMutators({
           });
         }
       }
+    }),
+  },
+  task_comments: {
+    create: defineChurchTaskMutator(CreateTaskCommentArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+
+      const session = requireActiveChurchAccess(ctx, args.church_id);
+      const body = args.body.trimEnd();
+      if (!body.trim()) throw new Error("Comment body is required.");
+
+      const taskRows = (await db
+        .select({ cycle_id: tasks.cycle_id, id: tasks.id })
+        .from(tasks)
+        .where(
+          and(
+            eq(tasks.id, args.task_id),
+            eq(tasks.church_id, args.church_id),
+            isNull(tasks.deleted_at),
+          ),
+        )) as Array<{ readonly cycle_id: string | null; readonly id: string }>;
+      const task = taskRows[0];
+      if (!task) throw new Error("Task not found.");
+
+      const now = new Date();
+      const commentId = getTaskCommentId();
+      await db.insert(task_comments).values({
+        _tag: "taskcomment",
+        authored_by_user_id: session.user_id,
+        body,
+        church_id: args.church_id,
+        created_at: now,
+        created_by: session.user_id,
+        deleted_at: null,
+        deleted_by: null,
+        id: commentId,
+        parent_comment_id: null,
+        task_id: args.task_id,
+        updated_at: now,
+        updated_by: session.user_id,
+      });
+
+      await writeActivity(db, {
+        actor_id: session.user_id,
+        church_id: args.church_id,
+        cycle_id: task.cycle_id,
+        entity_id: args.task_id,
+        entity_type: "task",
+        event_type: "comment_created",
+        metadata: { comment_id: commentId },
+        occurred_at: now,
+      });
     }),
   },
   tasks: {
