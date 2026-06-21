@@ -12,7 +12,6 @@ import {
   Repeat2,
   Sparkles,
   Trash2,
-  Triangle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
@@ -24,15 +23,10 @@ import {
   type PeriodTemplatePlacementShape,
 } from "@church-task/domain";
 
-import { TeamAvatar } from "@/components/avatars/teamAvatar";
 import {
-  AssigneeAvatar,
   AssigneeComboboxSelector,
   EstimateComboboxSelector,
-  getEstimateMeta,
-  getPriorityMeta,
   LabelsComboboxSelector,
-  labelDotClassName,
   PriorityComboboxSelector,
   TaskAssigneePillTrigger,
   TaskEstimatePillTrigger,
@@ -2463,9 +2457,7 @@ function TemplateTaskCard({
           memberTeamIds={memberTeamIds}
           onValueChange={changeTeam}
           options={teamPickerOptions}
-          trigger={
-            <TaskTeamPillTrigger team={selectedTeam} />
-          }
+          trigger={<TaskTeamPillTrigger team={selectedTeam} />}
           value={task.teamId || null}
         />
 
@@ -2475,34 +2467,26 @@ function TemplateTaskCard({
           onValueChange={(next) => onChange({ assigneeId: next })}
           options={assigneeOptions}
           teamMemberIds={teamMemberUserIds}
-          trigger={
-            <TaskAssigneePillTrigger assignee={selectedAssignee} />
-          }
+          trigger={<TaskAssigneePillTrigger assignee={selectedAssignee} />}
           value={task.assigneeId}
         />
 
         <EstimateComboboxSelector
           onValueChange={(next) => onChange({ estimate: next })}
-          trigger={
-            <TaskEstimatePillTrigger value={task.estimate} />
-          }
+          trigger={<TaskEstimatePillTrigger value={task.estimate} />}
           value={task.estimate}
         />
 
         <PriorityComboboxSelector
           onValueChange={(next) => onChange({ priority: next })}
-          trigger={
-            <TaskPriorityPillTrigger value={task.priority} />
-          }
+          trigger={<TaskPriorityPillTrigger value={task.priority} />}
           value={task.priority}
         />
 
         <LabelsComboboxSelector
           onValueChange={(next) => onChange({ labelIds: next })}
           options={labelOptions}
-          trigger={
-            <TaskLabelsPillTrigger labels={selectedLabels} />
-          }
+          trigger={<TaskLabelsPillTrigger labels={selectedLabels} />}
           value={task.labelIds}
         />
 

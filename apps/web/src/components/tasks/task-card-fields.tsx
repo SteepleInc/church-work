@@ -1260,11 +1260,7 @@ export function TaskTeamPillTrigger({
   );
 }
 
-export function TaskLabelsPillTrigger({
-  labels,
-}: {
-  readonly labels: readonly TaskLabelOption[];
-}) {
+export function TaskLabelsPillTrigger({ labels }: { readonly labels: readonly TaskLabelOption[] }) {
   return (
     <TaskPropertyPill muted={labels.length === 0}>
       {labels.length === 0 ? (
@@ -1277,12 +1273,17 @@ export function TaskLabelsPillTrigger({
           <span className="flex items-center -space-x-1">
             {labels.map((label) => (
               <span
-                className={cn("size-2.5 rounded-full ring-2 ring-background", labelDotClassName(label))}
+                className={cn(
+                  "size-2.5 rounded-full ring-2 ring-background",
+                  labelDotClassName(label),
+                )}
                 key={label.id}
               />
             ))}
           </span>
-          <span className="truncate">{labels.length === 1 ? labels[0]?.name : `${labels.length} labels`}</span>
+          <span className="truncate">
+            {labels.length === 1 ? labels[0]?.name : `${labels.length} labels`}
+          </span>
         </>
       )}
     </TaskPropertyPill>
@@ -1302,7 +1303,11 @@ export function TaskDueDatePillTrigger({ value }: { readonly value: string | nul
 export function TaskStatusPillTrigger({
   status,
 }: {
-  readonly status: { readonly id: string; readonly name: string; readonly taskState: TaskBoardTaskState } | null;
+  readonly status: {
+    readonly id: string;
+    readonly name: string;
+    readonly taskState: TaskBoardTaskState;
+  } | null;
 }) {
   return (
     <TaskPropertyPill muted={status === null}>
@@ -1318,49 +1323,118 @@ export function TaskStatusPillTrigger({
   );
 }
 
-export function PriorityTaskField(props: Omit<ComponentProps<typeof PriorityComboboxSelector>, "value" | "onValueChange" | "trigger">) {
+export function PriorityTaskField(
+  props: Omit<
+    ComponentProps<typeof PriorityComboboxSelector>,
+    "value" | "onValueChange" | "trigger"
+  >,
+) {
   const field = useFieldContext<TaskPriority>();
-  return <PriorityComboboxSelector {...props} onValueChange={field.handleChange} trigger={<TaskPriorityPillTrigger value={field.state.value} />} value={field.state.value} />;
+  return (
+    <PriorityComboboxSelector
+      {...props}
+      onValueChange={field.handleChange}
+      trigger={<TaskPriorityPillTrigger value={field.state.value} />}
+      value={field.state.value}
+    />
+  );
 }
 
-export function EstimateTaskField(props: Omit<ComponentProps<typeof EstimateComboboxSelector>, "value" | "onValueChange" | "trigger">) {
+export function EstimateTaskField(
+  props: Omit<
+    ComponentProps<typeof EstimateComboboxSelector>,
+    "value" | "onValueChange" | "trigger"
+  >,
+) {
   const field = useFieldContext<TaskEstimate>();
-  return <EstimateComboboxSelector {...props} onValueChange={field.handleChange} trigger={<TaskEstimatePillTrigger value={field.state.value} />} value={field.state.value} />;
+  return (
+    <EstimateComboboxSelector
+      {...props}
+      onValueChange={field.handleChange}
+      trigger={<TaskEstimatePillTrigger value={field.state.value} />}
+      value={field.state.value}
+    />
+  );
 }
 
-export function DueDateTaskField(props: Omit<ComponentProps<typeof DueDateSelector>, "value" | "onValueChange" | "trigger">) {
+export function DueDateTaskField(
+  props: Omit<ComponentProps<typeof DueDateSelector>, "value" | "onValueChange" | "trigger">,
+) {
   const field = useFieldContext<string | null>();
-  return <DueDateSelector {...props} onValueChange={field.handleChange} trigger={<TaskDueDatePillTrigger value={field.state.value} />} value={field.state.value} />;
+  return (
+    <DueDateSelector
+      {...props}
+      onValueChange={field.handleChange}
+      trigger={<TaskDueDatePillTrigger value={field.state.value} />}
+      value={field.state.value}
+    />
+  );
 }
 
 export function LabelsTaskField({
   selectedLabels,
   ...props
-}: Omit<ComponentProps<typeof LabelsComboboxSelector>, "value" | "onValueChange" | "trigger"> & { readonly selectedLabels: readonly TaskLabelOption[] }) {
+}: Omit<ComponentProps<typeof LabelsComboboxSelector>, "value" | "onValueChange" | "trigger"> & {
+  readonly selectedLabels: readonly TaskLabelOption[];
+}) {
   const field = useFieldContext<readonly string[]>();
-  return <LabelsComboboxSelector {...props} onValueChange={field.handleChange} trigger={<TaskLabelsPillTrigger labels={selectedLabels} />} value={field.state.value} />;
+  return (
+    <LabelsComboboxSelector
+      {...props}
+      onValueChange={field.handleChange}
+      trigger={<TaskLabelsPillTrigger labels={selectedLabels} />}
+      value={field.state.value}
+    />
+  );
 }
 
 export function AssigneeTaskField({
   selectedAssignee,
   ...props
-}: Omit<ComponentProps<typeof AssigneeComboboxSelector>, "value" | "onValueChange" | "trigger"> & { readonly selectedAssignee: AssigneeOption | null }) {
+}: Omit<ComponentProps<typeof AssigneeComboboxSelector>, "value" | "onValueChange" | "trigger"> & {
+  readonly selectedAssignee: AssigneeOption | null;
+}) {
   const field = useFieldContext<string | null>();
-  return <AssigneeComboboxSelector {...props} onValueChange={field.handleChange} trigger={<TaskAssigneePillTrigger assignee={selectedAssignee} />} value={field.state.value} />;
+  return (
+    <AssigneeComboboxSelector
+      {...props}
+      onValueChange={field.handleChange}
+      trigger={<TaskAssigneePillTrigger assignee={selectedAssignee} />}
+      value={field.state.value}
+    />
+  );
 }
 
 export function TeamTaskField({
   selectedTeam,
   ...props
-}: Omit<ComponentProps<typeof TeamComboboxSelector>, "value" | "onValueChange" | "trigger"> & { readonly selectedTeam: TeamPickerOption | null }) {
+}: Omit<ComponentProps<typeof TeamComboboxSelector>, "value" | "onValueChange" | "trigger"> & {
+  readonly selectedTeam: TeamPickerOption | null;
+}) {
   const field = useFieldContext<string | null>();
-  return <TeamComboboxSelector {...props} onValueChange={field.handleChange} trigger={<TaskTeamPillTrigger team={selectedTeam} />} value={field.state.value} />;
+  return (
+    <TeamComboboxSelector
+      {...props}
+      onValueChange={field.handleChange}
+      trigger={<TaskTeamPillTrigger team={selectedTeam} />}
+      value={field.state.value}
+    />
+  );
 }
 
 export function StatusTaskField({
   selectedStatus,
   ...props
-}: Omit<ComponentProps<typeof StatusComboboxSelector>, "value" | "onValueChange" | "trigger"> & { readonly selectedStatus: ComponentProps<typeof TaskStatusPillTrigger>["status"] }) {
+}: Omit<ComponentProps<typeof StatusComboboxSelector>, "value" | "onValueChange" | "trigger"> & {
+  readonly selectedStatus: ComponentProps<typeof TaskStatusPillTrigger>["status"];
+}) {
   const field = useFieldContext<string | null>();
-  return <StatusComboboxSelector {...props} onValueChange={(next) => next && field.handleChange(next)} trigger={<TaskStatusPillTrigger status={selectedStatus} />} value={field.state.value} />;
+  return (
+    <StatusComboboxSelector
+      {...props}
+      onValueChange={(next) => next && field.handleChange(next)}
+      trigger={<TaskStatusPillTrigger status={selectedStatus} />}
+      value={field.state.value}
+    />
+  );
 }

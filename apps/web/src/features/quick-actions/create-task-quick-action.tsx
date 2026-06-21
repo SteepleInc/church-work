@@ -3,30 +3,17 @@ import { revalidateLogic } from "@tanstack/react-form";
 import { Schema } from "effect";
 import { atom, useAtom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
-import {
-  CalendarDays,
-  CalendarIcon,
-  ChevronRight,
-  Maximize2,
-  Minimize2,
-  Tag,
-  Triangle,
-  X,
-} from "lucide-react";
+import { CalendarDays, ChevronRight, Maximize2, Minimize2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { TeamAvatar } from "@/components/avatars/teamAvatar";
 import { useOpenTaskDetailsPaneUrl } from "@/components/details-pane/details-pane-helpers";
 import { useAppForm } from "@/components/form/ts-form";
 import {
-  AssigneeAvatar,
   AssigneeComboboxSelector,
   DueDateSelector,
   EstimateComboboxSelector,
-  formatDueDate,
-  getEstimateMeta,
-  getPriorityMeta,
-  labelDotClassName,
   LabelsComboboxSelector,
   PriorityComboboxSelector,
   StatusComboboxSelector,
@@ -38,7 +25,6 @@ import {
   TaskPriorityPillTrigger,
   TaskStatusPillTrigger,
   TeamComboboxSelector,
-  WorkflowStatusIcon,
   type TaskEstimate,
   type TaskPriority,
 } from "@/components/tasks/task-card-fields";
@@ -73,7 +59,6 @@ import {
   QuickActionsTitle,
   QuickActionsWrapper,
 } from "@/features/quick-actions/quick-actions-components";
-import { cn } from "@/lib/utils";
 
 export type CreateTaskQuickActionState = {
   readonly assignTo: string | null;
@@ -740,4 +725,3 @@ export function CreateTaskQuickAction() {
     </QuickActionsWrapper>
   );
 }
-import { TeamAvatar } from "@/components/avatars/teamAvatar";
