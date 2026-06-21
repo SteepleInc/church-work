@@ -154,7 +154,7 @@ function ParentTaskPill({
   return (
     <span
       aria-label={`Subtask of ${parentTaskLabel.identifier} ${parentTaskLabel.title}`}
-      className="inline-flex h-7 max-w-56 items-center gap-1.5 rounded-md bg-muted px-2 text-muted-foreground text-xs font-medium"
+      className="inline-flex h-7 max-w-56 items-center gap-1.5 rounded-md bg-muted px-2 text-xs font-medium text-muted-foreground"
       title={`${parentTaskLabel.identifier} ${parentTaskLabel.title}`}
     >
       <ListTree aria-hidden className="size-3.5 shrink-0" />
