@@ -10,6 +10,7 @@ import {
   LabelsComboboxSelector,
   PriorityComboboxSelector,
   StatusComboboxSelector,
+  TeamComboboxSelector,
   WorkflowStatusIcon,
   type CardSelectOption,
   type TaskEstimate,
@@ -144,10 +145,11 @@ function SubTaskRow({
   const labelsOpenRef = useRef<(() => void) | null>(null);
   const estimateOpenRef = useRef<(() => void) | null>(null);
   const dueDateOpenRef = useRef<(() => void) | null>(null);
+  const teamOpenRef = useRef<(() => void) | null>(null);
   const pickers = useMemo<
     Partial<
       Record<
-        "status" | "assignee" | "priority" | "labels" | "estimate" | "dueDate",
+        "status" | "assignee" | "priority" | "labels" | "estimate" | "dueDate" | "team",
         MutableRefObject<(() => void) | null>
       >
     >
@@ -159,6 +161,7 @@ function SubTaskRow({
       labels: labelsOpenRef,
       estimate: estimateOpenRef,
       dueDate: dueDateOpenRef,
+      team: teamOpenRef,
     }),
     [],
   );
@@ -356,10 +359,23 @@ function SubTaskRow({
             />
           ) : null}
 
-          {show("team") && team ? (
-            <span className="inline-flex items-center">
-              <TeamAvatar color={team.color} name={team.name} size={16} />
-            </span>
+          {show("team") ? (
+            <TeamComboboxSelector
+              memberTeamIds={context.memberTeamIds}
+              onValueChange={(next) => context.onEdit(task.id, { teamId: next })}
+              openRef={teamOpenRef}
+              options={context.teamOptions}
+              trigger={
+                team ? (
+                  <span className="inline-flex items-center">
+                    <TeamAvatar color={team.color} name={team.name} size={16} />
+                  </span>
+                ) : (
+                  <span className="sr-only" />
+                )
+              }
+              value={task.teamId}
+            />
           ) : null}
 
           {show("assignee") ? (
