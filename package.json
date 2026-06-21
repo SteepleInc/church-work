@@ -46,8 +46,8 @@
     "sandcastle": "bunx tsx .sandcastle/main.ts",
     "reference:populate": "bash scripts/populate-reference.sh",
     "build": "turbo build",
-    "check-types": "turbo check-types",
-    "test": "turbo test test:cli",
+    "check-types": "turbo check-types --ui=stream",
+    "test": "turbo test test:cli --ui=stream",
     "lint": "oxlint",
     "format:check": "oxfmt --check",
     "format": "oxfmt --write",
@@ -67,8 +67,8 @@
     "test:e2e:templates": "bun --env-file=.env.e2e playwright test tests/e2e/templates-new-stack.spec.ts --workers=1",
     "test:e2e:teams-workflows": "bun --env-file=.env.e2e playwright test tests/e2e/teams-workflows-new-stack.spec.ts --workers=1",
     "test:e2e:invitations": "bun --env-file=.env.e2e playwright test tests/e2e/invitations.spec.ts --workers=1",
-    "check": "bun run lint && bun run format:check",
-    "check:full": "bun run check && bun run check-types && bun run test && bun run test:e2e"
+    "check": "turbo run //#format:check //#lint check-types test @church-task/cli#test:cli --ui=stream",
+    "check:e2e": "turbo run //#format:check //#lint check-types test @church-task/cli#test:cli //#test:e2e --ui=stream"
   },
   "dependencies": {
     "@church-task/auth": "workspace:*",

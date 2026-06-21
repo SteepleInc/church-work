@@ -4,11 +4,12 @@
 
 `church-task` is a private Bun + Turborepo TypeScript monorepo using a PreachX-style architecture with TanStack Start, Postgres, Drizzle, Zero, Better Auth, Effect, shared UI primitives, and shared config/env packages.
 
-Primary commands from the repo root:
+Primary verification commands from the repo root:
 
-- `bun run build` builds all workspaces.
-- `bun run check-types` runs type checks through Turbo.
-- `bun run check` runs Oxlint and Oxfmt.
+- `bun check` runs the standard local gate: type checks, formatting check, lint, and unit tests through a single Turbo process with stream output.
+- `bun check:e2e` runs the full gate: everything in `bun check`, plus the end-to-end test suite.
+
+Use those two commands for verification unless the user asks for a narrower command or a package-specific script is clearly more appropriate.
 
 The package manager is Bun (`bun@1.3.13`). Prefer Bun commands for this repo unless a package-specific script clearly requires something else.
 
