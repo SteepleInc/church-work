@@ -238,6 +238,11 @@ export function TaskExecutionSurface({
   const teamMemberIdsByTeamId = buildTeamMemberIndex(
     teamMembershipsCollection.teamMembershipsCollection,
   );
+  const currentUserTeamIds = new Set(
+    teamMembershipsCollection.teamMembershipsCollection
+      .filter((membership) => membership.userId === currentUserId)
+      .map((membership) => membership.teamId),
+  );
 
   // `buildProjectedWeekCycles` projects the sparse Cycle calendar into the
   // contiguous Weeks the board reasons about (origin/main foundation).
@@ -450,7 +455,7 @@ export function TaskExecutionSurface({
     workflowStatuses: workflowStatuses.map(toBoardWorkflowStatus),
     tasks: boardTasks,
     assigneeOptions,
-    teamOptions: teams,
+    teamOptions: teams.map((teamOption) => ({ ...teamOption, color: null })),
     labelOptions: labelsCollection.labelsCollection,
     currentUserId,
     teamMemberIdsByTeamId,
@@ -541,6 +546,8 @@ export function TaskExecutionSurface({
     workflowStatuses: workflowStatuses.map(toBoardWorkflowStatus),
     assigneeOptions,
     labelOptions: labelsCollection.labelsCollection,
+    teamOptions: teams.map((teamOption) => ({ ...teamOption, color: null })),
+    memberTeamIds: currentUserTeamIds,
     currentUserId,
     teamMemberIdsByTeamId,
     onAssignTask: sharedSurfaceProps.onAssignTask,
@@ -549,6 +556,9 @@ export function TaskExecutionSurface({
     onChangeTaskEstimate: sharedSurfaceProps.onChangeTaskEstimate,
     onChangeTaskDueDate: (change) => {
       editTask(change.taskId, { dueDate: change.dueDate });
+    },
+    onChangeTaskTeam: (change) => {
+      editTask(change.taskId, { teamId: change.teamId, labelIds: [...change.labelIds] });
     },
     onTransitionTask: (change) => transitionTask(change.taskId, change.transition),
     onOpenTask: sharedSurfaceProps.onOpenTask,
