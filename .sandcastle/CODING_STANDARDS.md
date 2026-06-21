@@ -14,7 +14,7 @@ The reviewer agent loads this file during Sandcastle review.
 ## Testing
 
 - Run targeted verification before committing.
-- Prefer targeted package/app checks while iterating, then `bun check:e2e` before work is considered CI-ready.
+- Prefer targeted package/app checks while iterating, `bun check` for initial verification, then `bun check:e2e` before work is considered CI-ready.
 - Add/update targeted Playwright E2E coverage for user-visible workflow changes.
 - CI owns the full E2E suite; Sandcastle branches should run the narrowest relevant E2E script.
 

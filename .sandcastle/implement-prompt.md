@@ -45,7 +45,7 @@ If applicable, use RGR to complete the task.
 
 # FEEDBACK LOOPS
 
-Before committing, run the narrowest useful Bun checks. Prefer targeted tests relevant to the changed package or app.
+Before committing, run the narrowest useful Bun checks. Prefer targeted tests relevant to the changed package or app, then `bun check` for initial verification when practical.
 
 Do not run the full E2E suite here unless the issue specifically requires it; the verify/fixer phase owns final E2E verification.
 

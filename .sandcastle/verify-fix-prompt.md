@@ -21,7 +21,7 @@ Own tests and test data, type errors, lint/format issues, integration bugs, and 
 
    Do not dump the full branch diff into context for large branches.
 
-2. Run targeted verification while iterating, then `bun check:e2e` before the work is considered CI-ready.
+2. Run targeted verification while iterating, `bun check` for initial verification, then `bun check:e2e` before the work is considered CI-ready.
 
 3. If the branch changes a user-visible browser workflow, add or update the narrowest useful Playwright E2E coverage. Then run the matching targeted E2E script when possible:
    - `bun run test:e2e:onboarding`
