@@ -19,9 +19,11 @@ export type DraftTaskPickerRefs = Partial<
   Record<TaskShortcutField, MutableRefObject<(() => void) | null>>
 >;
 
-// The canonical "armed" hover affordance shared with Board cards and sub-task
-// rows: a faint resting ring that brightens on hover so the keyboard-armed
-// state reads the same across every Task surface.
+// "Armed" hover affordance for card-shaped create surfaces. These cards already
+// carry a resting `border`, so — unlike Board cards, which use a persistent
+// `ring-1 ring-foreground/10` as their outline — we keep the ring hidden at rest
+// and pop a faint `ring-1` on hover. That avoids a heavy double-outline (border
+// + ring) while still signalling the same keyboard-armed state Board cards show.
 const ARMED_RING = "ring-foreground/10 transition-colors hover:ring-1 hover:ring-foreground/20";
 
 const FIELD_ITEMS: readonly {
