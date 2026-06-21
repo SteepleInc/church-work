@@ -80,15 +80,6 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
     <section className="grid gap-3">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-[15px]">Activity</h3>
-        {/* Subscribe + subscribers are visual stubs until the subscription
-            backend exists; they are intentionally non-functional for now. */}
-        <button
-          className="text-muted-foreground text-sm transition-colors hover:text-foreground"
-          disabled
-          type="button"
-        >
-          Subscribe
-        </button>
       </div>
 
       {loading ? (
