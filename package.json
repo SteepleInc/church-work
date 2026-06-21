@@ -62,6 +62,7 @@
     "test:e2e:labels": "bun --env-file=.env.e2e playwright test tests/e2e/labels-new-stack.spec.ts --workers=1",
     "test:e2e:tasks-boards": "bun --env-file=.env.e2e playwright test tests/e2e/tasks-boards-new-stack.spec.ts --workers=1",
     "test:e2e:hover-keybindings": "bun --env-file=.env.e2e playwright test tests/e2e/task-hover-keybindings.spec.ts --workers=1",
+    "test:e2e:sub-tasks": "bun --env-file=.env.e2e playwright test tests/e2e/sub-tasks-new-stack.spec.ts --workers=1",
     "test:e2e:task-details-pickers": "bun --env-file=.env.e2e playwright test tests/e2e/task-details-pickers-new-stack.spec.ts --workers=1",
     "test:e2e:task-activity-feed": "bun --env-file=.env.e2e playwright test tests/e2e/task-activity-feed-new-stack.spec.ts --workers=1",
     "test:e2e:templates": "bun --env-file=.env.e2e playwright test tests/e2e/templates-new-stack.spec.ts --workers=1",

@@ -20,7 +20,7 @@ The supporting invariants:
 
 ## Consequences
 
-- Task creation everywhere (quick actions, MCP/agent args per ADR 0002, template projection) requires a team; creation surfaces need a team picker with context-aware defaults, and subtasks inherit their parent's team by default.
+- Task creation everywhere (quick actions, MCP/agent args per ADR 0002, template projection) requires a team; creation surfaces need a team picker with context-aware defaults. Subtasks default from their parent Task's Team, Assignee, Priority, and Cycle/Week, while Estimate and Labels start empty unless the creator sets them explicitly.
 - Every team-to-team move runs the workflow status remap between two distinct team Workflows — the null branches (`effectiveWorkflowId`, "No Team" lanes, nullable team filters) are deleted, not deprecated.
 - Identifier resolution is case-insensitive (canonical form uppercase) and must check current identifiers before previous-identifier aliases.
 - Task numbers are drawn at creation/projection time, so a Template Task's identifier does not exist until it lands in a Cycle.

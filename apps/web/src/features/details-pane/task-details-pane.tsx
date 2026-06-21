@@ -1,13 +1,27 @@
 import { CalendarIcon, ChevronRight, Tag, Triangle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
-import { useLabelsCollection } from "@/data/labels/labelsData.app";
+import { useCreateLabelMutation, useLabelsCollection } from "@/data/labels/labelsData.app";
+import { useCyclesCollection } from "@/data/cycles/cyclesData.app";
 import { useTaskByIdentifier } from "@/data/tasks/taskData.app";
-import { useTasksCollection, useUpdateTaskMutation } from "@/data/tasks/tasksData.app";
+import {
+  useCreateTaskMutation,
+  useMaterializeProjectedTemplateTaskMutation,
+  useTasksCollection,
+  useUpdateTaskMutation,
+  type TaskCollectionItem,
+} from "@/data/tasks/tasksData.app";
 import { useTeamMembershipsCollection, useTeamsCollection } from "@/data/teams/teamsData.app";
 import { getUserDisplayName, useChurchUsersCollection } from "@/data/users/usersData.app";
-import { useWorkflowStatusesCollection } from "@/data/workflows/workflowsData.app";
+import {
+  useWorkflowsCollection,
+  useWorkflowStatusesCollection,
+} from "@/data/workflows/workflowsData.app";
+import { SubTaskSection } from "@/features/details-pane/sub-task-section";
+import { isSubTaskRowArmed } from "@/features/details-pane/sub-task-row-shortcuts";
+import type { SubTaskCreateInput } from "@/features/details-pane/sub-task-creator";
 import { TeamAvatar } from "@/components/avatars/teamAvatar";
 import { useChangeDetailsPaneId } from "@/components/details-pane/details-pane-helpers";
 import { DetailsShell } from "@/components/details-pane/details-shell";
@@ -90,10 +104,15 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
   const teams = useTeamsCollection({ churchId });
   const teamMemberships = useTeamMembershipsCollection({ churchId });
   const users = useChurchUsersCollection({ churchId });
+  const workflows = useWorkflowsCollection({ churchId });
   const workflowStatuses = useWorkflowStatusesCollection({ churchId });
   const labels = useLabelsCollection({ churchId });
   const allTasks = useTasksCollection({ churchId, currentUserId: null });
+  const cycles = useCyclesCollection({ churchId, currentUserId });
   const updateTask = useUpdateTaskMutation();
+  const createTask = useCreateTaskMutation();
+  const createLabel = useCreateLabelMutation();
+  const materializeProjectedTask = useMaterializeProjectedTemplateTaskMutation();
 
   const team = teams.teamsCollection.find((candidate) => candidate.id === task?.teamId) ?? null;
   const loading = orgLoading || taskLoading;
@@ -145,6 +164,9 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (isEditableTarget(event.target)) return;
+      // Defer to a hovered sub-task row: the same field keys edit that row, not
+      // the parent Task, while the pointer is over it (see sub-task-row-shortcuts).
+      if (isSubTaskRowArmed()) return;
       const match = matchPickerHotkey(event, pickerHotkeys);
       const opener = match?.openRef.current;
       if (!opener) return;
@@ -241,9 +263,6 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
   const dueDateLabel = formatDueDate(task.dueDate);
   const cardState = task.taskState;
 
-  const subTasks = task.isProjected
-    ? []
-    : allTasks.tasksCollection.filter((candidate) => candidate.parentTaskId === task.id);
   const parentTask = task.parentTaskId
     ? (allTasks.tasksCollection.find((candidate) => candidate.id === task.parentTaskId) ?? null)
     : null;
@@ -259,6 +278,148 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
   };
 
   const titleValue = titleDraft ?? task.title;
+
+  // --- Sub-task section data + handlers --------------------------------------
+
+  const churchTimeZone = activeChurch?.churchTimeZone ?? null;
+
+  const weekLabelByCycleId = new Map(
+    cycles.cyclesCollection.map((cycle) => [cycle.id, cycle.displayName] as const),
+  );
+
+  // The destination Team's default To Do status for a new sub-task. Sub-tasks
+  // never inherit the parent's Workflow Status (grilling decision).
+  const resolveDefaultStatusId = (teamId: string): string | null => {
+    const workflow = workflows.workflowsCollection.find(
+      (candidate) => candidate.teamId === teamId && candidate.archivedAt === null,
+    );
+    if (!workflow) return null;
+    const inWorkflow = workflowStatuses.workflowStatusesCollection.filter(
+      (status) => status.workflowId === workflow.id && status.archivedAt === null,
+    );
+    return (
+      [...inWorkflow]
+        .sort((left, right) => left.sortOrder - right.sortOrder)
+        .find((status) => status.taskState === "todo")?.id ??
+      inWorkflow[0]?.id ??
+      null
+    );
+  };
+
+  // Build a `targetCycle` from an existing Cycle so the sub-task lands in the
+  // same Week as its parent. The create mutator resolves an existing Cycle by
+  // start_date, so this attaches to the parent's Cycle rather than duplicating.
+  const targetCycleForCycleId = (cycleId: string | null) => {
+    if (!cycleId || !churchTimeZone) return undefined;
+    const cycle = cycles.cyclesCollection.find((candidate) => candidate.id === cycleId);
+    if (!cycle) return undefined;
+    return {
+      churchTimeZone,
+      startDate: cycle.startDate,
+      endDate: cycle.endDate,
+      startsAt: new Date(cycle.startsAt).toISOString(),
+      endsAt: new Date(cycle.endsAt).toISOString(),
+    };
+  };
+
+  const createOneSubTask = async (
+    parent: TaskCollectionItem,
+    input: SubTaskCreateInput,
+  ): Promise<boolean> => {
+    if (!activeChurch || !currentUserId) return false;
+    const statusId = resolveDefaultStatusId(input.teamId);
+    if (!statusId) {
+      toast.error("Could not find a To Do Workflow Status for that Team.");
+      return false;
+    }
+    const result = await createTask({
+      churchId: activeChurch.id,
+      actorUserId: currentUserId,
+      title: input.title,
+      description: input.description,
+      teamId: input.teamId,
+      assignedUserId: input.assignedUserId,
+      workflowStatusId: statusId,
+      dueDate: input.dueDate,
+      parentTaskId: parent.id,
+      labelIds: input.labelIds,
+      estimate: input.estimate === "no_estimate" ? null : input.estimate,
+      priority: input.priority === "no_priority" ? null : input.priority,
+      ...(targetCycleForCycleId(parent.cycleId)
+        ? { targetCycle: targetCycleForCycleId(parent.cycleId) }
+        : {}),
+    });
+    if (!result.ok) {
+      toast.error(result.error.message);
+      return false;
+    }
+    return true;
+  };
+
+  // A projected parent has no real identity yet; materialize it first, then the
+  // pane normalizes to the real Task and creation continues (ADR 0017).
+  const ensureRealParent = async (): Promise<TaskCollectionItem | null> => {
+    if (!task.isProjected) return task;
+    const statusId = resolveDefaultStatusId(task.teamId);
+    if (!statusId) {
+      toast.error("Could not find a To Do Workflow Status for that Team.");
+      return null;
+    }
+    const result = await materializeProjectedTask({ task, workflowStatusId: statusId });
+    if (!result.ok) {
+      toast.error(result.error.message);
+      return null;
+    }
+    // The materialized Task replaces the projection; re-resolve it by source.
+    const real = allTasks.tasksCollection.find(
+      (candidate) =>
+        !candidate.isProjected &&
+        candidate.sourceTemplateTaskId === task.sourceTemplateTaskId &&
+        candidate.cycleId === task.cycleId,
+    );
+    if (real) changeDetailsPaneId(real.identifier).forceNav();
+    return real ?? null;
+  };
+
+  const handleCreateSubTask = async (input: SubTaskCreateInput): Promise<boolean> => {
+    const parent = await ensureRealParent();
+    if (!parent) return false;
+    return createOneSubTask(parent, input);
+  };
+
+  const handleCreateSubTasks = async (inputs: readonly SubTaskCreateInput[]): Promise<boolean> => {
+    const parent = await ensureRealParent();
+    if (!parent) return false;
+    let allOk = true;
+    for (const input of inputs) {
+      const ok = await createOneSubTask(parent, input);
+      if (!ok) allOk = false;
+    }
+    return allOk;
+  };
+
+  const handleEditSubTask = (
+    subTaskId: string,
+    fields: Parameters<typeof updateTask>[0]["fields"],
+  ) => {
+    if (!activeChurch) return;
+    void updateTask({
+      churchId: activeChurch.id,
+      actorUserId: activeChurch.currentUserId,
+      taskId: subTaskId,
+      fields,
+    });
+  };
+
+  const handleCreateSubTaskLabel = async (name: string): Promise<string | null> => {
+    if (!activeChurch) return null;
+    const result = await createLabel({ churchId: activeChurch.id, name });
+    if (!result.ok) {
+      toast.error(result.error.message);
+      return null;
+    }
+    return result.data.labels[0]?.id ?? null;
+  };
 
   // Name resolvers for the Activity Feed: prefer the live record's current name,
   // letting the feed fall back to the snapshot label in metadata when an id no
@@ -462,39 +623,43 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
             </section>
           ) : null}
 
-          {/* Sub-issues */}
-          {subTasks.length > 0 ? (
-            <section className="grid gap-2">
-              <h3 className="font-medium text-muted-foreground text-xs">
-                Sub-issues
-                <span className="ml-1.5 font-normal text-muted-foreground">{subTasks.length}</span>
-              </h3>
-              <div className="grid gap-1.5">
-                {subTasks.map((subTask) => {
-                  const subStatus = workflowStatuses.workflowStatusesCollection.find(
-                    (candidate) => candidate.id === subTask.workflowStatusId,
-                  );
-                  return (
-                    <button
-                      className="flex w-full items-center gap-2 rounded-lg border bg-background/60 p-3 text-left text-sm transition-colors hover:bg-accent"
-                      key={subTask.id}
-                      onClick={() => changeDetailsPaneId(subTask.identifier).forceNav()}
-                      type="button"
-                    >
-                      <WorkflowStatusIcon
-                        className="size-3.5 shrink-0"
-                        taskState={subStatus?.taskState ?? subTask.taskState}
-                      />
-                      <span className="shrink-0 font-medium text-muted-foreground text-xs">
-                        {subTask.identifier}
-                      </span>
-                      <span className="truncate">{subTask.title}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-          ) : null}
+          {/* Sub-tasks */}
+          <SubTaskSection
+            allTasks={allTasks.tasksCollection}
+            assigneeOptions={assigneeOptions}
+            currentUserId={currentUserId}
+            defaultPriority={task.priority ?? "no_priority"}
+            labels={labels.labelsCollection.map((label) => ({
+              id: label.id,
+              name: label.name,
+              color: label.color,
+              teamId: label.teamId,
+            }))}
+            onCreateLabel={handleCreateSubTaskLabel}
+            onCreateSubTask={handleCreateSubTask}
+            onCreateSubTasks={handleCreateSubTasks}
+            onEditTask={handleEditSubTask}
+            onOpenTask={(identifier) => changeDetailsPaneId(identifier).forceNav()}
+            parentTask={task}
+            teamMemberships={teamMemberships.teamMembershipsCollection.map((membership) => ({
+              teamId: membership.teamId,
+              userId: membership.userId,
+            }))}
+            teams={teams.teamsCollection.map((candidate) => ({
+              id: candidate.id,
+              name: candidate.name,
+              color: (candidate.color ?? null) as string | null,
+            }))}
+            weekLabelByCycleId={weekLabelByCycleId}
+            workflowStatuses={workflowStatuses.workflowStatusesCollection.map((status) => ({
+              id: status.id,
+              workflowId: status.workflowId,
+              name: status.name,
+              sortOrder: status.sortOrder,
+              taskState: status.taskState,
+              archivedAt: status.archivedAt,
+            }))}
+          />
 
           {/* Activity Feed (read-only history). Projected Tasks have no real
               Activity rows yet, so the feed is only shown for real Tasks. */}
