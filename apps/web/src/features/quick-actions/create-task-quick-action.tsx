@@ -30,7 +30,13 @@ import {
   LabelsComboboxSelector,
   PriorityComboboxSelector,
   StatusComboboxSelector,
+  TaskAssigneePillTrigger,
+  TaskDueDatePillTrigger,
+  TaskEstimatePillTrigger,
+  TaskLabelsPillTrigger,
   TaskPropertyPill,
+  TaskPriorityPillTrigger,
+  TaskStatusPillTrigger,
   TeamComboboxSelector,
   WorkflowStatusIcon,
   type TaskEstimate,
@@ -593,21 +599,7 @@ export function CreateTaskQuickAction() {
                       }}
                       openRef={statusOpenRef}
                       options={options}
-                      trigger={
-                        <TaskPropertyPill>
-                          {effectiveStatus ? (
-                            <>
-                              <WorkflowStatusIcon
-                                className="size-3.5"
-                                taskState={effectiveStatus.taskState}
-                              />
-                              {effectiveStatus.name}
-                            </>
-                          ) : (
-                            "Status"
-                          )}
-                        </TaskPropertyPill>
-                      }
+                      trigger={<TaskStatusPillTrigger status={effectiveStatus} />}
                       value={effectiveStatus?.id ?? null}
                     />
                   );
@@ -615,19 +607,12 @@ export function CreateTaskQuickAction() {
               </form.Subscribe>
               <form.Field name="priority">
                 {(field) => {
-                  const meta = getPriorityMeta(field.state.value);
-                  const Icon = meta.icon;
                   return (
                     <PriorityComboboxSelector
                       disabled={isLoading}
                       onValueChange={(next) => field.handleChange(next)}
                       openRef={priorityOpenRef}
-                      trigger={
-                        <TaskPropertyPill muted={field.state.value === "no_priority"}>
-                          <Icon className={cn("size-3.5", meta.className)} />
-                          {field.state.value === "no_priority" ? "Priority" : meta.label}
-                        </TaskPropertyPill>
-                      }
+                      trigger={<TaskPriorityPillTrigger value={field.state.value} />}
                       value={field.state.value}
                     />
                   );
@@ -658,12 +643,7 @@ export function CreateTaskQuickAction() {
                       openRef={assigneeOpenRef}
                       options={assigneeOptions}
                       teamMemberIds={teamMemberUserIds}
-                      trigger={
-                        <TaskPropertyPill muted={selectedAssignee === null}>
-                          <AssigneeAvatar assignee={selectedAssignee} size={14} />
-                          {selectedAssignee?.label ?? "Assignee"}
-                        </TaskPropertyPill>
-                      }
+                      trigger={<TaskAssigneePillTrigger assignee={selectedAssignee} />}
                       value={assignedUserId}
                     />
                   );
@@ -671,18 +651,12 @@ export function CreateTaskQuickAction() {
               </form.Subscribe>
               <form.Field name="estimate">
                 {(field) => {
-                  const meta = getEstimateMeta(field.state.value);
                   return (
                     <EstimateComboboxSelector
                       disabled={isLoading}
                       onValueChange={(next) => field.handleChange(next)}
                       openRef={estimateOpenRef}
-                      trigger={
-                        <TaskPropertyPill muted={field.state.value === "no_estimate"}>
-                          <Triangle className="size-3.5" />
-                          {field.state.value === "no_estimate" ? "Estimate" : meta.label}
-                        </TaskPropertyPill>
-                      }
+                      trigger={<TaskEstimatePillTrigger value={field.state.value} />}
                       value={field.state.value}
                     />
                   );
@@ -710,33 +684,7 @@ export function CreateTaskQuickAction() {
                       onValueChange={(next) => form.setFieldValue("labels", next)}
                       openRef={labelsOpenRef}
                       options={labelOptions}
-                      trigger={
-                        <TaskPropertyPill muted={selected.length === 0}>
-                          {selected.length === 0 ? (
-                            <>
-                              <Tag className="size-3.5" />
-                              Labels
-                            </>
-                          ) : (
-                            <>
-                              <span className="flex items-center -space-x-1">
-                                {selected.map((option) => (
-                                  <span
-                                    className={cn(
-                                      "size-2.5 rounded-full ring-2 ring-background",
-                                      labelDotClassName(option),
-                                    )}
-                                    key={option.id}
-                                  />
-                                ))}
-                              </span>
-                              {selected.length === 1
-                                ? selected[0]?.name
-                                : `${selected.length} labels`}
-                            </>
-                          )}
-                        </TaskPropertyPill>
-                      }
+                      trigger={<TaskLabelsPillTrigger labels={selected} />}
                       value={labels}
                     />
                   );
@@ -744,18 +692,12 @@ export function CreateTaskQuickAction() {
               </form.Subscribe>
               <form.Field name="dueDate">
                 {(field) => {
-                  const dueDateLabel = formatDueDate(field.state.value);
                   return (
                     <DueDateSelector
                       disabled={isLoading}
                       onValueChange={(next) => field.handleChange(next)}
                       openRef={dueDateOpenRef}
-                      trigger={
-                        <TaskPropertyPill muted={dueDateLabel === null}>
-                          <CalendarIcon className="size-3.5" />
-                          {dueDateLabel ?? "Due date"}
-                        </TaskPropertyPill>
-                      }
+                      trigger={<TaskDueDatePillTrigger value={field.state.value} />}
                       value={field.state.value}
                     />
                   );

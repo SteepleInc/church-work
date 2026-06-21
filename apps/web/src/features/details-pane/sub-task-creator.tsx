@@ -14,7 +14,13 @@ import {
   labelDotClassName,
   LabelsComboboxSelector,
   PriorityComboboxSelector,
+  TaskAssigneePillTrigger,
+  TaskDueDatePillTrigger,
+  TaskEstimatePillTrigger,
+  TaskLabelsPillTrigger,
   TaskPropertyPill,
+  TaskPriorityPillTrigger,
+  TaskTeamPillTrigger,
   TeamComboboxSelector,
   type TaskEstimate,
   type TaskPriority,
@@ -196,9 +202,6 @@ export function SubTaskCreator({
     }
   };
 
-  const priorityMeta = getPriorityMeta(state.priority);
-  const PriorityIcon = priorityMeta.icon;
-  const estimateMeta = getEstimateMeta(state.estimate);
   const selectedAssignee =
     assigneeOptions.find((option) => option.id === state.assignedUserId) ?? null;
   const team = teamOptions.find((option) => option.id === state.teamId) ?? null;
@@ -268,10 +271,7 @@ export function SubTaskCreator({
             setState((prev) => ({ ...prev, priority: next }));
           }}
           trigger={
-            <TaskPropertyPill muted={state.priority === "no_priority"}>
-              <PriorityIcon className={cn("size-3.5", priorityMeta.className)} />
-              {state.priority === "no_priority" ? "Priority" : priorityMeta.label}
-            </TaskPropertyPill>
+            <TaskPriorityPillTrigger value={state.priority} />
           }
           value={state.priority}
         />
@@ -282,10 +282,7 @@ export function SubTaskCreator({
             onValueChange={onTeamChange}
             options={teamOptions}
             trigger={
-              <TaskPropertyPill>
-                <TeamAvatar color={team.color} name={team.name} size={16} />
-                {team.name}
-              </TaskPropertyPill>
+              <TaskTeamPillTrigger avatarSize={16} team={team} />
             }
             value={team.id}
           />
@@ -301,10 +298,7 @@ export function SubTaskCreator({
           options={assigneeOptions}
           teamMemberIds={teamMemberIds}
           trigger={
-            <TaskPropertyPill muted={selectedAssignee === null}>
-              <AssigneeAvatar assignee={selectedAssignee} size={16} />
-              {selectedAssignee?.label ?? "Assignee"}
-            </TaskPropertyPill>
+            <TaskAssigneePillTrigger assignee={selectedAssignee} avatarSize={16} />
           }
           value={state.assignedUserId}
         />
@@ -312,10 +306,7 @@ export function SubTaskCreator({
         <EstimateComboboxSelector
           onValueChange={(next) => setState((prev) => ({ ...prev, estimate: next }))}
           trigger={
-            <TaskPropertyPill muted={state.estimate === "no_estimate"}>
-              <Triangle className="size-3.5" />
-              {state.estimate === "no_estimate" ? "Estimate" : estimateMeta.label}
-            </TaskPropertyPill>
+            <TaskEstimatePillTrigger value={state.estimate} />
           }
           value={state.estimate}
         />
@@ -332,33 +323,7 @@ export function SubTaskCreator({
           onValueChange={(next) => setState((prev) => ({ ...prev, labelIds: next }))}
           options={labelOptions}
           trigger={
-            <TaskPropertyPill muted={selectedLabels.length === 0}>
-              {selectedLabels.length === 0 ? (
-                <>
-                  <Tag className="size-3.5" />
-                  Labels
-                </>
-              ) : (
-                <>
-                  <span className="-space-x-1 flex items-center">
-                    {selectedLabels.map((label) => (
-                      <span
-                        className={cn(
-                          "size-2.5 rounded-full ring-2 ring-background",
-                          labelDotClassName(label),
-                        )}
-                        key={label.id}
-                      />
-                    ))}
-                  </span>
-                  <span className="truncate">
-                    {selectedLabels.length === 1
-                      ? selectedLabels[0]?.name
-                      : `${selectedLabels.length} labels`}
-                  </span>
-                </>
-              )}
-            </TaskPropertyPill>
+            <TaskLabelsPillTrigger labels={selectedLabels} />
           }
           value={state.labelIds}
         />
@@ -366,10 +331,7 @@ export function SubTaskCreator({
         <DueDateSelector
           onValueChange={(next) => setState((prev) => ({ ...prev, dueDate: next }))}
           trigger={
-            <TaskPropertyPill muted={dueDateLabel === null}>
-              <CalendarIcon className="size-3.5" />
-              {dueDateLabel ?? "Due date"}
-            </TaskPropertyPill>
+            <TaskDueDatePillTrigger value={state.dueDate} />
           }
           value={state.dueDate}
         />

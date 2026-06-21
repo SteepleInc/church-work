@@ -34,7 +34,12 @@ import {
   LabelsComboboxSelector,
   labelDotClassName,
   PriorityComboboxSelector,
+  TaskAssigneePillTrigger,
+  TaskEstimatePillTrigger,
+  TaskLabelsPillTrigger,
   TaskPropertyPill,
+  TaskPriorityPillTrigger,
+  TaskTeamPillTrigger,
   TeamComboboxSelector,
   type TaskEstimate,
   type TaskPriority,
@@ -2382,9 +2387,6 @@ function TemplateTaskCard({
   } = fieldProps;
   const selectedTeam = teams.find((team) => team.id === task.teamId) ?? null;
   const selectedAssignee = assigneeOptions.find((option) => option.id === task.assigneeId) ?? null;
-  const estimateMeta = getEstimateMeta(task.estimate);
-  const priorityMeta = getPriorityMeta(task.priority);
-  const PriorityIcon = priorityMeta.icon;
 
   // Members of the selected Team feed the assignee picker's "Team members".
   const teamMemberUserIds = useMemo(
@@ -2462,16 +2464,7 @@ function TemplateTaskCard({
           onValueChange={changeTeam}
           options={teamPickerOptions}
           trigger={
-            <TaskPropertyPill muted={selectedTeam === null}>
-              {selectedTeam ? (
-                <>
-                  <TeamAvatar color={selectedTeam.color} name={selectedTeam.name} size={14} />
-                  {selectedTeam.name}
-                </>
-              ) : (
-                "Team"
-              )}
-            </TaskPropertyPill>
+            <TaskTeamPillTrigger team={selectedTeam} />
           }
           value={task.teamId || null}
         />
@@ -2483,10 +2476,7 @@ function TemplateTaskCard({
           options={assigneeOptions}
           teamMemberIds={teamMemberUserIds}
           trigger={
-            <TaskPropertyPill muted={selectedAssignee === null}>
-              <AssigneeAvatar assignee={selectedAssignee} size={14} />
-              {selectedAssignee?.label ?? "Assignee"}
-            </TaskPropertyPill>
+            <TaskAssigneePillTrigger assignee={selectedAssignee} />
           }
           value={task.assigneeId}
         />
@@ -2494,10 +2484,7 @@ function TemplateTaskCard({
         <EstimateComboboxSelector
           onValueChange={(next) => onChange({ estimate: next })}
           trigger={
-            <TaskPropertyPill muted={task.estimate === "no_estimate"}>
-              <Triangle className="size-3.5" />
-              {task.estimate === "no_estimate" ? "Estimate" : estimateMeta.label}
-            </TaskPropertyPill>
+            <TaskEstimatePillTrigger value={task.estimate} />
           }
           value={task.estimate}
         />
@@ -2505,10 +2492,7 @@ function TemplateTaskCard({
         <PriorityComboboxSelector
           onValueChange={(next) => onChange({ priority: next })}
           trigger={
-            <TaskPropertyPill muted={task.priority === "no_priority"}>
-              <PriorityIcon className={cn("size-3.5", priorityMeta.className)} />
-              {task.priority === "no_priority" ? "Priority" : priorityMeta.label}
-            </TaskPropertyPill>
+            <TaskPriorityPillTrigger value={task.priority} />
           }
           value={task.priority}
         />
@@ -2517,28 +2501,7 @@ function TemplateTaskCard({
           onValueChange={(next) => onChange({ labelIds: next })}
           options={labelOptions}
           trigger={
-            <TaskPropertyPill muted={selectedLabels.length === 0}>
-              {selectedLabels.length === 0 ? (
-                "Labels"
-              ) : (
-                <>
-                  <span className="flex items-center -space-x-1">
-                    {selectedLabels.map((option) => (
-                      <span
-                        className={cn(
-                          "size-2.5 rounded-full ring-2 ring-background",
-                          labelDotClassName(option),
-                        )}
-                        key={option.id}
-                      />
-                    ))}
-                  </span>
-                  {selectedLabels.length === 1
-                    ? selectedLabels[0]?.name
-                    : `${selectedLabels.length} labels`}
-                </>
-              )}
-            </TaskPropertyPill>
+            <TaskLabelsPillTrigger labels={selectedLabels} />
           }
           value={task.labelIds}
         />
