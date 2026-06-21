@@ -13,7 +13,7 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   buildPeriodPlacementFrame,
@@ -38,6 +38,7 @@ import {
   type TaskEstimate,
   type TaskPriority,
 } from "@/components/tasks/task-card-fields";
+import { DraftTaskPropertySurface } from "@/components/tasks/draft-task-property-surface";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2381,6 +2382,21 @@ function TemplateTaskCard({
   } = fieldProps;
   const selectedTeam = teams.find((team) => team.id === task.teamId) ?? null;
   const selectedAssignee = assigneeOptions.find((option) => option.id === task.assigneeId) ?? null;
+  const teamOpenRef = useRef<(() => void) | null>(null);
+  const assigneeOpenRef = useRef<(() => void) | null>(null);
+  const estimateOpenRef = useRef<(() => void) | null>(null);
+  const priorityOpenRef = useRef<(() => void) | null>(null);
+  const labelsOpenRef = useRef<(() => void) | null>(null);
+  const pickerRefs = useMemo(
+    () => ({
+      team: teamOpenRef,
+      assignee: assigneeOpenRef,
+      estimate: estimateOpenRef,
+      priority: priorityOpenRef,
+      labels: labelsOpenRef,
+    }),
+    [],
+  );
 
   // Members of the selected Team feed the assignee picker's "Team members".
   const teamMemberUserIds = useMemo(
@@ -2417,7 +2433,11 @@ function TemplateTaskCard({
   };
 
   return (
-    <div className="group/task flex flex-col gap-2 rounded-lg border bg-background p-2.5 shadow-xs">
+    <DraftTaskPropertySurface
+      className="group/task relative flex flex-col gap-2 rounded-lg border bg-background p-2.5 shadow-xs"
+      pickerRefs={pickerRefs}
+      showArmedRing
+    >
       <div className="flex items-start gap-2">
         <Input
           className="h-8 flex-1 border-transparent bg-transparent px-1.5 font-medium shadow-none focus-visible:border-input focus-visible:bg-background"
@@ -2456,6 +2476,7 @@ function TemplateTaskCard({
         <TeamComboboxSelector
           memberTeamIds={memberTeamIds}
           onValueChange={changeTeam}
+          openRef={teamOpenRef}
           options={teamPickerOptions}
           trigger={<TaskTeamPillTrigger team={selectedTeam} />}
           value={task.teamId || null}
@@ -2465,6 +2486,7 @@ function TemplateTaskCard({
           align="start"
           currentUserId={currentUserId}
           onValueChange={(next) => onChange({ assigneeId: next })}
+          openRef={assigneeOpenRef}
           options={assigneeOptions}
           teamMemberIds={teamMemberUserIds}
           trigger={<TaskAssigneePillTrigger assignee={selectedAssignee} />}
@@ -2473,18 +2495,21 @@ function TemplateTaskCard({
 
         <EstimateComboboxSelector
           onValueChange={(next) => onChange({ estimate: next })}
+          openRef={estimateOpenRef}
           trigger={<TaskEstimatePillTrigger value={task.estimate} />}
           value={task.estimate}
         />
 
         <PriorityComboboxSelector
           onValueChange={(next) => onChange({ priority: next })}
+          openRef={priorityOpenRef}
           trigger={<TaskPriorityPillTrigger value={task.priority} />}
           value={task.priority}
         />
 
         <LabelsComboboxSelector
           onValueChange={(next) => onChange({ labelIds: next })}
+          openRef={labelsOpenRef}
           options={labelOptions}
           trigger={<TaskLabelsPillTrigger labels={selectedLabels} showEmptyIcon={false} />}
           value={task.labelIds}
@@ -2503,7 +2528,7 @@ function TemplateTaskCard({
           </Tooltip>
         ) : null}
       </div>
-    </div>
+    </DraftTaskPropertySurface>
   );
 }
 

@@ -43,6 +43,44 @@ async function bootBoardWithTask(page: Page, title: string): Promise<Locator> {
 }
 
 test.describe("Task card hover keybindings", () => {
+  test("create-task draft surface uses hover keys without hijacking typing", async ({
+    page,
+  }, testInfo) => {
+    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
+    await startAuthenticatedSession(page, {
+      churchName: `E2E Draft Surface Church ${suffix}`,
+      email: `draft-surface-${suffix}@example.com`,
+      userName: "E2E Draft Surface Owner",
+    });
+
+    await page.getByRole("main").getByRole("button", { name: "Create Task" }).click();
+    const dialog = page.getByRole("dialog", { name: /New Task/ });
+    await expect(dialog).toBeVisible();
+
+    const surface = dialog.locator('[data-task-draft-property-surface="true"]');
+    await surface.hover();
+
+    // The draft surface is hover-armed, but normal typing in editable fields must
+    // not be stolen by property shortcuts ("P" would otherwise open Priority).
+    const title = dialog.getByPlaceholder("Task title");
+    await title.pressSequentially("Plan practice");
+    await expect(title).toHaveValue("Plan practice");
+    await expect(page.getByPlaceholder("Change priority to...")).toHaveCount(0);
+
+    // Once focus leaves the input, the same hovered surface answers shared Task
+    // field shortcuts.
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await surface.hover();
+    await page.keyboard.press("KeyP");
+    await expect(page.getByPlaceholder("Change priority to...")).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    // The same surface owns the shared context menu.
+    await surface.click({ button: "right" });
+    await expect(page.getByRole("menuitem", { name: /Status/ })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: /Priority/ })).toBeVisible();
+  });
+
   test("hovering a card arms its status (S) and priority (P) shortcuts", async ({
     page,
   }, testInfo) => {

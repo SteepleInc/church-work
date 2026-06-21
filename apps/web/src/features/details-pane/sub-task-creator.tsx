@@ -1,5 +1,5 @@
 import { CalendarDays } from "lucide-react";
-import { useEffect, useRef, useState, type ClipboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ClipboardEvent } from "react";
 import { toast } from "sonner";
 
 import {
@@ -18,6 +18,7 @@ import {
   type TaskEstimate,
   type TaskPriority,
 } from "@/components/tasks/task-card-fields";
+import { DraftTaskPropertySurface } from "@/components/tasks/draft-task-property-surface";
 import { Button } from "@/components/ui/button";
 
 /** Maximum number of sub-tasks created from one multi-line paste. */
@@ -116,6 +117,23 @@ export function SubTaskCreator({
 }) {
   const [state, setState] = useState<CreatorState>(() => initialState(defaults));
   const titleRef = useRef<HTMLInputElement>(null);
+  const priorityOpenRef = useRef<(() => void) | null>(null);
+  const teamOpenRef = useRef<(() => void) | null>(null);
+  const assigneeOpenRef = useRef<(() => void) | null>(null);
+  const estimateOpenRef = useRef<(() => void) | null>(null);
+  const labelsOpenRef = useRef<(() => void) | null>(null);
+  const dueDateOpenRef = useRef<(() => void) | null>(null);
+  const pickerRefs = useMemo(
+    () => ({
+      priority: priorityOpenRef,
+      team: teamOpenRef,
+      assignee: assigneeOpenRef,
+      estimate: estimateOpenRef,
+      labels: labelsOpenRef,
+      dueDate: dueDateOpenRef,
+    }),
+    [],
+  );
 
   useEffect(() => {
     titleRef.current?.focus();
@@ -214,7 +232,11 @@ export function SubTaskCreator({
   };
 
   return (
-    <div className="grid gap-3 rounded-lg border bg-background/60 p-3">
+    <DraftTaskPropertySurface
+      className="relative grid gap-3 rounded-lg border bg-background/60 p-3"
+      pickerRefs={pickerRefs}
+      showArmedRing
+    >
       <input
         aria-label="Sub-task title"
         className="w-full bg-transparent font-medium text-sm outline-none placeholder:text-muted-foreground"
@@ -261,6 +283,7 @@ export function SubTaskCreator({
             markTouched("priority");
             setState((prev) => ({ ...prev, priority: next }));
           }}
+          openRef={priorityOpenRef}
           trigger={<TaskPriorityPillTrigger value={state.priority} />}
           value={state.priority}
         />
@@ -269,6 +292,7 @@ export function SubTaskCreator({
           <TeamComboboxSelector
             memberTeamIds={memberTeamIds}
             onValueChange={onTeamChange}
+            openRef={teamOpenRef}
             options={teamOptions}
             trigger={<TaskTeamPillTrigger avatarSize={16} team={team} />}
             value={team.id}
@@ -282,6 +306,7 @@ export function SubTaskCreator({
             markTouched("assignedUserId");
             setState((prev) => ({ ...prev, assignedUserId: next }));
           }}
+          openRef={assigneeOpenRef}
           options={assigneeOptions}
           teamMemberIds={teamMemberIds}
           trigger={<TaskAssigneePillTrigger assignee={selectedAssignee} avatarSize={16} />}
@@ -290,6 +315,7 @@ export function SubTaskCreator({
 
         <EstimateComboboxSelector
           onValueChange={(next) => setState((prev) => ({ ...prev, estimate: next }))}
+          openRef={estimateOpenRef}
           trigger={<TaskEstimatePillTrigger value={state.estimate} />}
           value={state.estimate}
         />
@@ -304,6 +330,7 @@ export function SubTaskCreator({
               : undefined
           }
           onValueChange={(next) => setState((prev) => ({ ...prev, labelIds: next }))}
+          openRef={labelsOpenRef}
           options={labelOptions}
           trigger={<TaskLabelsPillTrigger labels={selectedLabels} />}
           value={state.labelIds}
@@ -311,6 +338,7 @@ export function SubTaskCreator({
 
         <DueDateSelector
           onValueChange={(next) => setState((prev) => ({ ...prev, dueDate: next }))}
+          openRef={dueDateOpenRef}
           trigger={<TaskDueDatePillTrigger value={state.dueDate} />}
           value={state.dueDate}
         />
@@ -336,6 +364,6 @@ export function SubTaskCreator({
           Create
         </Button>
       </div>
-    </div>
+    </DraftTaskPropertySurface>
   );
 }

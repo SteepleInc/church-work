@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { TeamAvatar } from "@/components/avatars/teamAvatar";
 import { useOpenTaskDetailsPaneUrl } from "@/components/details-pane/details-pane-helpers";
 import { useAppForm } from "@/components/form/ts-form";
+import { DraftTaskPropertySurface } from "@/components/tasks/draft-task-property-surface";
 import {
   AssigneeComboboxSelector,
   DueDateSelector,
@@ -28,12 +29,7 @@ import {
   type TaskEstimate,
   type TaskPriority,
 } from "@/components/tasks/task-card-fields";
-import {
-  isEditableTarget,
-  matchPickerHotkey,
-  statusOptions,
-  type PickerHotkey,
-} from "@/components/tasks/task-kanban-board-utils";
+import { statusOptions } from "@/components/tasks/task-kanban-board-utils";
 import {
   resolveExecutionCycleScope,
   type WeekShortcut,
@@ -185,16 +181,16 @@ export function CreateTaskQuickAction() {
   const labelsOpenRef = useRef<(() => void) | null>(null);
   const dueDateOpenRef = useRef<(() => void) | null>(null);
 
-  const pickerHotkeys = useMemo<readonly PickerHotkey[]>(
-    () => [
-      { key: "t", openRef: teamOpenRef },
-      { key: "s", openRef: statusOpenRef },
-      { key: "a", openRef: assigneeOpenRef },
-      { key: "p", openRef: priorityOpenRef },
-      { key: "e", shift: true, openRef: estimateOpenRef },
-      { key: "l", openRef: labelsOpenRef },
-      { key: "d", openRef: dueDateOpenRef },
-    ],
+  const pickerRefs = useMemo(
+    () => ({
+      team: teamOpenRef,
+      status: statusOpenRef,
+      assignee: assigneeOpenRef,
+      priority: priorityOpenRef,
+      estimate: estimateOpenRef,
+      labels: labelsOpenRef,
+      dueDate: dueDateOpenRef,
+    }),
     [],
   );
 
@@ -402,10 +398,8 @@ export function CreateTaskQuickAction() {
     void form.handleSubmit();
   };
 
-  // Cmd+Enter creates; Cmd+Alt+Enter creates and opens. Picker shortcuts
-  // (T/S/A/P/⇧E/L/D) fire whenever focus is anywhere in the open dialog except
-  // the title/description inputs — listening on the document means they work
-  // even when nothing inside the dialog body is focused.
+  // Cmd+Enter creates; Cmd+Alt+Enter creates and opens. Property picker keys are
+  // handled by the shared hover-armed draft Task surface below.
   useEffect(() => {
     if (!isOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -415,16 +409,10 @@ export function CreateTaskQuickAction() {
         void form.handleSubmit();
         return;
       }
-      if (isEditableTarget(event.target)) return;
-      const match = matchPickerHotkey(event, pickerHotkeys);
-      const opener = match?.openRef.current;
-      if (!opener) return;
-      event.preventDefault();
-      opener();
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, pickerHotkeys, form]);
+  }, [isOpen, form]);
 
   return (
     <QuickActionsWrapper
@@ -518,7 +506,10 @@ export function CreateTaskQuickAction() {
           // The body never scrolls: the title is always visible and the
           // description textarea grows with its content, then scrolls
           // internally once it runs out of room.
-          <div className="flex min-h-0 flex-col gap-2 overflow-hidden p-4">
+          <DraftTaskPropertySurface
+            className="relative flex min-h-0 flex-col gap-2 overflow-hidden p-4"
+            pickerRefs={pickerRefs}
+          >
             <form.Field name="title">
               {(field) => (
                 <input
@@ -557,7 +548,7 @@ export function CreateTaskQuickAction() {
                 />
               )}
             </form.Field>
-          </div>
+          </DraftTaskPropertySurface>
         }
         Pinned={
           // The property pill row stays visible above the footer while the
