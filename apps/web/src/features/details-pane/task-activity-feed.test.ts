@@ -133,4 +133,28 @@ describe("TaskActivityFeed task comments", () => {
     expect(source).toContain("Subscribed to this thread.");
     expect(source).toContain("Unsubscribed from this thread.");
   });
+
+  test("adds stable deep-link fragments for root comments and replies", () => {
+    expect(source).toContain("TASK_COMMENT_FRAGMENT_PREFIX");
+    expect(source).toContain("getTaskCommentFragment(comment.id)");
+    expect(source).toContain("getTaskCommentFragment(reply.id)");
+    expect(source).toContain("id={getTaskCommentFragment(comment.id)}");
+    expect(source).toContain("id={getTaskCommentFragment(reply.id)}");
+  });
+
+  test("copies exact comment and reply links from the row action menu", () => {
+    expect(source).toContain("Copy link");
+    expect(source).toContain("copyTaskCommentLink(comment.id)");
+    expect(source).toContain("copyTaskCommentLink(reply.id)");
+    expect(source).toContain("Copied comment link.");
+  });
+
+  test("scrolls to and briefly highlights comment fragments including tombstones", () => {
+    expect(source).toContain("window.location.hash");
+    expect(source).toContain('scrollIntoView({ block: "center" });');
+    expect(source).toContain("setHighlightedCommentId");
+    expect(source).toContain("highlightedCommentId === comment.id");
+    expect(source).toContain("highlightedCommentId === reply.id");
+    expect(source).toContain("ring-2 ring-primary/45");
+  });
 });

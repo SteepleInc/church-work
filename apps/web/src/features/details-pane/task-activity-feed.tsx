@@ -18,7 +18,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -90,6 +90,20 @@ const GLYPH_ICON: Record<ActivityGlyph, LucideIcon> = {
   title: CircleDot,
 };
 
+const TASK_COMMENT_FRAGMENT_PREFIX = "task-comment-";
+const TASK_COMMENT_HIGHLIGHT_MS = 2200;
+
+function getTaskCommentFragment(commentId: string) {
+  return `${TASK_COMMENT_FRAGMENT_PREFIX}${commentId}`;
+}
+
+function getTaskCommentIdFromHash(hash: string) {
+  const fragment = hash.startsWith("#") ? hash.slice(1) : hash;
+  return fragment.startsWith(TASK_COMMENT_FRAGMENT_PREFIX)
+    ? fragment.slice(TASK_COMMENT_FRAGMENT_PREFIX.length)
+    : null;
+}
+
 /** An actor's resolved display name + id, for the leading avatar of each line. */
 export type ActivityActor = {
   readonly id: string;
@@ -138,6 +152,7 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
   const moderationViewer = useTaskCommentModerationViewer({
     currentUserId: props.currentUserId,
   });
+  const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null);
 
   const now = Date.now();
   const commentsById = useMemo(
@@ -165,6 +180,31 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
 
   // The query returns newest-first; the feed reads oldest-first like Linear.
   const ordered = useMemo(() => [...activitiesCollection].reverse(), [activitiesCollection]);
+
+  useEffect(() => {
+    let timeoutId: number | undefined;
+
+    const highlightHashTarget = () => {
+      const commentId = getTaskCommentIdFromHash(window.location.hash);
+      if (!commentId) return;
+      if (!commentsById.has(commentId)) return;
+
+      setHighlightedCommentId(commentId);
+      window.requestAnimationFrame(() => {
+        document
+          .getElementById(getTaskCommentFragment(commentId))
+          ?.scrollIntoView({ block: "center" });
+      });
+      timeoutId = window.setTimeout(() => setHighlightedCommentId(null), TASK_COMMENT_HIGHLIGHT_MS);
+    };
+
+    highlightHashTarget();
+    window.addEventListener("hashchange", highlightHashTarget);
+    return () => {
+      window.removeEventListener("hashchange", highlightHashTarget);
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+    };
+  }, [commentsById]);
 
   return (
     <section className="grid gap-3">
@@ -204,6 +244,7 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
               createComment={createComment}
               currentUserId={props.currentUserId}
               deleteComment={deleteComment}
+              highlightedCommentId={highlightedCommentId}
               moderationViewer={moderationViewer}
               resolveActorName={props.resolveActorName}
               repliesByParentCommentId={repliesByParentCommentId}
@@ -247,6 +288,7 @@ function ActivityRow({
   createComment,
   currentUserId,
   deleteComment,
+  highlightedCommentId,
   moderationViewer,
   resolvers,
   resolveActorName,
@@ -261,6 +303,7 @@ function ActivityRow({
   readonly createComment: (body: string, parentCommentId?: string | null) => Promise<void>;
   readonly currentUserId: string | null;
   readonly deleteComment: (commentId: string) => Promise<void>;
+  readonly highlightedCommentId: string | null;
   readonly moderationViewer: TaskCommentModerationViewer;
   readonly now: number;
   readonly resolvers: ActivityResolvers;
@@ -282,6 +325,8 @@ function ActivityRow({
       <TaskCommentCard
         comment={comment}
         currentUserId={currentUserId}
+        highlighted={highlightedCommentId === comment.id}
+        highlightedCommentId={highlightedCommentId}
         moderationViewer={moderationViewer}
         now={now}
         onReply={(body) => createComment(body, comment.id)}
@@ -333,6 +378,8 @@ function getCommentId(metadata: unknown): string | null {
 function TaskCommentCard({
   comment,
   currentUserId,
+  highlighted,
+  highlightedCommentId,
   moderationViewer,
   now,
   onDelete,
@@ -347,6 +394,8 @@ function TaskCommentCard({
 }: {
   readonly comment: TaskCommentCollectionItem;
   readonly currentUserId: string | null;
+  readonly highlighted: boolean;
+  readonly highlightedCommentId: string | null;
   readonly moderationViewer: TaskCommentModerationViewer;
   readonly now: number;
   readonly onReply: (body: string) => Promise<void>;
@@ -376,14 +425,22 @@ function TaskCommentCard({
     !isDeleted && comment.updated_at !== null && comment.updated_at !== comment.created_at;
 
   return (
-    <li className="group/comment flex items-start gap-2.5 py-0.5">
+    <li
+      className="group/comment flex items-start gap-2.5 py-0.5"
+      id={getTaskCommentFragment(comment.id)}
+    >
       <UserAvatar
         className="mt-0.5 shrink-0"
         name={actorName}
         size={28}
         userId={comment.authored_by_user_id}
       />
-      <article className="min-w-0 flex-1 rounded-lg border bg-card shadow-xs">
+      <article
+        className={cn(
+          "min-w-0 flex-1 rounded-lg border bg-card shadow-xs transition-shadow",
+          highlighted && "ring-2 ring-primary/45 ring-offset-2 ring-offset-background",
+        )}
+      >
         <header className="flex items-center gap-2 border-b px-3 py-1.5 text-sm">
           <span className="min-w-0 truncate font-medium text-foreground">{actorName}</span>
           {!isDeleted && subscribed ? <SubscribedIndicator /> : null}
@@ -398,6 +455,7 @@ function TaskCommentCard({
               isEditing={editing}
               subscribed={subscribed}
               onCopyMarkdown={() => copyCommentMarkdown(comment.body)}
+              onCopyLink={() => copyTaskCommentLink(comment.id)}
               onDelete={() => onDelete(comment.id)}
               onStartEdit={() => setEditing(true)}
               onSubscribe={onSubscribeThread}
@@ -434,7 +492,9 @@ function TaskCommentCard({
                 onDelete={onDelete}
                 onUpdate={onUpdate}
                 onCopyMarkdown={() => copyCommentMarkdown(reply.body)}
+                onCopyLink={() => copyTaskCommentLink(reply.id)}
                 resolveActorName={resolveActorName}
+                highlighted={highlightedCommentId === reply.id}
               />
             ))}
           </ol>
@@ -474,8 +534,10 @@ function TaskCommentCard({
 }
 
 function TaskCommentReply({
+  highlighted,
   moderationViewer,
   now,
+  onCopyLink,
   onCopyMarkdown,
   onDelete,
   onUpdate,
@@ -488,7 +550,9 @@ function TaskCommentReply({
   readonly onDelete: (commentId: string) => Promise<void>;
   readonly onUpdate: (commentId: string, body: string) => Promise<void>;
   readonly onCopyMarkdown: () => Promise<void>;
+  readonly onCopyLink: () => Promise<void>;
   readonly resolveActorName: (userId: string) => string | null;
+  readonly highlighted: boolean;
 }) {
   const actorName = resolveActorName(reply.authored_by_user_id) ?? "Unknown user";
   const createdAt = reply.created_at ?? now;
@@ -503,7 +567,13 @@ function TaskCommentReply({
   const isEdited = !isDeleted && reply.updated_at !== null && reply.updated_at !== reply.created_at;
 
   return (
-    <li className="group/reply flex items-start gap-2.5 px-3 py-2 not-last:border-b">
+    <li
+      className={cn(
+        "group/reply flex items-start gap-2.5 px-3 py-2 transition-shadow not-last:border-b",
+        highlighted && "ring-2 ring-primary/45 ring-inset",
+      )}
+      id={getTaskCommentFragment(reply.id)}
+    >
       <UserAvatar
         className="mt-0.5 shrink-0"
         name={actorName}
@@ -526,6 +596,7 @@ function TaskCommentReply({
               entity="reply"
               isEditing={editing}
               onCopyMarkdown={onCopyMarkdown}
+              onCopyLink={onCopyLink}
               onDelete={() => onDelete(reply.id)}
               onStartEdit={() => setEditing(true)}
               canModerate={canModerate}
@@ -624,6 +695,17 @@ async function copyCommentMarkdown(body: string) {
   }
 }
 
+async function copyTaskCommentLink(commentId: string) {
+  try {
+    const url = new URL(window.location.href);
+    url.hash = getTaskCommentFragment(commentId);
+    await navigator.clipboard.writeText(url.toString());
+    toast.success("Copied comment link.");
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : "Could not copy comment link.");
+  }
+}
+
 function handleCommentAttachmentStub() {
   // TODO(attachments): open an upload picker once attachment storage exists.
   toast.info("Attachments are coming soon.");
@@ -674,6 +756,7 @@ function CommentActions({
   entity,
   isEditing,
   onCopyMarkdown,
+  onCopyLink,
   onDelete,
   onStartEdit,
   onSubscribe,
@@ -685,6 +768,7 @@ function CommentActions({
   readonly entity: "comment" | "reply";
   readonly isEditing: boolean;
   readonly onCopyMarkdown: () => Promise<void>;
+  readonly onCopyLink: () => Promise<void>;
   readonly onDelete: () => Promise<void>;
   readonly onStartEdit: () => void;
   readonly onSubscribe?: () => Promise<void>;
@@ -750,6 +834,10 @@ function CommentActions({
           <MoreHorizontal />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-36">
+          <DropdownMenuItem onClick={() => void onCopyLink()}>
+            <Copy />
+            Copy link
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => void onCopyMarkdown()}>
             <Copy />
             Copy content as Markdown
