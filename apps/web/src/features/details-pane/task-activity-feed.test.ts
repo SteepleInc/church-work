@@ -14,7 +14,10 @@ describe("TaskActivityFeed task comments", () => {
     expect(source).toContain('placeholder="Leave a comment..."');
     expect(source).toContain("event.metaKey || event.ctrlKey");
     expect(source).toContain('event.key === "Enter"');
-    expect(source).toContain("⌘/Ctrl");
+    // The composer surfaces the shortcut via the shared, platform-aware Kbd
+    // (⌘ on macOS, Ctrl elsewhere) rather than a hardcoded glyph.
+    expect(source).toContain("<Kbd");
+    expect(source).toContain("mod enter");
   });
 
   test("renders top-level comments as cards that preserve plain-text formatting", () => {

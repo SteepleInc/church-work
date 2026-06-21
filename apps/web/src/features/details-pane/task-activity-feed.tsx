@@ -23,6 +23,7 @@ import {
 } from "@/data/task-comments/taskCommentsData.app";
 import { UserAvatar } from "@/components/avatars/userAvatar";
 import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -231,9 +232,9 @@ function TaskCommentCard({
         userId={comment.authored_by_user_id}
       />
       <article className="min-w-0 flex-1 rounded-lg border bg-card shadow-xs">
-        <header className="flex items-center gap-1.5 border-b px-3 py-1.5 text-sm">
-          <span className="truncate font-medium text-foreground">{actorName}</span>
-          <span className="shrink-0 text-muted-foreground text-xs" title={title}>
+        <header className="flex items-center gap-2 border-b px-3 py-1.5 text-sm">
+          <span className="min-w-0 truncate font-medium text-foreground">{actorName}</span>
+          <span className="ml-auto shrink-0 text-muted-foreground text-xs" title={title}>
             {formatActivityTime(createdAt, now)}
           </span>
         </header>
@@ -302,16 +303,7 @@ function ActivityCommentComposer({
           placeholder="Leave a comment..."
           value={body}
         />
-        <div className="mt-2 flex items-center justify-between gap-2">
-          <span className="text-muted-foreground/70 text-xs">
-            <kbd className="rounded border bg-muted px-1 py-0.5 font-medium font-sans text-[10px] text-muted-foreground">
-              ⌘/Ctrl
-            </kbd>
-            <kbd className="ml-0.5 rounded border bg-muted px-1 py-0.5 font-medium font-sans text-[10px] text-muted-foreground">
-              ↵
-            </kbd>
-            <span className="ml-1.5">to comment</span>
-          </span>
+        <div className="mt-2 flex items-center justify-end gap-2">
           <Button
             disabled={!canSubmit}
             loading={submitting}
@@ -320,6 +312,7 @@ function ActivityCommentComposer({
             type="button"
           >
             Comment
+            <Kbd className="ml-1.5">mod enter</Kbd>
           </Button>
         </div>
       </div>
