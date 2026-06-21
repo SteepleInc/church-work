@@ -138,7 +138,7 @@ function SubTaskRow({
   const depth = Math.min(task.depth ?? 0, SUB_TASK_MAX_INDENT_DEPTH);
 
   // Each selector publishes an imperative opener; the hover-keyboard layer fires
-  // the matching one (S/A/P/L/Shift+E) for the row under the pointer.
+  // the matching one (S/A/P/L/Shift+E/D/T) for the row under the pointer.
   const statusOpenRef = useRef<(() => void) | null>(null);
   const assigneeOpenRef = useRef<(() => void) | null>(null);
   const priorityOpenRef = useRef<(() => void) | null>(null);
@@ -230,7 +230,7 @@ function SubTaskRow({
       <div
         className={cn(
           // Hovering a row arms its field/open keyboard shortcuts (S/A/P/L/⇧E/
-          // D, O/Enter). The subtle ring mirrors the Board card's hover-focus
+          // D/T, O/Enter). The subtle ring mirrors the Board card's hover-focus
           // affordance so the armed state reads the same across surfaces.
           "flex items-center gap-2 rounded-lg border bg-background/60 px-3 py-2 text-sm ring-foreground/10 transition-colors hover:bg-accent hover:ring-1 hover:ring-foreground/20",
           isContext && "opacity-60",
