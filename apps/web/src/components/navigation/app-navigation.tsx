@@ -91,7 +91,7 @@ function AppNavigationBody() {
   return (
     <>
       <SidebarContent
-        className="h-full"
+        className="h-full gap-0 [&_[data-sidebar=group]]:py-1.5"
         scrollAreaClassName="mr-1 flex-1"
         scrollAreaMaskClassName="before:from-sidebar after:from-sidebar"
         scrollAreaViewportClassName="pl-2 pr-1"

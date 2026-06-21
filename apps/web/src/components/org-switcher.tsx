@@ -136,12 +136,9 @@ export function OrgSwitcher() {
     return (
       <SidebarMenu>
         <SidebarMenuItem>
-          <SidebarMenuButton className="pointer-events-none cursor-default" size="lg">
-            <Skeleton className="size-8 shrink-0 rounded-lg bg-muted-foreground/20" />
-            <div className="grid flex-1 gap-1.5 text-left text-sm leading-tight">
-              <Skeleton className="h-3 w-24 bg-muted-foreground/20" />
-              <Skeleton className="h-2.5 w-16 bg-muted-foreground/20" />
-            </div>
+          <SidebarMenuButton className="pointer-events-none cursor-default">
+            <Skeleton className="size-6 shrink-0 rounded-md bg-muted-foreground/20" />
+            <Skeleton className="h-3 w-24 flex-1 bg-muted-foreground/20" />
             <ChevronDownIcon className="ml-auto size-4 text-muted-foreground/40" />
           </SidebarMenuButton>
         </SidebarMenuItem>
@@ -155,17 +152,13 @@ export function OrgSwitcher() {
         <DropdownMenu onOpenChange={setOpen} open={open}>
           <DropdownMenuTrigger
             render={
-              <SidebarMenuButton
-                className="cursor-pointer data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-                size="lg"
-              />
+              <SidebarMenuButton className="cursor-pointer data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground" />
             }
           >
             <ChurchAvatar name={currentOrgOpt?.name ?? "No Name"} />
-            <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-semibold">{currentOrgOpt?.name ?? "No Name"}</span>
-              <span className="truncate text-muted-foreground text-xs capitalize">Church</span>
-            </div>
+            <span className="flex-1 truncate text-left font-semibold">
+              {currentOrgOpt?.name ?? "No Name"}
+            </span>
             <ChevronDownIcon className="ml-auto size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -277,7 +270,7 @@ function ChurchAvatar({
     <div
       className={
         size === "md"
-          ? "flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-semibold"
+          ? "flex size-6 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground text-xs font-semibold"
           : "flex size-6 shrink-0 items-center justify-center rounded-md border bg-background text-xs font-semibold"
       }
     >
