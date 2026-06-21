@@ -215,6 +215,59 @@ test.describe("Task details Activity Feed", () => {
     });
   });
 
+  test("deep-links directly to root comments and replies", async ({ context, page }, testInfo) => {
+    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await startAuthenticatedSession(page, {
+      churchName: `E2E Activity Deep Link Church ${suffix}`,
+      email: `activity-deep-link-${suffix}@example.com`,
+      userName: "E2E Deep Link Owner",
+    });
+
+    const pane = await openTaskDetails(page, `Activity Deep Link Task ${suffix}`, "Worship");
+    const commentBody = `Root deep link comment ${suffix}`;
+    const replyBody = `Reply deep link target ${suffix}`;
+
+    await pane.getByRole("textbox", { name: "Add a comment" }).fill(commentBody);
+    await pane.getByRole("button", { exact: true, name: "Comment" }).click();
+
+    const commentCard = activityFeed(page).getByRole("listitem").filter({ hasText: commentBody });
+    await expect(commentCard).toBeVisible({ timeout: 20_000 });
+
+    await commentCard.getByRole("button", { exact: true, name: "Reply" }).click();
+    await commentCard.getByRole("textbox", { name: "Add a reply" }).fill(replyBody);
+    await commentCard.getByRole("button", { exact: true, name: "Reply" }).click();
+    await expect(
+      commentCard.getByRole("list", { name: "Replies" }).getByText(replyBody),
+    ).toBeVisible({ timeout: 20_000 });
+
+    await commentCard.hover();
+    await commentCard.getByLabel("Comment actions").click();
+    await page.getByRole("menuitem", { name: "Copy link" }).click();
+    const commentLink = await page.evaluate(() => navigator.clipboard.readText());
+    const commentFragment = new URL(commentLink).hash.slice(1);
+    expect(commentFragment).toMatch(/^task-comment-/);
+
+    await page.goto(commentLink);
+    const linkedComment = page.locator(`[id="${commentFragment}"]`);
+    await expect(linkedComment.getByText(commentBody)).toBeVisible({ timeout: 20_000 });
+    await expect(linkedComment.locator("article")).toHaveClass(/ring-2/);
+
+    const replyRow = linkedComment.getByRole("listitem").filter({ hasText: replyBody });
+    await replyRow.hover();
+    await replyRow.getByLabel("Reply actions").click();
+    await page.getByRole("menuitem", { name: "Copy link" }).click();
+    const replyLink = await page.evaluate(() => navigator.clipboard.readText());
+    const replyFragment = new URL(replyLink).hash.slice(1);
+    expect(replyFragment).toMatch(/^task-comment-/);
+    expect(replyFragment).not.toBe(commentFragment);
+
+    await page.goto(replyLink);
+    const linkedReply = page.locator(`[id="${replyFragment}"]`);
+    await expect(linkedReply.getByText(replyBody)).toBeVisible({ timeout: 20_000 });
+    await expect(linkedReply).toHaveClass(/ring-2/);
+  });
+
   test("edits and deletes Task Comments as visible tombstones", async ({ page }, testInfo) => {
     const suffix = `${Date.now()}-${testInfo.workerIndex}`;
     await startAuthenticatedSession(page, {
