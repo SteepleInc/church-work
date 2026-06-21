@@ -740,6 +740,7 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
           {task.isProjected ? null : (
             <TaskActivityFeed
               churchId={churchId}
+              currentUserId={currentUserId}
               resolveActorName={activityResolvers.user}
               resolvers={activityResolvers}
               taskEntityId={task.id}

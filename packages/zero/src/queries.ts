@@ -37,6 +37,9 @@ const ChurchTaskListArgs = toZeroSchema(
 const ActivityForEntityArgs = toZeroSchema(
   Schema.Struct({ church_id: Schema.String, entity_id: Schema.String, entity_type: Schema.String }),
 );
+const TaskCommentsArgs = toZeroSchema(
+  Schema.Struct({ church_id: Schema.String, task_id: Schema.String }),
+);
 const TaskByIdentifierArgs = toZeroSchema(
   Schema.Struct({ church_id: Schema.String, identifier: Schema.String }),
 );
@@ -140,6 +143,21 @@ export const queries = defineQueries({
         .where("entity_id", args.entity_id)
         .where("deleted_at", "IS", null)
         .orderBy("occurred_at", "desc");
+    }),
+  },
+  task_comments: {
+    by_task: defineChurchTaskQuery(TaskCommentsArgs, ({ args, ctx }) => {
+      if (!hasActiveChurchAccess(ctx, args.church_id)) {
+        if (isServerContext(ctx)) requireActiveChurchAccess(ctx, args.church_id);
+
+        return zql.task_comments.where("id", "__unauthorized__").where("deleted_at", "IS", null);
+      }
+
+      return zql.task_comments
+        .where("church_id", args.church_id)
+        .where("task_id", args.task_id)
+        .where("deleted_at", "IS", null)
+        .orderBy("created_at", "asc");
     }),
   },
   teams_admin: {

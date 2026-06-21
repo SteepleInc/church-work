@@ -561,6 +561,24 @@ export const activities = pgTable(
   ],
 );
 
+export const task_comments = pgTable(
+  "task_comments",
+  {
+    id: text("id").primaryKey(),
+    ...baseEntityFields,
+    church_id: text("church_id").notNull(),
+    task_id: text("task_id").notNull(),
+    parent_comment_id: text("parent_comment_id"),
+    body: text("body").notNull(),
+    authored_by_user_id: text("authored_by_user_id").notNull(),
+  },
+  (table) => [
+    index("task_comments_church_id_idx").on(table.church_id),
+    index("task_comments_task_id_idx").on(table.church_id, table.task_id),
+    index("task_comments_parent_idx").on(table.church_id, table.parent_comment_id),
+  ],
+);
+
 export const member = pgTable(
   "member",
   {
@@ -627,6 +645,7 @@ export const schema = {
   template_teams,
   templates,
   tasks,
+  task_comments,
   user,
   verification,
   workflow_statuses,
@@ -635,6 +654,8 @@ export const schema = {
 
 export type Activity = typeof activities.$inferSelect;
 export type NewActivity = typeof activities.$inferInsert;
+export type TaskComment = typeof task_comments.$inferSelect;
+export type NewTaskComment = typeof task_comments.$inferInsert;
 
 export type DemoItem = typeof demo_items.$inferSelect;
 export type NewDemoItem = typeof demo_items.$inferInsert;

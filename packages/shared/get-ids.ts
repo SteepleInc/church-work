@@ -14,6 +14,7 @@ export const getOrgUserId = () => getEntityId("orguser");
 export const getTeamId = () => getEntityId("team");
 export const getTeamMembershipId = () => getEntityId("teammembership");
 export const getTaskId = () => getEntityId("task");
+export const getTaskCommentId = () => getEntityId("taskcomment");
 export const getLabelId = () => getEntityId("label");
 export const getTemplateId = () => getEntityId("template");
 export const getTemplateScheduleId = () => getEntityId("templateschedule");

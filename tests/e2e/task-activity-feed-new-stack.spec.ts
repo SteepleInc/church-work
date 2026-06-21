@@ -103,4 +103,28 @@ test.describe("Task details Activity Feed", () => {
       { timeout: 20_000 },
     );
   });
+
+  test("adds a top-level Task Comment to the Activity feed", async ({ page }, testInfo) => {
+    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
+    await startAuthenticatedSession(page, {
+      churchName: `E2E Activity Comment Church ${suffix}`,
+      email: `activity-comment-${suffix}@example.com`,
+      userName: "E2E Comment Owner",
+    });
+
+    const pane = await openTaskDetails(page, `Activity Comment Task ${suffix}`, "Worship");
+    const commentBody = `This is a persisted top-level comment ${suffix}`;
+
+    await pane.getByRole("textbox", { name: "Add a comment" }).fill(commentBody);
+    await pane.getByRole("button", { name: "Comment" }).click();
+
+    await expect(activityFeed(page).getByText("E2E Comment Owner").first()).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(activityFeed(page).getByText(commentBody)).toBeVisible({ timeout: 20_000 });
+
+    await page.reload();
+    await expect(detailsPane(page)).toBeVisible();
+    await expect(activityFeed(page).getByText(commentBody)).toBeVisible({ timeout: 20_000 });
+  });
 });

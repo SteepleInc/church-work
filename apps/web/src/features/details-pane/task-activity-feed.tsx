@@ -3,20 +3,29 @@ import {
   CalendarIcon,
   CircleDot,
   CirclePlus,
+  MessageSquare,
   RotateCcw,
   Tag,
   Triangle,
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import {
   useActivitiesForEntityCollection,
   type ActivityCollectionItem,
 } from "@/data/activities/activitiesData.app";
+import {
+  useCreateTaskCommentMutation,
+  useTaskCommentsForTaskCollection,
+  type TaskCommentCollectionItem,
+} from "@/data/task-comments/taskCommentsData.app";
 import { UserAvatar } from "@/components/avatars/userAvatar";
+import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 import {
@@ -51,6 +60,7 @@ export type ActivityActor = {
 
 type ActivityFeedProps = {
   readonly churchId: string | null;
+  readonly currentUserId: string | null;
   readonly taskEntityId: string;
   readonly resolvers: ActivityResolvers;
   /** Resolves an actor user id to a display name; null when the user is gone. */
@@ -61,8 +71,8 @@ type ActivityFeedProps = {
  * The read-only Activity Feed shown at the bottom of the Task Details Pane.
  * Renders one reverse-chronological line per Activity, leading with the actor's
  * avatar, an event glyph, the human-readable phrase, and a compact relative
- * timestamp (absolute time in the line's `title`). Comments, replies, and
- * subscriptions are deferred.
+ * timestamp (absolute time in the line's `title`). Task Comments render inline
+ * as cards; replies and subscriptions are deferred.
  */
 export function TaskActivityFeed(props: ActivityFeedProps) {
   const { activitiesCollection, loading } = useActivitiesForEntityCollection({
@@ -70,8 +80,20 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
     entityId: props.taskEntityId,
     entityType: "task",
   });
+  const { taskCommentsCollection } = useTaskCommentsForTaskCollection({
+    churchId: props.churchId,
+    taskId: props.taskEntityId,
+  });
+  const createComment = useCreateTaskCommentMutation({
+    churchId: props.churchId,
+    taskId: props.taskEntityId,
+  });
 
   const now = Date.now();
+  const commentsById = useMemo(
+    () => new Map(taskCommentsCollection.map((comment) => [comment.id, comment])),
+    [taskCommentsCollection],
+  );
 
   // The query returns newest-first; the feed reads oldest-first like Linear.
   const ordered = useMemo(() => [...activitiesCollection].reverse(), [activitiesCollection]);
@@ -94,7 +116,7 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
       {loading ? (
         <ActivityFeedSkeleton />
       ) : ordered.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No activity yet.</p>
+        <ActivityFeedEmpty />
       ) : (
         <ol aria-label="Activity" className="grid gap-2.5">
           {ordered.map((activity) => (
@@ -102,28 +124,65 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
               activity={activity}
               key={activity.id}
               now={now}
+              commentsById={commentsById}
               resolveActorName={props.resolveActorName}
               resolvers={props.resolvers}
             />
           ))}
         </ol>
       )}
+
+      <ActivityCommentComposer
+        currentUserId={props.currentUserId}
+        currentUserName={
+          props.currentUserId ? (props.resolveActorName(props.currentUserId) ?? null) : null
+        }
+        onSubmit={createComment}
+      />
     </section>
+  );
+}
+
+function ActivityFeedEmpty() {
+  return (
+    <div className="flex flex-col items-center gap-1.5 rounded-lg border border-dashed py-6 text-center">
+      <MessageSquare className="size-5 text-muted-foreground" />
+      <p className="text-muted-foreground text-sm">No activity yet.</p>
+      <p className="text-muted-foreground/70 text-xs">
+        Leave the first comment to start the conversation.
+      </p>
+    </div>
   );
 }
 
 function ActivityRow({
   activity,
   now,
+  commentsById,
   resolvers,
   resolveActorName,
 }: {
   readonly activity: ActivityCollectionItem;
+  readonly commentsById: ReadonlyMap<string, TaskCommentCollectionItem>;
   readonly now: number;
   readonly resolvers: ActivityResolvers;
   readonly resolveActorName: (userId: string) => string | null;
 }) {
   const metadata = parseMetadata(activity.metadata);
+  if (activity.event_type === "comment_created") {
+    const commentId = getCommentId(metadata);
+    const comment = commentId ? commentsById.get(commentId) : undefined;
+    if (!comment) return null;
+
+    return (
+      <TaskCommentCard
+        comment={comment}
+        now={now}
+        resolveActorName={resolveActorName}
+        title={new Date(activity.occurred_at).toLocaleString()}
+      />
+    );
+  }
   const line = describeActivity(activity.event_type, metadata, resolvers);
   if (!line) return null;
 
@@ -148,6 +207,126 @@ function ActivityRow({
         <span className="text-muted-foreground"> · {formatActivityTime(occurredAt, now)}</span>
       </p>
     </li>
+  );
+}
+
+function getCommentId(metadata: unknown): string | null {
+  if (metadata === null || typeof metadata !== "object") return null;
+
+  const commentId = (metadata as { readonly comment_id?: unknown }).comment_id;
+  return typeof commentId === "string" ? commentId : null;
+}
+
+function TaskCommentCard({
+  comment,
+  now,
+  resolveActorName,
+  title,
+}: {
+  readonly comment: TaskCommentCollectionItem;
+  readonly now: number;
+  readonly resolveActorName: (userId: string) => string | null;
+  readonly title: string;
+}) {
+  const actorName = resolveActorName(comment.authored_by_user_id) ?? "Unknown user";
+  const createdAt = comment.created_at ?? now;
+
+  return (
+    <li className="flex items-start gap-2.5 py-0.5">
+      <UserAvatar
+        className="mt-0.5 shrink-0"
+        name={actorName}
+        size={28}
+        userId={comment.authored_by_user_id}
+      />
+      <article className="min-w-0 flex-1 rounded-lg border bg-card shadow-xs">
+        <header className="flex items-center gap-2 border-b px-3 py-1.5 text-sm">
+          <span className="min-w-0 truncate font-medium text-foreground">{actorName}</span>
+          <span className="ml-auto shrink-0 text-muted-foreground text-xs" title={title}>
+            {formatActivityTime(createdAt, now)}
+          </span>
+        </header>
+        <p className="whitespace-pre-wrap break-words px-3 py-2.5 text-foreground/90 text-sm leading-relaxed">
+          {comment.body}
+        </p>
+      </article>
+    </li>
+  );
+}
+
+function ActivityCommentComposer({
+  currentUserId,
+  currentUserName,
+  onSubmit,
+}: {
+  readonly currentUserId: string | null;
+  readonly currentUserName: string | null;
+  readonly onSubmit: (body: string) => Promise<void>;
+}) {
+  const [body, setBody] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const trimmed = body.trim();
+  const canComment = currentUserId !== null;
+  const canSubmit = canComment && trimmed.length > 0 && !submitting;
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    try {
+      await onSubmit(trimmed);
+      setBody("");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="flex items-start gap-2.5">
+      {currentUserId ? (
+        <UserAvatar
+          className="mt-0.5 hidden shrink-0 sm:block"
+          name={currentUserName}
+          size={28}
+          userId={currentUserId}
+        />
+      ) : null}
+      <div
+        className={cn(
+          "min-w-0 flex-1 rounded-lg border bg-card p-2 transition-colors",
+          focused && "border-ring ring-3 ring-ring/50",
+        )}
+      >
+        <Textarea
+          aria-label="Add a comment"
+          className="min-h-20 resize-y border-0 bg-transparent p-1 shadow-none focus-visible:ring-0"
+          disabled={!canComment}
+          onBlur={() => setFocused(false)}
+          onChange={(event) => setBody(event.target.value)}
+          onFocus={() => setFocused(true)}
+          onKeyDown={(event) => {
+            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+              event.preventDefault();
+              void submit();
+            }
+          }}
+          placeholder={canComment ? "Leave a comment..." : "Sign in to leave a comment"}
+          value={body}
+        />
+        <div className="mt-2 flex items-center justify-end gap-2">
+          <Button
+            disabled={!canSubmit}
+            loading={submitting}
+            onClick={() => void submit()}
+            size="sm"
+            type="button"
+          >
+            Comment
+            <Kbd className="ml-1.5">mod enter</Kbd>
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -11,6 +11,7 @@ import {
   key_dates,
   labels,
   tasks,
+  task_comments,
   team_memberships,
   teams,
   workflow_statuses,
@@ -919,6 +920,48 @@ describe("Zero Task mutators", () => {
     expect(JSON.parse(activityInsert.metadata)).toMatchObject({ team_id: "team_production" });
     expect(teamUpdate.next_task_number).toBe(8);
     expect(formatTaskIdentifier("PRO", taskInsert.number)).toBe("PRO-7");
+  });
+
+  test("creates top-level Task Comments and logs comment-created Activity", async () => {
+    const { insertCalls, tx } = createServerTx([[{ id: "task_test", cycle_id: "cycle_test" }]]);
+
+    await mustGetMutator(mutators, "task_comments.create").fn({
+      args: {
+        body: "First line\n\nSecond line",
+        church_id: "org_test",
+        task_id: "task_test",
+      },
+      ctx: signedInContext,
+      tx,
+    });
+
+    const commentInsert = insertCalls.find((call) => call.table === task_comments)?.values as {
+      readonly authored_by_user_id: string;
+      readonly body: string;
+      readonly id: string;
+      readonly parent_comment_id: string | null;
+      readonly task_id: string;
+    };
+    const activityInsert = insertCalls.find((call) => call.table === activities)?.values as {
+      readonly entity_id: string;
+      readonly entity_type: string;
+      readonly event_type: string;
+      readonly metadata: string;
+    };
+
+    expect(getIdType(commentInsert.id)).toBe("taskcomment");
+    expect(commentInsert).toMatchObject({
+      authored_by_user_id: "user_test",
+      body: "First line\n\nSecond line",
+      parent_comment_id: null,
+      task_id: "task_test",
+    });
+    expect(activityInsert).toMatchObject({
+      entity_id: "task_test",
+      entity_type: "task",
+      event_type: "comment_created",
+    });
+    expect(JSON.parse(activityInsert.metadata)).toMatchObject({ comment_id: commentInsert.id });
   });
 
   test("creates Week-context Tasks in an existing Cycle", async () => {
