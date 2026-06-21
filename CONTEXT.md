@@ -160,6 +160,14 @@ _Avoid_: Task number alone, storage id as a user-facing reference, TASK- prefix
 A Task that belongs to a parent Task. A Subtask may belong to a different Cycle than its parent Task; parent Task completion is independent from Subtask completion.
 _Avoid_: Checklist item
 
+**Task Comment**:
+A User-authored plain-text note in a Task's Activity feed. A Task Comment may start a Comment Thread or reply within one; attachments and Markdown formatting are future capabilities, not part of the initial comment body language.
+_Avoid_: Description, activity event, Slack message as the canonical concept
+
+**Comment Thread**:
+A conversation rooted in one top-level Task Comment, with replies, reactions, and subscription state scoped to that thread. A Comment Thread belongs to a Task through its root Task Comment.
+_Avoid_: Nested discussion tree, task-level subscription
+
 **Due Date**:
 The date by which a Task should be completed, when one is set. A Task may have no Due Date; it is never assigned one automatically. A Due Date does not attach a Task without a Cycle to a Cycle or move an already-attached Task between Cycles; explicit Cycle assignment wins, and a Task may remain in or move to a Cycle that does not contain its Due Date.
 _Avoid_: Scheduled date, deadline
