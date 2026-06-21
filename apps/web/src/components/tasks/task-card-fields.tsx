@@ -6,11 +6,13 @@ import {
   CircleDashed,
   CircleDot,
   CircleUserRound,
+  CalendarIcon,
   LoaderCircle,
   Plus,
   SignalHigh,
   SignalLow,
   SignalMedium,
+  Tag,
   Triangle,
   UserRound,
   type LucideIcon,
@@ -20,6 +22,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ComponentProps,
   type ComponentType,
   type KeyboardEvent as ReactKeyboardEvent,
   type MutableRefObject,
@@ -43,6 +46,7 @@ import {
 } from "@/components/ui/combobox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { useFieldContext } from "@/components/form/ts-field";
 
 import type { TaskBoardTaskState } from "./task-kanban-adapter";
 
@@ -1171,5 +1175,272 @@ export function TeamComboboxSelector({
         </ComboboxList>
       </PickerPopup>
     </Combobox>
+  );
+}
+
+// --- Shared creation/editing property pill triggers --------------------------
+
+/** The Linear-style Task property pill used as picker trigger chrome. */
+export function TaskPropertyPill({
+  children,
+  muted = false,
+  className,
+}: {
+  readonly children: ReactNode;
+  readonly muted?: boolean;
+  readonly className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-7 items-center gap-1.5 rounded-md border bg-background px-2 font-medium text-xs transition-colors hover:bg-accent",
+        muted && "text-muted-foreground",
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+export function TaskPriorityPillTrigger({ value }: { readonly value: TaskPriority }) {
+  const meta = getPriorityMeta(value);
+  const Icon = meta.icon;
+  return (
+    <TaskPropertyPill muted={value === "no_priority"}>
+      <Icon className={cn("size-3.5", meta.className)} />
+      {value === "no_priority" ? "Priority" : meta.label}
+    </TaskPropertyPill>
+  );
+}
+
+export function TaskEstimatePillTrigger({ value }: { readonly value: TaskEstimate }) {
+  const meta = getEstimateMeta(value);
+  return (
+    <TaskPropertyPill muted={value === "no_estimate"}>
+      <Triangle className="size-3.5" />
+      {value === "no_estimate" ? "Estimate" : meta.label}
+    </TaskPropertyPill>
+  );
+}
+
+export function TaskAssigneePillTrigger({
+  assignee,
+  avatarSize = 14,
+}: {
+  readonly assignee: AssigneeOption | null;
+  readonly avatarSize?: number;
+}) {
+  return (
+    <TaskPropertyPill muted={assignee === null}>
+      <AssigneeAvatar assignee={assignee} size={avatarSize} />
+      {assignee?.label ?? "Assignee"}
+    </TaskPropertyPill>
+  );
+}
+
+export function TaskTeamPillTrigger({
+  team,
+  avatarSize = 14,
+}: {
+  readonly team: TeamPickerOption | null;
+  readonly avatarSize?: number;
+}) {
+  return (
+    <TaskPropertyPill muted={team === null}>
+      {team ? (
+        <>
+          <TeamAvatar color={team.color} name={team.name} size={avatarSize} />
+          {team.name}
+        </>
+      ) : (
+        "Team"
+      )}
+    </TaskPropertyPill>
+  );
+}
+
+export function TaskLabelsPillTrigger({
+  labels,
+  showEmptyIcon = true,
+}: {
+  readonly labels: readonly TaskLabelOption[];
+  readonly showEmptyIcon?: boolean;
+}) {
+  return (
+    <TaskPropertyPill muted={labels.length === 0}>
+      {labels.length === 0 ? (
+        <>
+          {showEmptyIcon ? <Tag className="size-3.5" /> : null}
+          Labels
+        </>
+      ) : (
+        <>
+          <span className="flex items-center -space-x-1">
+            {labels.map((label) => (
+              <span
+                className={cn(
+                  "size-2.5 rounded-full ring-2 ring-background",
+                  labelDotClassName(label),
+                )}
+                key={label.id}
+              />
+            ))}
+          </span>
+          <span className="truncate">
+            {labels.length === 1 ? labels[0]?.name : `${labels.length} labels`}
+          </span>
+        </>
+      )}
+    </TaskPropertyPill>
+  );
+}
+
+export function TaskDueDatePillTrigger({ value }: { readonly value: string | null }) {
+  const label = formatDueDate(value);
+  return (
+    <TaskPropertyPill muted={label === null}>
+      <CalendarIcon className="size-3.5" />
+      {label ?? "Due date"}
+    </TaskPropertyPill>
+  );
+}
+
+export function TaskStatusPillTrigger({
+  status,
+}: {
+  readonly status: {
+    readonly id: string;
+    readonly name: string;
+    readonly taskState: TaskBoardTaskState;
+  } | null;
+}) {
+  return (
+    <TaskPropertyPill muted={status === null}>
+      {status ? (
+        <>
+          <WorkflowStatusIcon className="size-3.5" taskState={status.taskState} />
+          {status.name}
+        </>
+      ) : (
+        "Status"
+      )}
+    </TaskPropertyPill>
+  );
+}
+
+export function PriorityTaskField(
+  props: Omit<
+    ComponentProps<typeof PriorityComboboxSelector>,
+    "value" | "onValueChange" | "trigger"
+  >,
+) {
+  const field = useFieldContext<TaskPriority>();
+  return (
+    <PriorityComboboxSelector
+      {...props}
+      onValueChange={field.handleChange}
+      trigger={<TaskPriorityPillTrigger value={field.state.value} />}
+      value={field.state.value}
+    />
+  );
+}
+
+export function EstimateTaskField(
+  props: Omit<
+    ComponentProps<typeof EstimateComboboxSelector>,
+    "value" | "onValueChange" | "trigger"
+  >,
+) {
+  const field = useFieldContext<TaskEstimate>();
+  return (
+    <EstimateComboboxSelector
+      {...props}
+      onValueChange={field.handleChange}
+      trigger={<TaskEstimatePillTrigger value={field.state.value} />}
+      value={field.state.value}
+    />
+  );
+}
+
+export function DueDateTaskField(
+  props: Omit<ComponentProps<typeof DueDateSelector>, "value" | "onValueChange" | "trigger">,
+) {
+  const field = useFieldContext<string | null>();
+  return (
+    <DueDateSelector
+      {...props}
+      onValueChange={field.handleChange}
+      trigger={<TaskDueDatePillTrigger value={field.state.value} />}
+      value={field.state.value}
+    />
+  );
+}
+
+export function LabelsTaskField({
+  selectedLabels,
+  ...props
+}: Omit<ComponentProps<typeof LabelsComboboxSelector>, "value" | "onValueChange" | "trigger"> & {
+  readonly selectedLabels: readonly TaskLabelOption[];
+}) {
+  const field = useFieldContext<readonly string[]>();
+  return (
+    <LabelsComboboxSelector
+      {...props}
+      onValueChange={field.handleChange}
+      trigger={<TaskLabelsPillTrigger labels={selectedLabels} />}
+      value={field.state.value}
+    />
+  );
+}
+
+export function AssigneeTaskField({
+  selectedAssignee,
+  ...props
+}: Omit<ComponentProps<typeof AssigneeComboboxSelector>, "value" | "onValueChange" | "trigger"> & {
+  readonly selectedAssignee: AssigneeOption | null;
+}) {
+  const field = useFieldContext<string | null>();
+  return (
+    <AssigneeComboboxSelector
+      {...props}
+      onValueChange={field.handleChange}
+      trigger={<TaskAssigneePillTrigger assignee={selectedAssignee} />}
+      value={field.state.value}
+    />
+  );
+}
+
+export function TeamTaskField({
+  selectedTeam,
+  ...props
+}: Omit<ComponentProps<typeof TeamComboboxSelector>, "value" | "onValueChange" | "trigger"> & {
+  readonly selectedTeam: TeamPickerOption | null;
+}) {
+  const field = useFieldContext<string | null>();
+  return (
+    <TeamComboboxSelector
+      {...props}
+      onValueChange={field.handleChange}
+      trigger={<TaskTeamPillTrigger team={selectedTeam} />}
+      value={field.state.value}
+    />
+  );
+}
+
+export function StatusTaskField({
+  selectedStatus,
+  ...props
+}: Omit<ComponentProps<typeof StatusComboboxSelector>, "value" | "onValueChange" | "trigger"> & {
+  readonly selectedStatus: ComponentProps<typeof TaskStatusPillTrigger>["status"];
+}) {
+  const field = useFieldContext<string | null>();
+  return (
+    <StatusComboboxSelector
+      {...props}
+      onValueChange={(next) => next && field.handleChange(next)}
+      trigger={<TaskStatusPillTrigger status={selectedStatus} />}
+      value={field.state.value}
+    />
   );
 }

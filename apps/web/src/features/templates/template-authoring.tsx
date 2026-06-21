@@ -12,7 +12,6 @@ import {
   Repeat2,
   Sparkles,
   Trash2,
-  Triangle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
@@ -24,16 +23,17 @@ import {
   type PeriodTemplatePlacementShape,
 } from "@church-task/domain";
 
-import { TeamAvatar } from "@/components/avatars/teamAvatar";
 import {
-  AssigneeAvatar,
   AssigneeComboboxSelector,
   EstimateComboboxSelector,
-  getEstimateMeta,
-  getPriorityMeta,
   LabelsComboboxSelector,
-  labelDotClassName,
   PriorityComboboxSelector,
+  TaskAssigneePillTrigger,
+  TaskEstimatePillTrigger,
+  TaskLabelsPillTrigger,
+  TaskPropertyPill,
+  TaskPriorityPillTrigger,
+  TaskTeamPillTrigger,
   TeamComboboxSelector,
   type TaskEstimate,
   type TaskPriority,
@@ -2381,9 +2381,6 @@ function TemplateTaskCard({
   } = fieldProps;
   const selectedTeam = teams.find((team) => team.id === task.teamId) ?? null;
   const selectedAssignee = assigneeOptions.find((option) => option.id === task.assigneeId) ?? null;
-  const estimateMeta = getEstimateMeta(task.estimate);
-  const priorityMeta = getPriorityMeta(task.priority);
-  const PriorityIcon = priorityMeta.icon;
 
   // Members of the selected Team feed the assignee picker's "Team members".
   const teamMemberUserIds = useMemo(
@@ -2460,18 +2457,7 @@ function TemplateTaskCard({
           memberTeamIds={memberTeamIds}
           onValueChange={changeTeam}
           options={teamPickerOptions}
-          trigger={
-            <FieldPill muted={selectedTeam === null}>
-              {selectedTeam ? (
-                <>
-                  <TeamAvatar color={selectedTeam.color} name={selectedTeam.name} size={14} />
-                  {selectedTeam.name}
-                </>
-              ) : (
-                "Team"
-              )}
-            </FieldPill>
-          }
+          trigger={<TaskTeamPillTrigger team={selectedTeam} />}
           value={task.teamId || null}
         />
 
@@ -2481,64 +2467,26 @@ function TemplateTaskCard({
           onValueChange={(next) => onChange({ assigneeId: next })}
           options={assigneeOptions}
           teamMemberIds={teamMemberUserIds}
-          trigger={
-            <FieldPill muted={selectedAssignee === null}>
-              <AssigneeAvatar assignee={selectedAssignee} size={14} />
-              {selectedAssignee?.label ?? "Assignee"}
-            </FieldPill>
-          }
+          trigger={<TaskAssigneePillTrigger assignee={selectedAssignee} />}
           value={task.assigneeId}
         />
 
         <EstimateComboboxSelector
           onValueChange={(next) => onChange({ estimate: next })}
-          trigger={
-            <FieldPill muted={task.estimate === "no_estimate"}>
-              <Triangle className="size-3.5" />
-              {task.estimate === "no_estimate" ? "Estimate" : estimateMeta.label}
-            </FieldPill>
-          }
+          trigger={<TaskEstimatePillTrigger value={task.estimate} />}
           value={task.estimate}
         />
 
         <PriorityComboboxSelector
           onValueChange={(next) => onChange({ priority: next })}
-          trigger={
-            <FieldPill muted={task.priority === "no_priority"}>
-              <PriorityIcon className={cn("size-3.5", priorityMeta.className)} />
-              {task.priority === "no_priority" ? "Priority" : priorityMeta.label}
-            </FieldPill>
-          }
+          trigger={<TaskPriorityPillTrigger value={task.priority} />}
           value={task.priority}
         />
 
         <LabelsComboboxSelector
           onValueChange={(next) => onChange({ labelIds: next })}
           options={labelOptions}
-          trigger={
-            <FieldPill muted={selectedLabels.length === 0}>
-              {selectedLabels.length === 0 ? (
-                "Labels"
-              ) : (
-                <>
-                  <span className="flex items-center -space-x-1">
-                    {selectedLabels.map((option) => (
-                      <span
-                        className={cn(
-                          "size-2.5 rounded-full ring-2 ring-background",
-                          labelDotClassName(option),
-                        )}
-                        key={option.id}
-                      />
-                    ))}
-                  </span>
-                  {selectedLabels.length === 1
-                    ? selectedLabels[0]?.name
-                    : `${selectedLabels.length} labels`}
-                </>
-              )}
-            </FieldPill>
-          }
+          trigger={<TaskLabelsPillTrigger labels={selectedLabels} showEmptyIcon={false} />}
           value={task.labelIds}
         />
 
@@ -2575,10 +2523,10 @@ function WeekdaySelector({
         className="inline-flex cursor-pointer items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         type="button"
       >
-        <FieldPill>
+        <TaskPropertyPill>
           <CalendarDays className="size-3.5" />
           {WEEKDAY_SHORT[weekday]}
-        </FieldPill>
+        </TaskPropertyPill>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-auto p-1.5">
         <div className="flex gap-1">
@@ -2604,26 +2552,6 @@ function WeekdaySelector({
         </div>
       </PopoverContent>
     </Popover>
-  );
-}
-
-/** The Linear-style property pill used as picker triggers. */
-function FieldPill({
-  children,
-  muted = false,
-}: {
-  readonly children: ReactNode;
-  readonly muted?: boolean;
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-flex h-7 items-center gap-1.5 rounded-md border bg-background px-2 font-medium text-xs transition-colors hover:bg-accent",
-        muted && "text-muted-foreground",
-      )}
-    >
-      {children}
-    </span>
   );
 }
 

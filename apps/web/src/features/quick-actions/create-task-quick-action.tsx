@@ -3,16 +3,7 @@ import { revalidateLogic } from "@tanstack/react-form";
 import { Schema } from "effect";
 import { atom, useAtom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
-import {
-  CalendarDays,
-  CalendarIcon,
-  ChevronRight,
-  Maximize2,
-  Minimize2,
-  Tag,
-  Triangle,
-  X,
-} from "lucide-react";
+import { CalendarDays, ChevronRight, Maximize2, Minimize2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -20,19 +11,20 @@ import { TeamAvatar } from "@/components/avatars/teamAvatar";
 import { useOpenTaskDetailsPaneUrl } from "@/components/details-pane/details-pane-helpers";
 import { useAppForm } from "@/components/form/ts-form";
 import {
-  AssigneeAvatar,
   AssigneeComboboxSelector,
   DueDateSelector,
   EstimateComboboxSelector,
-  formatDueDate,
-  getEstimateMeta,
-  getPriorityMeta,
-  labelDotClassName,
   LabelsComboboxSelector,
   PriorityComboboxSelector,
   StatusComboboxSelector,
+  TaskAssigneePillTrigger,
+  TaskDueDatePillTrigger,
+  TaskEstimatePillTrigger,
+  TaskLabelsPillTrigger,
+  TaskPropertyPill,
+  TaskPriorityPillTrigger,
+  TaskStatusPillTrigger,
   TeamComboboxSelector,
-  WorkflowStatusIcon,
   type TaskEstimate,
   type TaskPriority,
 } from "@/components/tasks/task-card-fields";
@@ -67,7 +59,6 @@ import {
   QuickActionsTitle,
   QuickActionsWrapper,
 } from "@/features/quick-actions/quick-actions-components";
-import { cn } from "@/lib/utils";
 
 export type CreateTaskQuickActionState = {
   readonly assignTo: string | null;
@@ -113,29 +104,6 @@ const CreateTaskSchema = Schema.Struct({
   // Label ids; persisted on the created Task.
   labels: Schema.Array(Schema.String),
 });
-
-/** The Linear-style property pill used along the bottom of the dialog body. */
-function FieldPill({
-  children,
-  muted = false,
-  className,
-}: {
-  readonly children: React.ReactNode;
-  readonly muted?: boolean;
-  readonly className?: string;
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-flex h-7 items-center gap-1.5 rounded-md border bg-background px-2 font-medium text-xs transition-colors hover:bg-accent",
-        muted && "text-muted-foreground",
-        className,
-      )}
-    >
-      {children}
-    </span>
-  );
-}
 
 /**
  * A compact, read-only cue that this Task will attach to the Week currently in
@@ -501,14 +469,14 @@ export function CreateTaskQuickAction() {
                       }}
                       options={teamPickerOptions}
                       trigger={
-                        <FieldPill className="gap-2">
+                        <TaskPropertyPill className="gap-2">
                           <TeamAvatar
                             color={effectiveTeam.color}
                             name={effectiveTeam.name}
                             size={18}
                           />
                           <span className="max-w-32 truncate">{effectiveTeam.name}</span>
-                        </FieldPill>
+                        </TaskPropertyPill>
                       }
                       value={effectiveTeamId}
                     />
@@ -616,21 +584,7 @@ export function CreateTaskQuickAction() {
                       }}
                       openRef={statusOpenRef}
                       options={options}
-                      trigger={
-                        <FieldPill>
-                          {effectiveStatus ? (
-                            <>
-                              <WorkflowStatusIcon
-                                className="size-3.5"
-                                taskState={effectiveStatus.taskState}
-                              />
-                              {effectiveStatus.name}
-                            </>
-                          ) : (
-                            "Status"
-                          )}
-                        </FieldPill>
-                      }
+                      trigger={<TaskStatusPillTrigger status={effectiveStatus} />}
                       value={effectiveStatus?.id ?? null}
                     />
                   );
@@ -638,19 +592,12 @@ export function CreateTaskQuickAction() {
               </form.Subscribe>
               <form.Field name="priority">
                 {(field) => {
-                  const meta = getPriorityMeta(field.state.value);
-                  const Icon = meta.icon;
                   return (
                     <PriorityComboboxSelector
                       disabled={isLoading}
                       onValueChange={(next) => field.handleChange(next)}
                       openRef={priorityOpenRef}
-                      trigger={
-                        <FieldPill muted={field.state.value === "no_priority"}>
-                          <Icon className={cn("size-3.5", meta.className)} />
-                          {field.state.value === "no_priority" ? "Priority" : meta.label}
-                        </FieldPill>
-                      }
+                      trigger={<TaskPriorityPillTrigger value={field.state.value} />}
                       value={field.state.value}
                     />
                   );
@@ -681,12 +628,7 @@ export function CreateTaskQuickAction() {
                       openRef={assigneeOpenRef}
                       options={assigneeOptions}
                       teamMemberIds={teamMemberUserIds}
-                      trigger={
-                        <FieldPill muted={selectedAssignee === null}>
-                          <AssigneeAvatar assignee={selectedAssignee} size={14} />
-                          {selectedAssignee?.label ?? "Assignee"}
-                        </FieldPill>
-                      }
+                      trigger={<TaskAssigneePillTrigger assignee={selectedAssignee} />}
                       value={assignedUserId}
                     />
                   );
@@ -694,18 +636,12 @@ export function CreateTaskQuickAction() {
               </form.Subscribe>
               <form.Field name="estimate">
                 {(field) => {
-                  const meta = getEstimateMeta(field.state.value);
                   return (
                     <EstimateComboboxSelector
                       disabled={isLoading}
                       onValueChange={(next) => field.handleChange(next)}
                       openRef={estimateOpenRef}
-                      trigger={
-                        <FieldPill muted={field.state.value === "no_estimate"}>
-                          <Triangle className="size-3.5" />
-                          {field.state.value === "no_estimate" ? "Estimate" : meta.label}
-                        </FieldPill>
-                      }
+                      trigger={<TaskEstimatePillTrigger value={field.state.value} />}
                       value={field.state.value}
                     />
                   );
@@ -733,33 +669,7 @@ export function CreateTaskQuickAction() {
                       onValueChange={(next) => form.setFieldValue("labels", next)}
                       openRef={labelsOpenRef}
                       options={labelOptions}
-                      trigger={
-                        <FieldPill muted={selected.length === 0}>
-                          {selected.length === 0 ? (
-                            <>
-                              <Tag className="size-3.5" />
-                              Labels
-                            </>
-                          ) : (
-                            <>
-                              <span className="flex items-center -space-x-1">
-                                {selected.map((option) => (
-                                  <span
-                                    className={cn(
-                                      "size-2.5 rounded-full ring-2 ring-background",
-                                      labelDotClassName(option),
-                                    )}
-                                    key={option.id}
-                                  />
-                                ))}
-                              </span>
-                              {selected.length === 1
-                                ? selected[0]?.name
-                                : `${selected.length} labels`}
-                            </>
-                          )}
-                        </FieldPill>
-                      }
+                      trigger={<TaskLabelsPillTrigger labels={selected} />}
                       value={labels}
                     />
                   );
@@ -767,18 +677,12 @@ export function CreateTaskQuickAction() {
               </form.Subscribe>
               <form.Field name="dueDate">
                 {(field) => {
-                  const dueDateLabel = formatDueDate(field.state.value);
                   return (
                     <DueDateSelector
                       disabled={isLoading}
                       onValueChange={(next) => field.handleChange(next)}
                       openRef={dueDateOpenRef}
-                      trigger={
-                        <FieldPill muted={dueDateLabel === null}>
-                          <CalendarIcon className="size-3.5" />
-                          {dueDateLabel ?? "Due date"}
-                        </FieldPill>
-                      }
+                      trigger={<TaskDueDatePillTrigger value={field.state.value} />}
                       value={field.state.value}
                     />
                   );

@@ -13,6 +13,9 @@ import {
   PRIORITY_OPTIONS,
   ESTIMATE_OPTIONS,
   WorkflowStatusIcon,
+  TaskPriorityPillTrigger,
+  TaskEstimatePillTrigger,
+  TaskLabelsPillTrigger,
   type AssigneeOption,
   type CardSelectOption,
   type TaskPriority,
@@ -57,6 +60,44 @@ describe("Task card priority field", () => {
       { value: "medium", shortcut: "3" },
       { value: "low", shortcut: "4" },
     ]);
+  });
+});
+
+describe("Task property pill triggers", () => {
+  test("renders muted empty priority and estimate labels", () => {
+    expect(renderToStaticMarkup(<TaskPriorityPillTrigger value="no_priority" />)).toContain(
+      "Priority",
+    );
+    expect(renderToStaticMarkup(<TaskPriorityPillTrigger value="no_priority" />)).toContain(
+      "text-muted-foreground",
+    );
+    expect(renderToStaticMarkup(<TaskEstimatePillTrigger value="no_estimate" />)).toContain(
+      "Estimate",
+    );
+  });
+
+  test("renders one selected label by name", () => {
+    const html = renderToStaticMarkup(
+      <TaskLabelsPillTrigger labels={[{ id: "l1", name: "Worship", color: "blue" }]} />,
+    );
+
+    expect(html).toContain("Worship");
+    expect(html).not.toContain("1 labels");
+  });
+
+  test("summarizes multiple selected labels", () => {
+    const html = renderToStaticMarkup(
+      <TaskLabelsPillTrigger
+        labels={[
+          { id: "l1", name: "Worship", color: "blue" },
+          { id: "l2", name: "Kids", color: "emerald" },
+          { id: "l3", name: "Ops", color: "pink" },
+        ]}
+      />,
+    );
+
+    expect(html).toContain("3 labels");
+    expect(html).not.toContain("Worship</span>");
   });
 });
 

@@ -1,25 +1,24 @@
-import { CalendarDays, CalendarIcon, Tag, Triangle } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 import { useEffect, useRef, useState, type ClipboardEvent } from "react";
 import { toast } from "sonner";
 
-import { TeamAvatar } from "@/components/avatars/teamAvatar";
 import {
-  AssigneeAvatar,
   AssigneeComboboxSelector,
   DueDateSelector,
   EstimateComboboxSelector,
-  formatDueDate,
-  getEstimateMeta,
-  getPriorityMeta,
-  labelDotClassName,
   LabelsComboboxSelector,
   PriorityComboboxSelector,
+  TaskAssigneePillTrigger,
+  TaskDueDatePillTrigger,
+  TaskEstimatePillTrigger,
+  TaskLabelsPillTrigger,
+  TaskPriorityPillTrigger,
+  TaskTeamPillTrigger,
   TeamComboboxSelector,
   type TaskEstimate,
   type TaskPriority,
 } from "@/components/tasks/task-card-fields";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 /** Maximum number of sub-tasks created from one multi-line paste. */
 const MAX_PASTE_SUB_TASKS = 50;
@@ -195,13 +194,9 @@ export function SubTaskCreator({
     }
   };
 
-  const priorityMeta = getPriorityMeta(state.priority);
-  const PriorityIcon = priorityMeta.icon;
-  const estimateMeta = getEstimateMeta(state.estimate);
   const selectedAssignee =
     assigneeOptions.find((option) => option.id === state.assignedUserId) ?? null;
   const team = teamOptions.find((option) => option.id === state.teamId) ?? null;
-  const dueDateLabel = formatDueDate(state.dueDate);
   const selectedLabels = state.labelIds
     .map((id) => labelOptions.find((label) => label.id === id))
     .filter((label) => label !== undefined);
@@ -266,12 +261,7 @@ export function SubTaskCreator({
             markTouched("priority");
             setState((prev) => ({ ...prev, priority: next }));
           }}
-          trigger={
-            <Pill muted={state.priority === "no_priority"}>
-              <PriorityIcon className={cn("size-3.5", priorityMeta.className)} />
-              {state.priority === "no_priority" ? "Priority" : priorityMeta.label}
-            </Pill>
-          }
+          trigger={<TaskPriorityPillTrigger value={state.priority} />}
           value={state.priority}
         />
 
@@ -280,12 +270,7 @@ export function SubTaskCreator({
             memberTeamIds={memberTeamIds}
             onValueChange={onTeamChange}
             options={teamOptions}
-            trigger={
-              <Pill>
-                <TeamAvatar color={team.color} name={team.name} size={16} />
-                {team.name}
-              </Pill>
-            }
+            trigger={<TaskTeamPillTrigger avatarSize={16} team={team} />}
             value={team.id}
           />
         ) : null}
@@ -299,23 +284,13 @@ export function SubTaskCreator({
           }}
           options={assigneeOptions}
           teamMemberIds={teamMemberIds}
-          trigger={
-            <Pill muted={selectedAssignee === null}>
-              <AssigneeAvatar assignee={selectedAssignee} size={16} />
-              {selectedAssignee?.label ?? "Assignee"}
-            </Pill>
-          }
+          trigger={<TaskAssigneePillTrigger assignee={selectedAssignee} avatarSize={16} />}
           value={state.assignedUserId}
         />
 
         <EstimateComboboxSelector
           onValueChange={(next) => setState((prev) => ({ ...prev, estimate: next }))}
-          trigger={
-            <Pill muted={state.estimate === "no_estimate"}>
-              <Triangle className="size-3.5" />
-              {state.estimate === "no_estimate" ? "Estimate" : estimateMeta.label}
-            </Pill>
-          }
+          trigger={<TaskEstimatePillTrigger value={state.estimate} />}
           value={state.estimate}
         />
 
@@ -330,46 +305,13 @@ export function SubTaskCreator({
           }
           onValueChange={(next) => setState((prev) => ({ ...prev, labelIds: next }))}
           options={labelOptions}
-          trigger={
-            <Pill muted={selectedLabels.length === 0}>
-              {selectedLabels.length === 0 ? (
-                <>
-                  <Tag className="size-3.5" />
-                  Labels
-                </>
-              ) : (
-                <>
-                  <span className="-space-x-1 flex items-center">
-                    {selectedLabels.map((label) => (
-                      <span
-                        className={cn(
-                          "size-2.5 rounded-full ring-2 ring-background",
-                          labelDotClassName(label),
-                        )}
-                        key={label.id}
-                      />
-                    ))}
-                  </span>
-                  <span className="truncate">
-                    {selectedLabels.length === 1
-                      ? selectedLabels[0]?.name
-                      : `${selectedLabels.length} labels`}
-                  </span>
-                </>
-              )}
-            </Pill>
-          }
+          trigger={<TaskLabelsPillTrigger labels={selectedLabels} />}
           value={state.labelIds}
         />
 
         <DueDateSelector
           onValueChange={(next) => setState((prev) => ({ ...prev, dueDate: next }))}
-          trigger={
-            <Pill muted={dueDateLabel === null}>
-              <CalendarIcon className="size-3.5" />
-              {dueDateLabel ?? "Due date"}
-            </Pill>
-          }
+          trigger={<TaskDueDatePillTrigger value={state.dueDate} />}
           value={state.dueDate}
         />
 
@@ -395,24 +337,5 @@ export function SubTaskCreator({
         </Button>
       </div>
     </div>
-  );
-}
-
-function Pill({
-  children,
-  muted = false,
-}: {
-  readonly children: React.ReactNode;
-  readonly muted?: boolean;
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-flex h-7 items-center gap-1.5 rounded-md border bg-background px-2 font-medium text-xs transition-colors hover:bg-accent",
-        muted && "text-muted-foreground",
-      )}
-    >
-      {children}
-    </span>
   );
 }
