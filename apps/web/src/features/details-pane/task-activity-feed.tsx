@@ -1,11 +1,15 @@
 import {
   Ban,
+  Bell,
+  BellOff,
   CalendarIcon,
   CircleDot,
   CirclePlus,
   CornerDownRight,
+  Copy,
   MessageSquare,
   MoreHorizontal,
+  Paperclip,
   Pencil,
   RotateCcw,
   Tag,
@@ -24,8 +28,11 @@ import {
 import {
   useCreateTaskCommentMutation,
   useDeleteTaskCommentMutation,
+  useSubscribeTaskCommentThreadMutation,
+  useTaskCommentSubscriptionsForTaskCollection,
   useTaskCommentModerationViewer,
   useTaskCommentsForTaskCollection,
+  useUnsubscribeTaskCommentThreadMutation,
   useUpdateTaskCommentMutation,
   type TaskCommentCollectionItem,
 } from "@/data/task-comments/taskCommentsData.app";
@@ -114,12 +121,19 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
     churchId: props.churchId,
     taskId: props.taskEntityId,
   });
+  const { taskCommentSubscriptionsCollection } = useTaskCommentSubscriptionsForTaskCollection({
+    churchId: props.churchId,
+    currentUserId: props.currentUserId,
+    taskId: props.taskEntityId,
+  });
   const createComment = useCreateTaskCommentMutation({
     churchId: props.churchId,
     taskId: props.taskEntityId,
   });
   const updateComment = useUpdateTaskCommentMutation({ churchId: props.churchId });
   const deleteComment = useDeleteTaskCommentMutation({ churchId: props.churchId });
+  const subscribeThread = useSubscribeTaskCommentThreadMutation({ churchId: props.churchId });
+  const unsubscribeThread = useUnsubscribeTaskCommentThreadMutation({ churchId: props.churchId });
   const moderationViewer = useTaskCommentModerationViewer({
     currentUserId: props.currentUserId,
   });
@@ -140,6 +154,13 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
     }
     return grouped;
   }, [taskCommentsCollection]);
+  const subscribedRootCommentIds = useMemo(
+    () =>
+      new Set(
+        taskCommentSubscriptionsCollection.map((subscription) => subscription.root_comment_id),
+      ),
+    [taskCommentSubscriptionsCollection],
+  );
 
   // The query returns newest-first; the feed reads oldest-first like Linear.
   const ordered = useMemo(() => [...activitiesCollection].reverse(), [activitiesCollection]);
@@ -148,8 +169,8 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
     <section className="grid gap-3">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-[15px]">Activity</h3>
-        {/* Subscribe + subscribers are visual stubs until the subscription
-            backend exists; they are intentionally non-functional for now. */}
+        {/* Activity header Subscribe button remains a task-level notification
+            stub, separate from persisted comment thread subscriptions. */}
         <button
           className="text-muted-foreground text-sm transition-colors hover:text-foreground"
           disabled
@@ -178,6 +199,9 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
               resolveActorName={props.resolveActorName}
               repliesByParentCommentId={repliesByParentCommentId}
               resolvers={props.resolvers}
+              subscribedRootCommentIds={subscribedRootCommentIds}
+              subscribeThread={subscribeThread}
+              unsubscribeThread={unsubscribeThread}
               updateComment={updateComment}
             />
           ))}
@@ -218,6 +242,9 @@ function ActivityRow({
   resolvers,
   resolveActorName,
   repliesByParentCommentId,
+  subscribedRootCommentIds,
+  subscribeThread,
+  unsubscribeThread,
   updateComment,
 }: {
   readonly activity: ActivityCollectionItem;
@@ -231,6 +258,9 @@ function ActivityRow({
   readonly resolveActorName: (userId: string) => string | null;
   readonly repliesByParentCommentId: ReadonlyMap<string, readonly TaskCommentCollectionItem[]>;
   readonly updateComment: (commentId: string, body: string) => Promise<void>;
+  readonly subscribedRootCommentIds: ReadonlySet<string>;
+  readonly subscribeThread: (rootCommentId: string) => Promise<void>;
+  readonly unsubscribeThread: (rootCommentId: string) => Promise<void>;
 }) {
   const metadata = parseMetadata(activity.metadata);
   if (activity.event_type === "comment_created") {
@@ -246,10 +276,13 @@ function ActivityRow({
         moderationViewer={moderationViewer}
         now={now}
         onReply={(body) => createComment(body, comment.id)}
+        onSubscribeThread={() => subscribeThread(comment.id)}
+        onUnsubscribeThread={() => unsubscribeThread(comment.id)}
         onDelete={deleteComment}
         onUpdate={updateComment}
         replies={repliesByParentCommentId.get(comment.id) ?? []}
         resolveActorName={resolveActorName}
+        subscribed={subscribedRootCommentIds.has(comment.id)}
         title={new Date(activity.occurred_at).toLocaleString()}
       />
     );
@@ -295,9 +328,12 @@ function TaskCommentCard({
   now,
   onDelete,
   onReply,
+  onSubscribeThread,
+  onUnsubscribeThread,
   onUpdate,
   replies,
   resolveActorName,
+  subscribed,
   title,
 }: {
   readonly comment: TaskCommentCollectionItem;
@@ -307,8 +343,11 @@ function TaskCommentCard({
   readonly onReply: (body: string) => Promise<void>;
   readonly onDelete: (commentId: string) => Promise<void>;
   readonly onUpdate: (commentId: string, body: string) => Promise<void>;
+  readonly onSubscribeThread: () => Promise<void>;
+  readonly onUnsubscribeThread: () => Promise<void>;
   readonly replies: readonly TaskCommentCollectionItem[];
   readonly resolveActorName: (userId: string) => string | null;
+  readonly subscribed: boolean;
   readonly title: string;
 }) {
   const actorName = resolveActorName(comment.authored_by_user_id) ?? "Unknown user";
@@ -342,12 +381,18 @@ function TaskCommentCard({
             {formatActivityTime(createdAt, now)}
           </span>
           {isEdited ? <EditedMarker editedAt={comment.updated_at} now={now} /> : null}
-          {canModerate ? (
+          {!isDeleted ? (
             <CommentActions
+              body={comment.body}
               entity="comment"
               isEditing={editing}
+              subscribed={subscribed}
+              onCopyMarkdown={() => copyCommentMarkdown(comment.body)}
               onDelete={() => onDelete(comment.id)}
               onStartEdit={() => setEditing(true)}
+              onSubscribe={onSubscribeThread}
+              onUnsubscribe={onUnsubscribeThread}
+              canModerate={canModerate}
             />
           ) : null}
         </header>
@@ -378,6 +423,7 @@ function TaskCommentCard({
                 reply={reply}
                 onDelete={onDelete}
                 onUpdate={onUpdate}
+                onCopyMarkdown={() => copyCommentMarkdown(reply.body)}
                 resolveActorName={resolveActorName}
               />
             ))}
@@ -420,6 +466,7 @@ function TaskCommentCard({
 function TaskCommentReply({
   moderationViewer,
   now,
+  onCopyMarkdown,
   onDelete,
   onUpdate,
   reply,
@@ -430,6 +477,7 @@ function TaskCommentReply({
   readonly moderationViewer: TaskCommentModerationViewer;
   readonly onDelete: (commentId: string) => Promise<void>;
   readonly onUpdate: (commentId: string, body: string) => Promise<void>;
+  readonly onCopyMarkdown: () => Promise<void>;
   readonly resolveActorName: (userId: string) => string | null;
 }) {
   const actorName = resolveActorName(reply.authored_by_user_id) ?? "Unknown user";
@@ -462,12 +510,15 @@ function TaskCommentReply({
             {formatActivityTime(createdAt, now)}
           </span>
           {isEdited ? <EditedMarker editedAt={reply.updated_at} now={now} /> : null}
-          {canModerate ? (
+          {!isDeleted ? (
             <CommentActions
+              body={reply.body}
               entity="reply"
               isEditing={editing}
+              onCopyMarkdown={onCopyMarkdown}
               onDelete={() => onDelete(reply.id)}
               onStartEdit={() => setEditing(true)}
+              canModerate={canModerate}
             />
           ) : null}
         </p>
@@ -532,6 +583,20 @@ function EditedMarker({
   );
 }
 
+async function copyCommentMarkdown(body: string) {
+  try {
+    await navigator.clipboard.writeText(body);
+    toast.success("Copied comment as Markdown.");
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : "Could not copy comment.");
+  }
+}
+
+function handleCommentAttachmentStub() {
+  // TODO(attachments): open an upload picker once attachment storage exists.
+  toast.info("Attachments are coming soon.");
+}
+
 /**
  * The per-comment moderation menu: a hover-revealed kebab opening Edit + Delete.
  * Editing happens inline (via `onStartEdit`); deletion is gated behind an
@@ -540,15 +605,26 @@ function EditedMarker({
  * `canModerateTaskComment`).
  */
 function CommentActions({
+  canModerate,
   entity,
   isEditing,
+  onCopyMarkdown,
   onDelete,
   onStartEdit,
+  onSubscribe,
+  onUnsubscribe,
+  subscribed,
 }: {
+  readonly body: string;
+  readonly canModerate: boolean;
   readonly entity: "comment" | "reply";
   readonly isEditing: boolean;
+  readonly onCopyMarkdown: () => Promise<void>;
   readonly onDelete: () => Promise<void>;
   readonly onStartEdit: () => void;
+  readonly onSubscribe?: () => Promise<void>;
+  readonly onUnsubscribe?: () => Promise<void>;
+  readonly subscribed?: boolean;
 }) {
   // Reveal the kebab only for the row it belongs to, so hovering a parent
   // comment never lights up every nested reply's menu at once.
@@ -559,6 +635,7 @@ function CommentActions({
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [togglingSubscription, setTogglingSubscription] = useState(false);
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -569,6 +646,19 @@ function CommentActions({
       toast.error(error instanceof Error ? error.message : `Could not delete ${entity}.`);
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const toggleSubscription = async () => {
+    const action = subscribed ? onUnsubscribe : onSubscribe;
+    if (!action) return;
+    setTogglingSubscription(true);
+    try {
+      await action();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update thread subscription.");
+    } finally {
+      setTogglingSubscription(false);
     }
   };
 
@@ -594,27 +684,45 @@ function CommentActions({
           <MoreHorizontal />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-36">
-          <DropdownMenuItem
-            disabled={isEditing}
-            onClick={() => {
-              onStartEdit();
-              setMenuOpen(false);
-            }}
-          >
-            <Pencil />
-            Edit
+          <DropdownMenuItem onClick={() => void onCopyMarkdown()}>
+            <Copy />
+            Copy content as Markdown
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => {
-              setMenuOpen(false);
-              setConfirmingDelete(true);
-            }}
-            variant="destructive"
-          >
-            <Trash2 />
-            Delete...
-          </DropdownMenuItem>
+          {entity === "comment" ? (
+            <DropdownMenuItem
+              disabled={togglingSubscription || (!onSubscribe && !onUnsubscribe)}
+              onClick={() => void toggleSubscription()}
+            >
+              {subscribed ? <BellOff /> : <Bell />}
+              {subscribed ? "Unsubscribe from thread" : "Subscribe to thread"}
+            </DropdownMenuItem>
+          ) : null}
+          {canModerate ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                disabled={isEditing}
+                onClick={() => {
+                  onStartEdit();
+                  setMenuOpen(false);
+                }}
+              >
+                <Pencil />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => {
+                  setMenuOpen(false);
+                  setConfirmingDelete(true);
+                }}
+                variant="destructive"
+              >
+                <Trash2 />
+                Delete...
+              </DropdownMenuItem>
+            </>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -799,20 +907,31 @@ function TaskCommentReplyComposer({
           placeholder={canReply ? "Leave a reply..." : "Sign in to reply"}
           value={body}
         />
-        <div className="mt-1 flex items-center justify-end gap-1">
-          <Button onClick={onCancel} size="sm" type="button" variant="ghost">
-            Cancel
-          </Button>
+        <div className="mt-1 flex items-center justify-between gap-1">
           <Button
-            disabled={!canSubmit}
-            loading={submitting}
-            onClick={() => void submit()}
-            size="sm"
+            aria-label="Attach file to reply"
+            onClick={handleCommentAttachmentStub}
+            size="icon-xs"
             type="button"
+            variant="ghost"
           >
-            Reply
-            <Kbd className="ml-1.5">mod enter</Kbd>
+            <Paperclip />
           </Button>
+          <div className="flex items-center justify-end gap-1">
+            <Button onClick={onCancel} size="sm" type="button" variant="ghost">
+              Cancel
+            </Button>
+            <Button
+              disabled={!canSubmit}
+              loading={submitting}
+              onClick={() => void submit()}
+              size="sm"
+              type="button"
+            >
+              Reply
+              <Kbd className="ml-1.5">mod enter</Kbd>
+            </Button>
+          </div>
         </div>
       </div>
     </div>
@@ -878,7 +997,16 @@ function ActivityCommentComposer({
           placeholder={canComment ? "Leave a comment..." : "Sign in to leave a comment"}
           value={body}
         />
-        <div className="mt-2 flex items-center justify-end gap-2">
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <Button
+            aria-label="Attach file to comment"
+            onClick={handleCommentAttachmentStub}
+            size="icon-sm"
+            type="button"
+            variant="ghost"
+          >
+            <Paperclip />
+          </Button>
           <Button
             disabled={!canSubmit}
             loading={submitting}

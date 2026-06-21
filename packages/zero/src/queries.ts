@@ -40,6 +40,9 @@ const ActivityForEntityArgs = toZeroSchema(
 const TaskCommentsArgs = toZeroSchema(
   Schema.Struct({ church_id: Schema.String, task_id: Schema.String }),
 );
+const TaskCommentSubscriptionsArgs = toZeroSchema(
+  Schema.Struct({ church_id: Schema.String, task_id: Schema.String, user_id: Schema.String }),
+);
 const TaskByIdentifierArgs = toZeroSchema(
   Schema.Struct({ church_id: Schema.String, identifier: Schema.String }),
 );
@@ -156,6 +159,28 @@ export const queries = defineQueries({
       return zql.task_comments
         .where("church_id", args.church_id)
         .where("task_id", args.task_id)
+        .orderBy("created_at", "asc");
+    }),
+  },
+  task_comment_subscriptions: {
+    by_task_for_user: defineChurchTaskQuery(TaskCommentSubscriptionsArgs, ({ args, ctx }) => {
+      if (
+        !hasActiveChurchAccess(ctx, args.church_id) ||
+        ctx?.authenticated !== true ||
+        ctx.user_id !== args.user_id
+      ) {
+        if (isServerContext(ctx)) requireActiveChurchAccess(ctx, args.church_id);
+
+        return zql.task_comment_subscriptions
+          .where("id", "__unauthorized__")
+          .where("deleted_at", "IS", null);
+      }
+
+      return zql.task_comment_subscriptions
+        .where("church_id", args.church_id)
+        .where("task_id", args.task_id)
+        .where("user_id", args.user_id)
+        .where("deleted_at", "IS", null)
         .orderBy("created_at", "asc");
     }),
   },

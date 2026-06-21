@@ -26,6 +26,7 @@ import {
   getTemplateTeamId,
   getTaskId,
   getTaskCommentId,
+  getTaskCommentSubscriptionId,
   getTeamId,
   getTeamMembershipId,
   getWorkflowId,
@@ -45,6 +46,7 @@ import {
   key_dates,
   labels,
   tasks,
+  task_comment_subscriptions,
   task_comments,
   team_memberships,
   teams,
@@ -231,6 +233,9 @@ const UpdateTaskCommentArgs = toZeroSchema(
 );
 const DeleteTaskCommentArgs = toZeroSchema(
   Schema.Struct({ church_id: Schema.String, comment_id: Schema.String }),
+);
+const TaskCommentSubscriptionArgs = toZeroSchema(
+  Schema.Struct({ church_id: Schema.String, root_comment_id: Schema.String }),
 );
 const KeyDateScheduleArg = Schema.Union([
   Schema.Struct({ kind: Schema.Literal("fixedYearly"), month: Schema.Number, day: Schema.Number }),
@@ -3243,6 +3248,7 @@ export const mutators = defineMutators({
       const session = requireActiveChurchAccess(ctx, args.church_id);
       const body = args.body.trimEnd();
       if (!body.trim()) throw new Error("Comment body is required.");
+      // TODO(mentions): parse/target mentions after Markdown or rich editor selection.
 
       const taskRows = (await db
         .select({ cycle_id: tasks.cycle_id, id: tasks.id })
@@ -3306,6 +3312,7 @@ export const mutators = defineMutators({
           : { comment_id: commentId },
         occurred_at: now,
       });
+      // TODO(notifications): enqueue new comment/reply and mention notifications.
     }),
     delete: defineChurchTaskMutator(DeleteTaskCommentArgs, async ({ args, ctx, tx }) => {
       const db = serverDb(tx);
@@ -3381,6 +3388,74 @@ export const mutators = defineMutators({
         metadata: { comment_id: args.comment_id, parent_comment_id: comment.parent_comment_id },
         occurred_at: now,
       });
+    }),
+    subscribe: defineChurchTaskMutator(TaskCommentSubscriptionArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+
+      const session = requireActiveChurchAccess(ctx, args.church_id);
+      const rows = (await db
+        .select({
+          id: task_comments.id,
+          parent_comment_id: task_comments.parent_comment_id,
+          task_id: task_comments.task_id,
+        })
+        .from(task_comments)
+        .where(
+          and(
+            eq(task_comments.id, args.root_comment_id),
+            eq(task_comments.church_id, args.church_id),
+            isNull(task_comments.deleted_at),
+          ),
+        )) as Array<{
+        readonly id: string;
+        readonly parent_comment_id: string | null;
+        readonly task_id: string;
+      }>;
+      const root = rows[0];
+      if (!root) throw new Error("Comment thread not found.");
+      if (root.parent_comment_id) throw new Error("Subscribe to the root comment thread.");
+
+      const now = new Date();
+      await db.insert(task_comment_subscriptions).values({
+        _tag: "taskcommentsubscription",
+        church_id: args.church_id,
+        created_at: now,
+        created_by: session.user_id,
+        deleted_at: null,
+        deleted_by: null,
+        id: getTaskCommentSubscriptionId(),
+        root_comment_id: root.id,
+        task_id: root.task_id,
+        updated_at: now,
+        updated_by: session.user_id,
+        user_id: session.user_id,
+      });
+      // TODO(notifications): enqueue thread subscription + future thread activity notifications.
+    }),
+    unsubscribe: defineChurchTaskMutator(TaskCommentSubscriptionArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+
+      const session = requireActiveChurchAccess(ctx, args.church_id);
+      const now = new Date();
+      await db
+        .update(task_comment_subscriptions)
+        .set({
+          deleted_at: now,
+          deleted_by: session.user_id,
+          updated_at: now,
+          updated_by: session.user_id,
+        })
+        .where(
+          and(
+            eq(task_comment_subscriptions.church_id, args.church_id),
+            eq(task_comment_subscriptions.root_comment_id, args.root_comment_id),
+            eq(task_comment_subscriptions.user_id, session.user_id),
+            isNull(task_comment_subscriptions.deleted_at),
+          ),
+        );
+      // TODO(notifications): remove viewer from future thread notification targeting.
     }),
   },
   tasks: {

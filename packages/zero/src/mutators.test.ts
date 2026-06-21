@@ -11,6 +11,7 @@ import {
   key_dates,
   labels,
   tasks,
+  task_comment_subscriptions,
   task_comments,
   team_memberships,
   teams,
@@ -1131,6 +1132,47 @@ describe("Zero Task mutators", () => {
     });
 
     expect(updateCalls[0]?.set).toMatchObject({ deleted_by: "user_test" });
+  });
+
+  test("persists Task Comment thread subscriptions for the current User", async () => {
+    const { insertCalls, tx } = createServerTx([
+      [{ id: "taskcomment_root", parent_comment_id: null, task_id: "task_test" }],
+    ]);
+
+    await mustGetMutator(mutators, "task_comments.subscribe").fn({
+      args: { church_id: "org_test", root_comment_id: "taskcomment_root" },
+      ctx: signedInContext,
+      tx,
+    });
+
+    const subscriptionInsert = insertCalls.find((call) => call.table === task_comment_subscriptions)
+      ?.values as {
+      readonly id: string;
+      readonly root_comment_id: string;
+      readonly task_id: string;
+      readonly user_id: string;
+    };
+    expect(getIdType(subscriptionInsert.id)).toBe("taskcommentsubscription");
+    expect(subscriptionInsert).toMatchObject({
+      root_comment_id: "taskcomment_root",
+      task_id: "task_test",
+      user_id: "user_test",
+    });
+  });
+
+  test("unsubscribes the current User from a Task Comment thread by soft delete", async () => {
+    const { tx, updateCalls } = createServerTx([]);
+
+    await mustGetMutator(mutators, "task_comments.unsubscribe").fn({
+      args: { church_id: "org_test", root_comment_id: "taskcomment_root" },
+      ctx: signedInContext,
+      tx,
+    });
+
+    expect(updateCalls[0]?.table).toBe(task_comment_subscriptions);
+    expect(updateCalls[0]?.set).toMatchObject({ deleted_by: "user_test", updated_by: "user_test" });
+    const subscriptionUpdate = updateCalls[0]?.set as { readonly deleted_at?: unknown } | undefined;
+    expect(subscriptionUpdate?.deleted_at).toBeInstanceOf(Date);
   });
 
   test("creates Week-context Tasks in an existing Cycle", async () => {

@@ -897,6 +897,24 @@ const taskCommentsTable = {
   },
   primaryKey: ["id"],
 } as const;
+const taskCommentSubscriptionsTable = {
+  name: "task_comment_subscriptions",
+  columns: {
+    id: { type: "string", optional: false, customType: null as unknown as string },
+    _tag: { type: "string", optional: false, customType: null as unknown as string },
+    created_at: { type: "number", optional: true, customType: null as unknown as number },
+    created_by: { type: "string", optional: true, customType: null as unknown as string },
+    updated_at: { type: "number", optional: true, customType: null as unknown as number },
+    updated_by: { type: "string", optional: true, customType: null as unknown as string },
+    deleted_at: { type: "number", optional: true, customType: null as unknown as number },
+    deleted_by: { type: "string", optional: true, customType: null as unknown as string },
+    church_id: { type: "string", optional: false, customType: null as unknown as string },
+    task_id: { type: "string", optional: false, customType: null as unknown as string },
+    root_comment_id: { type: "string", optional: false, customType: null as unknown as string },
+    user_id: { type: "string", optional: false, customType: null as unknown as string },
+  },
+  primaryKey: ["id"],
+} as const;
 const tasksTable = {
   name: "tasks",
   columns: {
@@ -1769,6 +1787,7 @@ export const schema = {
     labels: labelsTable,
     member: memberTable,
     organization: organizationTable,
+    task_comment_subscriptions: taskCommentSubscriptionsTable,
     task_comments: taskCommentsTable,
     tasks: tasksTable,
     team_memberships: teamMembershipsTable,
@@ -1851,6 +1870,11 @@ export type Organization = Row<(typeof schema)["tables"]["organization"]>;
  * This type is auto-generated from your Drizzle schema definition.
  */
 export type TaskComment = Row<(typeof schema)["tables"]["task_comments"]>;
+/**
+ * Represents a row from the "task_comment_subscriptions" table.
+ * This type is auto-generated from your Drizzle schema definition.
+ */
+export type TaskCommentSubscription = Row<(typeof schema)["tables"]["task_comment_subscriptions"]>;
 /**
  * Represents a row from the "tasks" table.
  * This type is auto-generated from your Drizzle schema definition.

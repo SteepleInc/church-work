@@ -579,6 +579,24 @@ export const task_comments = pgTable(
   ],
 );
 
+export const task_comment_subscriptions = pgTable(
+  "task_comment_subscriptions",
+  {
+    id: text("id").primaryKey(),
+    ...baseEntityFields,
+    church_id: text("church_id").notNull(),
+    task_id: text("task_id").notNull(),
+    root_comment_id: text("root_comment_id").notNull(),
+    user_id: text("user_id").notNull(),
+  },
+  (table) => [
+    index("task_comment_subscriptions_church_task_idx").on(table.church_id, table.task_id),
+    uniqueIndex("task_comment_subscriptions_user_thread_live_idx")
+      .on(table.church_id, table.root_comment_id, table.user_id)
+      .where(sql`${table.deleted_at} IS NULL`),
+  ],
+);
+
 export const member = pgTable(
   "member",
   {
@@ -646,6 +664,7 @@ export const schema = {
   templates,
   tasks,
   task_comments,
+  task_comment_subscriptions,
   user,
   verification,
   workflow_statuses,
@@ -656,6 +675,8 @@ export type Activity = typeof activities.$inferSelect;
 export type NewActivity = typeof activities.$inferInsert;
 export type TaskComment = typeof task_comments.$inferSelect;
 export type NewTaskComment = typeof task_comments.$inferInsert;
+export type TaskCommentSubscription = typeof task_comment_subscriptions.$inferSelect;
+export type NewTaskCommentSubscription = typeof task_comment_subscriptions.$inferInsert;
 
 export type DemoItem = typeof demo_items.$inferSelect;
 export type NewDemoItem = typeof demo_items.$inferInsert;

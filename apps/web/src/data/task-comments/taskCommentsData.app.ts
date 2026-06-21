@@ -1,10 +1,16 @@
-import { mutators, queries, type TaskComment } from "@church-task/zero";
+import {
+  mutators,
+  queries,
+  type TaskComment,
+  type TaskCommentSubscription,
+} from "@church-task/zero";
 import { useQuery, useZero } from "@rocicorp/zero/react";
 
 import { authClient } from "@/lib/auth-client";
 import type { TaskCommentModerationViewer } from "@/data/task-comments/taskCommentModeration-utils";
 
 export type TaskCommentCollectionItem = TaskComment;
+export type TaskCommentSubscriptionCollectionItem = TaskCommentSubscription;
 
 type SessionWithRoles = {
   readonly orgRole?: string | null;
@@ -56,6 +62,29 @@ export function useTaskCommentsForTaskCollection(params: {
   };
 }
 
+export function useTaskCommentSubscriptionsForTaskCollection(params: {
+  readonly churchId: string | null;
+  readonly currentUserId: string | null;
+  readonly taskId: string | null;
+}) {
+  const [rows, result] = useQuery(
+    queries.task_comment_subscriptions.by_task_for_user({
+      church_id: params.churchId ?? "__no_church__",
+      task_id: params.taskId ?? "__no_task__",
+      user_id: params.currentUserId ?? "__no_user__",
+    }),
+  );
+
+  return {
+    loading:
+      params.churchId !== null &&
+      params.taskId !== null &&
+      params.currentUserId !== null &&
+      result.type !== "complete",
+    taskCommentSubscriptionsCollection: rows as readonly TaskCommentSubscriptionCollectionItem[],
+  };
+}
+
 export function useCreateTaskCommentMutation(params: {
   readonly churchId: string | null;
   readonly taskId: string;
@@ -97,6 +126,38 @@ export function useDeleteTaskCommentMutation(params: { readonly churchId: string
     if (params.churchId === null) throw new Error("Church is required to delete comments.");
     await zero.mutate(
       mutators.task_comments.delete({ church_id: params.churchId, comment_id: commentId }),
+    );
+  };
+}
+
+export function useSubscribeTaskCommentThreadMutation(params: {
+  readonly churchId: string | null;
+}) {
+  const zero = useZero();
+
+  return async (rootCommentId: string) => {
+    if (params.churchId === null) throw new Error("Church is required to subscribe.");
+    await zero.mutate(
+      mutators.task_comments.subscribe({
+        church_id: params.churchId,
+        root_comment_id: rootCommentId,
+      }),
+    );
+  };
+}
+
+export function useUnsubscribeTaskCommentThreadMutation(params: {
+  readonly churchId: string | null;
+}) {
+  const zero = useZero();
+
+  return async (rootCommentId: string) => {
+    if (params.churchId === null) throw new Error("Church is required to unsubscribe.");
+    await zero.mutate(
+      mutators.task_comments.unsubscribe({
+        church_id: params.churchId,
+        root_comment_id: rootCommentId,
+      }),
     );
   };
 }

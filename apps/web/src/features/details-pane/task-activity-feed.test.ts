@@ -94,4 +94,29 @@ describe("TaskActivityFeed task comments", () => {
     expect(source).toContain("group-hover/comment:opacity-100");
     expect(source).toContain("group-hover/reply:opacity-100");
   });
+
+  test("exposes non-destructive comment menu actions without leaking deleted bodies", () => {
+    expect(source).toContain("Copy content as Markdown");
+    expect(source).toContain("copyCommentMarkdown(comment.body)");
+    expect(source).toContain("copyCommentMarkdown(reply.body)");
+    expect(source).toContain("!isDeleted ? (");
+  });
+
+  test("wires real thread subscription state separately from the header stub", () => {
+    expect(source).toContain("useTaskCommentSubscriptionsForTaskCollection");
+    expect(source).toContain("useSubscribeTaskCommentThreadMutation");
+    expect(source).toContain("useUnsubscribeTaskCommentThreadMutation");
+    expect(source).toContain("subscribedRootCommentIds.has(comment.id)");
+    expect(source).toContain("Subscribe to thread");
+    expect(source).toContain("Unsubscribe from thread");
+    expect(source).toContain("disabled");
+    expect(source).toContain("Activity header Subscribe button");
+  });
+
+  test("keeps visible attachment affordances as safe stubs in both composers", () => {
+    expect(source).toContain("handleCommentAttachmentStub");
+    expect(source).toContain('aria-label="Attach file to comment"');
+    expect(source).toContain('aria-label="Attach file to reply"');
+    expect(source).toContain("Attachments are coming soon.");
+  });
 });
