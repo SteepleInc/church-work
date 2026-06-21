@@ -11,6 +11,7 @@ import {
   Tag,
   Triangle,
   User,
+  Users,
 } from "lucide-react";
 import {
   createContext,
@@ -41,12 +42,17 @@ import {
   EstimateComboboxSelector,
   LabelsComboboxSelector,
   StatusComboboxSelector,
+  TeamComboboxSelector,
   WorkflowStatusIcon,
   type AssigneeOption,
-  type TaskEstimate,
+  type TeamPickerOption,
 } from "./task-card-fields";
+import {
+  buildPersistedTaskFieldTarget,
+  buildProjectedTaskFieldTarget,
+  type TaskFieldTarget,
+} from "./task-field-target";
 import type {
-  TaskBoardEstimate,
   TaskBoardTask,
   TaskBoardTaskState,
   TaskBoardWorkflowStatus,
@@ -87,6 +93,8 @@ export type TaskContextMenuProps = {
   readonly workflowStatuses: readonly TaskBoardWorkflowStatus[];
   readonly assigneeOptions: readonly AssigneeOption[];
   readonly labelOptions: readonly TaskBoardLabelOption[];
+  readonly teamOptions?: readonly TeamPickerOption[];
+  readonly memberTeamIds?: ReadonlySet<string>;
   readonly currentUserId: string | null;
   readonly teamMemberIdsByTeamId: ReadonlyMap<string, ReadonlySet<string>>;
   readonly rowState: TaskBoardTaskState;
@@ -96,6 +104,11 @@ export type TaskContextMenuProps = {
   readonly onChangeTaskLabels?: (change: TaskCardLabelsChange) => void | Promise<void>;
   readonly onChangeTaskEstimate?: (change: TaskCardEstimateChange) => void | Promise<void>;
   readonly onChangeTaskDueDate?: (change: TaskCardDueDateChange) => void | Promise<void>;
+  readonly onChangeTaskTeam?: (change: {
+    readonly taskId: string;
+    readonly teamId: string;
+    readonly labelIds: readonly string[];
+  }) => void | Promise<void>;
   readonly onTransitionTask?: (change: TaskTransitionChange) => void | Promise<void>;
   readonly onOpenTask?: (taskIdentifier: string) => void;
   /** Builds the absolute URL copied by "Copy link" for a Task Identifier. */
@@ -118,12 +131,6 @@ async function copyText(text: string, label: string) {
   }
 }
 
-/** Renders a Task as Markdown: the title as an H1 plus its description body. */
-function taskToMarkdown(task: TaskBoardTask): string {
-  const body = task.description?.trim();
-  return body ? `# ${task.title}\n\n${body}\n` : `# ${task.title}\n`;
-}
-
 /**
  * Linear-style right-click menu for a Task card/row. Wraps `children` in a
  * `ContextMenuTrigger`; right-clicking opens a menu whose field actions (Status,
@@ -143,6 +150,8 @@ export function TaskContextMenu({
   workflowStatuses,
   assigneeOptions,
   labelOptions,
+  teamOptions = [],
+  memberTeamIds = EMPTY_USER_ID_SET,
   currentUserId,
   teamMemberIdsByTeamId,
   rowState,
@@ -152,6 +161,7 @@ export function TaskContextMenu({
   onChangeTaskLabels,
   onChangeTaskEstimate,
   onChangeTaskDueDate,
+  onChangeTaskTeam,
   onTransitionTask,
   onOpenTask,
   buildTaskUrl,
@@ -161,9 +171,9 @@ export function TaskContextMenu({
   const estimateOpenRef = useRef<(() => void) | null>(null);
   const labelsOpenRef = useRef<(() => void) | null>(null);
   const dueDateOpenRef = useRef<(() => void) | null>(null);
+  const teamOpenRef = useRef<(() => void) | null>(null);
 
   const ids = targetTaskIds.length > 0 ? targetTaskIds : [task.id];
-  const multiple = ids.length > 1;
   // A projected Template Task has no Task row yet: its Cycle Adjustment only
   // carries planning fields (assignee, estimate, labels, due date, etc.), so
   // Workflow Status, state transitions, and Open/Copy reference actions don't
@@ -183,33 +193,30 @@ export function TaskContextMenu({
     (option) => (option.teamId ?? null) === null || option.teamId === task.teamId,
   );
 
-  const applyStatus = (next: string | null) => {
-    if (!next || !onChangeTaskStatus) return;
-    for (const taskId of ids) void onChangeTaskStatus({ taskId, workflowStatusId: next });
-  };
-  const applyAssignee = (next: string | null) => {
-    if (!onAssignTask) return;
-    for (const taskId of ids) void onAssignTask({ taskId, assignedUserId: next });
-  };
-  const applyLabels = (next: readonly string[]) => {
-    if (!onChangeTaskLabels) return;
-    // Labels are scoped per Task's Team, so multi-Task label edits only make
-    // sense for the single right-clicked Task.
-    void onChangeTaskLabels({ taskId: task.id, labelIds: next });
-  };
-  const applyEstimate = (next: TaskEstimate) => {
-    if (!onChangeTaskEstimate) return;
-    const estimate = next === "no_estimate" ? null : (next as TaskBoardEstimate);
-    for (const taskId of ids) void onChangeTaskEstimate({ taskId, estimate });
-  };
-  const applyDueDate = (next: string | null) => {
-    if (!onChangeTaskDueDate) return;
-    for (const taskId of ids) void onChangeTaskDueDate({ taskId, dueDate: next });
-  };
-  const applyTransition = (transition: TaskStateTransition) => {
-    if (!onTransitionTask) return;
-    for (const taskId of ids) void onTransitionTask({ taskId, transition });
-  };
+  const target: TaskFieldTarget = isProjected
+    ? buildProjectedTaskFieldTarget({
+        task,
+        labelOptions,
+        onAssignTask,
+        onChangeTaskLabels,
+        onChangeTaskEstimate,
+        onChangeTaskDueDate,
+        onChangeTaskTeam,
+      })
+    : buildPersistedTaskFieldTarget({
+        task,
+        targetTaskIds: ids,
+        labelOptions,
+        onAssignTask,
+        onChangeTaskStatus,
+        onChangeTaskLabels,
+        onChangeTaskEstimate,
+        onChangeTaskDueDate,
+        onChangeTaskTeam,
+        onTransitionTask,
+        onOpenTask,
+        buildTaskUrl,
+      });
 
   const hiddenTrigger = (
     <span aria-hidden className="pointer-events-none absolute size-0 opacity-0" />
@@ -225,59 +232,70 @@ export function TaskContextMenu({
         {/* Hidden pickers: keep their trigger buttons out of normal flow so they
             do not add a phantom row under list items. */}
         <div className="absolute size-0 overflow-hidden">
-          {onChangeTaskStatus ? (
+          {target.fields.status.set ? (
             <StatusComboboxSelector
               disabled={statusItems.length === 0}
               emptyText="No statuses."
-              onValueChange={applyStatus}
+              onValueChange={target.fields.status.set}
               openRef={statusOpenRef}
               options={statusItems}
               trigger={hiddenTrigger}
-              value={multiple ? null : task.workflowStatusId}
+              value={target.fields.status.value}
             />
           ) : null}
-          {onAssignTask ? (
+          {target.fields.assignee.set ? (
             <AssigneeComboboxSelector
               currentUserId={currentUserId}
-              onValueChange={applyAssignee}
+              onValueChange={target.fields.assignee.set}
               openRef={assigneeOpenRef}
               options={assigneeOptions}
               teamMemberIds={teamMemberIds}
               trigger={hiddenTrigger}
-              value={multiple ? null : (task.assignedUserId ?? null)}
+              value={target.fields.assignee.value}
             />
           ) : null}
-          {onChangeTaskLabels && !multiple ? (
+          {target.fields.labels.set ? (
             <LabelsComboboxSelector
-              onValueChange={applyLabels}
+              onValueChange={target.fields.labels.set}
               openRef={labelsOpenRef}
               options={applicableLabels}
               trigger={hiddenTrigger}
-              value={task.labelIds ?? []}
+              value={target.fields.labels.value}
             />
           ) : null}
-          {onChangeTaskEstimate ? (
+          {target.fields.estimate.set ? (
             <EstimateComboboxSelector
-              onValueChange={applyEstimate}
+              onValueChange={target.fields.estimate.set}
               openRef={estimateOpenRef}
               trigger={hiddenTrigger}
               triggerLabel="Context menu estimate picker"
-              value={multiple ? "no_estimate" : ((task.estimate ?? "no_estimate") as TaskEstimate)}
+              value={target.fields.estimate.value}
             />
           ) : null}
-          {onChangeTaskDueDate ? (
+          {target.fields.dueDate.set ? (
             <DueDateSelector
-              onValueChange={applyDueDate}
+              onValueChange={target.fields.dueDate.set}
               openRef={dueDateOpenRef}
               trigger={hiddenTrigger}
-              value={multiple ? null : (task.dueDate ?? null)}
+              value={target.fields.dueDate.value}
+            />
+          ) : null}
+          {target.fields.team.set ? (
+            <TeamComboboxSelector
+              disabled={teamOptions.length === 0}
+              memberTeamIds={memberTeamIds}
+              onValueChange={target.fields.team.set}
+              openRef={teamOpenRef}
+              options={teamOptions}
+              trigger={hiddenTrigger}
+              value={target.fields.team.value}
             />
           ) : null}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent className="w-56">
         <ContextMenuGroup>
-          {onChangeTaskStatus && !isProjected ? (
+          {target.fields.status.set ? (
             <ContextMenuItem
               disabled={statusItems.length === 0}
               onClick={() => openPicker(statusOpenRef)}
@@ -287,37 +305,44 @@ export function TaskContextMenu({
               <ContextMenuShortcut>S</ContextMenuShortcut>
             </ContextMenuItem>
           ) : null}
-          {onAssignTask ? (
+          {target.fields.assignee.set ? (
             <ContextMenuItem onClick={() => openPicker(assigneeOpenRef)}>
               <User />
               Assignee
               <ContextMenuShortcut>A</ContextMenuShortcut>
             </ContextMenuItem>
           ) : null}
-          {onChangeTaskEstimate ? (
+          {target.fields.estimate.set ? (
             <ContextMenuItem onClick={() => openPicker(estimateOpenRef)}>
               <Triangle />
               Estimate
               <ContextMenuShortcut>⇧E</ContextMenuShortcut>
             </ContextMenuItem>
           ) : null}
-          {onChangeTaskLabels && !multiple ? (
+          {target.fields.labels.set ? (
             <ContextMenuItem onClick={() => openPicker(labelsOpenRef)}>
               <Tag />
               Labels
               <ContextMenuShortcut>L</ContextMenuShortcut>
             </ContextMenuItem>
           ) : null}
-          {onChangeTaskDueDate ? (
+          {target.fields.dueDate.set ? (
             <ContextMenuItem onClick={() => openPicker(dueDateOpenRef)}>
               <CalendarDays />
               Due date
               <ContextMenuShortcut>D</ContextMenuShortcut>
             </ContextMenuItem>
           ) : null}
+          {target.fields.team.set ? (
+            <ContextMenuItem onClick={() => openPicker(teamOpenRef)}>
+              <Users />
+              Team
+              <ContextMenuShortcut>T</ContextMenuShortcut>
+            </ContextMenuItem>
+          ) : null}
         </ContextMenuGroup>
 
-        {onTransitionTask && !isProjected ? (
+        {target.actions.transition ? (
           <>
             <ContextMenuSeparator />
             <ContextMenuSub>
@@ -326,15 +351,15 @@ export function TaskContextMenu({
                 Mark as
               </ContextMenuSubTrigger>
               <ContextMenuSubContent className="w-44">
-                <ContextMenuItem onClick={() => applyTransition("complete")}>
+                <ContextMenuItem onClick={() => target.actions.transition?.("complete")}>
                   <CircleCheck className="text-emerald-500" />
                   Complete
                 </ContextMenuItem>
-                <ContextMenuItem onClick={() => applyTransition("cancel")}>
+                <ContextMenuItem onClick={() => target.actions.transition?.("cancel")}>
                   <Ban />
                   Canceled
                 </ContextMenuItem>
-                <ContextMenuItem onClick={() => applyTransition("reopen")}>
+                <ContextMenuItem onClick={() => target.actions.transition?.("reopen")}>
                   <RotateCcw />
                   Reopen
                 </ContextMenuItem>
@@ -343,42 +368,59 @@ export function TaskContextMenu({
           </>
         ) : null}
 
-        <ContextMenuSeparator />
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <Copy />
-            Copy
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent className="w-52">
-            {/* A projection has no Task Identifier or link yet ("Projected"),
-                so only the copyable planning text is offered. */}
-            {!isProjected ? (
-              <ContextMenuItem onClick={() => void copyText(task.identifier, "ID")}>
-                <Hash />
-                Copy ID
-              </ContextMenuItem>
-            ) : null}
-            {buildTaskUrl && !isProjected ? (
-              <ContextMenuItem onClick={() => void copyText(buildTaskUrl(task.identifier), "Link")}>
-                <LinkIcon />
-                Copy link
-              </ContextMenuItem>
-            ) : null}
-            <ContextMenuItem onClick={() => void copyText(task.title, "Title")}>
-              <Copy />
-              Copy title
-            </ContextMenuItem>
-            <ContextMenuItem onClick={() => void copyText(taskToMarkdown(task), "Markdown")}>
-              <FileText />
-              Copy as Markdown
-            </ContextMenuItem>
-          </ContextMenuSubContent>
-        </ContextMenuSub>
-
-        {onOpenTask && !isProjected ? (
+        {target.actions.copyId ||
+        target.actions.copyLink ||
+        target.actions.copyTitle ||
+        target.actions.copyMarkdown ? (
           <>
             <ContextMenuSeparator />
-            <ContextMenuItem onClick={() => onOpenTask(task.identifier)}>
+            <ContextMenuSub>
+              <ContextMenuSubTrigger>
+                <Copy />
+                Copy
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent className="w-52">
+                {target.actions.copyId ? (
+                  <ContextMenuItem
+                    onClick={() => void copyText(target.actions.copyId?.() ?? "", "ID")}
+                  >
+                    <Hash />
+                    Copy ID
+                  </ContextMenuItem>
+                ) : null}
+                {target.actions.copyLink ? (
+                  <ContextMenuItem
+                    onClick={() => void copyText(target.actions.copyLink?.() ?? "", "Link")}
+                  >
+                    <LinkIcon />
+                    Copy link
+                  </ContextMenuItem>
+                ) : null}
+                {target.actions.copyTitle ? (
+                  <ContextMenuItem
+                    onClick={() => void copyText(target.actions.copyTitle?.() ?? "", "Title")}
+                  >
+                    <Copy />
+                    Copy title
+                  </ContextMenuItem>
+                ) : null}
+                {target.actions.copyMarkdown ? (
+                  <ContextMenuItem
+                    onClick={() => void copyText(target.actions.copyMarkdown?.() ?? "", "Markdown")}
+                  >
+                    <FileText />
+                    Copy as Markdown
+                  </ContextMenuItem>
+                ) : null}
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+          </>
+        ) : null}
+
+        {target.actions.open ? (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem onClick={() => target.actions.open?.()}>
               <SquareArrowOutUpRight />
               Open
               <ContextMenuShortcut>↵</ContextMenuShortcut>
