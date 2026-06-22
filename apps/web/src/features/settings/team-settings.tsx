@@ -52,7 +52,7 @@ export function TeamGeneralPanel({ teamId }: { readonly teamId: string }) {
     return <p className="text-muted-foreground text-sm">Team not found.</p>;
   }
 
-  return <TeamGeneralForm activeChurch={activeChurch} team={team} />;
+  return <TeamGeneralForm activeChurch={activeChurch} key={team.id} team={team} />;
 }
 
 function TeamGeneralForm({
