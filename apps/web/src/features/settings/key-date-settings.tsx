@@ -1,10 +1,9 @@
 import type { KeyDateRule } from "@church-task/domain";
 import type { ColumnDef } from "@tanstack/react-table";
 import { CalendarDays, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";
-import { type ReactNode, useMemo, useRef, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 
 import { SettingsColumnHeader, SettingsTable } from "@/components/collections/settingsTable";
-import { useAppForm } from "@/components/form/ts-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,6 +37,8 @@ import {
 import { CreateKeyDateQuickAction } from "@/features/quick-actions/create-key-date-quick-action";
 import { useQuickActionOpeners } from "@/features/quick-actions/quick-actions-state";
 import { cn } from "@/lib/utils";
+
+import { InlineNameFormInput } from "./inline-name-form-input";
 
 // Re-exported so Key Date collection surfaces can import schedule helpers from a
 // single module. The implementations live in key-date-schedule.tsx, which has
@@ -323,54 +324,15 @@ export function KeyDateNameInput({
   readonly autoFocus?: boolean;
   readonly onValueChange?: (value: string) => void;
 }) {
-  const committed = useRef(false);
-
-  const form = useAppForm({
-    defaultValues: { name: defaultValue },
-    onSubmit: ({ value }) => {
-      const trimmed = value.name.trim();
-      if (trimmed) onSubmit(trimmed);
-      else onCancel();
-    },
-  });
-
-  const commit = () => {
-    if (committed.current) return;
-    committed.current = true;
-    void form.handleSubmit();
-  };
-
   return (
-    <form.Field name="name">
-      {(field) => (
-        <Input
-          // biome-ignore lint/a11y/noAutofocus: inline edit affordance
-          autoFocus={autoFocus}
-          className="h-8 w-56"
-          onBlur={() => {
-            field.handleBlur();
-            commit();
-          }}
-          onChange={(event) => {
-            const next = event.currentTarget.value;
-            field.handleChange(next);
-            onValueChange?.(next);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              commit();
-            } else if (event.key === "Escape") {
-              event.preventDefault();
-              committed.current = true;
-              onCancel();
-            }
-          }}
-          placeholder={placeholder}
-          value={field.state.value}
-        />
-      )}
-    </form.Field>
+    <InlineNameFormInput
+      autoFocus={autoFocus}
+      defaultValue={defaultValue}
+      onCancel={onCancel}
+      onSubmit={onSubmit}
+      onValueChange={onValueChange}
+      placeholder={placeholder}
+    />
   );
 }
 

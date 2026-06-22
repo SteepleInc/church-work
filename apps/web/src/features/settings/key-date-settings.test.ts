@@ -3,14 +3,22 @@ import { readFileSync } from "node:fs";
 
 describe("Key Date settings inline name forms", () => {
   it("uses TanStack Form for submitted Key Date name values", () => {
-    const source = readFileSync(new URL("./key-date-settings.tsx", import.meta.url), "utf8");
+    const settingsSource = readFileSync(
+      new URL("./key-date-settings.tsx", import.meta.url),
+      "utf8",
+    );
+    const inputSource = readFileSync(
+      new URL("./inline-name-form-input.tsx", import.meta.url),
+      "utf8",
+    );
 
-    expect(source).toContain("useAppForm");
-    expect(source).toContain("const form = useAppForm");
-    expect(source).toContain('<form.Field name="name">');
-    expect(source).toContain("void form.handleSubmit()");
-    expect(source).toContain("field.handleChange(next)");
-    expect(source).toContain("field.handleBlur()");
-    expect(source).not.toContain("const [internal, setInternal]");
+    expect(settingsSource).toContain("InlineNameFormInput");
+    expect(inputSource).toContain("useAppForm");
+    expect(inputSource).toContain("const form = useAppForm");
+    expect(inputSource).toContain('<form.Field name="name">');
+    expect(inputSource).toContain("void form.handleSubmit()");
+    expect(inputSource).toContain("field.handleChange(next)");
+    expect(inputSource).toContain("field.handleBlur()");
+    expect(inputSource).not.toContain("const [internal, setInternal]");
   });
 });

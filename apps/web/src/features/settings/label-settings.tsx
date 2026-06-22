@@ -7,10 +7,9 @@ import {
 import type { ColumnDef } from "@tanstack/react-table";
 import { format, formatDistanceToNow } from "date-fns";
 import { Check, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";
-import { type ReactNode, useMemo, useRef, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 
 import { SettingsColumnHeader, SettingsTable } from "@/components/collections/settingsTable";
-import { useAppForm } from "@/components/form/ts-form";
 import { labelColorDotClassName, labelDotClassName } from "@/components/tasks/task-card-fields";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -34,6 +33,8 @@ import {
 } from "@/data/labels/labelsData.app";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { cn } from "@/lib/utils";
+
+import { InlineNameFormInput } from "./inline-name-form-input";
 
 type LabelMutationResult = { readonly ok: boolean; readonly error?: { readonly message: string } };
 
@@ -299,54 +300,15 @@ function LabelNameInput({
   readonly autoFocus?: boolean;
   readonly onValueChange?: (value: string) => void;
 }) {
-  const committed = useRef(false);
-
-  const form = useAppForm({
-    defaultValues: { name: defaultValue },
-    onSubmit: ({ value }) => {
-      const trimmed = value.name.trim();
-      if (trimmed) onSubmit(trimmed);
-      else onCancel();
-    },
-  });
-
-  const commit = () => {
-    if (committed.current) return;
-    committed.current = true;
-    void form.handleSubmit();
-  };
-
   return (
-    <form.Field name="name">
-      {(field) => (
-        <Input
-          // biome-ignore lint/a11y/noAutofocus: inline edit affordance
-          autoFocus={autoFocus}
-          className="h-8 w-56"
-          onBlur={() => {
-            field.handleBlur();
-            commit();
-          }}
-          onChange={(event) => {
-            const next = event.currentTarget.value;
-            field.handleChange(next);
-            onValueChange?.(next);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              commit();
-            } else if (event.key === "Escape") {
-              event.preventDefault();
-              committed.current = true;
-              onCancel();
-            }
-          }}
-          placeholder={placeholder}
-          value={field.state.value}
-        />
-      )}
-    </form.Field>
+    <InlineNameFormInput
+      autoFocus={autoFocus}
+      defaultValue={defaultValue}
+      onCancel={onCancel}
+      onSubmit={onSubmit}
+      onValueChange={onValueChange}
+      placeholder={placeholder}
+    />
   );
 }
 
