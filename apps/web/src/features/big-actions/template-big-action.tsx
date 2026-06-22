@@ -1,9 +1,11 @@
 "use client";
 
 import { noOp } from "@church-task/shared/noOps";
+import { useLocation } from "@tanstack/react-router";
 import { Boolean, Match, pipe } from "effect";
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import type { FC } from "react";
+import { useEffect, useRef } from "react";
 
 import { Step, Steps } from "@/components/ui/stepper";
 import {
@@ -17,6 +19,8 @@ import {
   TemplateBigActionState as TemplateBigActionStateEnum,
   templateBigActionStateAtom,
 } from "@/features/big-actions/big-action-state";
+import { globalSearchIsOpenAtom } from "@/features/global-search/global-search-state";
+import { quickActionsIsOpenAtom } from "@/features/quick-actions/quick-actions-state";
 import {
   TEMPLATE_FLOW_STEPS,
   TemplateAuthoringFlow,
@@ -33,8 +37,25 @@ const SHAPE_TITLE: Record<TemplateBigActionShape, string> = {
 
 export const TemplateBigAction: FC = () => {
   const [state, setState] = useAtom(templateBigActionStateAtom);
+  const pathname = useLocation({ select: (location) => location.pathname });
+  const quickActionsIsOpen = useAtomValue(quickActionsIsOpenAtom);
+  const globalSearchIsOpen = useAtomValue(globalSearchIsOpenAtom);
+  const previousPathname = useRef(pathname);
 
   const close = () => setState(TemplateBigActionStateEnum.closed());
+
+  useEffect(() => {
+    if (previousPathname.current === pathname) return;
+
+    previousPathname.current = pathname;
+    setState(TemplateBigActionStateEnum.closed());
+  }, [pathname, setState]);
+
+  useEffect(() => {
+    if (!quickActionsIsOpen && !globalSearchIsOpen) return;
+
+    setState(TemplateBigActionStateEnum.closed());
+  }, [globalSearchIsOpen, quickActionsIsOpen, setState]);
 
   const setStep = (step: number) =>
     setState((current) =>

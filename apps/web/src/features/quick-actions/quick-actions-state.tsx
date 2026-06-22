@@ -1,7 +1,11 @@
 import { atom, useSetAtom } from "jotai";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 import type { TaskEstimate, TaskPriority } from "@/components/tasks/task-card-fields";
+import {
+  TemplateBigActionState,
+  templateBigActionStateAtom,
+} from "@/features/big-actions/big-action-state";
 import { inviteMemberDialogSourceAtom } from "@/features/settings/invite-member";
 import { createKeyDateQuickActionStateAtom } from "@/features/quick-actions/create-key-date-quick-action";
 import { createTaskQuickActionStateAtom } from "@/features/quick-actions/create-task-quick-action";
@@ -20,6 +24,12 @@ export function useQuickActionOpeners() {
   const setCreateTaskQuickActionState = useSetAtom(createTaskQuickActionStateAtom);
   const setEditWeekQuickActionState = useSetAtom(editWeekQuickActionStateAtom);
   const setTeamQuickActionState = useSetAtom(teamQuickActionStateAtom);
+  const setTemplateBigActionState = useSetAtom(templateBigActionStateAtom);
+
+  const closeBigActions = useCallback(
+    () => setTemplateBigActionState(TemplateBigActionState.closed()),
+    [setTemplateBigActionState],
+  );
 
   return useMemo(
     () => ({
@@ -44,7 +54,9 @@ export function useQuickActionOpeners() {
           readonly labelIds?: readonly string[];
           readonly dueDate?: string | null;
         } = {},
-      ) =>
+      ) => {
+        closeBigActions();
+
         setCreateTaskQuickActionState({
           assignTo: options.assignTo ?? null,
           workflowStatusId: options.workflowStatusId ?? null,
@@ -57,21 +69,40 @@ export function useQuickActionOpeners() {
           estimate: options.estimate,
           labelIds: options.labelIds,
           dueDate: options.dueDate,
-        }),
-      openCreateKeyDate: (options: { readonly churchId: string }) =>
-        setCreateKeyDateQuickActionState({ churchId: options.churchId }),
-      openCreateTeam: (options: { readonly churchId: string }) =>
-        setTeamQuickActionState({ mode: "create", churchId: options.churchId }),
-      openEditTeam: (options: { readonly churchId: string; readonly teamId: string }) =>
+        });
+      },
+      openCreateKeyDate: (options: { readonly churchId: string }) => {
+        closeBigActions();
+
+        setCreateKeyDateQuickActionState({ churchId: options.churchId });
+      },
+      openCreateTeam: (options: { readonly churchId: string }) => {
+        closeBigActions();
+
+        setTeamQuickActionState({ mode: "create", churchId: options.churchId });
+      },
+      openEditTeam: (options: { readonly churchId: string; readonly teamId: string }) => {
+        closeBigActions();
+
         setTeamQuickActionState({
           mode: "edit",
           churchId: options.churchId,
           teamId: options.teamId,
-        }),
-      openEditWeek: (week: EditWeekQuickActionState) => setEditWeekQuickActionState(week),
-      openInviteMember: () => setInviteMemberDialogSource("quick-actions"),
+        });
+      },
+      openEditWeek: (week: EditWeekQuickActionState) => {
+        closeBigActions();
+
+        setEditWeekQuickActionState(week);
+      },
+      openInviteMember: () => {
+        closeBigActions();
+
+        setInviteMemberDialogSource("quick-actions");
+      },
     }),
     [
+      closeBigActions,
       setCreateKeyDateQuickActionState,
       setCreateTaskQuickActionState,
       setEditWeekQuickActionState,
