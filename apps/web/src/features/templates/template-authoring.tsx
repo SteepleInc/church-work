@@ -1345,7 +1345,12 @@ function InlineKeyDateCreator({
     } satisfies InlineKeyDateCreatorValues,
     validationLogic: revalidateLogic({ mode: "submit", modeAfterSubmission: "blur" }),
     validators: { onSubmit: Schema.toStandardSchemaV1(InlineKeyDateCreatorSchema) },
-    onSubmit: ({ value }) => onCreate(value.name.trim(), value.schedule),
+    onSubmit: ({ value }) => {
+      const name = value.name.trim();
+      if (!name) return;
+
+      onCreate(name, value.schedule);
+    },
   });
 
   const schedule = useStore(form.store, (state) => state.values.schedule);
