@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { getBreadcrumbLabel, getPrimaryAppShellNavItems } from "@/components/app-shell-utils";
+import { isEditableShortcutTarget } from "@/lib/keyboard-shortcuts";
 
 describe("Inbox navigation plumbing", () => {
   test("registers Inbox as a first-class app shell surface", async () => {
@@ -40,14 +41,35 @@ describe("Inbox navigation plumbing", () => {
     const appShellSource = await Bun.file(
       new URL("../../components/app-shell.tsx", import.meta.url),
     ).text();
-    const shortcutSource = await Bun.file(
-      new URL("../../lib/keyboard-shortcuts.ts", import.meta.url),
-    ).text();
 
     expect(appShellSource).toContain('createSequenceMatcher(["G", "I"]');
     expect(appShellSource).toContain('navigate({ to: "/inbox" })');
     expect(appShellSource).toContain("isEditableShortcutTarget(event.target)");
-    expect(shortcutSource).toContain("target.isContentEditable");
-    expect(shortcutSource).toContain('tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT"');
+  });
+
+  test("detects editable shortcut targets", () => {
+    class FakeHTMLElement extends EventTarget {
+      constructor(
+        readonly tagName: string,
+        readonly isContentEditable = false,
+      ) {
+        super();
+      }
+    }
+
+    const originalHTMLElement = globalThis.HTMLElement;
+    globalThis.HTMLElement = FakeHTMLElement as unknown as typeof HTMLElement;
+
+    try {
+      expect(isEditableShortcutTarget(null)).toBe(false);
+      expect(isEditableShortcutTarget(new EventTarget())).toBe(false);
+      expect(isEditableShortcutTarget(new FakeHTMLElement("INPUT"))).toBe(true);
+      expect(isEditableShortcutTarget(new FakeHTMLElement("TEXTAREA"))).toBe(true);
+      expect(isEditableShortcutTarget(new FakeHTMLElement("SELECT"))).toBe(true);
+      expect(isEditableShortcutTarget(new FakeHTMLElement("DIV", true))).toBe(true);
+      expect(isEditableShortcutTarget(new FakeHTMLElement("BUTTON"))).toBe(false);
+    } finally {
+      globalThis.HTMLElement = originalHTMLElement;
+    }
   });
 });

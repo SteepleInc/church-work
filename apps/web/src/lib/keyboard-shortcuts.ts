@@ -1,5 +1,9 @@
 // Avoid hijacking shortcuts while the user is typing in a field.
 export function isEditableShortcutTarget(target: EventTarget | null): boolean {
+  if (typeof HTMLElement === "undefined") {
+    return false;
+  }
+
   if (!(target instanceof HTMLElement)) {
     return false;
   }
