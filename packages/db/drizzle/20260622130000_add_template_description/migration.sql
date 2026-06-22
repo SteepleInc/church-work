@@ -1,1 +1,1 @@
-ALTER TABLE "templates" ADD COLUMN "description" text;
+ALTER TABLE "templates" ADD COLUMN IF NOT EXISTS "description" text;
