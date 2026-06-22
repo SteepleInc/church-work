@@ -183,8 +183,9 @@ export const Collection = <TData,>(props: CollectionProps<TData>): ReactNode => 
 
       {showLoadingSkeleton ? (
         <CollectionSkeleton />
+      ) : emptyContent ? (
+        <div className="flex flex-1 flex-col px-4 pb-4 md:mr-4">{emptyContent}</div>
       ) : (
-        (emptyContent ??
         pipe(
           collectionView,
           collectionViewMatch({
@@ -210,7 +211,7 @@ export const Collection = <TData,>(props: CollectionProps<TData>): ReactNode => 
               />
             ),
           }),
-        ))
+        )
       )}
     </div>
   );
