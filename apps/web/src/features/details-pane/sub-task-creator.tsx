@@ -2,6 +2,7 @@ import { CalendarDays } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent } from "react";
 import { toast } from "sonner";
 
+import { useAppForm } from "@/components/form/ts-form";
 import {
   AssigneeComboboxSelector,
   DueDateSelector,
@@ -41,7 +42,7 @@ export type SubTaskCreateInput = {
   readonly dueDate: string | null;
 };
 
-type CreatorState = {
+export type SubTaskCreatorFormValues = {
   readonly title: string;
   readonly description: string;
   readonly assignedUserId: string | null;
@@ -50,12 +51,9 @@ type CreatorState = {
   readonly estimate: TaskEstimate;
   readonly labelIds: readonly string[];
   readonly dueDate: string | null;
-  // Tracks which property pills the user has edited, so changing parent
-  // defaults while the creator is open only updates untouched pills.
-  readonly touched: ReadonlySet<keyof SubTaskCreatorDefaults>;
 };
 
-function initialState(defaults: SubTaskCreatorDefaults): CreatorState {
+export function initialFormValues(defaults: SubTaskCreatorDefaults): SubTaskCreatorFormValues {
   return {
     title: "",
     description: "",
@@ -65,7 +63,24 @@ function initialState(defaults: SubTaskCreatorDefaults): CreatorState {
     estimate: "no_estimate",
     labelIds: [],
     dueDate: null,
-    touched: new Set(),
+  };
+}
+
+export function buildSubTaskCreateInput(
+  values: SubTaskCreatorFormValues,
+  title: string,
+): SubTaskCreateInput {
+  const description = values.description.trim();
+
+  return {
+    title,
+    description: description === "" ? null : description,
+    assignedUserId: values.assignedUserId,
+    teamId: values.teamId,
+    priority: values.priority,
+    estimate: values.estimate,
+    labelIds: values.labelIds,
+    dueDate: values.dueDate,
   };
 }
 
@@ -115,7 +130,9 @@ export function SubTaskCreator({
   readonly onClose: () => void;
   readonly onCreateLabel?: (name: string) => Promise<string | null>;
 }) {
-  const [state, setState] = useState<CreatorState>(() => initialState(defaults));
+  const [touchedDefaults, setTouchedDefaults] = useState<ReadonlySet<keyof SubTaskCreatorDefaults>>(
+    () => new Set(),
+  );
   const titleRef = useRef<HTMLInputElement>(null);
   const priorityOpenRef = useRef<(() => void) | null>(null);
   const teamOpenRef = useRef<(() => void) | null>(null);
@@ -139,51 +156,44 @@ export function SubTaskCreator({
     titleRef.current?.focus();
   }, []);
 
+  const form = useAppForm({
+    defaultValues: initialFormValues(defaults),
+    onSubmit: async ({ value }) => {
+      await submit(value, false);
+    },
+  });
+
   // Keep untouched property pills in sync with changing parent defaults; never
   // overwrite a pill the user has set (grilling decision).
   useEffect(() => {
-    setState((prev) => ({
-      ...prev,
-      assignedUserId: prev.touched.has("assignedUserId")
-        ? prev.assignedUserId
-        : defaults.assignedUserId,
-      teamId: prev.touched.has("teamId") ? prev.teamId : defaults.teamId,
-      priority: prev.touched.has("priority") ? prev.priority : defaults.priority,
-    }));
-  }, [defaults.assignedUserId, defaults.teamId, defaults.priority]);
+    if (!touchedDefaults.has("assignedUserId")) {
+      form.setFieldValue("assignedUserId", defaults.assignedUserId);
+    }
+    if (!touchedDefaults.has("teamId")) form.setFieldValue("teamId", defaults.teamId);
+    if (!touchedDefaults.has("priority")) form.setFieldValue("priority", defaults.priority);
+  }, [defaults.assignedUserId, defaults.teamId, defaults.priority, form, touchedDefaults]);
 
   const markTouched = (field: keyof SubTaskCreatorDefaults) =>
-    setState((prev) => {
-      const touched = new Set(prev.touched);
+    setTouchedDefaults((prev) => {
+      const touched = new Set(prev);
       touched.add(field);
-      return { ...prev, touched };
+      return touched;
     });
 
-  const buildInput = (title: string): SubTaskCreateInput => ({
-    title,
-    description: state.description.trim() === "" ? null : state.description.trim(),
-    assignedUserId: state.assignedUserId,
-    teamId: state.teamId,
-    priority: state.priority,
-    estimate: state.estimate,
-    labelIds: state.labelIds,
-    dueDate: state.dueDate,
-  });
+  const resetAfterCreate = (preserveProperties: boolean) => {
+    if (preserveProperties) {
+      form.setFieldValue("title", "");
+      form.setFieldValue("description", "");
+      return;
+    }
+    setTouchedDefaults(new Set());
+    form.reset(initialFormValues(defaults));
+  };
 
-  const resetAfterCreate = (preserveProperties: boolean) =>
-    setState((prev) =>
-      preserveProperties
-        ? { ...prev, title: "", description: "" }
-        : {
-            ...initialState(defaults),
-            // Preserve nothing on a plain create; defaults re-apply.
-          },
-    );
-
-  const submit = async (preserveProperties: boolean) => {
-    const trimmed = state.title.trim();
+  const submit = async (values: SubTaskCreatorFormValues, preserveProperties: boolean) => {
+    const trimmed = values.title.trim();
     if (trimmed === "") return;
-    const ok = await onCreate(buildInput(trimmed));
+    const ok = await onCreate(buildSubTaskCreateInput(values, trimmed));
     if (ok) {
       resetAfterCreate(preserveProperties);
       titleRef.current?.focus();
@@ -192,7 +202,8 @@ export function SubTaskCreator({
 
   // Multi-line paste into an empty title field creates one sub-task per line.
   const handleTitlePaste = async (event: ClipboardEvent<HTMLInputElement>) => {
-    if (state.title.trim() !== "") return; // Only when the field is empty.
+    const values = form.state.values;
+    if (values.title.trim() !== "") return; // Only when the field is empty.
     const text = event.clipboardData.getData("text");
     const lines = text
       .split(/\r?\n/)
@@ -205,30 +216,23 @@ export function SubTaskCreator({
       toast.error(`Paste up to ${MAX_PASTE_SUB_TASKS} sub-tasks at a time.`);
       return;
     }
-    const ok = await onCreateMany(lines.map((line) => buildInput(line)));
+    const ok = await onCreateMany(lines.map((line) => buildSubTaskCreateInput(values, line)));
     if (ok) {
       resetAfterCreate(false);
       titleRef.current?.focus();
     }
   };
 
-  const selectedAssignee =
-    assigneeOptions.find((option) => option.id === state.assignedUserId) ?? null;
-  const team = teamOptions.find((option) => option.id === state.teamId) ?? null;
-  const selectedLabels = state.labelIds
-    .map((id) => labelOptions.find((label) => label.id === id))
-    .filter((label) => label !== undefined);
-
   // Team change drops foreign Team Labels (keeps Church-wide), mirroring the
   // create dialog / task update behavior.
   const onTeamChange = (next: string | null) => {
     if (!next) return;
     markTouched("teamId");
-    setState((prev) => ({
-      ...prev,
-      teamId: next,
-      labelIds: prev.labelIds.filter((id) => labelAppliesToTeam(id, next)),
-    }));
+    form.setFieldValue("teamId", next);
+    form.setFieldValue(
+      "labelIds",
+      form.state.values.labelIds.filter((id) => labelAppliesToTeam(id, next)),
+    );
   };
 
   return (
@@ -237,111 +241,153 @@ export function SubTaskCreator({
       pickerRefs={pickerRefs}
       showArmedRing
     >
-      <input
-        aria-label="Sub-task title"
-        className="w-full bg-transparent font-medium text-sm outline-none placeholder:text-muted-foreground"
-        disabled={disabled}
-        onChange={(event) => setState((prev) => ({ ...prev, title: event.target.value }))}
-        onKeyDown={(event) => {
-          if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-            event.preventDefault();
-            void submit(event.shiftKey);
-            return;
-          }
-          if (event.key === "Escape") {
-            event.preventDefault();
-            // Stop the pane's Escape-to-close from also firing: Esc here closes
-            // only the inline creator.
-            event.stopPropagation();
-            onClose();
-          }
-        }}
-        onPaste={handleTitlePaste}
-        placeholder="Task title"
-        ref={titleRef}
-        value={state.title}
-      />
-      <textarea
-        aria-label="Sub-task description"
-        className="field-sizing-content min-h-8 w-full resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-        disabled={disabled}
-        onChange={(event) => setState((prev) => ({ ...prev, description: event.target.value }))}
-        onKeyDown={(event) => {
-          if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-            event.preventDefault();
-            void submit(event.shiftKey);
-          }
-        }}
-        placeholder="Add description..."
-        rows={1}
-        value={state.description}
-      />
+      <form.Field name="title">
+        {(field) => (
+          <input
+            aria-label="Sub-task title"
+            className="w-full bg-transparent font-medium text-sm outline-none placeholder:text-muted-foreground"
+            disabled={disabled}
+            onChange={(event) => field.handleChange(event.target.value)}
+            onKeyDown={(event) => {
+              if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                event.preventDefault();
+                void submit(form.state.values, event.shiftKey);
+                return;
+              }
+              if (event.key === "Escape") {
+                event.preventDefault();
+                // Stop the pane's Escape-to-close from also firing: Esc here closes
+                // only the inline creator.
+                event.stopPropagation();
+                onClose();
+              }
+            }}
+            onPaste={handleTitlePaste}
+            placeholder="Task title"
+            ref={titleRef}
+            value={field.state.value}
+          />
+        )}
+      </form.Field>
+      <form.Field name="description">
+        {(field) => (
+          <textarea
+            aria-label="Sub-task description"
+            className="field-sizing-content min-h-8 w-full resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            disabled={disabled}
+            onChange={(event) => field.handleChange(event.target.value)}
+            onKeyDown={(event) => {
+              if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                event.preventDefault();
+                void submit(form.state.values, event.shiftKey);
+              }
+            }}
+            placeholder="Add description..."
+            rows={1}
+            value={field.state.value}
+          />
+        )}
+      </form.Field>
 
       <div className="flex flex-wrap items-center gap-1.5">
-        <PriorityComboboxSelector
-          onValueChange={(next) => {
-            markTouched("priority");
-            setState((prev) => ({ ...prev, priority: next }));
+        <form.Field name="priority">
+          {(field) => (
+            <PriorityComboboxSelector
+              onValueChange={(next) => {
+                markTouched("priority");
+                field.handleChange(next);
+              }}
+              openRef={priorityOpenRef}
+              trigger={<TaskPriorityPillTrigger value={field.state.value} />}
+              value={field.state.value}
+            />
+          )}
+        </form.Field>
+
+        <form.Field name="teamId">
+          {(field) => {
+            const team = teamOptions.find((option) => option.id === field.state.value) ?? null;
+            return team ? (
+              <TeamComboboxSelector
+                memberTeamIds={memberTeamIds}
+                onValueChange={onTeamChange}
+                openRef={teamOpenRef}
+                options={teamOptions}
+                trigger={<TaskTeamPillTrigger avatarSize={16} team={team} />}
+                value={team.id}
+              />
+            ) : null;
           }}
-          openRef={priorityOpenRef}
-          trigger={<TaskPriorityPillTrigger value={state.priority} />}
-          value={state.priority}
-        />
+        </form.Field>
 
-        {team ? (
-          <TeamComboboxSelector
-            memberTeamIds={memberTeamIds}
-            onValueChange={onTeamChange}
-            openRef={teamOpenRef}
-            options={teamOptions}
-            trigger={<TaskTeamPillTrigger avatarSize={16} team={team} />}
-            value={team.id}
-          />
-        ) : null}
-
-        <AssigneeComboboxSelector
-          align="start"
-          currentUserId={currentUserId}
-          onValueChange={(next) => {
-            markTouched("assignedUserId");
-            setState((prev) => ({ ...prev, assignedUserId: next }));
+        <form.Field name="assignedUserId">
+          {(field) => {
+            const selectedAssignee =
+              assigneeOptions.find((option) => option.id === field.state.value) ?? null;
+            return (
+              <AssigneeComboboxSelector
+                align="start"
+                currentUserId={currentUserId}
+                onValueChange={(next) => {
+                  markTouched("assignedUserId");
+                  field.handleChange(next);
+                }}
+                openRef={assigneeOpenRef}
+                options={assigneeOptions}
+                teamMemberIds={teamMemberIds}
+                trigger={<TaskAssigneePillTrigger assignee={selectedAssignee} avatarSize={16} />}
+                value={field.state.value}
+              />
+            );
           }}
-          openRef={assigneeOpenRef}
-          options={assigneeOptions}
-          teamMemberIds={teamMemberIds}
-          trigger={<TaskAssigneePillTrigger assignee={selectedAssignee} avatarSize={16} />}
-          value={state.assignedUserId}
-        />
+        </form.Field>
 
-        <EstimateComboboxSelector
-          onValueChange={(next) => setState((prev) => ({ ...prev, estimate: next }))}
-          openRef={estimateOpenRef}
-          trigger={<TaskEstimatePillTrigger value={state.estimate} />}
-          value={state.estimate}
-        />
+        <form.Field name="estimate">
+          {(field) => (
+            <EstimateComboboxSelector
+              onValueChange={field.handleChange}
+              openRef={estimateOpenRef}
+              trigger={<TaskEstimatePillTrigger value={field.state.value} />}
+              value={field.state.value}
+            />
+          )}
+        </form.Field>
 
-        <LabelsComboboxSelector
-          onCreateLabel={
-            onCreateLabel
-              ? async (name) => {
-                  const id = await onCreateLabel(name);
-                  if (id) setState((prev) => ({ ...prev, labelIds: [...prev.labelIds, id] }));
+        <form.Field name="labelIds">
+          {(field) => {
+            const selectedLabels = field.state.value
+              .map((id) => labelOptions.find((label) => label.id === id))
+              .filter((label) => label !== undefined);
+            return (
+              <LabelsComboboxSelector
+                onCreateLabel={
+                  onCreateLabel
+                    ? async (name) => {
+                        const id = await onCreateLabel(name);
+                        if (id) field.handleChange([...field.state.value, id]);
+                      }
+                    : undefined
                 }
-              : undefined
-          }
-          onValueChange={(next) => setState((prev) => ({ ...prev, labelIds: next }))}
-          openRef={labelsOpenRef}
-          options={labelOptions}
-          trigger={<TaskLabelsPillTrigger labels={selectedLabels} />}
-          value={state.labelIds}
-        />
+                onValueChange={field.handleChange}
+                openRef={labelsOpenRef}
+                options={labelOptions}
+                trigger={<TaskLabelsPillTrigger labels={selectedLabels} />}
+                value={field.state.value}
+              />
+            );
+          }}
+        </form.Field>
 
-        <DueDateSelector
-          onValueChange={(next) => setState((prev) => ({ ...prev, dueDate: next }))}
-          openRef={dueDateOpenRef}
-          trigger={<TaskDueDatePillTrigger value={state.dueDate} />}
-          value={state.dueDate}
-        />
+        <form.Field name="dueDate">
+          {(field) => (
+            <DueDateSelector
+              onValueChange={field.handleChange}
+              openRef={dueDateOpenRef}
+              trigger={<TaskDueDatePillTrigger value={field.state.value} />}
+              value={field.state.value}
+            />
+          )}
+        </form.Field>
 
         {weekLabel ? (
           <span className="inline-flex h-7 items-center gap-1.5 rounded-md bg-muted px-2 font-medium text-muted-foreground text-xs">
@@ -355,14 +401,18 @@ export function SubTaskCreator({
         <Button onClick={onClose} size="sm" type="button" variant="ghost">
           Cancel
         </Button>
-        <Button
-          disabled={disabled || state.title.trim() === ""}
-          onClick={(event) => void submit(event.shiftKey)}
-          size="sm"
-          type="button"
-        >
-          Create
-        </Button>
+        <form.Subscribe selector={(formState) => formState.values.title}>
+          {(title) => (
+            <Button
+              disabled={disabled || title.trim() === ""}
+              onClick={(event) => void submit(form.state.values, event.shiftKey)}
+              size="sm"
+              type="button"
+            >
+              Create
+            </Button>
+          )}
+        </form.Subscribe>
       </div>
     </DraftTaskPropertySurface>
   );
