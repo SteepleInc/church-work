@@ -72,6 +72,13 @@ const CreateDemoItemArgs = toZeroSchema(Schema.Struct({ name: Schema.String }));
 const NotificationIdArgs = toZeroSchema(
   Schema.Struct({ church_id: Schema.String, notification_id: Schema.String }),
 );
+const SnoozeNotificationArgs = toZeroSchema(
+  Schema.Struct({
+    church_id: Schema.String,
+    notification_id: Schema.String,
+    snoozed_until: Schema.String,
+  }),
+);
 const NotificationChurchArgs = toZeroSchema(Schema.Struct({ church_id: Schema.String }));
 const CreateTeamArgs = toZeroSchema(
   Schema.Struct({ church_id: Schema.String, name: Schema.String }),
@@ -1765,6 +1772,31 @@ export const mutators = defineMutators({
             eq(notifications.recipient_user_id, session.user_id),
             isNull(notifications.deleted_at),
             isNotNull(notifications.read_at),
+          ),
+        );
+    }),
+    snooze: defineChurchTaskMutator(SnoozeNotificationArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+
+      const session = requireActiveChurchAccess(ctx, args.church_id);
+      const now = new Date();
+      const snoozedUntil = new Date(args.snoozed_until);
+      if (Number.isNaN(snoozedUntil.getTime()) || snoozedUntil <= now) return;
+
+      await db
+        .update(notifications)
+        .set({
+          snoozed_until: snoozedUntil,
+          updated_at: now,
+          updated_by: session.user_id,
+        })
+        .where(
+          and(
+            eq(notifications.id, args.notification_id),
+            eq(notifications.church_id, args.church_id),
+            eq(notifications.recipient_user_id, session.user_id),
+            isNull(notifications.deleted_at),
           ),
         );
     }),

@@ -127,6 +127,38 @@ describe("Zero Cycle mutators", () => {
     expect(updateCalls[3]?.set.deleted_at).toBeInstanceOf(Date);
   });
 
+  test("snoozes only the signed-in recipient's notification until a future time", async () => {
+    const updateCalls: Array<{ readonly table: unknown; readonly set: Record<string, unknown> }> =
+      [];
+    const tx = {
+      dbTransaction: {
+        wrappedTransaction: {
+          update: (table: unknown) => ({
+            set: (set: Record<string, unknown>) => ({
+              where: async () => updateCalls.push({ table, set }),
+            }),
+          }),
+        },
+      },
+      location: "server",
+    } as never;
+
+    await mustGetMutator(mutators, "notifications.snooze").fn({
+      args: {
+        church_id: "org_test",
+        notification_id: "notification_test",
+        snoozed_until: "2999-01-01T09:00:00.000Z",
+      },
+      ctx: signedInContext,
+      tx,
+    });
+
+    expect(updateCalls).toHaveLength(1);
+    expect(updateCalls[0]?.table).toBe(notifications);
+    expect(updateCalls[0]?.set).toMatchObject({ updated_by: "user_test" });
+    expect(updateCalls[0]?.set.snoozed_until).toEqual(new Date("2999-01-01T09:00:00.000Z"));
+  });
+
   test("soft-deletes and restores Templates without hard delete", async () => {
     const updateCalls: Array<{ readonly table: unknown; readonly set: Record<string, unknown> }> =
       [];

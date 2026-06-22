@@ -2,6 +2,21 @@ import { describe, expect, test } from "bun:test";
 
 import { getBreadcrumbLabel, getPrimaryAppShellNavItems } from "@/components/app-shell-utils";
 import { isEditableShortcutTarget } from "@/lib/keyboard-shortcuts";
+import { filterInboxNotifications } from "./inbox-page";
+
+import type { NotificationCollectionItem } from "@/data/notifications/notificationsData.app";
+
+function notificationFixture(
+  id: string,
+  overrides: Partial<NotificationCollectionItem> = {},
+): NotificationCollectionItem {
+  return {
+    id,
+    read_at: null,
+    snoozed_until: null,
+    ...overrides,
+  } as NotificationCollectionItem;
+}
 
 describe("Inbox navigation plumbing", () => {
   test("registers Inbox as a first-class app shell surface", async () => {
@@ -67,6 +82,51 @@ describe("Inbox navigation plumbing", () => {
     expect(dataSource).toContain("mutators.notifications.mark_all_read");
     expect(dataSource).toContain("mutators.notifications.delete(");
     expect(dataSource).toContain("mutators.notifications.delete_read");
+  });
+
+  test("wires Inbox snooze and local display filter controls", async () => {
+    const pageSource = await Bun.file(new URL("./inbox-page.tsx", import.meta.url)).text();
+    const dataSource = await Bun.file(
+      new URL("../../data/notifications/notificationsData.app.ts", import.meta.url),
+    ).text();
+
+    expect(pageSource).toContain("Snooze notification");
+    expect(pageSource).toContain("In 1 hour");
+    expect(pageSource).toContain("Tomorrow morning");
+    expect(pageSource).toContain("Next week");
+    expect(pageSource).toContain("Show in Inbox");
+    expect(pageSource).toContain("Show snoozed");
+    expect(pageSource).toContain("filterInboxNotifications(notificationsCollection");
+    expect(dataSource).toContain("mutators.notifications.snooze");
+  });
+
+  test("hides read and actively snoozed notifications without mutating state", () => {
+    const now = new Date("2026-06-22T12:00:00.000Z");
+    const unread = notificationFixture("unread");
+    const read = notificationFixture("read", {
+      read_at: new Date("2026-06-22T11:00:00.000Z").getTime(),
+    });
+    const activeSnooze = notificationFixture("active-snooze", {
+      snoozed_until: new Date("2026-06-23T12:00:00.000Z").getTime(),
+    });
+    const expiredSnooze = notificationFixture("expired-snooze", {
+      snoozed_until: new Date("2026-06-22T11:59:00.000Z").getTime(),
+    });
+
+    expect(
+      filterInboxNotifications([unread, read, activeSnooze, expiredSnooze], {
+        now,
+        showRead: false,
+        showSnoozed: false,
+      }).map((notification) => notification.id),
+    ).toEqual(["unread", "expired-snooze"]);
+    expect(
+      filterInboxNotifications([unread, read, activeSnooze, expiredSnooze], {
+        now,
+        showRead: true,
+        showSnoozed: true,
+      }).map((notification) => notification.id),
+    ).toEqual(["unread", "read", "active-snooze", "expired-snooze"]);
   });
 
   test("keeps G then I global and guarded from editable targets", async () => {
