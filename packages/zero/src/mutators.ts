@@ -69,7 +69,7 @@ import type { PlannedNotification } from "./notification-triggers";
 import type { Schema as ZeroSchema } from "./zero-schema.gen";
 
 const CreateDemoItemArgs = toZeroSchema(Schema.Struct({ name: Schema.String }));
-const MarkNotificationReadArgs = toZeroSchema(
+const NotificationIdArgs = toZeroSchema(
   Schema.Struct({ church_id: Schema.String, notification_id: Schema.String }),
 );
 const NotificationChurchArgs = toZeroSchema(Schema.Struct({ church_id: Schema.String }));
@@ -1648,7 +1648,7 @@ export const mutators = defineMutators({
     }),
   },
   notifications: {
-    mark_read: defineChurchTaskMutator(MarkNotificationReadArgs, async ({ args, ctx, tx }) => {
+    mark_read: defineChurchTaskMutator(NotificationIdArgs, async ({ args, ctx, tx }) => {
       const db = serverDb(tx);
       if (!db) return;
 
@@ -1672,7 +1672,7 @@ export const mutators = defineMutators({
           ),
         );
     }),
-    mark_unread: defineChurchTaskMutator(MarkNotificationReadArgs, async ({ args, ctx, tx }) => {
+    mark_unread: defineChurchTaskMutator(NotificationIdArgs, async ({ args, ctx, tx }) => {
       const db = serverDb(tx);
       if (!db) return;
 
@@ -1716,10 +1716,11 @@ export const mutators = defineMutators({
             eq(notifications.church_id, args.church_id),
             eq(notifications.recipient_user_id, session.user_id),
             isNull(notifications.deleted_at),
+            isNull(notifications.read_at),
           ),
         );
     }),
-    delete: defineChurchTaskMutator(MarkNotificationReadArgs, async ({ args, ctx, tx }) => {
+    delete: defineChurchTaskMutator(NotificationIdArgs, async ({ args, ctx, tx }) => {
       const db = serverDb(tx);
       if (!db) return;
 
