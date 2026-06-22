@@ -3,6 +3,7 @@ import { AtSignIcon, InboxIcon, MessageSquareTextIcon } from "lucide-react";
 import type { ComponentType } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
+import { UserAvatar } from "@/components/avatars/userAvatar";
 import { useOpenTaskDetailsPaneUrl } from "@/components/details-pane/details-pane-helpers";
 import { MainContainer, PageContainer } from "@/components/pageComponents";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +21,7 @@ import {
   useNotificationsCollection,
   type NotificationCollectionItem,
 } from "@/data/notifications/notificationsData.app";
+import { useMembersCollection, type MemberItem } from "@/data/members/membersData.app";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +59,18 @@ function getNotificationTaskReference(notification: NotificationCollectionItem) 
   );
 }
 
+/** The leading verb that describes what the actor did, paired with the type glyph. */
+function actionLabelForType(type: string): string {
+  switch (type) {
+    case "mention_explicit_target":
+      return "mentioned you";
+    case "task_comment_reply":
+      return "replied";
+    default:
+      return "sent an update";
+  }
+}
+
 export function InboxPage() {
   const { currentOrgOpt: activeChurch, loading: orgLoading } = useCurrentOrgOpt();
   const {
@@ -66,7 +80,12 @@ export function InboxPage() {
   } = useNotificationsCollection({
     churchId: activeChurch?.id ?? null,
   });
+  const { membersCollection } = useMembersCollection({ churchId: activeChurch?.id ?? null });
   const loading = orgLoading || notificationsLoading;
+
+  const membersByUserId = new Map<string, MemberItem>(
+    membersCollection.map((member) => [member.userId, member]),
+  );
 
   return (
     <MainContainer>
@@ -108,6 +127,11 @@ export function InboxPage() {
           <ul className="flex flex-col overflow-hidden rounded-xl border bg-card">
             {notificationsCollection.map((notification, index) => (
               <NotificationRow
+                actor={
+                  notification.actor_user_id
+                    ? (membersByUserId.get(notification.actor_user_id) ?? null)
+                    : null
+                }
                 isFirst={index === 0}
                 key={notification.id}
                 notification={notification}
@@ -121,9 +145,11 @@ export function InboxPage() {
 }
 
 function NotificationRow({
+  actor,
   isFirst,
   notification,
 }: {
+  readonly actor: MemberItem | null;
   readonly isFirst: boolean;
   readonly notification: NotificationCollectionItem;
 }) {
@@ -134,6 +160,15 @@ function NotificationRow({
   const openTaskDetailsPaneUrl = useOpenTaskDetailsPaneUrl();
   const markNotificationRead = useMarkNotificationReadMutation();
   const taskReference = getNotificationTaskReference(notification);
+
+  const metadata = parseDisplayMetadata(notification.display_metadata);
+  const taskIdentifier = metadata.task_identifier ?? null;
+  const taskTitle = metadata.task_title ?? null;
+  const excerpt = notification.display_body ?? metadata.comment_excerpt ?? null;
+
+  const actorUserId = notification.actor_user_id ?? null;
+  const actorName = actor?.name ?? "Someone";
+  const actionLabel = actionLabelForType(notification.type);
 
   const openNotification = () => {
     if (!taskReference) return;
@@ -163,35 +198,75 @@ function NotificationRow({
         onClick={openNotification}
         type="button"
       >
-        <div
-          className={cn(
-            "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg",
-            isUnread ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+        <div className="relative mt-0.5 shrink-0">
+          {actorUserId ? (
+            <UserAvatar
+              avatar={actor?.image ?? null}
+              name={actorName}
+              size={28}
+              userId={actorUserId}
+            />
+          ) : (
+            <span className="flex size-7 items-center justify-center rounded-full bg-muted text-muted-foreground">
+              <KindIcon className="size-3.5" />
+            </span>
           )}
-        >
-          <KindIcon className="size-3.5" />
+          <span
+            aria-hidden
+            className={cn(
+              "-bottom-0.5 -right-0.5 absolute flex size-4 items-center justify-center rounded-full ring-2 ring-card",
+              isUnread ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+            )}
+          >
+            <KindIcon className="size-2.5" />
+          </span>
         </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-2">
             <p
               className={cn(
-                "min-w-0 flex-1 text-sm",
-                isUnread ? "font-medium text-foreground" : "text-foreground/90",
+                "min-w-0 flex-1 text-sm leading-5",
+                isUnread ? "text-foreground" : "text-foreground/90",
               )}
             >
-              {notification.display_title}
+              <span className={cn(isUnread ? "font-semibold" : "font-medium")}>{actorName}</span>{" "}
+              <span className="text-muted-foreground">{actionLabel}</span>
             </p>
+            <Badge
+              className="shrink-0 gap-1 text-muted-foreground"
+              data-icon="inline-start"
+              variant="outline"
+            >
+              <KindIcon className="size-3" />
+              {kind.label}
+            </Badge>
             {notification.created_at ? (
               <time className="mt-0.5 shrink-0 text-muted-foreground text-xs tabular-nums">
                 {formatDistanceToNow(notification.created_at, { addSuffix: true })}
               </time>
             ) : null}
           </div>
-          {notification.display_body ? (
-            <p className="mt-1 line-clamp-2 text-muted-foreground text-sm/relaxed">
-              {notification.display_body}
+
+          {taskIdentifier || taskTitle ? (
+            <p className="mt-1 flex min-w-0 items-baseline gap-1.5 text-sm">
+              {taskIdentifier ? (
+                <span className="shrink-0 font-medium text-muted-foreground text-xs tabular-nums">
+                  {taskIdentifier}
+                </span>
+              ) : null}
+              {taskTitle ? (
+                <span className="min-w-0 truncate font-medium text-foreground">{taskTitle}</span>
+              ) : null}
             </p>
+          ) : (
+            <p className="mt-1 min-w-0 truncate font-medium text-foreground text-sm">
+              {notification.display_title}
+            </p>
+          )}
+
+          {excerpt ? (
+            <p className="mt-1 line-clamp-2 text-muted-foreground text-sm/relaxed">{excerpt}</p>
           ) : null}
         </div>
       </button>
@@ -204,12 +279,13 @@ function InboxSkeleton() {
     <ul className="flex flex-col overflow-hidden rounded-xl border bg-card">
       {Array.from({ length: 5 }).map((_, index) => (
         <li className={cn("flex gap-3 px-4 py-3.5", index !== 0 && "border-t")} key={index}>
-          <Skeleton className="mt-0.5 size-7 shrink-0 rounded-lg" />
+          <Skeleton className="mt-0.5 size-7 shrink-0 rounded-full" />
           <div className="flex-1 space-y-2">
             <div className="flex items-center justify-between gap-3">
               <Skeleton className="h-4 w-2/5" />
               <Skeleton className="h-3 w-12" />
             </div>
+            <Skeleton className="h-3.5 w-3/5" />
             <Skeleton className="h-3.5 w-4/5" />
           </div>
         </li>
