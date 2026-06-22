@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { useAppForm } from "@/components/form/ts-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,8 +67,6 @@ function TeamGeneralForm({
   const archiveTeam = useArchiveTeamMutation();
   const canManage = canManageTeams(activeChurch.role);
 
-  const [name, setName] = useState(team.name);
-  const [identifier, setIdentifierValue] = useState(team.identifier);
   const [error, setError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
 
@@ -89,6 +88,37 @@ function TeamGeneralForm({
     toast.success(successMessage);
   };
 
+  const nameForm = useAppForm({
+    defaultValues: { name: team.name },
+    onSubmit: async ({ value }) => {
+      const name = value.name.trim();
+      if (!canManage || !name || name === team.name) return;
+      await run(
+        "rename",
+        () => renameTeam({ churchId: activeChurch.id, name, teamId: team.id }),
+        "Team renamed.",
+      );
+    },
+  });
+
+  const identifierForm = useAppForm({
+    defaultValues: { identifier: team.identifier },
+    onSubmit: async ({ value }) => {
+      const identifier = value.identifier.trim().toUpperCase();
+      if (!canManage || !identifier || identifier === team.identifier) return;
+      await run(
+        "identifier",
+        () =>
+          setIdentifier({
+            churchId: activeChurch.id,
+            identifier,
+            teamId: team.id,
+          }),
+        "Team identifier updated.",
+      );
+    },
+  });
+
   return (
     <div className="flex flex-col gap-6">
       {error ? (
@@ -103,71 +133,84 @@ function TeamGeneralForm({
         </Alert>
       ) : null}
 
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="team-name">Name</Label>
+      <form
+        className="flex flex-col gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          void nameForm.handleSubmit();
+        }}
+      >
+        <Label htmlFor="name">Name</Label>
         <div className="flex items-center gap-2">
-          <Input
-            className="max-w-md"
-            disabled={!canManage || pendingAction === "rename"}
-            id="team-name"
-            onChange={(event) => setName(event.currentTarget.value)}
-            value={name}
-          />
-          <Button
-            disabled={!canManage || !name.trim() || name.trim() === team.name}
-            loading={pendingAction === "rename"}
-            onClick={() =>
-              void run(
-                "rename",
-                () => renameTeam({ churchId: activeChurch.id, name: name.trim(), teamId: team.id }),
-                "Team renamed.",
-              )
-            }
-            type="button"
-            variant="outline"
-          >
-            Save
-          </Button>
+          <nameForm.Field name="name">
+            {(field) => (
+              <Input
+                className="max-w-md"
+                disabled={!canManage || pendingAction === "rename"}
+                id={field.name}
+                onBlur={field.handleBlur}
+                onChange={(event) => field.handleChange(event.currentTarget.value)}
+                value={field.state.value}
+              />
+            )}
+          </nameForm.Field>
+          <nameForm.Subscribe selector={(state) => state.values.name}>
+            {(name) => (
+              <Button
+                disabled={!canManage || !name.trim() || name.trim() === team.name}
+                loading={pendingAction === "rename"}
+                type="submit"
+                variant="outline"
+              >
+                Save
+              </Button>
+            )}
+          </nameForm.Subscribe>
         </div>
-      </div>
+      </form>
 
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="team-identifier">Identifier</Label>
+      <form
+        className="flex flex-col gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          void identifierForm.handleSubmit();
+        }}
+      >
+        <Label htmlFor="identifier">Identifier</Label>
         <p className="text-muted-foreground text-sm">Used in Task IDs.</p>
         <div className="flex items-center gap-2">
-          <Input
-            className="max-w-xs uppercase"
-            disabled={!canManage || pendingAction === "identifier"}
-            id="team-identifier"
-            onChange={(event) => setIdentifierValue(event.currentTarget.value.toUpperCase())}
-            value={identifier}
-          />
-          <Button
-            disabled={
-              !canManage ||
-              !identifier.trim() ||
-              identifier.trim().toUpperCase() === team.identifier
-            }
-            loading={pendingAction === "identifier"}
-            onClick={() =>
-              void run(
-                "identifier",
-                () =>
-                  setIdentifier({
-                    churchId: activeChurch.id,
-                    identifier: identifier.trim().toUpperCase(),
-                    teamId: team.id,
-                  }),
-                "Team identifier updated.",
-              )
-            }
-            type="button"
-            variant="outline"
-          >
-            Save
-          </Button>
+          <identifierForm.Field name="identifier">
+            {(field) => (
+              <Input
+                className="max-w-xs uppercase"
+                disabled={!canManage || pendingAction === "identifier"}
+                id={field.name}
+                onBlur={field.handleBlur}
+                onChange={(event) => field.handleChange(event.currentTarget.value.toUpperCase())}
+                value={field.state.value}
+              />
+            )}
+          </identifierForm.Field>
+          <identifierForm.Subscribe selector={(state) => state.values.identifier}>
+            {(identifier) => (
+              <Button
+                disabled={
+                  !canManage ||
+                  !identifier.trim() ||
+                  identifier.trim().toUpperCase() === team.identifier
+                }
+                loading={pendingAction === "identifier"}
+                type="submit"
+                variant="outline"
+              >
+                Save
+              </Button>
+            )}
+          </identifierForm.Subscribe>
         </div>
-      </div>
+      </form>
 
       {canManage ? (
         <div className="flex flex-col gap-2 border-destructive/30 border-t pt-6">
@@ -204,31 +247,16 @@ export function TeamMembersPanel({ teamId }: { readonly teamId: string }) {
   const addTeamMember = useAddTeamMemberMutation();
   const removeTeamMember = useRemoveTeamMemberMutation();
 
-  const [selectedUserId, setSelectedUserId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
 
   const team = teams.teamsCollection.find((candidate) => candidate.id === teamId) ?? null;
   const canManage = activeChurch ? canManageTeams(activeChurch.role) : false;
 
-  if (orgLoading || teams.loading || memberships.loading || members.loading) {
-    return (
-      <div className="flex flex-col gap-3">
-        {[0, 1, 2].map((index) => (
-          <Skeleton className="h-14 w-full rounded-lg" key={index} />
-        ))}
-      </div>
-    );
-  }
-
-  if (!activeChurch || !team) {
-    return <p className="text-muted-foreground text-sm">Team not found.</p>;
-  }
-
   const membersById = new Map(members.usersCollection.map((member) => [member.id, member]));
   const teamMemberUserIds = new Set(
     memberships.teamMembershipsCollection
-      .filter((membership) => membership.teamId === team.id)
+      .filter((membership) => membership.teamId === team?.id)
       .map((membership) => membership.userId),
   );
   const teamMembers = members.usersCollection.filter((member) => teamMemberUserIds.has(member.id));
@@ -254,6 +282,39 @@ export function TeamMembersPanel({ teamId }: { readonly teamId: string }) {
     toast.success(successMessage);
   };
 
+  const addMemberForm = useAppForm({
+    defaultValues: { userId: "" },
+    onSubmit: async ({ value, formApi }) => {
+      if (!activeChurch || !team || !value.userId) return;
+      const member = membersById.get(value.userId);
+      await run(
+        "add",
+        () =>
+          addTeamMember({
+            churchId: activeChurch.id,
+            teamId: team.id,
+            userId: value.userId,
+          }),
+        `Added ${member ? getUserDisplayName(member) : "member"} to ${team.name}.`,
+      );
+      formApi.reset();
+    },
+  });
+
+  if (orgLoading || teams.loading || memberships.loading || members.loading) {
+    return (
+      <div className="flex flex-col gap-3">
+        {[0, 1, 2].map((index) => (
+          <Skeleton className="h-14 w-full rounded-lg" key={index} />
+        ))}
+      </div>
+    );
+  }
+
+  if (!activeChurch || !team) {
+    return <p className="text-muted-foreground text-sm">Team not found.</p>;
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {error ? (
@@ -267,43 +328,42 @@ export function TeamMembersPanel({ teamId }: { readonly teamId: string }) {
           className="flex items-end gap-2"
           onSubmit={(event) => {
             event.preventDefault();
-            if (!selectedUserId) return;
-            const member = membersById.get(selectedUserId);
-            void run(
-              "add",
-              () =>
-                addTeamMember({
-                  churchId: activeChurch.id,
-                  teamId: team.id,
-                  userId: selectedUserId,
-                }),
-              `Added ${member ? getUserDisplayName(member) : "member"} to ${team.name}.`,
-            ).then(() => setSelectedUserId(""));
+            event.stopPropagation();
+            void addMemberForm.handleSubmit();
           }}
         >
           <div className="flex flex-1 flex-col gap-2">
-            <Label htmlFor="add-team-member">Add member</Label>
-            <NativeSelect
-              disabled={pendingAction === "add" || availableMembers.length === 0}
-              id="add-team-member"
-              onChange={(event) => setSelectedUserId(event.currentTarget.value)}
-              value={selectedUserId}
-            >
-              <NativeSelectOption value="">
-                {availableMembers.length === 0
-                  ? "All members are on this Team"
-                  : "Select a Church Member"}
-              </NativeSelectOption>
-              {availableMembers.map((member) => (
-                <NativeSelectOption key={member.id} value={member.id}>
-                  {getUserDisplayName(member)}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
+            <Label htmlFor="userId">Add member</Label>
+            <addMemberForm.Field name="userId">
+              {(field) => (
+                <NativeSelect
+                  disabled={pendingAction === "add" || availableMembers.length === 0}
+                  id={field.name}
+                  onBlur={field.handleBlur}
+                  onChange={(event) => field.handleChange(event.currentTarget.value)}
+                  value={field.state.value}
+                >
+                  <NativeSelectOption value="">
+                    {availableMembers.length === 0
+                      ? "All members are on this Team"
+                      : "Select a Church Member"}
+                  </NativeSelectOption>
+                  {availableMembers.map((member) => (
+                    <NativeSelectOption key={member.id} value={member.id}>
+                      {getUserDisplayName(member)}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+              )}
+            </addMemberForm.Field>
           </div>
-          <Button disabled={pendingAction === "add" || !selectedUserId} type="submit">
-            Add
-          </Button>
+          <addMemberForm.Subscribe selector={(state) => state.values.userId}>
+            {(userId) => (
+              <Button disabled={pendingAction === "add" || !userId} type="submit">
+                Add
+              </Button>
+            )}
+          </addMemberForm.Subscribe>
         </form>
       ) : (
         <p className="text-muted-foreground text-sm">
