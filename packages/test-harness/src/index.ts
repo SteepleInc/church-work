@@ -129,76 +129,85 @@ export const startZeroCacheHarness = async (options: {
   readonly port?: number;
 }) => {
   const appId = options.appId ?? "tracer";
-  const port = options.port ?? (await getOpenPort());
-  const tmpDir = await mkdtemp(join(tmpdir(), "church-task-zero-"));
-  const replicaFile = join(tmpDir, "zero.db");
-  const zeroUrl = `http://127.0.0.1:${port}`;
   const adminPassword = "church-task-e2e-zero-admin-password";
   const statzAuthorization = `Basic ${Buffer.from(`zero:${adminPassword}`).toString("base64")}`;
-  const child = spawn(process.execPath, [getZeroCacheCliPath()], {
-    env: {
-      ...process.env,
-      DO_NOT_TRACK: "1",
-      ZERO_ADMIN_PASSWORD: adminPassword,
-      ZERO_APP_ID: appId,
-      ZERO_CHANGE_DB: options.databaseUrl,
-      ZERO_CVR_DB: options.databaseUrl,
-      ZERO_ENABLE_TELEMETRY: "false",
-      ZERO_LOG_LEVEL: "warn",
-      ZERO_MUTATE_ALLOWED_CLIENT_HEADERS: "cookie",
-      ZERO_MUTATE_FORWARD_COOKIES: "true",
-      ZERO_MUTATE_URL: `${options.apiBaseUrl}/api/zero/mutate`,
-      ZERO_NUM_SYNC_WORKERS: "1",
-      ZERO_PORT: String(port),
-      ZERO_QUERY_ALLOWED_CLIENT_HEADERS: "cookie",
-      ZERO_QUERY_FORWARD_COOKIES: "true",
-      ZERO_QUERY_URL: `${options.apiBaseUrl}/api/zero/query`,
-      ZERO_REPLICA_FILE: replicaFile,
-      ZERO_TASK_ID: `${appId}-e2e`,
-      ZERO_UPSTREAM_DB: options.databaseUrl,
-      ZERO_UPSTREAM_MAX_CONNS: "6",
-    },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  const maxAttempts = options.port ? 1 : 3;
 
-  let output = "";
-  child.stdout.on("data", (chunk) => {
-    output += String(chunk);
-  });
-  child.stderr.on("data", (chunk) => {
-    output += String(chunk);
-  });
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const port = options.port ?? (await getOpenPort());
+    const tmpDir = await mkdtemp(join(tmpdir(), "church-task-zero-"));
+    const replicaFile = join(tmpDir, "zero.db");
+    const zeroUrl = `http://127.0.0.1:${port}`;
+    const child = spawn(process.execPath, [getZeroCacheCliPath()], {
+      env: {
+        ...process.env,
+        DO_NOT_TRACK: "1",
+        ZERO_ADMIN_PASSWORD: adminPassword,
+        ZERO_APP_ID: appId,
+        ZERO_CHANGE_DB: options.databaseUrl,
+        ZERO_CVR_DB: options.databaseUrl,
+        ZERO_ENABLE_TELEMETRY: "false",
+        ZERO_LOG_LEVEL: "warn",
+        ZERO_MUTATE_ALLOWED_CLIENT_HEADERS: "cookie",
+        ZERO_MUTATE_FORWARD_COOKIES: "true",
+        ZERO_MUTATE_URL: `${options.apiBaseUrl}/api/zero/mutate`,
+        ZERO_NUM_SYNC_WORKERS: "1",
+        ZERO_PORT: String(port),
+        ZERO_QUERY_ALLOWED_CLIENT_HEADERS: "cookie",
+        ZERO_QUERY_FORWARD_COOKIES: "true",
+        ZERO_QUERY_URL: `${options.apiBaseUrl}/api/zero/query`,
+        ZERO_REPLICA_FILE: replicaFile,
+        ZERO_TASK_ID: `${appId}-e2e`,
+        ZERO_UPSTREAM_DB: options.databaseUrl,
+        ZERO_UPSTREAM_MAX_CONNS: "6",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
 
-  try {
-    await Promise.race([
-      waitForHttpOk(`${zeroUrl}/statz`, 60_000, {
-        headers: { authorization: statzAuthorization },
-      }),
-      new Promise<never>((_, reject) => {
-        child.once("exit", (code, signal) => {
-          reject(
-            new Error(`zero-cache exited before ready: code=${code} signal=${signal}\n${output}`),
-          );
-        });
-      }),
-    ]);
+    let output = "";
+    child.stdout.on("data", (chunk) => {
+      output += String(chunk);
+    });
+    child.stderr.on("data", (chunk) => {
+      output += String(chunk);
+    });
 
-    await ensureZeroMutationStorage(options.databaseUrl, appId);
-  } catch (error) {
-    child.kill("SIGTERM");
-    await rm(tmpDir, { force: true, recursive: true });
-    throw error;
+    try {
+      await Promise.race([
+        waitForHttpOk(`${zeroUrl}/statz`, 60_000, {
+          headers: { authorization: statzAuthorization },
+        }),
+        new Promise<never>((_, reject) => {
+          child.once("exit", (code, signal) => {
+            reject(
+              new Error(`zero-cache exited before ready: code=${code} signal=${signal}\n${output}`),
+            );
+          });
+        }),
+      ]);
+
+      await ensureZeroMutationStorage(options.databaseUrl, appId);
+
+      return {
+        port,
+        url: zeroUrl,
+        async stop() {
+          if (!child.killed && child.exitCode === null) {
+            child.kill("SIGTERM");
+            await new Promise<void>((resolve) => child.once("exit", () => resolve()));
+          }
+          await rm(tmpDir, { force: true, recursive: true });
+        },
+      };
+    } catch (error) {
+      child.kill("SIGTERM");
+      await rm(tmpDir, { force: true, recursive: true });
+      if (attempt < maxAttempts && error instanceof Error && error.message.includes("EADDRINUSE")) {
+        continue;
+      }
+      throw error;
+    }
   }
 
-  return {
-    port,
-    url: zeroUrl,
-    async stop() {
-      if (!child.killed && child.exitCode === null) {
-        child.kill("SIGTERM");
-        await new Promise<void>((resolve) => child.once("exit", () => resolve()));
-      }
-      await rm(tmpDir, { force: true, recursive: true });
-    },
-  };
+  throw new Error("Unable to start zero-cache harness");
 };

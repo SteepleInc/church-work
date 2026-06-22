@@ -215,12 +215,28 @@ test.describe("Task details Activity Feed", () => {
     );
     await taskDialog.getByRole("button", { name: "Create Task" }).click();
     await expect(taskDialog).not.toBeVisible({ timeout: 20_000 });
+
+    // The details pane is modal, so the board behind it is hidden from the
+    // accessibility tree while the pane is open. Close it before asserting the
+    // comment-derived Task card appeared on the board, then reopen the source
+    // Task to continue exercising comment actions from the Activity feed.
+    await detailsPane(page).getByRole("button", { name: "Close" }).click();
     await expect(page.getByLabel(`Task card Follow up with choir ${suffix}`)).toBeVisible({
       timeout: 20_000,
     });
 
-    await commentCard.hover();
-    await commentCard.getByLabel("Comment actions").click();
+    await page.getByLabel(`Task card ${parentTitle}`).click();
+    await expect(detailsPane(page)).toBeVisible();
+    await expect(detailsPane(page).getByRole("textbox", { name: "Task title" })).toHaveValue(
+      parentTitle,
+    );
+    const reopenedCommentCard = activityFeed(page).getByRole("listitem").filter({
+      hasText: commentBody,
+    });
+    await expect(reopenedCommentCard).toBeVisible({ timeout: 20_000 });
+
+    await reopenedCommentCard.hover();
+    await reopenedCommentCard.getByLabel("Comment actions").click();
     await page.getByRole("menuitem", { name: "New Subtask from comment" }).click();
 
     const subtaskDialog = page.getByRole("dialog", { name: /New Subtask/ });

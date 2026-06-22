@@ -139,7 +139,7 @@ type TaskCommentSourceTask = {
 export type TaskCommentTaskPrefill = {
   readonly title: string;
   readonly description: string;
-  readonly assignedUserId: string | null;
+  readonly assignTo: string | null;
   readonly teamId: string;
   readonly priority: TaskPriority;
   readonly estimate: TaskEstimate;
@@ -186,7 +186,7 @@ export function buildTaskPrefillFromComment({
   return {
     title,
     description: `@${actorName} said in ${sourceTask.identifier} ${sourceTask.title}:\n\n${quoted}`,
-    assignedUserId: sourceTask.assignedUserId,
+    assignTo: sourceTask.assignedUserId,
     teamId: sourceTask.teamId,
     priority: sourceTask.priority,
     estimate: sourceTask.estimate,

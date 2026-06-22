@@ -219,6 +219,7 @@ describe("TaskActivityFeed task comments", () => {
     expect(prefill?.description).toContain("@Pastor Sam said in CT-42 Plan the welcome service");
     expect(prefill?.description).toContain("> Fix the projector");
     expect(prefill?.description).toContain("> It flickers during worship");
+    expect(prefill?.assignTo).toBe(sourceTask.assignedUserId);
   });
 
   test("returns null for an empty or whitespace-only comment body", () => {

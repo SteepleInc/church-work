@@ -168,6 +168,14 @@ _Avoid_: Description, activity event, Slack message as the canonical concept
 A conversation rooted in one top-level Task Comment, with replies, reactions, and subscription state scoped to that thread. A Comment Thread belongs to a Task through its root Task Comment.
 _Avoid_: Nested discussion tree, task-level subscription
 
+**Notification Inbox**:
+The in-app list of user-targeted updates that a User should review, such as relevant Task Comment replies, mentions, assignments, or important Task changes. The Notification Inbox is the canonical notification surface; external delivery channels such as email, browser push, mobile, or Slack are future delivery mechanisms, not part of the initial notification model.
+_Avoid_: Email notifications as the canonical model, activity feed as the inbox, Slack as the source of truth
+
+**Notification Trigger**:
+An attention-worthy product event that creates one or more User-specific Notification Inbox items. Initial Notification Triggers are Comment Thread activity and mentions; future triggers may include assignment changes, due-date changes, status changes, or reminders.
+_Avoid_: Treating every Activity as a notification, scattering notification rules across mutators
+
 **Due Date**:
 The date by which a Task should be completed, when one is set. A Task may have no Due Date; it is never assigned one automatically. A Due Date does not attach a Task without a Cycle to a Cycle or move an already-attached Task between Cycles; explicit Cycle assignment wins, and a Task may remain in or move to a Cycle that does not contain its Due Date.
 _Avoid_: Scheduled date, deadline
