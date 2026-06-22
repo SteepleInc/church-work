@@ -1312,6 +1312,18 @@ function KeyDatePicker({
 
 const KEY_DATE_KINDS: readonly KeyDateScheduleKind[] = ["computedYearly", "fixedYearly", "oneTime"];
 
+const InlineKeyDateCreatorSchema = Schema.Struct({
+  name: Schema.String.pipe(
+    Schema.check(Schema.isMinLength(1, { message: "Key Date name is required." })),
+  ),
+  schedule: Schema.Any,
+});
+
+type InlineKeyDateCreatorValues = {
+  readonly name: string;
+  readonly schedule: KeyDateRule;
+};
+
 const defaultScheduleForKind = (kind: KeyDateScheduleKind): KeyDateRule => {
   if (kind === "computedYearly") return { kind: "computedYearly", rule: "easter" };
   if (kind === "fixedYearly") return { day: 25, kind: "fixedYearly", month: 12 };
@@ -1326,22 +1338,49 @@ function InlineKeyDateCreator({
   readonly onCreate: (name: string, schedule: KeyDateRule) => void;
   readonly onCancel: () => void;
 }) {
-  const [name, setName] = useState("");
-  const [schedule, setSchedule] = useState<KeyDateRule>(defaultScheduleForKind("computedYearly"));
+  const form = useAppForm({
+    defaultValues: {
+      name: "",
+      schedule: defaultScheduleForKind("computedYearly"),
+    } satisfies InlineKeyDateCreatorValues,
+    validationLogic: revalidateLogic({ mode: "submit", modeAfterSubmission: "blur" }),
+    validators: { onSubmit: Schema.toStandardSchemaV1(InlineKeyDateCreatorSchema) },
+    onSubmit: ({ value }) => {
+      const name = value.name.trim();
+      if (!name) return;
+
+      onCreate(name, value.schedule);
+    },
+  });
+
+  const schedule = useStore(form.store, (state) => state.values.schedule);
+  const setSchedule = (next: KeyDateRule) => form.setFieldValue("schedule", next);
 
   return (
-    <div className="flex flex-col gap-3 p-3">
+    <form
+      className="flex flex-col gap-3 p-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        void form.handleSubmit();
+      }}
+    >
       <div className="flex items-center gap-2 font-medium text-sm">
         <Sparkles className="size-4 text-muted-foreground" />
         New Key Date
       </div>
-      <Input
-        // biome-ignore lint/a11y/noAutofocus: inline create affordance
-        autoFocus
-        onChange={(event) => setName(event.currentTarget.value)}
-        placeholder="Key Date name"
-        value={name}
-      />
+      <form.Field name="name">
+        {(field) => (
+          <Input
+            // biome-ignore lint/a11y/noAutofocus: inline create affordance
+            autoFocus
+            onBlur={field.handleBlur}
+            onChange={(event) => field.handleChange(event.currentTarget.value)}
+            placeholder="Key Date name"
+            value={field.state.value}
+          />
+        )}
+      </form.Field>
 
       <div className="flex flex-wrap gap-1.5">
         {KEY_DATE_KINDS.map((kind) => (
@@ -1410,16 +1449,15 @@ function InlineKeyDateCreator({
         <Button onClick={onCancel} size="sm" type="button" variant="ghost">
           Cancel
         </Button>
-        <Button
-          disabled={!name.trim()}
-          onClick={() => onCreate(name.trim(), schedule)}
-          size="sm"
-          type="button"
-        >
-          Create
-        </Button>
+        <form.Subscribe selector={(state) => state.values.name.trim().length > 0}>
+          {(hasName) => (
+            <Button disabled={!hasName} size="sm" type="submit">
+              Create
+            </Button>
+          )}
+        </form.Subscribe>
       </div>
-    </div>
+    </form>
   );
 }
 

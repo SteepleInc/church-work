@@ -208,7 +208,11 @@ test("authors and schedules a Key Date Template", async ({ page }, testInfo) => 
   // Step 1: Setup (name and Key Date anchor share the screen).
   await page.getByLabel("Template name").fill("Easter Prep Template");
   await page.getByRole("button", { name: "Select Key Date" }).click();
-  await page.getByRole("button", { name: /Easter/ }).click();
+  await page.getByRole("button", { name: "Create new Key Date" }).click();
+  await page.getByPlaceholder("Key Date name").fill("Good Friday Prep Anchor");
+  await page.getByRole("button", { exact: true, name: "Good Friday" }).click();
+  await page.getByRole("button", { name: "Create" }).click();
+  await expect(page.getByRole("button", { name: /Good Friday Prep Anchor/ })).toBeVisible();
   await expect(page.getByText("Next occurrence")).toBeVisible();
   await stepperNext(page);
 
@@ -222,7 +226,9 @@ test("authors and schedules a Key Date Template", async ({ page }, testInfo) => 
   await expect(page.getByText("Repeats every year")).toBeVisible();
   await page.getByRole("button", { name: "Save and schedule" }).click();
 
-  await expect(page.getByText(/Template saved and scheduled for Easter/)).toBeVisible({
+  await expect(
+    page.getByText(/Template saved and scheduled for Good Friday Prep Anchor/),
+  ).toBeVisible({
     timeout: 20_000,
   });
 });
