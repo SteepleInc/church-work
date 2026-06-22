@@ -67,7 +67,7 @@ export function InboxPage() {
         {loading ? (
           <InboxSkeleton />
         ) : notificationsCollection.length === 0 ? (
-          <Empty className="min-h-72 border bg-card/40">
+          <Empty className="min-h-72 rounded-xl border bg-card">
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 <InboxIcon />
@@ -115,7 +115,7 @@ function NotificationRow({
   return (
     <li
       className={cn(
-        "group relative flex gap-3 px-4 py-3.5 transition-colors hover:bg-muted/40",
+        "relative flex gap-3 px-4 py-3.5",
         !isFirst && "border-t",
         isUnread && "bg-primary/[0.03]",
       )}
@@ -127,9 +127,7 @@ function NotificationRow({
       <div
         className={cn(
           "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg",
-          isUnread
-            ? "bg-primary/10 text-primary"
-            : "bg-muted text-muted-foreground group-hover:text-foreground",
+          isUnread ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
         )}
       >
         <KindIcon className="size-3.5" />
@@ -137,14 +135,14 @@ function NotificationRow({
 
       <div className="min-w-0 flex-1">
         <div className="flex items-start gap-2">
-          <h2
+          <p
             className={cn(
               "min-w-0 flex-1 text-sm",
               isUnread ? "font-medium text-foreground" : "text-foreground/90",
             )}
           >
             {notification.display_title}
-          </h2>
+          </p>
           {notification.created_at ? (
             <time className="mt-0.5 shrink-0 text-muted-foreground text-xs tabular-nums">
               {formatDistanceToNow(notification.created_at, { addSuffix: true })}
