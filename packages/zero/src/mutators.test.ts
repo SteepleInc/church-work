@@ -10,6 +10,7 @@ import {
   focus_windows,
   key_dates,
   labels,
+  notifications,
   tasks,
   task_comment_subscriptions,
   task_comments,
@@ -1157,6 +1158,59 @@ describe("Zero Task mutators", () => {
       root_comment_id: "taskcomment_root",
       task_id: "task_test",
       user_id: "user_test",
+    });
+  });
+
+  test("creates reply Notifications for subscribed active Church members", async () => {
+    const { insertCalls, tx } = createServerTx([
+      [
+        {
+          cycle_id: "cycle_test",
+          id: "task_test",
+          number: 7,
+          team_identifier: "PRO",
+          title: "Prepare stage cues",
+        },
+      ],
+      [{ id: "taskcomment_root", parent_comment_id: null }],
+      [{ user_id: "user_test" }, { user_id: "user_subscriber" }, { user_id: "user_non_member" }],
+      [{ userId: "user_test" }, { userId: "user_subscriber" }],
+    ]);
+
+    await mustGetMutator(mutators, "task_comments.create").fn({
+      args: {
+        body: "Reply with useful context",
+        church_id: "org_test",
+        parent_comment_id: "taskcomment_root",
+        task_id: "task_test",
+      },
+      ctx: signedInContext,
+      tx,
+    });
+
+    const notificationInserts = insertCalls
+      .filter((call) => call.table === notifications)
+      .map((call) => call.values as { readonly [key: string]: unknown });
+
+    expect(notificationInserts).toHaveLength(1);
+    expect(getIdType(notificationInserts[0]?.id as string)).toBe("notification");
+    expect(JSON.parse(notificationInserts[0]?.display_metadata as string)).toEqual({
+      comment_excerpt: "Reply with useful context",
+      task_identifier: "PRO-7",
+      task_title: "Prepare stage cues",
+    });
+    expect(notificationInserts[0]).toMatchObject({
+      _tag: "notification",
+      church_id: "org_test",
+      display_body: "Reply with useful context",
+      display_title: "New reply on PRO-7 Prepare stage cues",
+      idempotency_key: expect.stringContaining(":taskcomment_root:"),
+      read_at: null,
+      recipient_user_id: "user_subscriber",
+      snoozed_until: null,
+      task_comment_thread_id: "taskcomment_root",
+      task_id: "task_test",
+      type: "task_comment_reply",
     });
   });
 

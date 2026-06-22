@@ -162,6 +162,21 @@ export const queries = defineQueries({
         .orderBy("created_at", "asc");
     }),
   },
+  notifications: {
+    by_recipient: defineChurchTaskQuery(ChurchScopedArgs, ({ args, ctx }) => {
+      if (!hasActiveChurchAccess(ctx, args.church_id) || ctx?.authenticated !== true) {
+        if (isServerContext(ctx)) requireActiveChurchAccess(ctx, args.church_id);
+
+        return zql.notifications.where("id", "__unauthorized__").where("deleted_at", "IS", null);
+      }
+
+      return zql.notifications
+        .where("church_id", args.church_id)
+        .where("recipient_user_id", ctx.user_id)
+        .where("deleted_at", "IS", null)
+        .orderBy("created_at", "desc");
+    }),
+  },
   task_comment_subscriptions: {
     by_task_for_user: defineChurchTaskQuery(TaskCommentSubscriptionsArgs, ({ args, ctx }) => {
       if (

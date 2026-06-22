@@ -597,6 +597,36 @@ export const task_comment_subscriptions = pgTable(
   ],
 );
 
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: text("id").primaryKey(),
+    ...baseEntityFields,
+    church_id: text("church_id").notNull(),
+    recipient_user_id: text("recipient_user_id").notNull(),
+    type: text("type").notNull(),
+    idempotency_key: text("idempotency_key").notNull(),
+    read_at: utcTimestamp("read_at"),
+    read_by: text("read_by"),
+    snoozed_until: utcTimestamp("snoozed_until"),
+    activity_id: text("activity_id"),
+    task_id: text("task_id"),
+    task_comment_id: text("task_comment_id"),
+    task_comment_thread_id: text("task_comment_thread_id"),
+    actor_user_id: text("actor_user_id"),
+    display_title: text("display_title").notNull(),
+    display_body: text("display_body"),
+    display_metadata: text("display_metadata").notNull().default("{}"),
+  },
+  (table) => [
+    index("notifications_church_recipient_idx").on(table.church_id, table.recipient_user_id),
+    index("notifications_task_idx").on(table.church_id, table.task_id),
+    uniqueIndex("notifications_recipient_idempotency_live_idx")
+      .on(table.church_id, table.recipient_user_id, table.idempotency_key)
+      .where(sql`${table.deleted_at} IS NULL`),
+  ],
+);
+
 export const member = pgTable(
   "member",
   {
@@ -654,6 +684,7 @@ export const schema = {
   key_dates,
   labels,
   member,
+  notifications,
   organization,
   session,
   team_memberships,
@@ -677,6 +708,8 @@ export type TaskComment = typeof task_comments.$inferSelect;
 export type NewTaskComment = typeof task_comments.$inferInsert;
 export type TaskCommentSubscription = typeof task_comment_subscriptions.$inferSelect;
 export type NewTaskCommentSubscription = typeof task_comment_subscriptions.$inferInsert;
+export type Notification = typeof notifications.$inferSelect;
+export type NewNotification = typeof notifications.$inferInsert;
 
 export type DemoItem = typeof demo_items.$inferSelect;
 export type NewDemoItem = typeof demo_items.$inferInsert;

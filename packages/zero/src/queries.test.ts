@@ -28,6 +28,7 @@ const churchScopedQueryNames = [
   "key_date_occurrences.by_church",
   "key_dates.by_church",
   "labels.by_church",
+  "notifications.by_recipient",
   "team_memberships.by_church",
   "teams.by_church",
   "template_schedules.by_church",
