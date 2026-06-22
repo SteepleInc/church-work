@@ -807,7 +807,7 @@ const writeNotifications = async (
   },
 ) => {
   for (const plan of args.plans) {
-    await db.insert(notifications).values({
+    const insertNotification = db.insert(notifications).values({
       _tag: "notification",
       activity_id: plan.activity_id,
       actor_user_id: plan.actor_user_id,
@@ -832,6 +832,21 @@ const writeNotifications = async (
       updated_at: args.occurred_at,
       updated_by: args.actor_user_id,
     });
+
+    if ("onConflictDoNothing" in insertNotification) {
+      await insertNotification.onConflictDoNothing();
+      continue;
+    }
+
+    const awaitedInsertNotification = await insertNotification;
+    if (
+      awaitedInsertNotification &&
+      typeof awaitedInsertNotification === "object" &&
+      "onConflictDoNothing" in awaitedInsertNotification &&
+      typeof awaitedInsertNotification.onConflictDoNothing === "function"
+    ) {
+      await awaitedInsertNotification.onConflictDoNothing();
+    }
   }
 };
 

@@ -802,7 +802,11 @@ describe("Zero Label mutators", () => {
 
 describe("Zero Task mutators", () => {
   const createServerTx = (selectResults: Array<unknown>) => {
-    const insertCalls: Array<{ readonly table: unknown; readonly values: unknown }> = [];
+    const insertCalls: Array<{
+      onConflictDoNothing?: boolean;
+      readonly table: unknown;
+      readonly values: unknown;
+    }> = [];
     const updateCalls: Array<{
       readonly table: unknown;
       readonly set: unknown;
@@ -815,7 +819,17 @@ describe("Zero Task mutators", () => {
         wrappedTransaction: {
           insert: (table: unknown) => ({
             values: async (values: unknown) => {
-              insertCalls.push({ table, values });
+              const call = { table, values } as {
+                onConflictDoNothing?: boolean;
+                readonly table: unknown;
+                readonly values: unknown;
+              };
+              insertCalls.push(call);
+              return {
+                onConflictDoNothing: async () => {
+                  call.onConflictDoNothing = true;
+                },
+              };
             },
           }),
           select: () => {
@@ -1201,6 +1215,7 @@ describe("Zero Task mutators", () => {
     });
     expect(notificationInserts[0]).toMatchObject({
       _tag: "notification",
+      activity_id: expect.stringMatching(/^activity_/),
       church_id: "org_test",
       display_body: "Reply with useful context",
       display_title: "New reply on PRO-7 Prepare stage cues",
@@ -1208,10 +1223,14 @@ describe("Zero Task mutators", () => {
       read_at: null,
       recipient_user_id: "user_subscriber",
       snoozed_until: null,
+      task_comment_id: expect.stringMatching(/^taskcomment_/),
       task_comment_thread_id: "taskcomment_root",
       task_id: "task_test",
       type: "task_comment_reply",
     });
+    expect(insertCalls.find((call) => call.table === notifications)?.onConflictDoNothing).toBe(
+      true,
+    );
   });
 
   test("unsubscribes the current User from a Task Comment thread by soft delete", async () => {
