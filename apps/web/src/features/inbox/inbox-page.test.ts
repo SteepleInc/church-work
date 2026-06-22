@@ -104,7 +104,7 @@ describe("Inbox navigation plumbing", () => {
     const pageSource = await Bun.file(new URL("./inbox-page.tsx", import.meta.url)).text();
 
     expect(pageSource).toContain('aria-label="Search Inbox"');
-    expect(pageSource).toContain('placeholder="Search task, actor, type, or comment…"');
+    expect(pageSource).toContain('placeholder="Search Inbox…"');
     expect(pageSource).toContain('aria-label="Clear Inbox search"');
     expect(pageSource).toContain("searchQuery,");
     expect(pageSource).toContain("getInboxSearchText");

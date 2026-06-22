@@ -11,7 +11,7 @@ import {
   XIcon,
   Trash2Icon,
 } from "lucide-react";
-import { useState, type ComponentType } from "react";
+import { useEffect, useRef, useState, type ComponentType } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
@@ -62,6 +62,7 @@ import {
 } from "@/data/notifications/notificationsData.app";
 import { useMembersCollection, type MemberItem } from "@/data/members/membersData.app";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
+import { isEditableShortcutTarget } from "@/lib/keyboard-shortcuts";
 import { cn } from "@/lib/utils";
 
 const PAGE_DESCRIPTION = "Replies, mentions, and other updates that need your attention.";
@@ -250,6 +251,7 @@ export function InboxPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showRead, setShowRead] = useState(true);
   const [showSnoozed, setShowSnoozed] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const now = new Date();
   const snoozedCount = notificationsCollection.filter((notification) =>
     isNotificationSnoozed(notification, now),
@@ -269,6 +271,21 @@ export function InboxPage() {
     showSnoozed,
   });
   const hasSearchQuery = searchQuery.trim().length > 0;
+  const isFiltering = hasSearchQuery || !showRead || !showSnoozed;
+  const totalNotifications = notificationsCollection.length;
+  const visibleCount = visibleNotifications.length;
+
+  useEffect(() => {
+    if (!hasNotifications) return;
+    const focusSearch = (event: KeyboardEvent) => {
+      if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (isEditableShortcutTarget(event.target)) return;
+      event.preventDefault();
+      searchInputRef.current?.focus();
+    };
+    document.addEventListener("keydown", focusSearch);
+    return () => document.removeEventListener("keydown", focusSearch);
+  }, [hasNotifications]);
 
   const handleMarkAllRead = () => {
     if (!activeChurch || unreadCount === 0) return;
@@ -292,7 +309,7 @@ export function InboxPage() {
 
   return (
     <MainContainer>
-      <div className="flex flex-col gap-1 px-4 pt-0 pb-3 md:pt-1">
+      <div className="flex flex-col gap-2 px-4 pt-0 pb-3 md:pt-1">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <h1 className="font-semibold text-2xl tracking-tight">Inbox</h1>
@@ -304,6 +321,43 @@ export function InboxPage() {
           </div>
           {!loading && hasNotifications ? (
             <div className="flex flex-wrap items-center gap-1.5">
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: search label wraps the input */}
+              <label className="relative flex w-full min-w-44 shrink items-center sm:w-56">
+                <SearchIcon className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2.5 size-4 text-muted-foreground" />
+                <Input
+                  aria-label="Search Inbox"
+                  className="h-8 rounded-full pr-8 pl-8"
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape" && hasSearchQuery) {
+                      event.preventDefault();
+                      setSearchQuery("");
+                    }
+                  }}
+                  placeholder="Search Inbox…"
+                  ref={searchInputRef}
+                  type="search"
+                  value={searchQuery}
+                />
+                {hasSearchQuery ? (
+                  <Button
+                    aria-label="Clear Inbox search"
+                    className="-translate-y-1/2 absolute top-1/2 right-1 size-6 rounded-full text-muted-foreground"
+                    onClick={() => {
+                      setSearchQuery("");
+                      searchInputRef.current?.focus();
+                    }}
+                    size="icon-sm"
+                    variant="ghost"
+                  >
+                    <XIcon />
+                  </Button>
+                ) : (
+                  <Kbd className="-translate-y-1/2 absolute top-1/2 right-2 hidden sm:inline-flex">
+                    /
+                  </Kbd>
+                )}
+              </label>
               <DropdownMenu>
                 <DropdownMenuTrigger
                   render={
@@ -362,31 +416,17 @@ export function InboxPage() {
             </div>
           ) : null}
         </div>
-        <p className="text-balance text-muted-foreground text-sm">{PAGE_DESCRIPTION}</p>
-        {!loading && hasNotifications ? (
-          <div className="relative max-w-md">
-            <SearchIcon className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2.5 size-4 text-muted-foreground" />
-            <Input
-              aria-label="Search Inbox"
-              className="pr-8 pl-8"
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search task, actor, type, or comment…"
-              type="search"
-              value={searchQuery}
-            />
-            {hasSearchQuery ? (
-              <Button
-                aria-label="Clear Inbox search"
-                className="-translate-y-1/2 absolute top-1/2 right-1 size-6"
-                onClick={() => setSearchQuery("")}
-                size="icon-sm"
-                variant="ghost"
-              >
-                <XIcon />
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <p className="text-balance text-muted-foreground text-sm">{PAGE_DESCRIPTION}</p>
+          {!loading && hasNotifications && isFiltering && visibleCount > 0 ? (
+            <span className="text-muted-foreground/80 text-xs tabular-nums">
+              <span aria-hidden className="mr-2 text-muted-foreground/40">
+                ·
+              </span>
+              Showing {visibleCount} of {totalNotifications}
+            </span>
+          ) : null}
+        </div>
       </div>
 
       <AlertDialog onOpenChange={setDeleteReadOpen} open={deleteReadOpen}>
@@ -452,9 +492,17 @@ export function InboxPage() {
                 {hasSearchQuery ? "No matching notifications" : "Nothing left to read"}
               </EmptyTitle>
               <EmptyDescription>
-                {hasSearchQuery
-                  ? "Clear search or adjust Display to widen this view."
-                  : emptyFilteredDescription({ snoozedCount, showSnoozed })}
+                {hasSearchQuery ? (
+                  <>
+                    Nothing in your Inbox matches{" "}
+                    <span className="font-medium text-foreground">
+                      &ldquo;{searchQuery.trim()}&rdquo;
+                    </span>
+                    . Clear search or adjust Display to widen this view.
+                  </>
+                ) : (
+                  emptyFilteredDescription({ snoozedCount, showSnoozed })
+                )}
               </EmptyDescription>
             </EmptyHeader>
             {hasSearchQuery ? (
