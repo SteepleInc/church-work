@@ -226,6 +226,18 @@ test("creates, assigns, moves, and preserves Task board state on the local Postg
 
   await page.getByRole("button", { name: "Mark notification unread" }).click();
   await expect(page.getByText("1 unread", { exact: true })).toBeVisible({ timeout: 20_000 });
+  await page.getByRole("button", { name: "Snooze notification" }).click();
+  await page.getByRole("menuitem", { name: "In 1 hour" }).click();
+  await expect(page.getByRole("button", { name: /Open notification/ })).not.toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(page.getByText("1 notification is snoozed for later")).toBeVisible();
+  await page.getByRole("button", { name: "Show snoozed" }).click();
+  await expect(page.getByRole("button", { name: /Open notification/ })).toContainText(
+    sharedTaskTitle,
+    { timeout: 20_000 },
+  );
+  await expect(page.getByText("Snoozed", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Mark all read" }).click();
   await expect(page.getByText("1 unread", { exact: true })).not.toBeVisible({ timeout: 20_000 });
 
