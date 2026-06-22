@@ -318,7 +318,7 @@ function NotificationRow({
         <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-primary" />
       ) : null}
 
-      <div className="flex items-stretch">
+      <div className="relative flex items-stretch">
         <button
           aria-label={`Open notification: ${notification.display_title}`}
           className={cn(
@@ -399,7 +399,7 @@ function NotificationRow({
             ) : null}
           </div>
         </button>
-        <div className="flex shrink-0 items-center gap-1 px-3 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 max-md:opacity-100">
+        <div className="absolute inset-y-0 right-0 flex items-center gap-1 bg-gradient-to-l from-card via-card to-transparent pr-3 pl-8 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 max-md:static max-md:bg-none max-md:pl-3 max-md:opacity-100">
           <Tooltip>
             <TooltipTrigger
               render={
