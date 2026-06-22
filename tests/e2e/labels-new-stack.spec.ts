@@ -30,6 +30,7 @@ test("manages Labels and applies them to Tasks on the local Postgres and Zero st
   const suffix = `${Date.now()}-${testInfo.workerIndex}`;
   const email = `labels-${suffix}@example.com`;
   const labelName = `Follow Up ${suffix}`;
+  const renamedLabelName = `Needs Follow Up ${suffix}`;
   const taskTitle = `Labelled Task ${suffix}`;
 
   await startAuthenticatedSession(page, {
@@ -47,8 +48,18 @@ test("manages Labels and applies them to Tasks on the local Postgres and Zero st
     timeout: 20_000,
   });
 
+  await page
+    .getByRole("row", { name: new RegExp(`${labelName}.*—`) })
+    .getByRole("button", { name: labelName })
+    .click();
+  await page.getByPlaceholder("Label name").fill(renamedLabelName);
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("row", { name: new RegExp(`${renamedLabelName}.*—`) })).toBeVisible({
+    timeout: 20_000,
+  });
+
   await page.reload();
-  await expect(page.getByRole("row", { name: new RegExp(`${labelName}.*—`) })).toBeVisible({
+  await expect(page.getByRole("row", { name: new RegExp(`${renamedLabelName}.*—`) })).toBeVisible({
     timeout: 20_000,
   });
 
@@ -65,16 +76,19 @@ test("manages Labels and applies them to Tasks on the local Postgres and Zero st
   const detailsPane = page.getByRole("dialog", { name: "Details Pane" });
   await expect(detailsPane).toBeVisible();
   await detailsPane.getByTestId("task-details-labels-trigger").click();
-  await page.getByRole("option", { name: labelName }).click();
+  await page.getByRole("option", { name: renamedLabelName }).click();
   // Assert on the Labels chip specifically: the Activity Feed also renders the
   // label name ("added the <label> label"), so a bare getByText would match two
   // elements and trip Playwright strict mode.
-  await expect(detailsPane.getByTestId("task-details-labels-trigger")).toContainText(labelName, {
-    timeout: 20_000,
-  });
+  await expect(detailsPane.getByTestId("task-details-labels-trigger")).toContainText(
+    renamedLabelName,
+    {
+      timeout: 20_000,
+    },
+  );
 
   await page.goto("/settings/workspace/labels");
-  await expect(page.getByRole("row", { name: new RegExp(`${labelName}.*1`) })).toBeVisible({
+  await expect(page.getByRole("row", { name: new RegExp(`${renamedLabelName}.*1`) })).toBeVisible({
     timeout: 20_000,
   });
 });
