@@ -37,6 +37,21 @@ describe("Inbox navigation plumbing", () => {
     expect(dataSource).toContain("notification.read_at == null");
   });
 
+  test("opens notifications into the task details pane and marks them read", async () => {
+    const pageSource = await Bun.file(new URL("./inbox-page.tsx", import.meta.url)).text();
+    const dataSource = await Bun.file(
+      new URL("../../data/notifications/notificationsData.app.ts", import.meta.url),
+    ).text();
+
+    expect(pageSource).toContain("useOpenTaskDetailsPaneUrl");
+    expect(pageSource).toContain("useMarkNotificationReadMutation");
+    expect(pageSource).toContain(
+      "openTaskDetailsPaneUrl({ id: getNotificationTaskReference(notification) })",
+    );
+    expect(pageSource).toContain("markNotificationRead({");
+    expect(dataSource).toContain("mutators.notifications.mark_read");
+  });
+
   test("keeps G then I global and guarded from editable targets", async () => {
     const appShellSource = await Bun.file(
       new URL("../../components/app-shell.tsx", import.meta.url),

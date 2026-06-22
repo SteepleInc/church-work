@@ -41,6 +41,34 @@ const signedInContext = {
 } as const;
 
 describe("Zero Cycle mutators", () => {
+  test("marks only the signed-in recipient's notification read", async () => {
+    const updateCalls: Array<{ readonly table: unknown; readonly set: Record<string, unknown> }> =
+      [];
+    const tx = {
+      dbTransaction: {
+        wrappedTransaction: {
+          update: (table: unknown) => ({
+            set: (set: Record<string, unknown>) => ({
+              where: async () => updateCalls.push({ table, set }),
+            }),
+          }),
+        },
+      },
+      location: "server",
+    } as never;
+
+    await mustGetMutator(mutators, "notifications.mark_read").fn({
+      args: { church_id: "org_test", notification_id: "notification_test" },
+      ctx: signedInContext,
+      tx,
+    });
+
+    expect(updateCalls).toHaveLength(1);
+    expect(updateCalls[0]?.table).toBe(notifications);
+    expect(updateCalls[0]?.set).toMatchObject({ read_by: "user_test", updated_by: "user_test" });
+    expect(updateCalls[0]?.set.read_at).toBeInstanceOf(Date);
+  });
+
   test("soft-deletes and restores Templates without hard delete", async () => {
     const updateCalls: Array<{ readonly table: unknown; readonly set: Record<string, unknown> }> =
       [];

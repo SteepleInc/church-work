@@ -1,7 +1,9 @@
 import { formatDistanceToNow } from "date-fns";
 import { AtSignIcon, InboxIcon, MessageSquareTextIcon } from "lucide-react";
 import type { ComponentType } from "react";
+import { useNavigate } from "@tanstack/react-router";
 
+import { useOpenTaskDetailsPaneUrl } from "@/components/details-pane/details-pane-helpers";
 import { MainContainer, PageContainer } from "@/components/pageComponents";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -14,6 +16,7 @@ import {
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  useMarkNotificationReadMutation,
   useNotificationsCollection,
   type NotificationCollectionItem,
 } from "@/data/notifications/notificationsData.app";
@@ -36,6 +39,22 @@ const FALLBACK_KIND: NotificationKind = { icon: InboxIcon, label: "Update" };
 
 function kindForNotification(type: string): NotificationKind {
   return NOTIFICATION_KINDS[type] ?? FALLBACK_KIND;
+}
+
+function parseDisplayMetadata(metadata: string | null | undefined): Record<string, string> {
+  if (!metadata) return {};
+  try {
+    const parsed = JSON.parse(metadata) as unknown;
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function getNotificationTaskReference(notification: NotificationCollectionItem) {
+  return (
+    parseDisplayMetadata(notification.display_metadata).task_identifier ?? notification.task_id
+  );
 }
 
 export function InboxPage() {
@@ -111,50 +130,71 @@ function NotificationRow({
   const isUnread = notification.read_at == null;
   const kind = kindForNotification(notification.type);
   const KindIcon = kind.icon;
+  const navigate = useNavigate();
+  const openTaskDetailsPaneUrl = useOpenTaskDetailsPaneUrl();
+  const markNotificationRead = useMarkNotificationReadMutation();
+  const taskReference = getNotificationTaskReference(notification);
+
+  const openNotification = () => {
+    if (!taskReference) return;
+
+    void markNotificationRead({
+      churchId: notification.church_id,
+      notificationId: notification.id,
+    });
+    const url = openTaskDetailsPaneUrl({ id: getNotificationTaskReference(notification) });
+    void navigate({ to: url.to, search: url.search });
+  };
 
   return (
-    <li
-      className={cn(
-        "relative flex gap-3 px-4 py-3.5",
-        !isFirst && "border-t",
-        isUnread && "bg-primary/[0.03]",
-      )}
-    >
+    <li className={cn("relative", !isFirst && "border-t", isUnread && "bg-primary/[0.03]")}>
       {isUnread ? (
         <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-primary" />
       ) : null}
 
-      <div
+      <button
+        aria-label={`Open notification: ${notification.display_title}`}
         className={cn(
-          "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg",
-          isUnread ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+          "relative flex w-full gap-3 px-4 py-3.5 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+          isUnread && "bg-primary/[0.03]",
+          !taskReference && "cursor-default",
         )}
+        disabled={!taskReference}
+        onClick={openNotification}
+        type="button"
       >
-        <KindIcon className="size-3.5" />
-      </div>
+        <div
+          className={cn(
+            "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg",
+            isUnread ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+          )}
+        >
+          <KindIcon className="size-3.5" />
+        </div>
 
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start gap-2">
-          <p
-            className={cn(
-              "min-w-0 flex-1 text-sm",
-              isUnread ? "font-medium text-foreground" : "text-foreground/90",
-            )}
-          >
-            {notification.display_title}
-          </p>
-          {notification.created_at ? (
-            <time className="mt-0.5 shrink-0 text-muted-foreground text-xs tabular-nums">
-              {formatDistanceToNow(notification.created_at, { addSuffix: true })}
-            </time>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start gap-2">
+            <p
+              className={cn(
+                "min-w-0 flex-1 text-sm",
+                isUnread ? "font-medium text-foreground" : "text-foreground/90",
+              )}
+            >
+              {notification.display_title}
+            </p>
+            {notification.created_at ? (
+              <time className="mt-0.5 shrink-0 text-muted-foreground text-xs tabular-nums">
+                {formatDistanceToNow(notification.created_at, { addSuffix: true })}
+              </time>
+            ) : null}
+          </div>
+          {notification.display_body ? (
+            <p className="mt-1 line-clamp-2 text-muted-foreground text-sm/relaxed">
+              {notification.display_body}
+            </p>
           ) : null}
         </div>
-        {notification.display_body ? (
-          <p className="mt-1 line-clamp-2 text-muted-foreground text-sm/relaxed">
-            {notification.display_body}
-          </p>
-        ) : null}
-      </div>
+      </button>
     </li>
   );
 }

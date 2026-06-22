@@ -69,6 +69,9 @@ import type { PlannedNotification } from "./notification-triggers";
 import type { Schema as ZeroSchema } from "./zero-schema.gen";
 
 const CreateDemoItemArgs = toZeroSchema(Schema.Struct({ name: Schema.String }));
+const MarkNotificationReadArgs = toZeroSchema(
+  Schema.Struct({ church_id: Schema.String, notification_id: Schema.String }),
+);
 const CreateTeamArgs = toZeroSchema(
   Schema.Struct({ church_id: Schema.String, name: Schema.String }),
 );
@@ -1640,6 +1643,32 @@ export const mutators = defineMutators({
         updated_at: now,
         updated_by: session.user_id,
       });
+    }),
+  },
+  notifications: {
+    mark_read: defineChurchTaskMutator(MarkNotificationReadArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+
+      const session = requireActiveChurchAccess(ctx, args.church_id);
+      const now = new Date();
+
+      await db
+        .update(notifications)
+        .set({
+          read_at: now,
+          read_by: session.user_id,
+          updated_at: now,
+          updated_by: session.user_id,
+        })
+        .where(
+          and(
+            eq(notifications.id, args.notification_id),
+            eq(notifications.church_id, args.church_id),
+            eq(notifications.recipient_user_id, session.user_id),
+            isNull(notifications.deleted_at),
+          ),
+        );
     }),
   },
   teams: {
