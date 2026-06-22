@@ -10,6 +10,7 @@ import { Check, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-reac
 import { type ReactNode, useMemo, useRef, useState } from "react";
 
 import { SettingsColumnHeader, SettingsTable } from "@/components/collections/settingsTable";
+import { useAppForm } from "@/components/form/ts-form";
 import { labelColorDotClassName, labelDotClassName } from "@/components/tasks/task-card-fields";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -275,7 +276,6 @@ function NewLabelRow({
             onSubmit={onSubmit}
             onValueChange={setName}
             placeholder="Label name"
-            value={name}
           />
         </div>
       </td>
@@ -290,7 +290,6 @@ function LabelNameInput({
   onCancel,
   placeholder = "Label name",
   autoFocus = true,
-  value,
   onValueChange,
 }: {
   readonly defaultValue: string;
@@ -298,46 +297,56 @@ function LabelNameInput({
   readonly onCancel: () => void;
   readonly placeholder?: string;
   readonly autoFocus?: boolean;
-  readonly value?: string;
   readonly onValueChange?: (value: string) => void;
 }) {
-  const [internal, setInternal] = useState(defaultValue);
   const committed = useRef(false);
-  const current = value ?? internal;
 
-  const setCurrent = (next: string) => {
-    if (onValueChange) onValueChange(next);
-    else setInternal(next);
-  };
+  const form = useAppForm({
+    defaultValues: { name: defaultValue },
+    onSubmit: ({ value }) => {
+      const trimmed = value.name.trim();
+      if (trimmed) onSubmit(trimmed);
+      else onCancel();
+    },
+  });
 
   const commit = () => {
     if (committed.current) return;
     committed.current = true;
-    const trimmed = current.trim();
-    if (trimmed) onSubmit(trimmed);
-    else onCancel();
+    void form.handleSubmit();
   };
 
   return (
-    <Input
-      // biome-ignore lint/a11y/noAutofocus: inline edit affordance
-      autoFocus={autoFocus}
-      className="h-8 w-56"
-      onBlur={commit}
-      onChange={(event) => setCurrent(event.currentTarget.value)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          commit();
-        } else if (event.key === "Escape") {
-          event.preventDefault();
-          committed.current = true;
-          onCancel();
-        }
-      }}
-      placeholder={placeholder}
-      value={current}
-    />
+    <form.Field name="name">
+      {(field) => (
+        <Input
+          // biome-ignore lint/a11y/noAutofocus: inline edit affordance
+          autoFocus={autoFocus}
+          className="h-8 w-56"
+          onBlur={() => {
+            field.handleBlur();
+            commit();
+          }}
+          onChange={(event) => {
+            const next = event.currentTarget.value;
+            field.handleChange(next);
+            onValueChange?.(next);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              commit();
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              committed.current = true;
+              onCancel();
+            }
+          }}
+          placeholder={placeholder}
+          value={field.state.value}
+        />
+      )}
+    </form.Field>
   );
 }
 
