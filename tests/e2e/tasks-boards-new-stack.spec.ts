@@ -217,6 +217,20 @@ test("creates, assigns, moves, and preserves Task board state on the local Postg
     sharedTaskTitle,
     { timeout: 20_000 },
   );
+  const inboxSearch = page.getByRole("searchbox", { name: "Search Inbox" });
+  await page.keyboard.press("/");
+  await expect(inboxSearch).toBeFocused();
+  await inboxSearch.fill(sharedTaskTitle);
+  await expect(page.getByRole("button", { name: /Open notification/ })).toContainText(
+    sharedTaskTitle,
+  );
+  await expect(page.getByText("Showing 1 of 1")).toBeVisible();
+  await inboxSearch.fill("no matching inbox notification");
+  await expect(page.getByRole("heading", { name: "No matching notifications" })).toBeVisible();
+  await page.getByRole("button", { name: "Clear search" }).click();
+  await expect(page.getByRole("button", { name: /Open notification/ })).toContainText(
+    sharedTaskTitle,
+  );
   await page.getByRole("button", { name: /Open notification/ }).click();
   const detailsPane = page.getByRole("dialog", { name: "Details Pane" });
   await expect(detailsPane).toBeVisible({ timeout: 20_000 });

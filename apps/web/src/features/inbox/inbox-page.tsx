@@ -6,10 +6,12 @@ import {
   MailIcon,
   MailOpenIcon,
   MessageSquareTextIcon,
+  SearchIcon,
   SlidersHorizontalIcon,
+  XIcon,
   Trash2Icon,
 } from "lucide-react";
-import { useState, type ComponentType } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
@@ -45,6 +47,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -59,6 +62,7 @@ import {
 } from "@/data/notifications/notificationsData.app";
 import { useMembersCollection, type MemberItem } from "@/data/members/membersData.app";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
+import { isEditableShortcutTarget } from "@/lib/keyboard-shortcuts";
 import { cn } from "@/lib/utils";
 
 const PAGE_DESCRIPTION = "Replies, mentions, and other updates that need your attention.";
@@ -125,13 +129,54 @@ export function isNotificationSnoozed(
 
 export function filterInboxNotifications(
   notifications: readonly NotificationCollectionItem[],
-  options: { readonly showRead: boolean; readonly showSnoozed: boolean; readonly now: Date },
+  options: {
+    readonly getActorName?: (notification: NotificationCollectionItem) => string | null;
+    readonly searchQuery?: string;
+    readonly showRead: boolean;
+    readonly showSnoozed: boolean;
+    readonly now: Date;
+  },
 ) {
+  const normalizedQuery = normalizeInboxSearchQuery(options.searchQuery ?? "");
   return notifications.filter((notification) => {
     if (!options.showRead && notification.read_at != null) return false;
     if (!options.showSnoozed && isNotificationSnoozed(notification, options.now)) return false;
+    if (
+      normalizedQuery &&
+      !getInboxSearchText(notification, options.getActorName?.(notification) ?? null).includes(
+        normalizedQuery,
+      )
+    ) {
+      return false;
+    }
     return true;
   });
+}
+
+function normalizeInboxSearchQuery(value: string) {
+  return value.trim().toLocaleLowerCase();
+}
+
+export function getInboxSearchText(
+  notification: NotificationCollectionItem,
+  actorName: string | null,
+) {
+  const metadata = parseDisplayMetadata(notification.display_metadata);
+  return [
+    notification.display_title,
+    notification.display_body,
+    notification.task_id,
+    notification.type,
+    kindForNotification(notification.type).label,
+    actionLabelForType(notification.type),
+    actorName,
+    metadata.comment_excerpt,
+    metadata.task_identifier,
+    metadata.task_title,
+  ]
+    .filter((value): value is string => typeof value === "string" && value.length > 0)
+    .join(" ")
+    .toLocaleLowerCase();
 }
 
 function snoozeInOneHour(): Date {
@@ -203,22 +248,49 @@ export function InboxPage() {
   ).length;
   const hasReadNotifications = readCount > 0;
   const [deleteReadOpen, setDeleteReadOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [showRead, setShowRead] = useState(true);
   const [showSnoozed, setShowSnoozed] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const trimmedSearchQuery = searchQuery.trim();
   const now = new Date();
   const snoozedCount = notificationsCollection.filter((notification) =>
     isNotificationSnoozed(notification, now),
   ).length;
   const hasSnoozedNotifications = snoozedCount > 0;
+  const membersByUserId = useMemo(
+    () => new Map<string, MemberItem>(membersCollection.map((member) => [member.userId, member])),
+    [membersCollection],
+  );
+  const getNotificationActorName = (notification: NotificationCollectionItem) =>
+    notification.actor_user_id
+      ? (membersByUserId.get(notification.actor_user_id)?.name ?? null)
+      : null;
   const visibleNotifications = filterInboxNotifications(notificationsCollection, {
+    getActorName: getNotificationActorName,
     now,
+    searchQuery,
     showRead,
     showSnoozed,
   });
+  const hasSearchQuery = trimmedSearchQuery.length > 0;
+  const isFiltering = hasSearchQuery || !showRead || !showSnoozed;
+  const totalNotifications = notificationsCollection.length;
+  const visibleCount = visibleNotifications.length;
 
-  const membersByUserId = new Map<string, MemberItem>(
-    membersCollection.map((member) => [member.userId, member]),
-  );
+  const clearSearch = () => setSearchQuery("");
+
+  useEffect(() => {
+    if (!hasNotifications) return;
+    const focusSearch = (event: KeyboardEvent) => {
+      if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (isEditableShortcutTarget(event.target)) return;
+      event.preventDefault();
+      searchInputRef.current?.focus();
+    };
+    document.addEventListener("keydown", focusSearch);
+    return () => document.removeEventListener("keydown", focusSearch);
+  }, [hasNotifications]);
 
   const handleMarkAllRead = () => {
     if (!activeChurch || unreadCount === 0) return;
@@ -242,7 +314,7 @@ export function InboxPage() {
 
   return (
     <MainContainer>
-      <div className="flex flex-col gap-1 px-4 pt-0 pb-3 md:pt-1">
+      <div className="flex flex-col gap-2 px-4 pt-0 pb-3 md:pt-1">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <h1 className="font-semibold text-2xl tracking-tight">Inbox</h1>
@@ -254,6 +326,43 @@ export function InboxPage() {
           </div>
           {!loading && hasNotifications ? (
             <div className="flex flex-wrap items-center gap-1.5">
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: search label wraps the input */}
+              <label className="relative flex w-full min-w-44 shrink items-center sm:w-56">
+                <SearchIcon className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2.5 size-4 text-muted-foreground" />
+                <Input
+                  aria-label="Search Inbox"
+                  className="h-8 rounded-full pr-8 pl-8 [&::-webkit-search-cancel-button]:hidden"
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape" && hasSearchQuery) {
+                      event.preventDefault();
+                      clearSearch();
+                    }
+                  }}
+                  placeholder="Search Inbox…"
+                  ref={searchInputRef}
+                  type="search"
+                  value={searchQuery}
+                />
+                {hasSearchQuery ? (
+                  <Button
+                    aria-label="Clear Inbox search"
+                    className="-translate-y-1/2 absolute top-1/2 right-1 size-6 rounded-full text-muted-foreground"
+                    onClick={() => {
+                      clearSearch();
+                      searchInputRef.current?.focus();
+                    }}
+                    size="icon-sm"
+                    variant="ghost"
+                  >
+                    <XIcon />
+                  </Button>
+                ) : (
+                  <Kbd className="-translate-y-1/2 absolute top-1/2 right-2 hidden sm:inline-flex">
+                    /
+                  </Kbd>
+                )}
+              </label>
               <DropdownMenu>
                 <DropdownMenuTrigger
                   render={
@@ -312,7 +421,17 @@ export function InboxPage() {
             </div>
           ) : null}
         </div>
-        <p className="text-balance text-muted-foreground text-sm">{PAGE_DESCRIPTION}</p>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <p className="text-balance text-muted-foreground text-sm">{PAGE_DESCRIPTION}</p>
+          {!loading && hasNotifications && isFiltering && visibleCount > 0 ? (
+            <span className="text-muted-foreground/80 text-xs tabular-nums">
+              <span aria-hidden className="mr-2 text-muted-foreground/40">
+                ·
+              </span>
+              Showing {visibleCount} of {totalNotifications}
+            </span>
+          ) : null}
+        </div>
       </div>
 
       <AlertDialog onOpenChange={setDeleteReadOpen} open={deleteReadOpen}>
@@ -374,12 +493,29 @@ export function InboxPage() {
               <EmptyMedia variant="icon">
                 {hasSnoozedNotifications && !showSnoozed ? <ClockIcon /> : <InboxIcon />}
               </EmptyMedia>
-              <EmptyTitle>Nothing left to read</EmptyTitle>
+              <EmptyTitle>
+                {hasSearchQuery ? "No matching notifications" : "Nothing left to read"}
+              </EmptyTitle>
               <EmptyDescription>
-                {emptyFilteredDescription({ snoozedCount, showSnoozed })}
+                {hasSearchQuery ? (
+                  <>
+                    Nothing in your Inbox matches{" "}
+                    <span className="font-medium text-foreground">
+                      &ldquo;{trimmedSearchQuery}&rdquo;
+                    </span>
+                    . Clear search or adjust Display to widen this view.
+                  </>
+                ) : (
+                  emptyFilteredDescription({ snoozedCount, showSnoozed })
+                )}
               </EmptyDescription>
             </EmptyHeader>
-            {hasSnoozedNotifications && !showSnoozed ? (
+            {hasSearchQuery ? (
+              <Button onClick={clearSearch} size="sm" variant="outline">
+                <XIcon />
+                Clear search
+              </Button>
+            ) : hasSnoozedNotifications && !showSnoozed ? (
               <Button onClick={() => setShowSnoozed(true)} size="sm" variant="outline">
                 <ClockIcon />
                 Show snoozed

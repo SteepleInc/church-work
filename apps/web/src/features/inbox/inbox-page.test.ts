@@ -100,6 +100,16 @@ describe("Inbox navigation plumbing", () => {
     expect(dataSource).toContain("mutators.notifications.snooze");
   });
 
+  test("wires Inbox quick search control into local filtering", async () => {
+    const pageSource = await Bun.file(new URL("./inbox-page.tsx", import.meta.url)).text();
+
+    expect(pageSource).toContain('aria-label="Search Inbox"');
+    expect(pageSource).toContain('placeholder="Search Inbox…"');
+    expect(pageSource).toContain('aria-label="Clear Inbox search"');
+    expect(pageSource).toContain("searchQuery,");
+    expect(pageSource).toContain("getInboxSearchText");
+  });
+
   test("hides read and actively snoozed notifications without mutating state", () => {
     const now = new Date("2026-06-22T12:00:00.000Z");
     const unread = notificationFixture("unread");
@@ -127,6 +137,58 @@ describe("Inbox navigation plumbing", () => {
         showSnoozed: true,
       }).map((notification) => notification.id),
     ).toEqual(["unread", "read", "active-snooze", "expired-snooze"]);
+  });
+
+  test("searches Inbox notifications by metadata, actor, and type while composing with display filters", () => {
+    const now = new Date("2026-06-22T12:00:00.000Z");
+    const reply = notificationFixture("reply", {
+      actor_user_id: "user-1",
+      display_body: "Can you review the choir plan?",
+      display_metadata: JSON.stringify({
+        comment_excerpt: "Choir volunteers need final numbers",
+        task_identifier: "CT-42",
+        task_title: "Plan choir roster",
+      }),
+      display_title: "New reply",
+      type: "task_comment_reply",
+    });
+    const mention = notificationFixture("mention", {
+      actor_user_id: "user-2",
+      display_body: "Parking update",
+      display_metadata: JSON.stringify({ task_identifier: "CT-99", task_title: "Parking team" }),
+      display_title: "Mentioned you",
+      read_at: new Date("2026-06-22T11:00:00.000Z").getTime(),
+      type: "mention_explicit_target",
+    });
+    const snoozed = notificationFixture("snoozed", {
+      display_metadata: JSON.stringify({ task_title: "Kids check-in" }),
+      snoozed_until: new Date("2026-06-23T12:00:00.000Z").getTime(),
+      type: "task_comment_reply",
+    });
+    const actorNames = new Map([
+      ["user-1", "Avery Stone"],
+      ["user-2", "Morgan Bell"],
+    ]);
+
+    const filter = (searchQuery: string, showRead = true, showSnoozed = false) =>
+      filterInboxNotifications([reply, mention, snoozed], {
+        getActorName: (notification) =>
+          notification.actor_user_id ? (actorNames.get(notification.actor_user_id) ?? null) : null,
+        now,
+        searchQuery,
+        showRead,
+        showSnoozed,
+      }).map((notification) => notification.id);
+
+    expect(filter("ct-42")).toEqual(["reply"]);
+    expect(filter("choir roster")).toEqual(["reply"]);
+    expect(filter("avery")).toEqual(["reply"]);
+    expect(filter("mention")).toEqual(["mention"]);
+    expect(filter("parking", false)).toEqual([]);
+    expect(filter("kids", true, false)).toEqual([]);
+    expect(filter("kids", true, true)).toEqual(["snoozed"]);
+    expect(filter("missing")).toEqual([]);
+    expect(filter("   ")).toEqual(["reply", "mention"]);
   });
 
   test("keeps G then I global and guarded from editable targets", async () => {
