@@ -1,5 +1,12 @@
 import { formatDistanceToNow } from "date-fns";
-import { AtSignIcon, InboxIcon, MessageSquareTextIcon } from "lucide-react";
+import {
+  AtSignIcon,
+  InboxIcon,
+  MailIcon,
+  MailOpenIcon,
+  MessageSquareTextIcon,
+  Trash2Icon,
+} from "lucide-react";
 import type { ComponentType } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
@@ -7,6 +14,7 @@ import { UserAvatar } from "@/components/avatars/userAvatar";
 import { useOpenTaskDetailsPaneUrl } from "@/components/details-pane/details-pane-helpers";
 import { MainContainer, PageContainer } from "@/components/pageComponents";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Empty,
   EmptyDescription,
@@ -18,6 +26,10 @@ import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useMarkNotificationReadMutation,
+  useMarkNotificationUnreadMutation,
+  useMarkAllNotificationsReadMutation,
+  useDeleteNotificationMutation,
+  useDeleteReadNotificationsMutation,
   useNotificationsCollection,
   type NotificationCollectionItem,
 } from "@/data/notifications/notificationsData.app";
@@ -103,6 +115,12 @@ export function InboxPage() {
   });
   const { membersCollection } = useMembersCollection({ churchId: activeChurch?.id ?? null });
   const loading = orgLoading || notificationsLoading;
+  const markAllRead = useMarkAllNotificationsReadMutation();
+  const deleteRead = useDeleteReadNotificationsMutation();
+  const hasNotifications = notificationsCollection.length > 0;
+  const hasReadNotifications = notificationsCollection.some(
+    (notification) => notification.read_at != null,
+  );
 
   const membersByUserId = new Map<string, MemberItem>(
     membersCollection.map((member) => [member.userId, member]),
@@ -111,12 +129,36 @@ export function InboxPage() {
   return (
     <MainContainer>
       <div className="flex flex-col gap-1 px-4 pt-0 pb-3 md:pt-1">
-        <div className="flex items-center gap-2.5">
-          <h1 className="font-semibold text-2xl tracking-tight">Inbox</h1>
-          {!loading && unreadCount > 0 ? (
-            <Badge className="tabular-nums" variant="secondary">
-              {unreadCount} unread
-            </Badge>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <h1 className="font-semibold text-2xl tracking-tight">Inbox</h1>
+            {!loading && unreadCount > 0 ? (
+              <Badge className="tabular-nums" variant="secondary">
+                {unreadCount} unread
+              </Badge>
+            ) : null}
+          </div>
+          {!loading && hasNotifications ? (
+            <div className="flex items-center gap-2">
+              <Button
+                disabled={unreadCount === 0}
+                onClick={() => activeChurch && void markAllRead({ churchId: activeChurch.id })}
+                size="sm"
+                variant="outline"
+              >
+                <MailOpenIcon />
+                Mark all read
+              </Button>
+              <Button
+                disabled={!hasReadNotifications}
+                onClick={() => activeChurch && void deleteRead({ churchId: activeChurch.id })}
+                size="sm"
+                variant="ghost"
+              >
+                <Trash2Icon />
+                Delete read
+              </Button>
+            </div>
           ) : null}
         </div>
         <p className="text-balance text-muted-foreground text-sm">{PAGE_DESCRIPTION}</p>
@@ -180,6 +222,8 @@ function NotificationRow({
   const navigate = useNavigate();
   const openTaskDetailsPaneUrl = useOpenTaskDetailsPaneUrl();
   const markNotificationRead = useMarkNotificationReadMutation();
+  const markNotificationUnread = useMarkNotificationUnreadMutation();
+  const deleteNotification = useDeleteNotificationMutation();
   const taskReference = getNotificationTaskReference(notification);
 
   const metadata = parseDisplayMetadata(notification.display_metadata);
@@ -208,86 +252,116 @@ function NotificationRow({
         <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-primary" />
       ) : null}
 
-      <button
-        aria-label={`Open notification: ${notification.display_title}`}
-        className={cn(
-          "relative flex w-full gap-3 px-4 py-3.5 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-          isUnread && "bg-primary/[0.03]",
-          !taskReference && "cursor-default",
-        )}
-        disabled={!taskReference}
-        onClick={openNotification}
-        type="button"
-      >
-        <div className="relative mt-0.5 shrink-0">
-          {actorUserId ? (
-            <UserAvatar
-              avatar={actor?.image ?? null}
-              name={actorName}
-              size={28}
-              userId={actorUserId}
-            />
-          ) : (
-            <span className="flex size-7 items-center justify-center rounded-full bg-muted text-muted-foreground">
-              <KindIcon className="size-3.5" />
-            </span>
+      <div className="flex items-stretch">
+        <button
+          aria-label={`Open notification: ${notification.display_title}`}
+          className={cn(
+            "relative flex min-w-0 flex-1 gap-3 px-4 py-3.5 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+            isUnread && "bg-primary/[0.03]",
+            !taskReference && "cursor-default",
           )}
-          <span
-            aria-hidden
-            className="-bottom-0.5 -right-0.5 absolute flex size-4 items-center justify-center rounded-full bg-muted text-muted-foreground ring-2 ring-card"
-          >
-            <KindIcon className="size-2.5" />
-          </span>
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start gap-2">
-            <p
-              className={cn(
-                "min-w-0 flex-1 text-sm leading-5",
-                isUnread ? "text-foreground" : "text-foreground/90",
-              )}
+          disabled={!taskReference}
+          onClick={openNotification}
+          type="button"
+        >
+          <div className="relative mt-0.5 shrink-0">
+            {actorUserId ? (
+              <UserAvatar
+                avatar={actor?.image ?? null}
+                name={actorName}
+                size={28}
+                userId={actorUserId}
+              />
+            ) : (
+              <span className="flex size-7 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                <KindIcon className="size-3.5" />
+              </span>
+            )}
+            <span
+              aria-hidden
+              className="-bottom-0.5 -right-0.5 absolute flex size-4 items-center justify-center rounded-full bg-muted text-muted-foreground ring-2 ring-card"
             >
-              <span className={cn(isUnread ? "font-semibold" : "font-medium")}>{actorName}</span>{" "}
-              <span className="text-muted-foreground">{actionLabel}</span>
-            </p>
-            <Badge
-              className="shrink-0 gap-1 text-muted-foreground"
-              data-icon="inline-start"
-              variant="outline"
-            >
-              <KindIcon />
-              {kind.label}
-            </Badge>
-            {notification.created_at ? (
-              <time className="mt-0.5 shrink-0 text-muted-foreground text-xs tabular-nums">
-                {formatDistanceToNow(notification.created_at, { addSuffix: true })}
-              </time>
-            ) : null}
+              <KindIcon className="size-2.5" />
+            </span>
           </div>
 
-          {taskIdentifier || taskTitle ? (
-            <p className="mt-1 flex min-w-0 items-baseline gap-1.5 text-sm">
-              {taskIdentifier ? (
-                <span className="shrink-0 font-medium text-muted-foreground text-xs tabular-nums">
-                  {taskIdentifier}
-                </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start gap-2">
+              <p
+                className={cn(
+                  "min-w-0 flex-1 text-sm leading-5",
+                  isUnread ? "text-foreground" : "text-foreground/90",
+                )}
+              >
+                <span className={cn(isUnread ? "font-semibold" : "font-medium")}>{actorName}</span>{" "}
+                <span className="text-muted-foreground">{actionLabel}</span>
+              </p>
+              <Badge
+                className="shrink-0 gap-1 text-muted-foreground"
+                data-icon="inline-start"
+                variant="outline"
+              >
+                <KindIcon />
+                {kind.label}
+              </Badge>
+              {notification.created_at ? (
+                <time className="mt-0.5 shrink-0 text-muted-foreground text-xs tabular-nums">
+                  {formatDistanceToNow(notification.created_at, { addSuffix: true })}
+                </time>
               ) : null}
-              {taskTitle ? (
-                <span className="min-w-0 truncate font-medium text-foreground">{taskTitle}</span>
-              ) : null}
-            </p>
-          ) : (
-            <p className="mt-1 min-w-0 truncate font-medium text-foreground text-sm">
-              {notification.display_title}
-            </p>
-          )}
+            </div>
 
-          {excerpt ? (
-            <p className="mt-1 line-clamp-2 text-muted-foreground text-sm/relaxed">{excerpt}</p>
-          ) : null}
+            {taskIdentifier || taskTitle ? (
+              <p className="mt-1 flex min-w-0 items-baseline gap-1.5 text-sm">
+                {taskIdentifier ? (
+                  <span className="shrink-0 font-medium text-muted-foreground text-xs tabular-nums">
+                    {taskIdentifier}
+                  </span>
+                ) : null}
+                {taskTitle ? (
+                  <span className="min-w-0 truncate font-medium text-foreground">{taskTitle}</span>
+                ) : null}
+              </p>
+            ) : (
+              <p className="mt-1 min-w-0 truncate font-medium text-foreground text-sm">
+                {notification.display_title}
+              </p>
+            )}
+
+            {excerpt ? (
+              <p className="mt-1 line-clamp-2 text-muted-foreground text-sm/relaxed">{excerpt}</p>
+            ) : null}
+          </div>
+        </button>
+        <div className="flex shrink-0 items-center gap-1 px-3">
+          <Button
+            aria-label={isUnread ? "Mark notification read" : "Mark notification unread"}
+            onClick={() =>
+              void (isUnread ? markNotificationRead : markNotificationUnread)({
+                churchId: notification.church_id,
+                notificationId: notification.id,
+              })
+            }
+            size="icon-sm"
+            variant="ghost"
+          >
+            {isUnread ? <MailOpenIcon /> : <MailIcon />}
+          </Button>
+          <Button
+            aria-label="Delete notification"
+            onClick={() =>
+              void deleteNotification({
+                churchId: notification.church_id,
+                notificationId: notification.id,
+              })
+            }
+            size="icon-sm"
+            variant="ghost"
+          >
+            <Trash2Icon />
+          </Button>
         </div>
-      </button>
+      </div>
     </li>
   );
 }

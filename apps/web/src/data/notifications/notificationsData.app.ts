@@ -31,3 +31,41 @@ export function useMarkNotificationReadMutation() {
       }),
     );
 }
+
+export function useMarkNotificationUnreadMutation() {
+  const zero = useZero();
+
+  return (params: { readonly churchId: string; readonly notificationId: string }) =>
+    zero.mutate(
+      mutators.notifications.mark_unread({
+        church_id: params.churchId,
+        notification_id: params.notificationId,
+      }),
+    );
+}
+
+export function useMarkAllNotificationsReadMutation() {
+  const zero = useZero();
+
+  return (params: { readonly churchId: string }) =>
+    zero.mutate(mutators.notifications.mark_all_read({ church_id: params.churchId }));
+}
+
+export function useDeleteNotificationMutation() {
+  const zero = useZero();
+
+  return (params: { readonly churchId: string; readonly notificationId: string }) =>
+    zero.mutate(
+      mutators.notifications.delete({
+        church_id: params.churchId,
+        notification_id: params.notificationId,
+      }),
+    );
+}
+
+export function useDeleteReadNotificationsMutation() {
+  const zero = useZero();
+
+  return (params: { readonly churchId: string }) =>
+    zero.mutate(mutators.notifications.delete_read({ church_id: params.churchId }));
+}

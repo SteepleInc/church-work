@@ -69,6 +69,64 @@ describe("Zero Cycle mutators", () => {
     expect(updateCalls[0]?.set.read_at).toBeInstanceOf(Date);
   });
 
+  test("supports scoped Inbox read/unread and soft-delete actions", async () => {
+    const updateCalls: Array<{ readonly table: unknown; readonly set: Record<string, unknown> }> =
+      [];
+    const tx = {
+      dbTransaction: {
+        wrappedTransaction: {
+          update: (table: unknown) => ({
+            set: (set: Record<string, unknown>) => ({
+              where: async () => updateCalls.push({ table, set }),
+            }),
+          }),
+        },
+      },
+      location: "server",
+    } as never;
+
+    await mustGetMutator(mutators, "notifications.mark_unread").fn({
+      args: { church_id: "org_test", notification_id: "notification_test" },
+      ctx: signedInContext,
+      tx,
+    });
+    await mustGetMutator(mutators, "notifications.mark_all_read").fn({
+      args: { church_id: "org_test" },
+      ctx: signedInContext,
+      tx,
+    });
+    await mustGetMutator(mutators, "notifications.delete").fn({
+      args: { church_id: "org_test", notification_id: "notification_test" },
+      ctx: signedInContext,
+      tx,
+    });
+    await mustGetMutator(mutators, "notifications.delete_read").fn({
+      args: { church_id: "org_test" },
+      ctx: signedInContext,
+      tx,
+    });
+
+    expect(updateCalls).toHaveLength(4);
+    expect(updateCalls.every((call) => call.table === notifications)).toBe(true);
+    expect(updateCalls[0]?.set).toMatchObject({
+      read_at: null,
+      read_by: null,
+      updated_by: "user_test",
+    });
+    expect(updateCalls[1]?.set).toMatchObject({ read_by: "user_test", updated_by: "user_test" });
+    expect(updateCalls[1]?.set.read_at).toBeInstanceOf(Date);
+    expect(updateCalls[2]?.set).toMatchObject({
+      deleted_by: "user_test",
+      updated_by: "user_test",
+    });
+    expect(updateCalls[2]?.set.deleted_at).toBeInstanceOf(Date);
+    expect(updateCalls[3]?.set).toMatchObject({
+      deleted_by: "user_test",
+      updated_by: "user_test",
+    });
+    expect(updateCalls[3]?.set.deleted_at).toBeInstanceOf(Date);
+  });
+
   test("soft-deletes and restores Templates without hard delete", async () => {
     const updateCalls: Array<{ readonly table: unknown; readonly set: Record<string, unknown> }> =
       [];

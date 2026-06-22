@@ -53,6 +53,22 @@ describe("Inbox navigation plumbing", () => {
     expect(dataSource).toContain("mutators.notifications.mark_read");
   });
 
+  test("wires Inbox bulk and row action controls to Notification mutations", async () => {
+    const pageSource = await Bun.file(new URL("./inbox-page.tsx", import.meta.url)).text();
+    const dataSource = await Bun.file(
+      new URL("../../data/notifications/notificationsData.app.ts", import.meta.url),
+    ).text();
+
+    expect(pageSource).toContain("Mark all read");
+    expect(pageSource).toContain("Delete read");
+    expect(pageSource).toContain("Mark notification unread");
+    expect(pageSource).toContain("Delete notification");
+    expect(dataSource).toContain("mutators.notifications.mark_unread");
+    expect(dataSource).toContain("mutators.notifications.mark_all_read");
+    expect(dataSource).toContain("mutators.notifications.delete(");
+    expect(dataSource).toContain("mutators.notifications.delete_read");
+  });
+
   test("keeps G then I global and guarded from editable targets", async () => {
     const appShellSource = await Bun.file(
       new URL("../../components/app-shell.tsx", import.meta.url),
