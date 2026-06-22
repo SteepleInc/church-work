@@ -43,6 +43,7 @@ import {
   type TaskCommentModerationViewer,
 } from "@/data/task-comments/taskCommentModeration-utils";
 import { UserAvatar } from "@/components/avatars/userAvatar";
+import { useAppForm } from "@/components/form/ts-form";
 import type { TaskEstimate, TaskPriority } from "@/components/tasks/task-card-fields";
 import {
   AlertDialog,
@@ -1067,24 +1068,22 @@ function CommentEditComposer({
   readonly onCancel: () => void;
   readonly onSubmit: (body: string) => Promise<void>;
 }) {
-  const [body, setBody] = useState(initialBody);
-  const [submitting, setSubmitting] = useState(false);
   const [focused, setFocused] = useState(false);
-  const trimmed = body.trim();
-  const isUnchanged = trimmed === initialBody.trim();
-  const canSubmit = trimmed.length > 0 && !isUnchanged && !submitting;
+  const form = useAppForm({
+    defaultValues: { body: initialBody },
+    onSubmit: async ({ value }) => {
+      const trimmed = value.body.trim();
+      if (trimmed.length === 0 || trimmed === initialBody.trim()) return;
 
-  const submit = async () => {
-    if (!canSubmit) return;
-    setSubmitting(true);
-    try {
-      await onSubmit(trimmed);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not save changes.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+      try {
+        await onSubmit(trimmed);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Could not save changes.");
+      }
+    },
+  });
+
+  const submit = () => form.handleSubmit();
 
   return (
     <div className={cn("px-3 py-2.5", className)}>
@@ -1094,41 +1093,66 @@ function CommentEditComposer({
           focused && "border-ring ring-3 ring-ring/50",
         )}
       >
-        <Textarea
-          aria-label="Edit comment"
-          autoFocus
-          className="min-h-16 resize-y border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
-          onBlur={() => setFocused(false)}
-          onChange={(event) => setBody(event.target.value)}
-          onFocus={() => setFocused(true)}
-          onKeyDown={(event) => {
-            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-              event.preventDefault();
-              void submit();
-              return;
-            }
-            if (event.key === "Escape") {
-              event.preventDefault();
-              onCancel();
-            }
-          }}
-          value={body}
-        />
+        <form.Field name="body">
+          {(field) => (
+            <Textarea
+              aria-label="Edit comment"
+              autoFocus
+              className="min-h-16 resize-y border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
+              onBlur={() => setFocused(false)}
+              onChange={(event) => field.handleChange(event.target.value)}
+              onFocus={() => setFocused(true)}
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                  event.preventDefault();
+                  void submit();
+                  return;
+                }
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  onCancel();
+                }
+              }}
+              value={field.state.value}
+            />
+          )}
+        </form.Field>
         <div className="mt-1 flex items-center justify-end gap-1">
-          <Button disabled={submitting} onClick={onCancel} size="sm" type="button" variant="ghost">
-            Cancel
-          </Button>
-          <Button
-            aria-label="Save"
-            disabled={!canSubmit}
-            loading={submitting}
-            onClick={() => void submit()}
-            size="sm"
-            type="button"
+          <form.Subscribe
+            selector={(state) => {
+              const trimmed = state.values.body.trim();
+              return {
+                canSubmit:
+                  trimmed.length > 0 && trimmed !== initialBody.trim() && !state.isSubmitting,
+                isSubmitting: state.isSubmitting,
+              };
+            }}
           >
-            Save
-            <Kbd className="ml-1.5">mod enter</Kbd>
-          </Button>
+            {({ canSubmit, isSubmitting }) => (
+              <>
+                <Button
+                  disabled={isSubmitting}
+                  onClick={onCancel}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  aria-label="Save"
+                  disabled={!canSubmit}
+                  loading={isSubmitting}
+                  onClick={() => void submit()}
+                  size="sm"
+                  type="button"
+                >
+                  Save
+                  <Kbd className="ml-1.5">mod enter</Kbd>
+                </Button>
+              </>
+            )}
+          </form.Subscribe>
         </div>
       </div>
     </div>
@@ -1146,23 +1170,24 @@ function TaskCommentReplyComposer({
   readonly onCancel: () => void;
   readonly onSubmit: (body: string) => Promise<void>;
 }) {
-  const [body, setBody] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const [focused, setFocused] = useState(false);
-  const trimmed = body.trim();
   const canReply = currentUserId !== null;
-  const canSubmit = canReply && trimmed.length > 0 && !submitting;
+  const form = useAppForm({
+    defaultValues: { body: "" },
+    onSubmit: async ({ value }) => {
+      const trimmed = value.body.trim();
+      if (!canReply || trimmed.length === 0) return;
 
-  const submit = async () => {
-    if (!canSubmit) return;
-    setSubmitting(true);
-    try {
-      await onSubmit(trimmed);
-      setBody("");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+      try {
+        await onSubmit(trimmed);
+        form.reset();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Could not add reply.");
+      }
+    },
+  });
+
+  const submit = () => form.handleSubmit();
 
   return (
     <div className="flex items-start gap-2 py-0.5">
@@ -1180,47 +1205,60 @@ function TaskCommentReplyComposer({
           focused && "border-ring ring-3 ring-ring/50",
         )}
       >
-        <Textarea
-          aria-label="Add a reply"
-          autoFocus
-          className="min-h-9 resize-y border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
-          disabled={!canReply}
-          onBlur={() => setFocused(false)}
-          onChange={(event) => setBody(event.target.value)}
-          onFocus={() => setFocused(true)}
-          onKeyDown={(event) => {
-            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-              event.preventDefault();
-              void submit();
-              return;
-            }
-            // Escape abandons the reply when the field is empty so the card
-            // collapses back to its compact "Reply" affordance.
-            if (event.key === "Escape" && trimmed.length === 0) {
-              event.preventDefault();
-              onCancel();
-            }
-          }}
-          placeholder={canReply ? "Leave a reply..." : "Sign in to reply"}
-          value={body}
-        />
+        <form.Field name="body">
+          {(field) => (
+            <Textarea
+              aria-label="Add a reply"
+              autoFocus
+              className="min-h-9 resize-y border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
+              disabled={!canReply}
+              onBlur={() => setFocused(false)}
+              onChange={(event) => field.handleChange(event.target.value)}
+              onFocus={() => setFocused(true)}
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                  event.preventDefault();
+                  void submit();
+                  return;
+                }
+                // Escape abandons the reply when the field is empty so the card
+                // collapses back to its compact "Reply" affordance.
+                if (event.key === "Escape" && field.state.value.trim().length === 0) {
+                  event.preventDefault();
+                  onCancel();
+                }
+              }}
+              placeholder={canReply ? "Leave a reply..." : "Sign in to reply"}
+              value={field.state.value}
+            />
+          )}
+        </form.Field>
         <div className="mt-1 flex items-center justify-between gap-1">
           <AttachmentStubButton ariaLabel="Attach file to reply" size="icon-xs" />
           <div className="flex items-center justify-end gap-1">
             <Button onClick={onCancel} size="sm" type="button" variant="ghost">
               Cancel
             </Button>
-            <Button
-              aria-label="Reply"
-              disabled={!canSubmit}
-              loading={submitting}
-              onClick={() => void submit()}
-              size="sm"
-              type="button"
+            <form.Subscribe
+              selector={(state) => ({
+                canSubmit: canReply && state.values.body.trim().length > 0 && !state.isSubmitting,
+                isSubmitting: state.isSubmitting,
+              })}
             >
-              Reply
-              <Kbd className="ml-1.5">mod enter</Kbd>
-            </Button>
+              {({ canSubmit, isSubmitting }) => (
+                <Button
+                  aria-label="Reply"
+                  disabled={!canSubmit}
+                  loading={isSubmitting}
+                  onClick={() => void submit()}
+                  size="sm"
+                  type="button"
+                >
+                  Reply
+                  <Kbd className="ml-1.5">mod enter</Kbd>
+                </Button>
+              )}
+            </form.Subscribe>
           </div>
         </div>
       </div>
@@ -1237,23 +1275,24 @@ function ActivityCommentComposer({
   readonly currentUserName: string | null;
   readonly onSubmit: (body: string) => Promise<void>;
 }) {
-  const [body, setBody] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const [focused, setFocused] = useState(false);
-  const trimmed = body.trim();
   const canComment = currentUserId !== null;
-  const canSubmit = canComment && trimmed.length > 0 && !submitting;
+  const form = useAppForm({
+    defaultValues: { body: "" },
+    onSubmit: async ({ value }) => {
+      const trimmed = value.body.trim();
+      if (!canComment || trimmed.length === 0) return;
 
-  const submit = async () => {
-    if (!canSubmit) return;
-    setSubmitting(true);
-    try {
-      await onSubmit(trimmed);
-      setBody("");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+      try {
+        await onSubmit(trimmed);
+        form.reset();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Could not add comment.");
+      }
+    },
+  });
+
+  const submit = () => form.handleSubmit();
 
   return (
     <div className="flex items-start gap-2.5">
@@ -1271,35 +1310,48 @@ function ActivityCommentComposer({
           focused && "border-ring ring-3 ring-ring/50",
         )}
       >
-        <Textarea
-          aria-label="Add a comment"
-          className="min-h-20 resize-y border-0 bg-transparent p-1 shadow-none focus-visible:ring-0"
-          disabled={!canComment}
-          onBlur={() => setFocused(false)}
-          onChange={(event) => setBody(event.target.value)}
-          onFocus={() => setFocused(true)}
-          onKeyDown={(event) => {
-            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-              event.preventDefault();
-              void submit();
-            }
-          }}
-          placeholder={canComment ? "Leave a comment..." : "Sign in to leave a comment"}
-          value={body}
-        />
+        <form.Field name="body">
+          {(field) => (
+            <Textarea
+              aria-label="Add a comment"
+              className="min-h-20 resize-y border-0 bg-transparent p-1 shadow-none focus-visible:ring-0"
+              disabled={!canComment}
+              onBlur={() => setFocused(false)}
+              onChange={(event) => field.handleChange(event.target.value)}
+              onFocus={() => setFocused(true)}
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                  event.preventDefault();
+                  void submit();
+                }
+              }}
+              placeholder={canComment ? "Leave a comment..." : "Sign in to leave a comment"}
+              value={field.state.value}
+            />
+          )}
+        </form.Field>
         <div className="mt-2 flex items-center justify-between gap-2">
           <AttachmentStubButton ariaLabel="Attach file to comment" size="icon-sm" />
-          <Button
-            aria-label="Comment"
-            disabled={!canSubmit}
-            loading={submitting}
-            onClick={() => void submit()}
-            size="sm"
-            type="button"
+          <form.Subscribe
+            selector={(state) => ({
+              canSubmit: canComment && state.values.body.trim().length > 0 && !state.isSubmitting,
+              isSubmitting: state.isSubmitting,
+            })}
           >
-            Comment
-            <Kbd className="ml-1.5">mod enter</Kbd>
-          </Button>
+            {({ canSubmit, isSubmitting }) => (
+              <Button
+                aria-label="Comment"
+                disabled={!canSubmit}
+                loading={isSubmitting}
+                onClick={() => void submit()}
+                size="sm"
+                type="button"
+              >
+                Comment
+                <Kbd className="ml-1.5">mod enter</Kbd>
+              </Button>
+            )}
+          </form.Subscribe>
         </div>
       </div>
     </div>

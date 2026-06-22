@@ -91,7 +91,18 @@ describe("TaskActivityFeed task comments", () => {
     expect(source).toContain("function CommentEditComposer");
     expect(source).toContain('aria-label="Edit comment"');
     // The inline editor only saves a genuinely changed body.
-    expect(source).toContain("const isUnchanged = trimmed === initialBody.trim()");
+    expect(source).toContain("trimmed === initialBody.trim()");
+  });
+
+  test("drives comment, reply, and edit body state through TanStack Form", () => {
+    expect(source).toContain('import { useAppForm } from "@/components/form/ts-form"');
+    expect(source).toContain("function CommentEditComposer");
+    expect(source).toContain("function TaskCommentReplyComposer");
+    expect(source).toContain("function ActivityCommentComposer");
+    expect(source).toContain("const form = useAppForm({");
+    expect(source).toContain('<form.Field name="body">');
+    expect(source).toContain("form.reset()");
+    expect(source).not.toContain("const [body, setBody]");
   });
 
   test("confirms deletes behind an AlertDialog with a tombstone-friendly warning", () => {
