@@ -513,7 +513,7 @@ function NotificationRow({
                   variant="secondary"
                 >
                   <ClockIcon />
-                  Snoozed
+                  Snoozed {snoozedUntilLabel}
                 </Badge>
               ) : (
                 <Badge
@@ -577,17 +577,17 @@ function NotificationRow({
             </Tooltip>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuLabel>Snooze until</DropdownMenuLabel>
-              <DropdownMenuItem onClick={() => snoozeUntil(snoozeInOneHour(), "for 1 hour")}>
+              <DropdownMenuItem onClick={() => snoozeUntil(snoozeInOneHour(), "for an hour")}>
                 <ClockIcon className="text-muted-foreground" />
                 In 1 hour
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => snoozeUntil(snoozeUntilTomorrowMorning(), "until tomorrow")}
+                onClick={() => snoozeUntil(snoozeUntilTomorrowMorning(), "until tomorrow morning")}
               >
                 <ClockIcon className="text-muted-foreground" />
                 Tomorrow morning
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => snoozeUntil(snoozeUntilNextWeek(), "for 1 week")}>
+              <DropdownMenuItem onClick={() => snoozeUntil(snoozeUntilNextWeek(), "until next week")}>
                 <ClockIcon className="text-muted-foreground" />
                 Next week
               </DropdownMenuItem>
