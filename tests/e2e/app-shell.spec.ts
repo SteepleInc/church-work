@@ -28,6 +28,9 @@ test("completed users land in the PreachX-style app shell", async ({ page }, tes
   await expect(page.getByRole("button", { name: "Open global search" }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Toggle theme" })).toBeVisible();
   await expect(
+    page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Inbox" }),
+  ).toBeVisible();
+  await expect(
     page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "My Work" }),
   ).toBeVisible();
   await expect(
@@ -90,6 +93,34 @@ test("shell navigation keeps work and settings routes inside the sidebar layout"
   await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "My Work" }).click();
   await expect(page).toHaveURL(/\/my-work$/);
   await expect(page.getByRole("navigation", { name: "breadcrumb" })).toContainText("My Work");
+});
+
+test("Inbox route is reachable from the sidebar and G then I shortcut", async ({
+  page,
+}, testInfo) => {
+  const email = `app-shell-inbox-${Date.now()}-${testInfo.workerIndex}@example.com`;
+  const churchName = `E2E Inbox Shell Church ${Date.now()}`;
+
+  await signInAndCompleteOnboarding(page, { email, churchName });
+
+  await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Inbox" }).click();
+  await expect(page).toHaveURL(/\/inbox$/);
+  await expect(page.getByRole("navigation", { name: "breadcrumb" })).toContainText("Inbox");
+  await expect(page.getByRole("heading", { name: "Inbox" })).toBeVisible();
+  await expect(page.getByText("You're all caught up")).toBeVisible();
+
+  await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "My Work" }).click();
+  await expect(page).toHaveURL(/\/my-work$/);
+
+  await page.keyboard.press("g");
+  await page.keyboard.press("i");
+  await expect(page).toHaveURL(/\/inbox$/);
+
+  await page.goto("/my-work");
+  await page.getByRole("button", { name: "Open global search" }).first().click();
+  await page.keyboard.press("g");
+  await page.keyboard.press("i");
+  await expect(page).toHaveURL(/\/my-work$/);
 });
 
 test("mobile sidebar drawer exposes the shared PreachX header controls", async ({
