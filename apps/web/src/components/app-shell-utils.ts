@@ -11,6 +11,7 @@ export const appShellOverlayOrder = [
 
 export function getPrimaryAppShellNavItems() {
   return [
+    { label: "Inbox", to: "/inbox", matchPath: "/inbox" },
     { label: "My Work", to: "/my-work", matchPath: "/my-work" },
     { label: "Our Work", to: "/our-work", matchPath: "/our-work" },
     { label: "Templates", to: "/templates", matchPath: "/templates" },
@@ -26,6 +27,10 @@ export function getBreadcrumbLabel(pathname: string): string {
 
   if (pathname.startsWith("/our-work")) {
     return "Our Work";
+  }
+
+  if (pathname.startsWith("/inbox")) {
+    return "Inbox";
   }
 
   if (pathname.startsWith("/settings")) {

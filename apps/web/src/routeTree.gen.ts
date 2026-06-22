@@ -20,6 +20,7 @@ import { Route as SettingsSettingsRouteImport } from './routes/_settings/setting
 import { Route as OrgTemplatesRouteImport } from './routes/_org/templates'
 import { Route as OrgOurWorkRouteImport } from './routes/_org/our-work'
 import { Route as OrgMyWorkRouteImport } from './routes/_org/my-work'
+import { Route as OrgInboxRouteImport } from './routes/_org/inbox'
 import { Route as OrgAdminRouteImport } from './routes/_org/admin'
 import { Route as OnboardingOnboardingRouteImport } from './routes/_onboarding/onboarding'
 import { Route as MarketingLibraryRouteImport } from './routes/_marketing/library'
@@ -95,6 +96,11 @@ const OrgOurWorkRoute = OrgOurWorkRouteImport.update({
 const OrgMyWorkRoute = OrgMyWorkRouteImport.update({
   id: '/my-work',
   path: '/my-work',
+  getParentRoute: () => OrgRouteRoute,
+} as any)
+const OrgInboxRoute = OrgInboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
   getParentRoute: () => OrgRouteRoute,
 } as any)
 const OrgAdminRoute = OrgAdminRouteImport.update({
@@ -246,6 +252,7 @@ export interface FileRoutesByFullPath {
   '/library': typeof MarketingLibraryRoute
   '/onboarding': typeof OnboardingOnboardingRoute
   '/admin': typeof OrgAdminRouteWithChildren
+  '/inbox': typeof OrgInboxRoute
   '/my-work': typeof OrgMyWorkRoute
   '/our-work': typeof OrgOurWorkRoute
   '/templates': typeof OrgTemplatesRouteWithChildren
@@ -280,6 +287,7 @@ export interface FileRoutesByTo {
   '/library': typeof MarketingLibraryRoute
   '/onboarding': typeof OnboardingOnboardingRoute
   '/admin': typeof OrgAdminRouteWithChildren
+  '/inbox': typeof OrgInboxRoute
   '/my-work': typeof OrgMyWorkRoute
   '/our-work': typeof OrgOurWorkRoute
   '/templates': typeof OrgTemplatesRouteWithChildren
@@ -318,6 +326,7 @@ export interface FileRoutesById {
   '/_marketing/library': typeof MarketingLibraryRoute
   '/_onboarding/onboarding': typeof OnboardingOnboardingRoute
   '/_org/admin': typeof OrgAdminRouteWithChildren
+  '/_org/inbox': typeof OrgInboxRoute
   '/_org/my-work': typeof OrgMyWorkRoute
   '/_org/our-work': typeof OrgOurWorkRoute
   '/_org/templates': typeof OrgTemplatesRouteWithChildren
@@ -355,6 +364,7 @@ export interface FileRouteTypes {
     | '/library'
     | '/onboarding'
     | '/admin'
+    | '/inbox'
     | '/my-work'
     | '/our-work'
     | '/templates'
@@ -389,6 +399,7 @@ export interface FileRouteTypes {
     | '/library'
     | '/onboarding'
     | '/admin'
+    | '/inbox'
     | '/my-work'
     | '/our-work'
     | '/templates'
@@ -426,6 +437,7 @@ export interface FileRouteTypes {
     | '/_marketing/library'
     | '/_onboarding/onboarding'
     | '/_org/admin'
+    | '/_org/inbox'
     | '/_org/my-work'
     | '/_org/our-work'
     | '/_org/templates'
@@ -543,6 +555,13 @@ declare module '@tanstack/react-router' {
       path: '/my-work'
       fullPath: '/my-work'
       preLoaderRoute: typeof OrgMyWorkRouteImport
+      parentRoute: typeof OrgRouteRoute
+    }
+    '/_org/inbox': {
+      id: '/_org/inbox'
+      path: '/inbox'
+      fullPath: '/inbox'
+      preLoaderRoute: typeof OrgInboxRouteImport
       parentRoute: typeof OrgRouteRoute
     }
     '/_org/admin': {
@@ -802,6 +821,7 @@ const OrgTemplatesRouteWithChildren = OrgTemplatesRoute._addFileChildren(
 
 interface OrgRouteRouteChildren {
   OrgAdminRoute: typeof OrgAdminRouteWithChildren
+  OrgInboxRoute: typeof OrgInboxRoute
   OrgMyWorkRoute: typeof OrgMyWorkRoute
   OrgOurWorkRoute: typeof OrgOurWorkRoute
   OrgTemplatesRoute: typeof OrgTemplatesRouteWithChildren
@@ -814,6 +834,7 @@ interface OrgRouteRouteChildren {
 
 const OrgRouteRouteChildren: OrgRouteRouteChildren = {
   OrgAdminRoute: OrgAdminRouteWithChildren,
+  OrgInboxRoute: OrgInboxRoute,
   OrgMyWorkRoute: OrgMyWorkRoute,
   OrgOurWorkRoute: OrgOurWorkRoute,
   OrgTemplatesRoute: OrgTemplatesRouteWithChildren,

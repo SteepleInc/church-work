@@ -39,18 +39,7 @@ import { type OrgCollectionItem, useUserOrgsCollection } from "@/data/orgs/orgsD
 import { useOrgId } from "@/data/useOrgId";
 import { clearIntentionalSignOut, markIntentionalSignOut } from "@/features/auth/sign-out-routing";
 import { authClient } from "@/lib/auth-client";
-
-// Avoid hijacking shortcuts while the user is typing in a field.
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) {
-    return false;
-  }
-  if (target.isContentEditable) {
-    return true;
-  }
-  const tag = target.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
-}
+import { isEditableShortcutTarget } from "@/lib/keyboard-shortcuts";
 
 export function OrgSwitcher() {
   const navigate = useNavigate();
@@ -87,7 +76,7 @@ export function OrgSwitcher() {
     const switchMatcher = createSequenceMatcher(["O", "W"], { timeout: 1000 });
 
     const handler = (event: KeyboardEvent) => {
-      if (event.repeat || isEditableTarget(event.target)) {
+      if (event.repeat || isEditableShortcutTarget(event.target)) {
         return;
       }
       if (event.metaKey || event.ctrlKey || event.altKey) {
@@ -115,7 +104,7 @@ export function OrgSwitcher() {
   // Linear-style "Option+Shift+Q" logs out from anywhere.
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (event.repeat || isEditableTarget(event.target)) {
+      if (event.repeat || isEditableShortcutTarget(event.target)) {
         return;
       }
       if (!(event.altKey && event.shiftKey)) {

@@ -1,4 +1,6 @@
-import { Outlet, useLocation, useRouteContext } from "@tanstack/react-router";
+import { createSequenceMatcher } from "@tanstack/hotkeys";
+import { Outlet, useLocation, useNavigate, useRouteContext } from "@tanstack/react-router";
+import { useEffect } from "react";
 
 import { AppHeaderSlotAnchor, AppHeaderSlotProvider } from "@/components/app-header-slot";
 import { getBreadcrumbLabel } from "@/components/app-shell-utils";
@@ -18,6 +20,7 @@ import { GlobalSearch } from "@/features/global-search/global-search";
 import { QuickActions } from "@/features/quick-actions/quick-actions";
 import { DetailsPane } from "@/components/details-pane/details-pane";
 import { BigActions } from "@/features/big-actions/big-actions";
+import { isEditableShortcutTarget } from "@/lib/keyboard-shortcuts";
 
 /**
  * Optimistic Shell (ADR 0010): the chrome renders immediately, before auth or
@@ -27,6 +30,7 @@ import { BigActions } from "@/features/big-actions/big-actions";
  */
 export function AppShell() {
   useAuthGuard({ requireAuth: true, requireOnboarding: true });
+  useInboxShortcut();
 
   // Seed the sidebar's initial open/collapsed state from the cookie read in the
   // root route's beforeLoad, so SSR renders the persisted state on first paint.
@@ -59,6 +63,27 @@ export function AppShell() {
       </AppHeaderSlotProvider>
     </SidebarProvider>
   );
+}
+
+function useInboxShortcut() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const inboxMatcher = createSequenceMatcher(["G", "I"], { timeout: 1000 });
+
+    const handler = (event: KeyboardEvent) => {
+      if (event.repeat || isEditableShortcutTarget(event.target)) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+      if (inboxMatcher.match(event)) {
+        event.preventDefault();
+        void navigate({ to: "/inbox" });
+      }
+    };
+
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [navigate]);
 }
 
 function AppBreadcrumbs() {
