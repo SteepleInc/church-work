@@ -20,6 +20,7 @@ import {
   getKeyDateId,
   getKeyDateOccurrenceId,
   getLabelId,
+  getNotificationId,
   getTemplateId,
   getTemplateScheduleId,
   getTemplateTaskId,
@@ -45,6 +46,8 @@ import {
   key_date_occurrences,
   key_dates,
   labels,
+  member,
+  notifications,
   tasks,
   task_comment_subscriptions,
   task_comments,
@@ -59,6 +62,7 @@ import {
 } from "@church-task/db/schema";
 import { requireActiveChurchAccess, requireSignedInSession } from "./session-context";
 import { toZeroSchema } from "./effect-schema";
+import { buildNotificationPlans } from "./notification-triggers";
 
 import type { OptionalZeroSessionContext } from "./session-context";
 import type { Schema as ZeroSchema } from "./zero-schema.gen";
@@ -769,6 +773,7 @@ const writeActivity = async (
   },
 ) => {
   const occurredAt = args.occurred_at ?? new Date();
+  const activityId = getActivityId();
 
   await db.insert(activities).values({
     _tag: "activity",
@@ -781,12 +786,52 @@ const writeActivity = async (
     entity_id: args.entity_id,
     entity_type: args.entity_type,
     event_type: args.event_type,
-    id: getActivityId(),
+    id: activityId,
     metadata: stringifyJson(args.metadata ?? {}),
     occurred_at: occurredAt,
     updated_at: occurredAt,
     updated_by: args.actor_id,
   });
+
+  return activityId;
+};
+
+const writeNotifications = async (
+  db: any,
+  args: {
+    readonly church_id: string;
+    readonly actor_user_id: string;
+    readonly occurred_at: Date;
+    readonly plans: ReturnType<typeof buildNotificationPlans>;
+  },
+) => {
+  for (const plan of args.plans) {
+    await db.insert(notifications).values({
+      _tag: "notification",
+      activity_id: plan.activity_id,
+      actor_user_id: plan.actor_user_id,
+      church_id: args.church_id,
+      created_at: args.occurred_at,
+      created_by: args.actor_user_id,
+      deleted_at: null,
+      deleted_by: null,
+      display_body: plan.display_body,
+      display_metadata: stringifyJson(plan.display_metadata),
+      display_title: plan.display_title,
+      id: getNotificationId(),
+      idempotency_key: plan.idempotency_key,
+      read_at: null,
+      read_by: null,
+      recipient_user_id: plan.recipient_user_id,
+      snoozed_until: null,
+      task_comment_id: plan.task_comment_id,
+      task_comment_thread_id: plan.task_comment_thread_id,
+      task_id: plan.task_id,
+      type: plan.type,
+      updated_at: args.occurred_at,
+      updated_by: args.actor_user_id,
+    });
+  }
 };
 
 /**
@@ -3251,15 +3296,28 @@ export const mutators = defineMutators({
       // TODO(mentions): parse/target mentions after Markdown or rich editor selection.
 
       const taskRows = (await db
-        .select({ cycle_id: tasks.cycle_id, id: tasks.id })
+        .select({
+          cycle_id: tasks.cycle_id,
+          id: tasks.id,
+          number: tasks.number,
+          team_identifier: teams.identifier,
+          title: tasks.title,
+        })
         .from(tasks)
+        .leftJoin(teams, eq(tasks.team_id, teams.id))
         .where(
           and(
             eq(tasks.id, args.task_id),
             eq(tasks.church_id, args.church_id),
             isNull(tasks.deleted_at),
           ),
-        )) as Array<{ readonly cycle_id: string | null; readonly id: string }>;
+        )) as Array<{
+        readonly cycle_id: string | null;
+        readonly id: string;
+        readonly number: number;
+        readonly team_identifier: string | null;
+        readonly title: string;
+      }>;
       const task = taskRows[0];
       if (!task) throw new Error("Task not found.");
 
@@ -3300,7 +3358,7 @@ export const mutators = defineMutators({
         updated_by: session.user_id,
       });
 
-      await writeActivity(db, {
+      const activityId = await writeActivity(db, {
         actor_id: session.user_id,
         church_id: args.church_id,
         cycle_id: task.cycle_id,
@@ -3312,7 +3370,44 @@ export const mutators = defineMutators({
           : { comment_id: commentId },
         occurred_at: now,
       });
-      // TODO(notifications): enqueue new comment/reply and mention notifications.
+      if (parentCommentId) {
+        const subscriptionRows = (await db
+          .select({ user_id: task_comment_subscriptions.user_id })
+          .from(task_comment_subscriptions)
+          .where(
+            and(
+              eq(task_comment_subscriptions.church_id, args.church_id),
+              eq(task_comment_subscriptions.root_comment_id, parentCommentId),
+              isNull(task_comment_subscriptions.deleted_at),
+            ),
+          )) as Array<{ readonly user_id: string }>;
+        const memberRows = (await db
+          .select({ userId: member.userId })
+          .from(member)
+          .where(eq(member.organizationId, args.church_id))) as Array<{ readonly userId: string }>;
+        await writeNotifications(db, {
+          actor_user_id: session.user_id,
+          church_id: args.church_id,
+          occurred_at: now,
+          plans: buildNotificationPlans({
+            active_member_user_ids: memberRows.map((row) => row.userId),
+            activity_id: activityId,
+            actor_user_id: session.user_id,
+            church_id: args.church_id,
+            comment_excerpt: body,
+            subscribed_user_ids: subscriptionRows.map((row) => row.user_id),
+            task_comment_id: commentId,
+            task_comment_thread_id: parentCommentId,
+            task_id: args.task_id,
+            task_identifier: task.team_identifier
+              ? formatTaskIdentifier(task.team_identifier, task.number)
+              : null,
+            task_title: task.title,
+            type: "task_comment_reply",
+          }),
+        });
+      }
+      // TODO(mentions): create explicit-target mention notifications when comment input carries targets.
     }),
     delete: defineChurchTaskMutator(DeleteTaskCommentArgs, async ({ args, ctx, tx }) => {
       const db = serverDb(tx);
