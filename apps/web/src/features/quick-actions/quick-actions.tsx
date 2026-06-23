@@ -11,6 +11,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { CreateKeyDateQuickAction } from "@/features/quick-actions/create-key-date-quick-action";
 import { CreateTaskQuickAction } from "@/features/quick-actions/create-task-quick-action";
@@ -141,14 +142,16 @@ function CommandMenuContent({ actions }: { readonly actions: readonly QuickActio
   return (
     <>
       <CommandInput placeholder="Type a command or search..." />
-      <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
-        <CommandGroup heading="Quick Action">
-          {actions.map((action) => (
-            <QuickActionCommandItem action={action} key={action.name} />
-          ))}
-        </CommandGroup>
-      </CommandList>
+      <ScrollArea className="max-h-[300px]">
+        <CommandList className="max-h-none overflow-visible">
+          <CommandEmpty>No results found.</CommandEmpty>
+          <CommandGroup heading="Quick Action">
+            {actions.map((action) => (
+              <QuickActionCommandItem action={action} key={action.name} />
+            ))}
+          </CommandGroup>
+        </CommandList>
+      </ScrollArea>
     </>
   );
 }
