@@ -248,9 +248,11 @@ describe("quick action route behavior", () => {
     const actions = buildChurchWorkQuickActions({
       canInviteMembers: true,
       canManageKeyDates: true,
+      canManageTemplates: true,
       canManageTeams: true,
       closeQuickActions: () => {},
       openCreateKeyDate: () => {},
+      openCreateTemplate: () => {},
       openCreateTask: () => {},
       openCreateTeam: () => {},
       navigateToSettings: () => {},
@@ -260,6 +262,7 @@ describe("quick action route behavior", () => {
     expect(actions.map((action) => [action.group, action.name])).toEqual([
       ["quick-action", "Create Task"],
       ["quick-action", "Create Team"],
+      ["quick-action", "Create Template"],
       ["quick-action", "Create Key Date"],
       ["quick-action", "Invite Member"],
       ["quick-action", "Team Settings"],
@@ -275,9 +278,11 @@ describe("quick action route behavior", () => {
     const actions = buildChurchWorkQuickActions({
       canInviteMembers: false,
       canManageKeyDates: false,
+      canManageTemplates: false,
       canManageTeams: false,
       closeQuickActions: () => {},
       openCreateKeyDate: () => {},
+      openCreateTemplate: () => {},
       openCreateTask: () => {},
       openCreateTeam: () => {},
       navigateToSettings: () => {},
@@ -295,6 +300,10 @@ describe("quick action route behavior", () => {
     expect(actions.find((action) => action.name === "Create Key Date")).toMatchObject({
       enabled: false,
       disabledReason: "Only Church owners and admins can create Key Dates.",
+    });
+    expect(actions.find((action) => action.name === "Create Template")).toMatchObject({
+      enabled: false,
+      disabledReason: "Only Church owners and admins can create Templates.",
     });
   });
 

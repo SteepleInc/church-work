@@ -389,7 +389,7 @@ export function ComboboxOption({
   return (
     <ComboboxPrimitive.Item
       className={cn(
-        "flex min-h-8 cursor-default items-center gap-2 rounded-sm py-1 ps-2 pe-2 text-base outline-none data-disabled:pointer-events-none data-disabled:opacity-64 data-highlighted:bg-accent data-highlighted:text-accent-foreground sm:min-h-7 sm:text-sm [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+        "flex min-h-9 cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-1.5 text-base text-foreground outline-none data-disabled:pointer-events-none data-disabled:cursor-default data-disabled:opacity-64 data-highlighted:bg-accent data-highlighted:text-accent-foreground sm:min-h-8 sm:text-sm [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
         className,
       )}
       data-slot="combobox-option"
@@ -397,8 +397,8 @@ export function ComboboxOption({
       {...props}
     >
       {children}
-      <span className="ms-auto flex shrink-0 items-center gap-2">
-        <Check className={cn("size-4 text-foreground", selected ? undefined : "invisible")} />
+      <span className="ms-auto flex shrink-0 items-center gap-2 ps-2">
+        <Check className={cn("size-4 text-muted-foreground", selected ? undefined : "invisible")} />
         <ShortcutHint shortcut={shortcut} />
       </span>
     </ComboboxPrimitive.Item>
@@ -500,8 +500,11 @@ export function ComboboxList({
   return (
     <ScrollArea>
       <ComboboxPrimitive.List
+        // When the active filter matches nothing, Base UI marks the list
+        // `data-empty`; hide it so only the `ComboboxEmpty` message shows
+        // (Linear-style), instead of falling back to the unfiltered rows.
         className={cn(
-          "not-empty:scroll-py-1 not-empty:px-1 not-empty:py-1 in-data-has-overflow-y:pe-3",
+          "not-empty:scroll-py-1 not-empty:px-1 not-empty:py-1 in-data-has-overflow-y:pe-3 data-empty:hidden",
           className,
         )}
         data-slot="combobox-list"

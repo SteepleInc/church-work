@@ -45,8 +45,13 @@ export function QuickActions() {
   const disableQuickActions = useAtomValue(disableQuickActionsAtom);
   const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
   const navigate = useNavigate();
-  const { openCreateKeyDate, openCreateTask, openCreateTeam, openInviteMember } =
-    useQuickActionOpeners();
+  const {
+    openCreateKeyDate,
+    openCreateTask,
+    openCreateTeam,
+    openCreateTemplate,
+    openInviteMember,
+  } = useQuickActionOpeners();
 
   useEffect(() => {
     if (disableQuickActions) return;
@@ -87,11 +92,13 @@ export function QuickActions() {
       buildChurchWorkQuickActions({
         canInviteMembers: canInviteChurchMembers(activeChurch?.role),
         canManageKeyDates: activeChurchId !== null && canManageChurchTeams(activeChurch?.role),
+        canManageTemplates: activeChurchId !== null && canManageChurchTeams(activeChurch?.role),
         canManageTeams: activeChurchId !== null && canManageChurchTeams(activeChurch?.role),
         closeQuickActions: () => setQuickActionsIsOpen(false),
         openCreateKeyDate: () => {
           if (activeChurchId) openCreateKeyDate({ churchId: activeChurchId });
         },
+        openCreateTemplate,
         openCreateTask: () => openCreateTask(),
         openCreateTeam: () => {
           if (activeChurchId) openCreateTeam({ churchId: activeChurchId });
@@ -106,6 +113,7 @@ export function QuickActions() {
       openCreateKeyDate,
       openCreateTask,
       openCreateTeam,
+      openCreateTemplate,
       openInviteMember,
       setQuickActionsIsOpen,
     ],

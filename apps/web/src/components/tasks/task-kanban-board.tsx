@@ -23,7 +23,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { EllipsisIcon, PlusIcon, Tag, Triangle } from "lucide-react";
+import { CalendarIcon, EllipsisIcon, PlusIcon, Tag, Triangle } from "lucide-react";
 import {
   type ComponentProps,
   type MouseEvent as ReactMouseEvent,
@@ -46,11 +46,13 @@ import {
   PriorityComboboxSelector,
   EstimateComboboxSelector,
   StatusComboboxSelector,
+  WeekComboboxSelector,
   WorkflowStatusIcon,
   type AssigneeOption,
   type TaskLabelOption,
   type TaskPriority,
   type TaskEstimate,
+  type WeekPickerOption,
 } from "./task-card-fields";
 import {
   buildTaskBoardGroupColumns,
@@ -125,6 +127,15 @@ type TaskKanbanBoardProps = {
   // Set of member user ids per Team id, used to render the "Team members"
   // section of the assignee picker for a Task's Team.
   readonly teamMemberIdsByTeamId?: ReadonlyMap<string, ReadonlySet<string>>;
+  readonly cycleLabelsById?: ReadonlyMap<string, string>;
+  // Rich rows for the Week picker (status, date range, relative cue).
+  readonly cycleOptions?: readonly WeekPickerOption[];
+  // The Church the Tasks belong to, used by the Week picker's per-row counts.
+  readonly churchId?: string | null;
+  readonly onChangeTaskCycle?: (change: {
+    readonly taskId: string;
+    readonly cycleId: string | null;
+  }) => void | Promise<void>;
   // View Options (URL-carried presentation settings).
   readonly grouping?: TaskBoardGrouping;
   readonly showEmptyColumns?: boolean;
@@ -169,6 +180,8 @@ function boardSignature(
 }
 
 const EMPTY_TEAM_MEMBERS: ReadonlyMap<string, ReadonlySet<string>> = new Map();
+const EMPTY_CYCLE_LABELS: ReadonlyMap<string, string> = new Map();
+const EMPTY_CYCLE_OPTIONS: readonly WeekPickerOption[] = [];
 const EMPTY_USER_ID_SET: ReadonlySet<string> = new Set();
 const EMPTY_HIDDEN_COLUMNS: readonly string[] = [];
 const EMPTY_SELECTION: ReadonlySet<string> = new Set();
@@ -182,6 +195,9 @@ export function TaskKanbanBoard({
   labelOptions = [],
   currentUserId = null,
   teamMemberIdsByTeamId = EMPTY_TEAM_MEMBERS,
+  cycleLabelsById = EMPTY_CYCLE_LABELS,
+  cycleOptions = EMPTY_CYCLE_OPTIONS,
+  churchId = null,
   grouping = "workflow_status",
   showEmptyColumns = true,
   displayProperties = DEFAULT_TASK_VIEW_OPTIONS.displayProperties,
@@ -193,6 +209,7 @@ export function TaskKanbanBoard({
   onChangeTaskLabels,
   onChangeTaskEstimate,
   onChangeTaskPriority,
+  onChangeTaskCycle,
   onOpenTask,
   onAddTask,
   onToggleColumnHidden,
@@ -386,6 +403,9 @@ export function TaskKanbanBoard({
               assigneeOptions={assigneeOptions}
               currentUserId={currentUserId}
               teamMemberIdsByTeamId={teamMemberIdsByTeamId}
+              cycleLabelsById={cycleLabelsById}
+              cycleOptions={cycleOptions}
+              churchId={churchId}
               displayProperties={displayPropertySet}
               teamsById={teamsById}
               labelOptions={labelOptions}
@@ -396,6 +416,7 @@ export function TaskKanbanBoard({
               onChangeTaskLabels={onChangeTaskLabels}
               onChangeTaskEstimate={onChangeTaskEstimate}
               onChangeTaskPriority={onChangeTaskPriority}
+              onChangeTaskCycle={onChangeTaskCycle}
               onOpenTask={onOpenTask}
               onAddTask={grouping === "workflow_status" ? onAddTask : undefined}
               onHideColumn={grouping === "workflow_status" ? onToggleColumnHidden : undefined}
@@ -430,9 +451,13 @@ export function TaskKanbanBoard({
                 assigneeOptions={assigneeOptions}
                 currentUserId={currentUserId}
                 teamMemberIdsByTeamId={teamMemberIdsByTeamId}
+                cycleLabelsById={cycleLabelsById}
+                cycleOptions={cycleOptions}
+                churchId={churchId}
                 displayProperties={displayPropertySet}
                 teamsById={teamsById}
                 labelOptions={labelOptions}
+                onChangeTaskCycle={onChangeTaskCycle}
                 dragDisabled={!isDraggable}
                 selectedTaskIds={EMPTY_SELECTION}
                 isOverlay
@@ -542,6 +567,9 @@ interface TaskKanbanColumnProps extends Omit<
   readonly assigneeOptions: readonly AssigneeOption[];
   readonly currentUserId: string | null;
   readonly teamMemberIdsByTeamId: ReadonlyMap<string, ReadonlySet<string>>;
+  readonly cycleLabelsById: ReadonlyMap<string, string>;
+  readonly cycleOptions: readonly WeekPickerOption[];
+  readonly churchId: string | null;
   readonly displayProperties: ReadonlySet<TaskDisplayProperty>;
   readonly teamsById: ReadonlyMap<string, TaskBoardTeamOption>;
   readonly labelOptions: readonly TaskBoardLabelOption[];
@@ -553,6 +581,7 @@ interface TaskKanbanColumnProps extends Omit<
   readonly onChangeTaskLabels?: TaskKanbanBoardProps["onChangeTaskLabels"];
   readonly onChangeTaskEstimate?: TaskKanbanBoardProps["onChangeTaskEstimate"];
   readonly onChangeTaskPriority?: TaskKanbanBoardProps["onChangeTaskPriority"];
+  readonly onChangeTaskCycle?: TaskKanbanBoardProps["onChangeTaskCycle"];
   readonly onOpenTask?: (taskIdentifier: string) => void;
   readonly onAddTask?: (workflowStatusId: string) => void;
   readonly onHideColumn?: (workflowStatusId: string) => void;
@@ -568,6 +597,9 @@ function TaskKanbanColumn({
   assigneeOptions,
   currentUserId,
   teamMemberIdsByTeamId,
+  cycleLabelsById,
+  cycleOptions,
+  churchId,
   displayProperties,
   teamsById,
   labelOptions,
@@ -579,6 +611,7 @@ function TaskKanbanColumn({
   onChangeTaskLabels,
   onChangeTaskEstimate,
   onChangeTaskPriority,
+  onChangeTaskCycle,
   onOpenTask,
   onAddTask,
   onHideColumn,
@@ -666,6 +699,9 @@ function TaskKanbanColumn({
               assigneeOptions={assigneeOptions}
               currentUserId={currentUserId}
               teamMemberIdsByTeamId={teamMemberIdsByTeamId}
+              cycleLabelsById={cycleLabelsById}
+              cycleOptions={cycleOptions}
+              churchId={churchId}
               displayProperties={displayProperties}
               teamsById={teamsById}
               labelOptions={labelOptions}
@@ -678,6 +714,7 @@ function TaskKanbanColumn({
               onChangeTaskLabels={onChangeTaskLabels}
               onChangeTaskEstimate={onChangeTaskEstimate}
               onChangeTaskPriority={onChangeTaskPriority}
+              onChangeTaskCycle={onChangeTaskCycle}
               onOpenTask={onOpenTask}
               onToggleTaskSelected={onToggleTaskSelected}
             />
@@ -697,6 +734,9 @@ interface TaskKanbanCardProps extends Omit<
   readonly assigneeOptions: readonly AssigneeOption[];
   readonly currentUserId: string | null;
   readonly teamMemberIdsByTeamId: ReadonlyMap<string, ReadonlySet<string>>;
+  readonly cycleLabelsById: ReadonlyMap<string, string>;
+  readonly cycleOptions: readonly WeekPickerOption[];
+  readonly churchId: string | null;
   readonly displayProperties: ReadonlySet<TaskDisplayProperty>;
   readonly teamsById: ReadonlyMap<string, TaskBoardTeamOption>;
   readonly labelOptions: readonly TaskBoardLabelOption[];
@@ -709,6 +749,7 @@ interface TaskKanbanCardProps extends Omit<
   readonly onChangeTaskLabels?: TaskKanbanBoardProps["onChangeTaskLabels"];
   readonly onChangeTaskEstimate?: TaskKanbanBoardProps["onChangeTaskEstimate"];
   readonly onChangeTaskPriority?: TaskKanbanBoardProps["onChangeTaskPriority"];
+  readonly onChangeTaskCycle?: TaskKanbanBoardProps["onChangeTaskCycle"];
   readonly onOpenTask?: (taskIdentifier: string) => void;
   readonly onToggleTaskSelected?: (taskId: string) => void;
 }
@@ -719,6 +760,9 @@ function TaskKanbanCard({
   assigneeOptions,
   currentUserId,
   teamMemberIdsByTeamId,
+  cycleLabelsById,
+  cycleOptions,
+  churchId,
   displayProperties,
   teamsById,
   labelOptions,
@@ -731,6 +775,7 @@ function TaskKanbanCard({
   onChangeTaskLabels,
   onChangeTaskEstimate,
   onChangeTaskPriority,
+  onChangeTaskCycle,
   onOpenTask,
   onToggleTaskSelected,
   className,
@@ -829,6 +874,7 @@ function TaskKanbanCard({
     </form.Field>
   );
   const teamName = teamsById.get(task.teamId)?.name ?? null;
+  const cycleLabel = task.cycleId ? (cycleLabelsById.get(task.cycleId) ?? null) : null;
   const showProperty = (property: TaskDisplayProperty) => displayProperties.has(property);
 
   // Church Labels plus the Task's Team's Labels are applicable in the picker
@@ -1005,6 +1051,21 @@ function TaskKanbanCard({
           </Badge>
         ) : null}
         {showProperty("team") && teamName ? <Badge variant="outline">{teamName}</Badge> : null}
+        {showProperty("cycle") ? (
+          <WeekComboboxSelector
+            churchId={churchId}
+            disabled={task.isProjected || !onChangeTaskCycle}
+            onValueChange={(next) => void onChangeTaskCycle?.({ taskId: task.id, cycleId: next })}
+            options={cycleOptions}
+            trigger={
+              <span className="inline-flex h-6 items-center justify-center gap-1 rounded-md border bg-background px-1.5 font-medium text-xs hover:bg-accent">
+                <CalendarIcon className="size-3.5" />
+                <span className="text-muted-foreground">{cycleLabel ?? "No week"}</span>
+              </span>
+            }
+            value={task.cycleId ?? null}
+          />
+        ) : null}
         {task.sourceBadge ? (
           <TemplateSourceBadge badge={task.sourceBadge} className="max-w-[14rem]" />
         ) : null}

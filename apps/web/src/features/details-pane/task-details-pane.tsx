@@ -4,7 +4,7 @@ import { toast } from "sonner";
 
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { useCreateLabelMutation, useLabelsCollection } from "@/data/labels/labelsData.app";
-import { useCyclesCollection } from "@/data/cycles/cyclesData.app";
+import { buildWeekPickerOptions, useCyclesCollection } from "@/data/cycles/cyclesData.app";
 import { useTaskByIdentifier } from "@/data/tasks/taskData.app";
 import {
   useCancelTaskMutation,
@@ -42,6 +42,7 @@ import {
   PriorityComboboxSelector,
   StatusComboboxSelector,
   TeamComboboxSelector,
+  WeekComboboxSelector,
   WorkflowStatusIcon,
   type TaskEstimate,
   type TaskPriority,
@@ -333,6 +334,9 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
   const weekLabelByCycleId = new Map(
     cycles.cyclesCollection.map((cycle) => [cycle.id, cycle.displayName] as const),
   );
+  const today = new Date().toISOString().slice(0, 10);
+  const weekOptions = buildWeekPickerOptions(cycles.cyclesCollection, today);
+  const taskCycleLabel = task.cycleId ? (weekLabelByCycleId.get(task.cycleId) ?? null) : null;
 
   // The destination Team's default To Do status for a new sub-task. Sub-tasks
   // never inherit the parent's Workflow Status (grilling decision).
@@ -623,6 +627,20 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
                 </FieldPill>
               }
               value={task.dueDate}
+            />
+
+            <WeekComboboxSelector
+              churchId={churchId}
+              disabled={task.isProjected}
+              onValueChange={(next) => persist({ cycleId: next })}
+              options={weekOptions}
+              trigger={
+                <FieldPill bordered muted={taskCycleLabel === null}>
+                  <CalendarIcon className="size-3.5" />
+                  {taskCycleLabel ?? "No week"}
+                </FieldPill>
+              }
+              value={task.cycleId ?? null}
             />
 
             {team ? (

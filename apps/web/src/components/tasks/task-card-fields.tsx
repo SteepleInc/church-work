@@ -5,6 +5,7 @@ import {
   CircleCheck,
   CircleDashed,
   CircleDot,
+  CirclePlay,
   CircleUserRound,
   CalendarIcon,
   LoaderCircle,
@@ -47,6 +48,12 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useFieldContext } from "@/components/form/ts-field";
+import {
+  curateWeekPickerOptions,
+  useWeekTaskCount,
+  type WeekPickerOption,
+  type WeekPickerStatus,
+} from "@/data/cycles/cyclesData.app";
 
 import type { TaskBoardTaskState } from "./task-kanban-adapter";
 
@@ -1187,6 +1194,227 @@ export function TeamComboboxSelector({
               <ComboboxGroupLabel>Other teams</ComboboxGroupLabel>
               {partition.otherTeams.map((option) => (
                 <TeamRowItem key={option.id} option={option} selectedTeamId={value} />
+              ))}
+            </ComboboxGroup>
+          ) : null}
+        </ComboboxList>
+      </PickerPopup>
+    </Combobox>
+  );
+}
+
+export type { WeekPickerOption } from "@/data/cycles/cyclesData.app";
+
+type WeekComboboxSelectorProps = {
+  readonly value: string | null;
+  readonly options: readonly WeekPickerOption[];
+  readonly onValueChange: (value: string | null) => void;
+  readonly trigger: ReactNode;
+  // The Church the Tasks belong to, used by each row's live count query. When
+  // null the counts are hidden (the picker still works for selection).
+  readonly churchId?: string | null;
+  readonly disabled?: boolean;
+  readonly openRef?: MutableRefObject<(() => void) | null>;
+};
+
+const NO_WEEK_VALUE = "__no_week__";
+
+// Leading status icon for a Week row, echoing Linear's cycle picker: the live
+// Week reads as a filled play marker tinted with the brand color, planned Weeks
+// as a hollow play marker, and finished Weeks as a muted check.
+const WEEK_STATUS_ICON: Record<WeekPickerStatus, LucideIcon> = {
+  current: CirclePlay,
+  upcoming: CirclePlay,
+  completed: CircleCheck,
+};
+
+const WEEK_STATUS_ICON_CLASS: Record<WeekPickerStatus, string> = {
+  current: "text-primary",
+  upcoming: "text-muted-foreground",
+  completed: "text-muted-foreground",
+};
+
+/**
+ * The live Task count for a single Week, fetched per-row through its own Zero
+ * query so the picker reflects real-time scope without the parent prefetching
+ * every Week's Tasks. Renders nothing until a positive count is known, so empty
+ * Weeks (and the loading frame) stay clean — matching Linear, which only shows
+ * the number when there is one.
+ */
+function WeekTaskCountBadge({
+  churchId,
+  cycleId,
+}: {
+  readonly churchId: string | null;
+  readonly cycleId: string;
+}) {
+  const count = useWeekTaskCount({ churchId, cycleId });
+  if (count <= 0) return null;
+  return <span className="text-muted-foreground text-xs tabular-nums">{count}</span>;
+}
+
+/** A single rich Week row: status icon, name, date range, relative cue + count. */
+function WeekRowItem({
+  option,
+  selectedValue,
+  churchId,
+}: {
+  readonly option: WeekPickerOption;
+  readonly selectedValue: string | null;
+  readonly churchId: string | null;
+}) {
+  const Icon = WEEK_STATUS_ICON[option.status];
+  // When a Week has no custom name its label already is the date range, so we
+  // drop the duplicate from the secondary line and show only the relative cue.
+  const labelIsDateRange = option.label === option.dateRange;
+  const secondary = [labelIsDateRange ? null : option.dateRange, option.relativeLabel]
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    <ComboboxOption selected={option.id === selectedValue} shortcut={null} value={option.id}>
+      <Icon className={cn("size-4", WEEK_STATUS_ICON_CLASS[option.status])} />
+      <span className="min-w-0 truncate">{option.label}</span>
+      {secondary ? (
+        <span className="shrink-0 text-muted-foreground text-xs">{secondary}</span>
+      ) : null}
+      <span className="ms-auto ps-2">
+        <WeekTaskCountBadge churchId={churchId} cycleId={option.id} />
+      </span>
+    </ComboboxOption>
+  );
+}
+
+/**
+ * Linear-style Week picker for a Task. By default it shows a curated window —
+ * the most-recent Previous Week (in its own section), the Current Week, and the
+ * next two Upcoming Weeks — each row carrying a status icon, date range,
+ * relative cue and a live Task count. Typing in the header filters across the
+ * full set of Weeks (past and future). The leading "No week" row clears the
+ * Week (shortcut "0"), and "Shift+C" on the trigger opens the picker (matching
+ * Linear's "⇧ C" cycle shortcut).
+ */
+export function WeekComboboxSelector({
+  value,
+  options,
+  onValueChange,
+  trigger,
+  churchId = null,
+  triggerLabel = "Change week",
+  triggerTestId,
+  disabled = false,
+  openRef,
+}: WeekComboboxSelectorProps & {
+  readonly triggerLabel?: string;
+  readonly triggerTestId?: string;
+}) {
+  const items = useMemo(() => [NO_WEEK_VALUE, ...options.map((option) => option.id)], [options]);
+  const searchTextById = useMemo(
+    () => new Map(options.map((option) => [option.id, option.searchText])),
+    [options],
+  );
+  const labelFor = useMemo(() => {
+    const lookup = new Map(options.map((option) => [option.id, option.label]));
+    return (candidate: string) =>
+      candidate === NO_WEEK_VALUE ? "No week" : (lookup.get(candidate) ?? candidate);
+  }, [options]);
+  const { previous, currentAndUpcoming } = useMemo(
+    () => curateWeekPickerOptions(options),
+    [options],
+  );
+  const [open, setOpen] = usePickerOpener(openRef, disabled);
+  const [inputValue, setInputValue] = useState("");
+  const searching = inputValue.trim() !== "";
+
+  const select = (next: string | null) => {
+    onValueChange(next === NO_WEEK_VALUE ? null : next);
+    setOpen(false);
+  };
+
+  // Match the typed query against each Week's name, date range and cue so a
+  // search like "jul" or "current" surfaces the right Weeks; the "No week" row
+  // matches on its own label.
+  const filter = (candidate: string, query: string) => {
+    const needle = query.trim().toLowerCase();
+    if (needle === "") return true;
+    const haystack =
+      candidate === NO_WEEK_VALUE ? "no week" : (searchTextById.get(candidate) ?? "");
+    return haystack.includes(needle);
+  };
+
+  return (
+    <Combobox<string>
+      disabled={disabled}
+      filter={filter}
+      inputValue={inputValue}
+      items={items}
+      itemToStringLabel={labelFor}
+      onInputValueChange={setInputValue}
+      onOpenChange={(next) => {
+        if (!next) setInputValue("");
+        setOpen(next);
+      }}
+      onValueChange={(next) => select(next ?? null)}
+      open={open}
+      value={value ?? NO_WEEK_VALUE}
+    >
+      <ComboboxPrimitive.Trigger
+        aria-label={triggerLabel}
+        className="inline-flex cursor-pointer items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-60"
+        data-slot="card-combobox-trigger"
+        data-testid={triggerTestId}
+        // "Shift+C" opens the picker (matches Linear's "⇧ C" cycle shortcut).
+        onKeyDown={(event) => {
+          if (disabled) return;
+          if (event.shiftKey && (event.key === "c" || event.key === "C")) {
+            event.preventDefault();
+            setOpen(true);
+          }
+        }}
+        onClick={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        {trigger}
+      </ComboboxPrimitive.Trigger>
+      <PickerPopup
+        popupProps={{
+          onClick: (event) => event.stopPropagation(),
+          // "0" clears the Week (selects "No week") while not typing a search.
+          onKeyDown: (event) => {
+            if (event.key === "0" && !searching) {
+              event.preventDefault();
+              select(null);
+            }
+          },
+        }}
+        width="lg"
+      >
+        <PickerHeader placeholder="Move to week..." shortcut="⇧ C" />
+        <ComboboxEmpty>No matching weeks</ComboboxEmpty>
+        <ComboboxList>
+          <ComboboxGroup>
+            <ComboboxOption selected={value === null} shortcut="0" value={NO_WEEK_VALUE}>
+              <CircleDashed className="size-4 text-muted-foreground" />
+              <span className="truncate">No week</span>
+            </ComboboxOption>
+            {(searching ? options : currentAndUpcoming).map((option) => (
+              <WeekRowItem
+                churchId={churchId}
+                key={option.id}
+                option={option}
+                selectedValue={value}
+              />
+            ))}
+          </ComboboxGroup>
+          {!searching && previous.length > 0 ? (
+            <ComboboxGroup>
+              <ComboboxGroupLabel>Previous</ComboboxGroupLabel>
+              {previous.map((option) => (
+                <WeekRowItem
+                  churchId={churchId}
+                  key={option.id}
+                  option={option}
+                  selectedValue={value}
+                />
               ))}
             </ComboboxGroup>
           ) : null}

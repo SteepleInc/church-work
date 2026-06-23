@@ -18,7 +18,7 @@ import { TeamWeekSelector } from "@/components/weeks/team-week-selector";
 import { WeekActionsMenu } from "@/components/weeks/week-actions-menu";
 import type { WeekCsvTask } from "@/components/weeks/week-actions-data";
 import { buildProjectedWeekCycles } from "@/components/weeks/team-weeks-index-data";
-import { useCyclesCollection } from "@/data/cycles/cyclesData.app";
+import { buildWeekPickerOptions, useCyclesCollection } from "@/data/cycles/cyclesData.app";
 import { useLabelsCollection } from "@/data/labels/labelsData.app";
 import { useTeamMembershipsCollection } from "@/data/teams/teamsData.app";
 import {
@@ -439,6 +439,13 @@ export function TaskExecutionSurface({
     assigneeOptions.map((assignee) => [assignee.id, assignee.label]),
   );
   const teamNamesById = new Map(teams.map((teamOption) => [teamOption.id, teamOption.name]));
+  const cycleLabelsById = new Map(
+    cycles.map((cycle, index) => [cycle.id, cycle.name?.trim() || `Week ${index + 1}`]),
+  );
+  // Rich rows for the Week picker (Current → Upcoming → Previous, with status
+  // and date range). Projected ghost Weeks are dropped by the builder — a Task
+  // can only be moved to a real Week.
+  const cycleOptions = buildWeekPickerOptions(cycles, today);
   const weekCsvTasks: readonly WeekCsvTask[] = boardTasks.map((task) => ({
     identifier: task.identifier,
     title: task.title,
@@ -459,6 +466,9 @@ export function TaskExecutionSurface({
     labelOptions: labelsCollection.labelsCollection,
     currentUserId,
     teamMemberIdsByTeamId,
+    cycleLabelsById,
+    cycleOptions,
+    churchId,
     grouping: boardGrouping,
     showEmptyColumns: resolvedView.showEmptyColumns,
     displayProperties: resolvedView.displayProperties,
@@ -489,6 +499,9 @@ export function TaskExecutionSurface({
       priority: "urgent" | "high" | "medium" | "low" | null;
     }) => {
       editTask(change.taskId, { priority: change.priority });
+    },
+    onChangeTaskCycle: (change: { taskId: string; cycleId: string | null }) => {
+      editTask(change.taskId, { cycleId: change.cycleId });
     },
     onOpenTask: (taskIdentifier: string) => {
       const url = openTaskDetailsPaneUrl({ id: taskIdentifier });
@@ -625,6 +638,9 @@ export function TaskExecutionSurface({
                 labelOptions={labelsCollection.labelsCollection}
                 currentUserId={currentUserId}
                 teamMemberIdsByTeamId={teamMemberIdsByTeamId}
+                cycleLabelsById={cycleLabelsById}
+                cycleOptions={cycleOptions}
+                churchId={churchId}
                 grouping={boardGrouping}
                 showEmptyColumns={resolvedView.showEmptyColumns}
                 displayProperties={resolvedView.displayProperties}
@@ -732,6 +748,7 @@ export function TaskExecutionSurface({
                 onChangeTaskLabels={sharedSurfaceProps.onChangeTaskLabels}
                 onChangeTaskEstimate={sharedSurfaceProps.onChangeTaskEstimate}
                 onChangeTaskPriority={sharedSurfaceProps.onChangeTaskPriority}
+                onChangeTaskCycle={sharedSurfaceProps.onChangeTaskCycle}
                 onOpenTask={(taskIdentifier) => {
                   const url = openTaskDetailsPaneUrl({ id: taskIdentifier });
                   void navigate({ to: url.to, search: url.search });

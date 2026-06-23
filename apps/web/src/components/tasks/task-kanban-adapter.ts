@@ -28,6 +28,7 @@ export type TaskBoardTask = {
   readonly taskState: TaskBoardTaskState;
   readonly boardOrder?: string;
   readonly teamId: string;
+  readonly cycleId?: string | null;
   readonly assignedUserId?: string | null;
   readonly dueDate?: string | null;
   readonly estimate?: TaskBoardEstimate | null;
