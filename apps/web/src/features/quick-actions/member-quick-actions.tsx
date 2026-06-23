@@ -144,7 +144,14 @@ function UpdateMemberNameBody({
         Primary={
           <>
             <form.AppField name="name">
-              {(field) => <field.InputField label="Full name" required />}
+              {(field) => (
+                <field.InputField
+                  autoComplete="off"
+                  data-1p-ignore="true"
+                  label="Full name"
+                  required
+                />
+              )}
             </form.AppField>
             {error ? (
               <Alert variant="destructive">
@@ -231,7 +238,14 @@ function UpdateMemberUsernameBody({
         Primary={
           <>
             <form.AppField name="username">
-              {(field) => <field.InputField label="Username" required />}
+              {(field) => (
+                <field.InputField
+                  autoComplete="off"
+                  data-1p-ignore="true"
+                  label="Username"
+                  required
+                />
+              )}
             </form.AppField>
             {error ? (
               <Alert variant="destructive">
@@ -321,7 +335,15 @@ function UpdateMemberEmailBody({
         Primary={
           <>
             <form.AppField name="email">
-              {(field) => <field.InputField label="Email" required type="email" />}
+              {(field) => (
+                <field.InputField
+                  autoComplete="off"
+                  data-1p-ignore="true"
+                  label="Email"
+                  required
+                  type="email"
+                />
+              )}
             </form.AppField>
             {error ? (
               <Alert variant="destructive">

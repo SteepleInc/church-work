@@ -265,6 +265,8 @@ export function SubTaskCreator({
             onPaste={handleTitlePaste}
             placeholder="Task title"
             ref={titleRef}
+            autoComplete="off"
+            data-1p-ignore="true"
             value={field.state.value}
           />
         )}
@@ -273,7 +275,9 @@ export function SubTaskCreator({
         {(field) => (
           <textarea
             aria-label="Sub-task description"
+            autoComplete="off"
             className="field-sizing-content min-h-8 w-full resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            data-1p-ignore="true"
             disabled={disabled}
             onChange={(event) => field.handleChange(event.target.value)}
             onKeyDown={(event) => {

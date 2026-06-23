@@ -133,8 +133,10 @@ function EditWeekForm({
             {(field) => (
               <input
                 aria-label="Name"
+                autoComplete="off"
                 autoFocus
                 className="w-full shrink-0 bg-transparent font-medium text-lg outline-none placeholder:text-muted-foreground"
+                data-1p-ignore="true"
                 maxLength={NAME_MAX_LENGTH}
                 onChange={(event) => field.handleChange(event.target.value)}
                 onKeyDown={(event) => {
@@ -153,7 +155,9 @@ function EditWeekForm({
             {(field) => (
               <textarea
                 aria-label="Description"
+                autoComplete="off"
                 className="field-sizing-content min-h-20 w-full flex-1 resize-none overflow-y-auto bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                data-1p-ignore="true"
                 onChange={(event) => field.handleChange(event.target.value)}
                 placeholder="Add description…"
                 ref={descriptionInputRef}

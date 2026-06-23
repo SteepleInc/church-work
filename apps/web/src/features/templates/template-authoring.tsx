@@ -196,6 +196,8 @@ function TemplateDetailsFields({
       <form.AppField name="name">
         {(field) => (
           <field.InputField
+            autoComplete="off"
+            data-1p-ignore="true"
             label={TEMPLATE_NAME_LABEL}
             onInput={onChange}
             placeholder={TEMPLATE_NAME_PLACEHOLDER}
@@ -1373,7 +1375,9 @@ function InlineKeyDateCreator({
         {(field) => (
           <Input
             // biome-ignore lint/a11y/noAutofocus: inline create affordance
+            autoComplete="off"
             autoFocus
+            data-1p-ignore="true"
             onBlur={field.handleBlur}
             onChange={(event) => field.handleChange(event.currentTarget.value)}
             placeholder="Key Date name"
@@ -2499,7 +2503,9 @@ function TemplateTaskCard({
     >
       <div className="flex items-start gap-2">
         <Input
+          autoComplete="off"
           className="h-8 flex-1 border-transparent bg-transparent px-1.5 font-medium shadow-none focus-visible:border-input focus-visible:bg-background"
+          data-1p-ignore="true"
           onChange={(event) => onChange({ title: event.currentTarget.value })}
           placeholder="Template Task title"
           value={task.title}

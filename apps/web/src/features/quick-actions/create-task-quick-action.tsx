@@ -562,8 +562,10 @@ export function CreateTaskQuickAction() {
               {(field) => (
                 <input
                   aria-label="Task title"
+                  autoComplete="off"
                   autoFocus
                   className="w-full shrink-0 bg-transparent font-medium text-lg outline-none placeholder:text-muted-foreground"
+                  data-1p-ignore="true"
                   disabled={isLoading}
                   onChange={(event) => field.handleChange(event.target.value)}
                   onKeyDown={(event) => {
@@ -583,10 +585,12 @@ export function CreateTaskQuickAction() {
               {(field) => (
                 <textarea
                   aria-label="Add description"
+                  autoComplete="off"
                   // field-sizing-content grows the textarea with what's typed;
                   // flex-1 caps it at the available dialog height (the whole
                   // height when expanded), after which it scrolls internally.
                   className="field-sizing-content min-h-20 w-full flex-1 resize-none overflow-y-auto bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                  data-1p-ignore="true"
                   disabled={isLoading}
                   onChange={(event) => field.handleChange(event.target.value)}
                   placeholder="Add description..."

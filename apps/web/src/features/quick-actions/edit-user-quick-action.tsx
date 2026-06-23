@@ -140,10 +140,14 @@ function EditUserForm({
       Primary={
         <>
           <form.AppField name="name">
-            {(field) => <field.InputField label="Name" required />}
+            {(field) => (
+              <field.InputField autoComplete="off" data-1p-ignore="true" label="Name" required />
+            )}
           </form.AppField>
           <form.AppField name="email">
-            {(field) => <field.InputField label="Email" required />}
+            {(field) => (
+              <field.InputField autoComplete="off" data-1p-ignore="true" label="Email" required />
+            )}
           </form.AppField>
           {editError ? (
             <Alert variant="destructive">

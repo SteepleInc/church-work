@@ -295,7 +295,14 @@ function ChurchProfileStepCard() {
               ) : null}
 
               <form.AppField name="name">
-                {(field) => <field.InputField label="Church Name" required />}
+                {(field) => (
+                  <field.InputField
+                    autoComplete="off"
+                    data-1p-ignore="true"
+                    label="Church Name"
+                    required
+                  />
+                )}
               </form.AppField>
 
               <form.AppField name="churchTimeZone">

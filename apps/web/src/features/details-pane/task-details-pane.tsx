@@ -672,7 +672,9 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
           {/* Title */}
           <textarea
             aria-label="Task title"
+            autoComplete="off"
             className="field-sizing-content w-full resize-none bg-transparent font-semibold text-2xl leading-tight tracking-tight outline-none placeholder:text-muted-foreground disabled:cursor-default"
+            data-1p-ignore="true"
             disabled={task.isProjected}
             onBlur={() => {
               const next = titleValue.trim();

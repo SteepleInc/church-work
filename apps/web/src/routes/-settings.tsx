@@ -189,7 +189,8 @@ function SettingsProfileForm({
               control={
                 <field.InputField
                   autoCapitalize="words"
-                  autoComplete="name"
+                  autoComplete="off"
+                  data-1p-ignore="true"
                   label=""
                   placeholder="Jane Doe"
                   required

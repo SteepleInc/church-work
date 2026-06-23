@@ -175,7 +175,14 @@ function TeamForm(props: {
       Primary={
         <>
           <form.AppField name="name">
-            {(field) => <field.InputField label="Team Name" required />}
+            {(field) => (
+              <field.InputField
+                autoComplete="off"
+                data-1p-ignore="true"
+                label="Team Name"
+                required
+              />
+            )}
           </form.AppField>
           {isEdit ? (
             <form.AppField name="identifier">

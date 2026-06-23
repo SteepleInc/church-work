@@ -43,8 +43,10 @@ export function InlineNameFormInput({
       {(field) => (
         <Input
           // biome-ignore lint/a11y/noAutofocus: inline edit affordance
+          autoComplete="off"
           autoFocus={autoFocus}
           className="h-8 w-56"
+          data-1p-ignore="true"
           onBlur={() => {
             field.handleBlur();
             commit();
