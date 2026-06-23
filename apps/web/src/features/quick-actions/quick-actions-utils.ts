@@ -2,6 +2,7 @@ import {
   Building2Icon,
   CalendarDaysIcon,
   ClipboardPlusIcon,
+  LibraryBigIcon,
   SettingsIcon,
   UserPlusIcon,
   UsersIcon,
@@ -20,9 +21,11 @@ export function canManageChurchTeams(currentRole: CurrentMemberRole) {
 type BuildChurchWorkQuickActionsInput = {
   readonly canInviteMembers: boolean;
   readonly canManageKeyDates: boolean;
+  readonly canManageTemplates: boolean;
   readonly canManageTeams: boolean;
   readonly closeQuickActions: () => void;
   readonly openCreateKeyDate: () => void;
+  readonly openCreateTemplate: () => void;
   readonly openCreateTask: () => void;
   readonly openCreateTeam: () => void;
   readonly navigateToSettings: () => void;
@@ -32,9 +35,11 @@ type BuildChurchWorkQuickActionsInput = {
 export function buildChurchWorkQuickActions({
   canInviteMembers,
   canManageKeyDates,
+  canManageTemplates,
   canManageTeams,
   closeQuickActions,
   openCreateKeyDate,
+  openCreateTemplate,
   openCreateTask,
   openCreateTeam,
   navigateToSettings,
@@ -66,6 +71,18 @@ export function buildChurchWorkQuickActions({
         ? undefined
         : "Only Church owners and admins can create Teams.",
       onSelect: selectAndClose(openCreateTeam),
+    },
+    {
+      group: "quick-action",
+      icon: LibraryBigIcon,
+      name: "Create Template",
+      description: "Open the Template authoring flow.",
+      keywords: ["template", "create", "recurring", "schedule", "weekly service"],
+      enabled: canManageTemplates,
+      disabledReason: canManageTemplates
+        ? undefined
+        : "Only Church owners and admins can create Templates.",
+      onSelect: selectAndClose(openCreateTemplate),
     },
     {
       group: "quick-action",
