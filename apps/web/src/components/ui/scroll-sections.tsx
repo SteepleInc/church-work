@@ -100,6 +100,12 @@ type RootProps = {
    * the top. Aligned to the start of the viewport (under any pinned header).
    */
   readonly initialSectionId?: string;
+  /**
+   * Reserve a gutter for the vertical scrollbar so it never overlaps full-bleed
+   * content (e.g. edge-to-edge section header rules or grid columns). Off by
+   * default: surfaces whose rows carry their own side margins don't need it.
+   */
+  readonly scrollbarGutter?: boolean;
 };
 
 function Root({
@@ -108,6 +114,7 @@ function Root({
   viewportClassName,
   fadeHeight = 30,
   initialSectionId,
+  scrollbarGutter = false,
 }: RootProps) {
   const viewportRef = React.useRef<HTMLDivElement>(null);
   // The registry is a mutable ref-map: registering / measuring sections must not
@@ -338,6 +345,7 @@ function Root({
           className="size-full"
           maskHeight={0}
           scrollAreaViewportRef={viewportRef}
+          scrollbarGutter={scrollbarGutter}
           scrollFade={false}
           viewportClassName={viewportClassName}
         >

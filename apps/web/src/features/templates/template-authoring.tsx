@@ -2249,8 +2249,8 @@ function CycleGrid({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-card">
-      <CycleGridWeekdayHeader />
-      <ScrollSections.Root initialSectionId="focus">
+      <CycleGridWeekdayHeader highlight={descriptor.weekdayHighlight} />
+      <ScrollSections.Root initialSectionId="focus" scrollbarGutter>
         <ScrollSections.Section
           aria-label="Weeks before the focus window"
           header={(args) => (
@@ -2291,7 +2291,13 @@ function CycleGrid({
 const EMPTY_DRAFT_TASKS: readonly DraftTask[] = [];
 const EMPTY_WEEKDAY_TASKS: ReadonlyMap<number, readonly DraftTask[]> = new Map();
 
-/** Sticky group header for a Cycle grid section, with an off-screen beacon. */
+/**
+ * Sticky group header for a Cycle grid section. It speaks the grid's own
+ * vocabulary — a full-bleed band closed by a hairline, with the uppercase,
+ * letter-spaced label the Cycle divider bands use — so it reads as part of the
+ * ledger rather than a pill floating over it. The focus section ("Service week")
+ * gets full-strength ink; the Before/After framing sections stay subdued.
+ */
 function CycleGroupHeader({
   label,
   beaconLabel,
@@ -2307,22 +2313,37 @@ function CycleGroupHeader({
     return (
       <button
         aria-label={`Scroll to ${label}`}
-        className="mx-3 mb-2 flex h-8 items-center gap-1.5 rounded-md border bg-background/95 px-3 text-muted-foreground text-sm shadow-sm backdrop-blur-sm transition-colors hover:bg-accent hover:text-foreground"
+        className="flex h-9 w-full items-center justify-center gap-1.5 border-y bg-background/95 px-3 font-medium text-[11px] text-muted-foreground uppercase tracking-[0.08em] backdrop-blur-sm transition-colors hover:bg-accent hover:text-foreground"
         onClick={scrollIntoView}
         type="button"
       >
-        <span className="truncate font-medium">{beaconLabel}</span>
+        <span className="truncate">{beaconLabel}</span>
       </button>
     );
   }
+
+  // The "above" overlay is the primitive's redundant copy of a section whose own
+  // sticky in-flow header is already pinned at the top — rendering it too would
+  // stack two identical bands. The pinned/in-view in-flow header is the single
+  // source of truth, so the above-overlay slot renders nothing.
+  if (state === "above") return null;
+
   return (
     <div
       className={cn(
-        "mx-3 flex h-9 items-center gap-2 rounded-md px-3 backdrop-blur-sm",
-        subdued ? "bg-muted/60 text-muted-foreground" : "bg-muted",
+        "flex h-9 items-center gap-3 border-y bg-card/95 px-3 backdrop-blur-sm",
+        subdued && "bg-muted/30",
       )}
     >
-      <span className="truncate font-medium text-sm">{label}</span>
+      <span
+        className={cn(
+          "shrink-0 truncate font-medium text-[11px] uppercase tracking-[0.08em]",
+          subdued ? "text-muted-foreground/70" : "text-foreground",
+        )}
+      >
+        {label}
+      </span>
+      <span className="h-px flex-1 bg-border" />
     </div>
   );
 }
@@ -2330,21 +2351,48 @@ function CycleGroupHeader({
 /** The shared 7-column track: Mon–Sun cells (no real dates — this is a Template). */
 const GRID_COLUMNS = "grid grid-cols-7";
 
-/** Sticky Mon–Sun column header that labels the seven day columns. */
-function CycleGridWeekdayHeader() {
+/**
+ * Sticky Mon–Sun column header. The anchor weekday (the service day or Key Date
+ * occurrence) is the gravitational center of the whole Template, so its column
+ * header carries the primary identity — and the anchor's name (e.g. the Key Date)
+ * once, here — that the anchor spine then continues downward through every row.
+ */
+function CycleGridWeekdayHeader({
+  highlight,
+}: {
+  readonly highlight: CycleGridDescriptor["weekdayHighlight"];
+}) {
   return (
     <div className={cn(GRID_COLUMNS, "border-b bg-card")}>
-      {MONDAY_FIRST.map((weekday, index) => (
-        <div
-          className={cn(
-            "px-2 py-1.5 text-center font-medium text-muted-foreground text-xs uppercase tracking-wide",
-            index !== 0 && "border-l",
-          )}
-          key={weekday}
-        >
-          {WEEKDAY_SHORT[weekday]}
-        </div>
-      ))}
+      {MONDAY_FIRST.map((weekday, index) => {
+        const isAnchor = highlight?.weekday === weekday;
+        return (
+          <div
+            className={cn(
+              "flex flex-col items-center justify-center gap-0.5 px-2 py-2",
+              index !== 0 && "border-l",
+              isAnchor && "bg-primary/[0.06]",
+            )}
+            key={weekday}
+          >
+            <span
+              className={cn(
+                "font-medium text-xs uppercase tracking-wide",
+                isAnchor
+                  ? "border-primary border-b-2 pb-0.5 text-primary"
+                  : "text-muted-foreground",
+              )}
+            >
+              {WEEKDAY_SHORT[weekday]}
+            </span>
+            {isAnchor && highlight ? (
+              <span className="max-w-full truncate font-medium text-[10px] text-primary/80 normal-case tracking-normal">
+                {highlight.label}
+              </span>
+            ) : null}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -2397,13 +2445,15 @@ function CycleGridRow({
   const isFocus = offset >= descriptor.focusStartOffset && offset <= 0;
 
   return (
-    <div className="flex flex-col">
-      {/* Cycle divider band: a line with the relative-Cycle label riding it. */}
-      <div className="flex items-center gap-2 border-t px-3 py-1.5">
+    <div className="group/row flex flex-col">
+      {/* Cycle divider band: the relative-Cycle label rides a hairline rule. The
+          label encodes a real sequence (Cycle 1…N, weeks before/after), so it
+          stays an explicit marker; focus Cycles read at full strength. */}
+      <div className="flex items-center gap-2 border-t px-3 py-2">
         <span
           className={cn(
-            "shrink-0 font-medium text-xs uppercase tracking-wide",
-            isFocus ? "text-foreground" : "text-muted-foreground",
+            "shrink-0 font-medium text-[11px] uppercase tracking-[0.08em]",
+            isFocus ? "text-foreground" : "text-muted-foreground/70",
           )}
         >
           {cycleRowLabel(offset, descriptor)}
@@ -2422,25 +2472,23 @@ function CycleGridRow({
         <span className="h-px flex-1 bg-border" />
       </div>
 
-      {/* Seven day cells, Monday → Sunday */}
+      {/* Seven day cells, Monday → Sunday. The anchor day reads as a continuous
+          vertical spine — a faint tint plus an indigo edge — so the eye tracks
+          the day the Template revolves around straight down the grid. */}
       <div className={GRID_COLUMNS}>
         {MONDAY_FIRST.map((weekday, index) => {
           const cellTasks = tasksByWeekday.get(weekday) ?? EMPTY_DRAFT_TASKS;
           const isAnchor = highlightWeekday === weekday;
+          const isEmpty = cellTasks.length === 0;
           return (
             <div
               className={cn(
-                "flex min-w-0 flex-col gap-2 p-1.5",
+                "group/cell relative flex min-h-20 min-w-0 flex-col gap-1.5 p-1.5",
                 index !== 0 && "border-l",
-                isAnchor && "bg-primary/[0.05]",
+                isAnchor && "bg-primary/[0.035] shadow-[inset_2px_0_0_var(--primary)]",
               )}
               key={weekday}
             >
-              {isAnchor && descriptor.weekdayHighlight ? (
-                <span className="inline-flex w-fit items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 font-medium text-[10px] text-primary uppercase tracking-wide">
-                  {descriptor.weekdayHighlight.label}
-                </span>
-              ) : null}
               {cellTasks.map((task) => (
                 <TemplateTaskCard
                   fieldProps={fieldProps}
@@ -2450,7 +2498,11 @@ function CycleGridRow({
                   task={task}
                 />
               ))}
-              <AddTaskButton onClick={() => addTask(weekday, offset)} />
+              <AddTaskButton
+                emphasized={isEmpty && isAnchor}
+                onClick={() => addTask(weekday, offset)}
+                quiet={isEmpty && !isAnchor}
+              />
             </div>
           );
         })}
@@ -2485,7 +2537,45 @@ function boundaryLabelFor(localDate: string, frame: PeriodPlacementFrame | null)
   return isStart ? `Period starts ${short}` : `Period ends ${short}`;
 }
 
-function AddTaskButton({ onClick }: { readonly onClick: () => void }) {
+/**
+ * The drop affordance for a day cell. Empty non-anchor cells stay silent canvas
+ * (an icon-only tile that only surfaces on hover/focus) so the grid isn't a wall
+ * of seven identical buttons; the empty anchor cell extends a gentle full-width
+ * invitation; cells that already hold work keep a compact "Add" row.
+ */
+function AddTaskButton({
+  onClick,
+  quiet = false,
+  emphasized = false,
+}: {
+  readonly onClick: () => void;
+  readonly quiet?: boolean;
+  readonly emphasized?: boolean;
+}) {
+  if (quiet) {
+    return (
+      <button
+        aria-label="Add Template Task"
+        className="flex flex-1 cursor-pointer items-center justify-center rounded-md text-muted-foreground/0 opacity-0 transition group-hover/cell:opacity-100 hover:bg-muted/60 hover:text-muted-foreground focus-visible:opacity-100 focus-visible:text-muted-foreground"
+        onClick={onClick}
+        type="button"
+      >
+        <Plus className="size-4" />
+      </button>
+    );
+  }
+  if (emphasized) {
+    return (
+      <button
+        className="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-primary/20 border-dashed text-primary text-xs transition-colors hover:bg-primary/[0.06]"
+        onClick={onClick}
+        type="button"
+      >
+        <Plus className="size-3.5" />
+        Add Template Task
+      </button>
+    );
+  }
   return (
     <button
       className="flex w-fit cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-muted-foreground text-sm transition-colors hover:bg-muted hover:text-foreground"
