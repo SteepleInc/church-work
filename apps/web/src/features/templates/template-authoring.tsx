@@ -2444,33 +2444,42 @@ function CycleGridRow({
   const highlightWeekday = descriptor.weekdayHighlight?.weekday ?? null;
   const isFocus = offset >= descriptor.focusStartOffset && offset <= 0;
 
+  // When the focus window is a single Cycle (weekly service / Key Date shapes),
+  // the section header already names it — repeating the same label on this row's
+  // divider band would stack two identical "Service week" rules. Suppress the
+  // band for that lone focus row; multi-Cycle frames keep their "Cycle 1…N"
+  // bands because those carry distinct, real sequence information.
+  const isLoneFocusCycle = isFocus && descriptor.focusStartOffset === 0;
+
   return (
     <div className="group/row flex flex-col">
       {/* Cycle divider band: the relative-Cycle label rides a hairline rule. The
           label encodes a real sequence (Cycle 1…N, weeks before/after), so it
           stays an explicit marker; focus Cycles read at full strength. */}
-      <div className="flex items-center gap-2 border-t px-3 py-2">
-        <span
-          className={cn(
-            "shrink-0 font-medium text-[11px] uppercase tracking-[0.08em]",
-            isFocus ? "text-foreground" : "text-muted-foreground/70",
-          )}
-        >
-          {cycleRowLabel(offset, descriptor)}
-        </span>
-        {meta?.ownedPeriodLabel ? (
-          <span className="shrink-0 text-muted-foreground text-xs normal-case">
-            {meta.ownedPeriodLabel}
+      {isLoneFocusCycle ? null : (
+        <div className="flex items-center gap-2 border-t px-3 py-2">
+          <span
+            className={cn(
+              "shrink-0 font-medium text-[11px] uppercase tracking-[0.08em]",
+              isFocus ? "text-foreground" : "text-muted-foreground/70",
+            )}
+          >
+            {cycleRowLabel(offset, descriptor)}
           </span>
-        ) : null}
-        {meta?.boundaryLabel ? (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 font-medium text-[10px] text-amber-700 uppercase tracking-wide dark:text-amber-400">
-            <Flag className="size-2.5" />
-            {meta.boundaryLabel}
-          </span>
-        ) : null}
-        <span className="h-px flex-1 bg-border" />
-      </div>
+          {meta?.ownedPeriodLabel ? (
+            <span className="shrink-0 text-muted-foreground text-xs normal-case">
+              {meta.ownedPeriodLabel}
+            </span>
+          ) : null}
+          {meta?.boundaryLabel ? (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 font-medium text-[10px] text-amber-700 uppercase tracking-wide dark:text-amber-400">
+              <Flag className="size-2.5" />
+              {meta.boundaryLabel}
+            </span>
+          ) : null}
+          <span className="h-px flex-1 bg-border" />
+        </div>
+      )}
 
       {/* Seven day cells, Monday → Sunday. The anchor day reads as a continuous
           vertical spine — a faint tint plus an indigo edge — so the eye tracks
