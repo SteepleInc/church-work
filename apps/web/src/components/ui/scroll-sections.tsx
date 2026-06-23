@@ -94,9 +94,21 @@ type RootProps = {
   readonly viewportClassName?: string;
   /** Height of the fade seam between a pinned header and the scrolling content. */
   readonly fadeHeight?: number;
+  /**
+   * Section id to bring into view once, after the first layout settles — used to
+   * land the viewport on a meaningful section (e.g. the focus window) instead of
+   * the top. Aligned to the start of the viewport (under any pinned header).
+   */
+  readonly initialSectionId?: string;
 };
 
-function Root({ children, className, viewportClassName, fadeHeight = 30 }: RootProps) {
+function Root({
+  children,
+  className,
+  viewportClassName,
+  fadeHeight = 30,
+  initialSectionId,
+}: RootProps) {
   const viewportRef = React.useRef<HTMLDivElement>(null);
   // The registry is a mutable ref-map: registering / measuring sections must not
   // re-render Root (see issue #327 performance contract).
@@ -213,6 +225,31 @@ function Root({ children, className, viewportClassName, fadeHeight = 30 }: RootP
   const scrollIntoView = React.useCallback((id: string) => {
     registryRef.current.get(id)?.element?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
+
+  // Land the viewport on the requested section once it (and the surrounding
+  // content) has mounted and measured. Polls a few animation frames so the jump
+  // happens after the first layout settles, then stops — later scrolling is the
+  // user's. Uses the viewport's scrollTop directly (not scrollIntoView) so the
+  // page around the scroll container never moves.
+  const didInitialScrollRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!initialSectionId || didInitialScrollRef.current) return;
+    let frame = 0;
+    let attempts = 0;
+    const tryScroll = () => {
+      const viewport = viewportRef.current;
+      const entry = registryRef.current.get(initialSectionId);
+      if (viewport && entry?.element) {
+        recompute();
+        viewport.scrollTop = Math.max(0, entry.start);
+        didInitialScrollRef.current = true;
+        return;
+      }
+      if (attempts++ < 20) frame = requestAnimationFrame(tryScroll);
+    };
+    frame = requestAnimationFrame(tryScroll);
+    return () => cancelAnimationFrame(frame);
+  }, [initialSectionId, recompute]);
 
   const registerSection = React.useCallback(
     ({ id, index, renderHeader }: Parameters<ScrollSectionsContextValue["registerSection"]>[0]) => {
