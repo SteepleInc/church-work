@@ -52,6 +52,7 @@ import {
   type TaskLabelOption,
   type TaskPriority,
   type TaskEstimate,
+  type WeekPickerOption,
 } from "./task-card-fields";
 import {
   buildTaskBoardGroupColumns,
@@ -127,6 +128,10 @@ type TaskKanbanBoardProps = {
   // section of the assignee picker for a Task's Team.
   readonly teamMemberIdsByTeamId?: ReadonlyMap<string, ReadonlySet<string>>;
   readonly cycleLabelsById?: ReadonlyMap<string, string>;
+  // Rich rows for the Week picker (status, date range, relative cue).
+  readonly cycleOptions?: readonly WeekPickerOption[];
+  // The Church the Tasks belong to, used by the Week picker's per-row counts.
+  readonly churchId?: string | null;
   readonly onChangeTaskCycle?: (change: {
     readonly taskId: string;
     readonly cycleId: string | null;
@@ -176,6 +181,7 @@ function boardSignature(
 
 const EMPTY_TEAM_MEMBERS: ReadonlyMap<string, ReadonlySet<string>> = new Map();
 const EMPTY_CYCLE_LABELS: ReadonlyMap<string, string> = new Map();
+const EMPTY_CYCLE_OPTIONS: readonly WeekPickerOption[] = [];
 const EMPTY_USER_ID_SET: ReadonlySet<string> = new Set();
 const EMPTY_HIDDEN_COLUMNS: readonly string[] = [];
 const EMPTY_SELECTION: ReadonlySet<string> = new Set();
@@ -190,6 +196,8 @@ export function TaskKanbanBoard({
   currentUserId = null,
   teamMemberIdsByTeamId = EMPTY_TEAM_MEMBERS,
   cycleLabelsById = EMPTY_CYCLE_LABELS,
+  cycleOptions = EMPTY_CYCLE_OPTIONS,
+  churchId = null,
   grouping = "workflow_status",
   showEmptyColumns = true,
   displayProperties = DEFAULT_TASK_VIEW_OPTIONS.displayProperties,
@@ -396,6 +404,8 @@ export function TaskKanbanBoard({
               currentUserId={currentUserId}
               teamMemberIdsByTeamId={teamMemberIdsByTeamId}
               cycleLabelsById={cycleLabelsById}
+              cycleOptions={cycleOptions}
+              churchId={churchId}
               displayProperties={displayPropertySet}
               teamsById={teamsById}
               labelOptions={labelOptions}
@@ -442,6 +452,8 @@ export function TaskKanbanBoard({
                 currentUserId={currentUserId}
                 teamMemberIdsByTeamId={teamMemberIdsByTeamId}
                 cycleLabelsById={cycleLabelsById}
+                cycleOptions={cycleOptions}
+                churchId={churchId}
                 displayProperties={displayPropertySet}
                 teamsById={teamsById}
                 labelOptions={labelOptions}
@@ -556,6 +568,8 @@ interface TaskKanbanColumnProps extends Omit<
   readonly currentUserId: string | null;
   readonly teamMemberIdsByTeamId: ReadonlyMap<string, ReadonlySet<string>>;
   readonly cycleLabelsById: ReadonlyMap<string, string>;
+  readonly cycleOptions: readonly WeekPickerOption[];
+  readonly churchId: string | null;
   readonly displayProperties: ReadonlySet<TaskDisplayProperty>;
   readonly teamsById: ReadonlyMap<string, TaskBoardTeamOption>;
   readonly labelOptions: readonly TaskBoardLabelOption[];
@@ -584,6 +598,8 @@ function TaskKanbanColumn({
   currentUserId,
   teamMemberIdsByTeamId,
   cycleLabelsById,
+  cycleOptions,
+  churchId,
   displayProperties,
   teamsById,
   labelOptions,
@@ -684,6 +700,8 @@ function TaskKanbanColumn({
               currentUserId={currentUserId}
               teamMemberIdsByTeamId={teamMemberIdsByTeamId}
               cycleLabelsById={cycleLabelsById}
+              cycleOptions={cycleOptions}
+              churchId={churchId}
               displayProperties={displayProperties}
               teamsById={teamsById}
               labelOptions={labelOptions}
@@ -717,6 +735,8 @@ interface TaskKanbanCardProps extends Omit<
   readonly currentUserId: string | null;
   readonly teamMemberIdsByTeamId: ReadonlyMap<string, ReadonlySet<string>>;
   readonly cycleLabelsById: ReadonlyMap<string, string>;
+  readonly cycleOptions: readonly WeekPickerOption[];
+  readonly churchId: string | null;
   readonly displayProperties: ReadonlySet<TaskDisplayProperty>;
   readonly teamsById: ReadonlyMap<string, TaskBoardTeamOption>;
   readonly labelOptions: readonly TaskBoardLabelOption[];
@@ -741,6 +761,8 @@ function TaskKanbanCard({
   currentUserId,
   teamMemberIdsByTeamId,
   cycleLabelsById,
+  cycleOptions,
+  churchId,
   displayProperties,
   teamsById,
   labelOptions,
@@ -853,10 +875,6 @@ function TaskKanbanCard({
   );
   const teamName = teamsById.get(task.teamId)?.name ?? null;
   const cycleLabel = task.cycleId ? (cycleLabelsById.get(task.cycleId) ?? null) : null;
-  const cycleOptions = useMemo(
-    () => [...cycleLabelsById].map(([id, label]) => ({ id, label })),
-    [cycleLabelsById],
-  );
   const showProperty = (property: TaskDisplayProperty) => displayProperties.has(property);
 
   // Church Labels plus the Task's Team's Labels are applicable in the picker
@@ -1035,13 +1053,14 @@ function TaskKanbanCard({
         {showProperty("team") && teamName ? <Badge variant="outline">{teamName}</Badge> : null}
         {showProperty("cycle") ? (
           <WeekComboboxSelector
+            churchId={churchId}
             disabled={task.isProjected || !onChangeTaskCycle}
             onValueChange={(next) => void onChangeTaskCycle?.({ taskId: task.id, cycleId: next })}
             options={cycleOptions}
             trigger={
-              <span className="inline-flex h-6 items-center justify-center gap-1 rounded-md border bg-background px-1.5 font-medium text-muted-foreground text-xs hover:bg-accent">
+              <span className="inline-flex h-6 items-center justify-center gap-1 rounded-md border bg-background px-1.5 font-medium text-xs hover:bg-accent">
                 <CalendarIcon className="size-3.5" />
-                {cycleLabel ?? "No week"}
+                <span className="text-muted-foreground">{cycleLabel ?? "No week"}</span>
               </span>
             }
             value={task.cycleId ?? null}

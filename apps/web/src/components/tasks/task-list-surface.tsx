@@ -26,6 +26,7 @@ import {
   type AssigneeOption,
   type TaskEstimate,
   type TaskPriority,
+  type WeekPickerOption,
 } from "./task-card-fields";
 import {
   buildTaskBoardGroupColumns,
@@ -65,6 +66,8 @@ type TaskListSurfaceProps = {
   readonly currentUserId?: string | null;
   readonly teamMemberIdsByTeamId?: ReadonlyMap<string, ReadonlySet<string>>;
   readonly cycleLabelsById?: ReadonlyMap<string, string>;
+  readonly cycleOptions?: readonly WeekPickerOption[];
+  readonly churchId?: string | null;
   // View Options (URL-carried presentation settings).
   readonly grouping?: TaskBoardGrouping;
   readonly showEmptyColumns?: boolean;
@@ -90,6 +93,7 @@ type TaskListSurfaceProps = {
 };
 
 const EMPTY_TEAM_MEMBERS: ReadonlyMap<string, ReadonlySet<string>> = new Map();
+const EMPTY_CYCLE_OPTIONS: readonly WeekPickerOption[] = [];
 const EMPTY_USER_ID_SET: ReadonlySet<string> = new Set();
 
 /**
@@ -113,6 +117,8 @@ export function TaskListSurface({
   currentUserId = null,
   teamMemberIdsByTeamId = EMPTY_TEAM_MEMBERS,
   cycleLabelsById = new Map(),
+  cycleOptions = EMPTY_CYCLE_OPTIONS,
+  churchId = null,
   grouping = "workflow_status",
   showEmptyColumns = true,
   displayProperties = DEFAULT_TASK_VIEW_OPTIONS.displayProperties,
@@ -174,6 +180,8 @@ export function TaskListSurface({
             currentUserId={currentUserId}
             teamMemberIdsByTeamId={teamMemberIdsByTeamId}
             cycleLabelsById={cycleLabelsById}
+            cycleOptions={cycleOptions}
+            churchId={churchId}
             displayProperties={displayPropertySet}
             teamsById={teamsById}
             labelOptions={labelOptions}
@@ -201,6 +209,8 @@ type TaskListGroupProps = {
   readonly currentUserId: string | null;
   readonly teamMemberIdsByTeamId: ReadonlyMap<string, ReadonlySet<string>>;
   readonly cycleLabelsById: ReadonlyMap<string, string>;
+  readonly cycleOptions: readonly WeekPickerOption[];
+  readonly churchId: string | null;
   readonly displayProperties: ReadonlySet<TaskDisplayProperty>;
   readonly teamsById: ReadonlyMap<string, TaskBoardTeamOption>;
   readonly labelOptions: readonly TaskBoardLabelOption[];
@@ -223,6 +233,8 @@ function TaskListGroup({
   currentUserId,
   teamMemberIdsByTeamId,
   cycleLabelsById,
+  cycleOptions,
+  churchId,
   displayProperties,
   teamsById,
   labelOptions,
@@ -307,6 +319,8 @@ function TaskListGroup({
             currentUserId={currentUserId}
             teamMemberIdsByTeamId={teamMemberIdsByTeamId}
             cycleLabelsById={cycleLabelsById}
+            cycleOptions={cycleOptions}
+            churchId={churchId}
             displayProperties={displayProperties}
             teamsById={teamsById}
             labelOptions={labelOptions}
@@ -378,6 +392,8 @@ type TaskListRowProps = {
   readonly currentUserId: string | null;
   readonly teamMemberIdsByTeamId: ReadonlyMap<string, ReadonlySet<string>>;
   readonly cycleLabelsById: ReadonlyMap<string, string>;
+  readonly cycleOptions: readonly WeekPickerOption[];
+  readonly churchId: string | null;
   readonly displayProperties: ReadonlySet<TaskDisplayProperty>;
   readonly teamsById: ReadonlyMap<string, TaskBoardTeamOption>;
   readonly labelOptions: readonly TaskBoardLabelOption[];
@@ -397,6 +413,8 @@ function TaskListRow({
   currentUserId,
   teamMemberIdsByTeamId,
   cycleLabelsById,
+  cycleOptions,
+  churchId,
   displayProperties,
   teamsById,
   labelOptions,
@@ -466,10 +484,6 @@ function TaskListRow({
   const dueDateLabel = formatDueDate(task.dueDate);
   const teamName = teamsById.get(task.teamId)?.name ?? null;
   const cycleLabel = task.cycleId ? (cycleLabelsById.get(task.cycleId) ?? null) : null;
-  const cycleOptions = useMemo(
-    () => [...cycleLabelsById].map(([id, label]) => ({ id, label })),
-    [cycleLabelsById],
-  );
   const showProperty = (property: TaskDisplayProperty) => displayProperties.has(property);
 
   // Church Labels plus the Task's Team's Labels are applicable in the picker
@@ -604,13 +618,14 @@ function TaskListRow({
 
         {showProperty("cycle") ? (
           <WeekComboboxSelector
+            churchId={churchId}
             disabled={task.isProjected || !onChangeTaskCycle}
             onValueChange={(next) => void onChangeTaskCycle?.({ taskId: task.id, cycleId: next })}
             options={cycleOptions}
             trigger={
-              <span className="inline-flex h-6 items-center justify-center gap-1 rounded-md border bg-background px-1.5 font-medium text-muted-foreground text-xs hover:bg-accent">
+              <span className="inline-flex h-6 items-center justify-center gap-1 rounded-md border bg-background px-1.5 font-medium text-xs hover:bg-accent">
                 <CalendarIcon className="size-3.5" />
-                {cycleLabel ?? "No week"}
+                <span className="text-muted-foreground">{cycleLabel ?? "No week"}</span>
               </span>
             }
             value={task.cycleId ?? null}

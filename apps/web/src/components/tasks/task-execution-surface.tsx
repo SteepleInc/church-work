@@ -18,7 +18,7 @@ import { TeamWeekSelector } from "@/components/weeks/team-week-selector";
 import { WeekActionsMenu } from "@/components/weeks/week-actions-menu";
 import type { WeekCsvTask } from "@/components/weeks/week-actions-data";
 import { buildProjectedWeekCycles } from "@/components/weeks/team-weeks-index-data";
-import { useCyclesCollection } from "@/data/cycles/cyclesData.app";
+import { buildWeekPickerOptions, useCyclesCollection } from "@/data/cycles/cyclesData.app";
 import { useLabelsCollection } from "@/data/labels/labelsData.app";
 import { useTeamMembershipsCollection } from "@/data/teams/teamsData.app";
 import {
@@ -442,6 +442,10 @@ export function TaskExecutionSurface({
   const cycleLabelsById = new Map(
     cycles.map((cycle, index) => [cycle.id, cycle.name?.trim() || `Week ${index + 1}`]),
   );
+  // Rich rows for the Week picker (Current → Upcoming → Previous, with status
+  // and date range). Projected ghost Weeks are dropped by the builder — a Task
+  // can only be moved to a real Week.
+  const cycleOptions = buildWeekPickerOptions(cycles, today);
   const weekCsvTasks: readonly WeekCsvTask[] = boardTasks.map((task) => ({
     identifier: task.identifier,
     title: task.title,
@@ -463,6 +467,8 @@ export function TaskExecutionSurface({
     currentUserId,
     teamMemberIdsByTeamId,
     cycleLabelsById,
+    cycleOptions,
+    churchId,
     grouping: boardGrouping,
     showEmptyColumns: resolvedView.showEmptyColumns,
     displayProperties: resolvedView.displayProperties,
@@ -633,6 +639,8 @@ export function TaskExecutionSurface({
                 currentUserId={currentUserId}
                 teamMemberIdsByTeamId={teamMemberIdsByTeamId}
                 cycleLabelsById={cycleLabelsById}
+                cycleOptions={cycleOptions}
+                churchId={churchId}
                 grouping={boardGrouping}
                 showEmptyColumns={resolvedView.showEmptyColumns}
                 displayProperties={resolvedView.displayProperties}

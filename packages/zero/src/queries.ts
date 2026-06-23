@@ -25,6 +25,9 @@ const ChurchWorkAssigneeArgs = toZeroSchema(
 const ChurchWorkTeamArgs = toZeroSchema(
   Schema.Struct({ church_id: Schema.String, team_id: Schema.String }),
 );
+const ChurchWorkCycleArgs = toZeroSchema(
+  Schema.Struct({ church_id: Schema.String, cycle_id: Schema.String }),
+);
 const AdminListArgs = toZeroSchema(Schema.Struct({ list_args: ListArgsEffectSchema }));
 const ChurchWorkListArgs = toZeroSchema(
   Schema.Struct({
@@ -439,6 +442,19 @@ export const queries = defineQueries({
       return zql.tasks
         .where("church_id", args.church_id)
         .where("team_id", args.team_id)
+        .where("deleted_at", "IS", null)
+        .orderBy("created_at", "desc");
+    }),
+    by_cycle: defineChurchWorkQuery(ChurchWorkCycleArgs, ({ args, ctx }) => {
+      if (!hasActiveChurchAccess(ctx, args.church_id)) {
+        if (isServerContext(ctx)) requireActiveChurchAccess(ctx, args.church_id);
+
+        return zql.tasks.where("id", "__unauthorized__").where("deleted_at", "IS", null);
+      }
+
+      return zql.tasks
+        .where("church_id", args.church_id)
+        .where("cycle_id", args.cycle_id)
         .where("deleted_at", "IS", null)
         .orderBy("created_at", "desc");
     }),
