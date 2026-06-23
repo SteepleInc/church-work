@@ -81,6 +81,11 @@ export function useQuickActionOpeners() {
 
         setTeamQuickActionState({ mode: "create", churchId: options.churchId });
       },
+      openCreateTemplate: () => {
+        setTemplateBigActionState(
+          TemplateBigActionState.create({ shape: "weekly_service", step: 0 }),
+        );
+      },
       openEditTeam: (options: { readonly churchId: string; readonly teamId: string }) => {
         closeBigActions();
 
@@ -107,6 +112,7 @@ export function useQuickActionOpeners() {
       setCreateTaskQuickActionState,
       setEditWeekQuickActionState,
       setInviteMemberDialogSource,
+      setTemplateBigActionState,
       setTeamQuickActionState,
     ],
   );
