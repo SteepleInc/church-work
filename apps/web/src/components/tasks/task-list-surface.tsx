@@ -5,27 +5,28 @@ import { useAppForm } from "@/components/form/ts-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollSections, type SectionRenderArgs } from "@/components/ui/scroll-sections";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 import {
   AssigneeAvatar,
   AssigneeComboboxSelector,
+  type AssigneeOption,
   EstimateComboboxSelector,
   formatCreatedAt,
   formatDueDate,
   getEstimateMeta,
   getPriorityMeta,
-  labelDotClassName,
   LabelsComboboxSelector,
+  labelDotClassName,
   PriorityComboboxSelector,
   StatusComboboxSelector,
-  WorkflowStatusIcon,
-  type AssigneeOption,
   type TaskEstimate,
   type TaskPriority,
+  WorkflowStatusIcon,
 } from "./task-card-fields";
+import { useTaskContextMenu } from "./task-context-menu";
 import {
   buildTaskBoardGroupColumns,
   groupTasksByColumn,
@@ -44,16 +45,15 @@ import type {
   TaskCardLabelsChange,
   TaskCardStatusChange,
 } from "./task-kanban-board";
-import { ProjectedAdjustedBadge, TemplateSourceBadge } from "./template-source-badge";
-import { DEFAULT_TASK_VIEW_OPTIONS, type TaskDisplayProperty } from "./task-view-options";
 import { statusOptions } from "./task-kanban-board-utils";
-import { useTaskContextMenu } from "./task-context-menu";
 import {
+  type TaskShortcutField,
   useRegisterSurfaceOrder,
   useRegisterTaskShortcuts,
   useTaskSurfaceKeyboard,
-  type TaskShortcutField,
 } from "./task-surface-keyboard";
+import { DEFAULT_TASK_VIEW_OPTIONS, type TaskDisplayProperty } from "./task-view-options";
+import { ProjectedAdjustedBadge, TemplateSourceBadge } from "./template-source-badge";
 
 type TaskListSurfaceProps = {
   readonly workflowStatuses: readonly TaskBoardWorkflowStatus[];
@@ -149,41 +149,41 @@ export function TaskListSurface({
   useRegisterSurfaceOrder(flatOrder);
 
   return (
-    // Single vertical scroll container: sticky group headers resolve against
-    // the ScrollArea Viewport. The fade mask is off (maskHeight={0}) so pinned
-    // headers stay crisp and fully opaque (the mask would fade the top edge
-    // where headers pin).
-    <ScrollArea className={cn("min-h-0 flex-1", className)} maskHeight={0} scrollFade={false}>
-      <div className="flex flex-col">
-        {columns.map((column, index) => (
-          <TaskListGroup
-            key={column.id}
-            column={column}
-            isLast={index === columns.length - 1}
-            tasks={tasksByColumn[column.id] ?? []}
-            workflowStatuses={workflowStatuses}
-            assigneeOptions={assigneeOptions}
-            currentUserId={currentUserId}
-            teamMemberIdsByTeamId={teamMemberIdsByTeamId}
-            displayProperties={displayPropertySet}
-            teamsById={teamsById}
-            labelOptions={labelOptions}
-            onAssignTask={onAssignTask}
-            onChangeTaskStatus={onChangeTaskStatus}
-            onChangeTaskLabels={onChangeTaskLabels}
-            onChangeTaskEstimate={onChangeTaskEstimate}
-            onChangeTaskPriority={onChangeTaskPriority}
-            onOpenTask={onOpenTask}
-            onAddTask={onAddTask}
-          />
-        ))}
-      </div>
-    </ScrollArea>
+    // Single vertical scroll container driven by ScrollSections: each group is a
+    // Section whose header pins to the top in flow, and whose off-screen-below
+    // header surfaces as a clickable beacon in the bottom overlay. The fade seam
+    // between the pinned header and the scrolling content lives in the primitive.
+    <ScrollSections.Root className={className}>
+      {columns.map((column, index) => (
+        <TaskListGroup
+          key={column.id}
+          column={column}
+          index={index}
+          isLast={index === columns.length - 1}
+          tasks={tasksByColumn[column.id] ?? []}
+          workflowStatuses={workflowStatuses}
+          assigneeOptions={assigneeOptions}
+          currentUserId={currentUserId}
+          teamMemberIdsByTeamId={teamMemberIdsByTeamId}
+          displayProperties={displayPropertySet}
+          teamsById={teamsById}
+          labelOptions={labelOptions}
+          onAssignTask={onAssignTask}
+          onChangeTaskStatus={onChangeTaskStatus}
+          onChangeTaskLabels={onChangeTaskLabels}
+          onChangeTaskEstimate={onChangeTaskEstimate}
+          onChangeTaskPriority={onChangeTaskPriority}
+          onOpenTask={onOpenTask}
+          onAddTask={onAddTask}
+        />
+      ))}
+    </ScrollSections.Root>
   );
 }
 
 type TaskListGroupProps = {
   readonly column: TaskBoardGroupColumn;
+  readonly index: number;
   readonly isLast: boolean;
   readonly tasks: readonly TaskBoardTask[];
   readonly workflowStatuses: readonly TaskBoardWorkflowStatus[];
@@ -204,6 +204,7 @@ type TaskListGroupProps = {
 
 function TaskListGroup({
   column,
+  index,
   isLast,
   tasks,
   workflowStatuses,
@@ -226,19 +227,25 @@ function TaskListGroup({
   // animates (rotate) — the rows mount/unmount instantly (no expand animation).
   const [collapsed, setCollapsed] = useState(false);
 
-  return (
-    // Each group is a plain block; its sticky header is bounded by this block,
-    // so the next group's header pushes it up as it scrolls past (pure-CSS
-    // Linear-style sticky behavior — no scroll listeners).
-    <section
-      aria-label={`${column.title} group`}
-      className={cn(
-        "flex flex-col last:[&_[data-task-list-row]:last-child]:border-b-0",
-        !isLast && (collapsed || tasks.length === 0) && "mb-1",
-      )}
-    >
+  // The header renderer is shared by ScrollSections between the in-flow pinned
+  // header (state "pinned" / "in-view") and the off-screen-below beacon
+  // (state "below"), which the primitive surfaces in its bottom overlay.
+  const renderHeader = ({ state, scrollIntoView }: SectionRenderArgs) =>
+    state === "below" ? (
+      <button
+        aria-label={`Scroll to ${column.title}`}
+        className="group/beacon mx-3 mb-2 flex h-8 items-center gap-1.5 rounded-md border bg-background/95 px-3 text-muted-foreground text-sm shadow-sm backdrop-blur-sm transition-colors hover:bg-accent hover:text-foreground"
+        onClick={scrollIntoView}
+        type="button"
+      >
+        {column.taskState ? <WorkflowStatusIcon taskState={column.taskState} /> : null}
+        <span className="truncate font-medium">{column.title}</span>
+        <span className="tabular-nums">{tasks.length}</span>
+        <Triangle className="size-3 rotate-180 fill-current" />
+      </button>
+    ) : (
       <div
-        className="group/header sticky top-0 z-10 mx-3 flex h-9 items-center justify-between gap-2 rounded-md bg-muted px-3 backdrop-blur-sm"
+        className="group/header mx-3 flex h-9 items-center justify-between gap-2 rounded-md bg-muted px-3 backdrop-blur-sm"
         onDoubleClick={() => setCollapsed((value) => !value)}
       >
         <div className="flex min-w-0 items-center gap-1.5">
@@ -283,6 +290,19 @@ function TaskListGroup({
           </Tooltip>
         ) : null}
       </div>
+    );
+
+  return (
+    <ScrollSections.Section
+      aria-label={`${column.title} group`}
+      className={cn(
+        "last:[&_[data-task-list-row]:last-child]:border-b-0",
+        !isLast && (collapsed || tasks.length === 0) && "mb-1",
+      )}
+      header={renderHeader}
+      id={column.id}
+      index={index}
+    >
       <div className={cn("flex flex-col", collapsed && "hidden")}>
         {tasks.map((task) => (
           <TaskListRow
@@ -304,7 +324,7 @@ function TaskListGroup({
           />
         ))}
       </div>
-    </section>
+    </ScrollSections.Section>
   );
 }
 
@@ -537,7 +557,10 @@ function TaskListRow({
               onValueChange={(next) => {
                 if (!next) return;
                 field.handleChange(next);
-                void onChangeTaskStatus?.({ taskId: task.id, workflowStatusId: next });
+                void onChangeTaskStatus?.({
+                  taskId: task.id,
+                  workflowStatusId: next,
+                });
               }}
               openRef={statusOpenRef}
               options={statusItems}
@@ -636,7 +659,10 @@ function TaskListRow({
                 currentUserId={currentUserId}
                 onValueChange={(next) => {
                   field.handleChange(next);
-                  void onAssignTask?.({ taskId: task.id, assignedUserId: next });
+                  void onAssignTask?.({
+                    taskId: task.id,
+                    assignedUserId: next,
+                  });
                 }}
                 openRef={assigneeOpenRef}
                 options={assigneeOptions}
