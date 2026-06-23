@@ -214,49 +214,76 @@ function Root({ children, className, viewportClassName, fadeHeight = 30 }: RootP
     registryRef.current.get(id)?.element?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
+  const registerSection = React.useCallback(
+    ({ id, index, renderHeader }: Parameters<ScrollSectionsContextValue["registerSection"]>[0]) => {
+      const existing = registryRef.current.get(id);
+      if (existing) {
+        existing.index = index;
+        existing.renderHeader = renderHeader;
+      } else {
+        registryRef.current.set(id, {
+          element: null,
+          headerElement: null,
+          headerSize: 0,
+          id,
+          index,
+          renderHeader,
+          size: 0,
+          start: 0,
+        });
+      }
+      recompute();
+    },
+    [recompute],
+  );
+
+  const setHeaderElement = React.useCallback(
+    (id: string, element: HTMLElement | null) => {
+      const entry = registryRef.current.get(id);
+      if (entry) {
+        entry.headerElement = element;
+        recompute();
+      }
+    },
+    [recompute],
+  );
+
+  const setSectionElement = React.useCallback(
+    (id: string, element: HTMLElement | null) => {
+      const entry = registryRef.current.get(id);
+      if (entry) {
+        entry.element = element;
+        recompute();
+      }
+    },
+    [recompute],
+  );
+
+  const unregisterSection = React.useCallback(
+    (id: string) => {
+      registryRef.current.delete(id);
+      recompute();
+    },
+    [recompute],
+  );
+
   const contextValue = React.useMemo<ScrollSectionsContextValue>(
     () => ({
       pinnedId: overlay.pinned,
-      registerSection: ({ id, index, renderHeader }) => {
-        const existing = registryRef.current.get(id);
-        if (existing) {
-          existing.index = index;
-          existing.renderHeader = renderHeader;
-        } else {
-          registryRef.current.set(id, {
-            element: null,
-            headerElement: null,
-            headerSize: 0,
-            id,
-            index,
-            renderHeader,
-            size: 0,
-            start: 0,
-          });
-        }
-        recompute();
-      },
+      registerSection,
       scrollIntoView,
-      setHeaderElement: (id, element) => {
-        const entry = registryRef.current.get(id);
-        if (entry) {
-          entry.headerElement = element;
-          recompute();
-        }
-      },
-      setSectionElement: (id, element) => {
-        const entry = registryRef.current.get(id);
-        if (entry) {
-          entry.element = element;
-          recompute();
-        }
-      },
-      unregisterSection: (id) => {
-        registryRef.current.delete(id);
-        recompute();
-      },
+      setHeaderElement,
+      setSectionElement,
+      unregisterSection,
     }),
-    [overlay.pinned, recompute, scrollIntoView],
+    [
+      overlay.pinned,
+      registerSection,
+      scrollIntoView,
+      setHeaderElement,
+      setSectionElement,
+      unregisterSection,
+    ],
   );
 
   const fadeStyle = {
@@ -385,6 +412,14 @@ function Section({
   "aria-label": ariaLabel,
 }: SectionProps) {
   const context = useScrollSectionsContext("ScrollSections.Section");
+  const {
+    pinnedId,
+    registerSection,
+    scrollIntoView: contextScrollIntoView,
+    setHeaderElement,
+    setSectionElement,
+    unregisterSection,
+  } = context;
   const sectionRef = React.useRef<HTMLElement>(null);
   const headerRef = React.useRef<HTMLDivElement>(null);
 
@@ -399,26 +434,29 @@ function Section({
 
   // Register identity + order + renderer; re-register if order changes.
   React.useEffect(() => {
-    context.registerSection({ id, index, renderHeader: stableRenderHeader });
-    return () => context.unregisterSection(id);
-  }, [context, id, index, stableRenderHeader]);
+    registerSection({ id, index, renderHeader: stableRenderHeader });
+    return () => unregisterSection(id);
+  }, [id, index, registerSection, stableRenderHeader, unregisterSection]);
 
   // Hand the section + header elements to the registry and keep geometry fresh.
   React.useEffect(() => {
-    context.setSectionElement(id, sectionRef.current);
-    context.setHeaderElement(id, headerRef.current);
+    setSectionElement(id, sectionRef.current);
+    setHeaderElement(id, headerRef.current);
     const observed = sectionRef.current;
     if (!observed) return;
     const resizeObserver = new ResizeObserver(() => {
-      context.setSectionElement(id, sectionRef.current);
-      context.setHeaderElement(id, headerRef.current);
+      setSectionElement(id, sectionRef.current);
+      setHeaderElement(id, headerRef.current);
     });
     resizeObserver.observe(observed);
     return () => resizeObserver.disconnect();
-  }, [context, id]);
+  }, [id, setHeaderElement, setSectionElement]);
 
-  const isPinned = context.pinnedId === id;
-  const scrollIntoView = React.useCallback(() => context.scrollIntoView(id), [context, id]);
+  const isPinned = pinnedId === id;
+  const scrollIntoView = React.useCallback(
+    () => contextScrollIntoView(id),
+    [contextScrollIntoView, id],
+  );
 
   return (
     <section aria-label={ariaLabel} className={cn("flex flex-col", className)} ref={sectionRef}>
