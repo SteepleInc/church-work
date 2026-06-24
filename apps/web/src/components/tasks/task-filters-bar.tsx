@@ -47,7 +47,7 @@ function toFilterOption(options: ColumnConfig<unknown>["options"]): FilterOption
 
 function toFieldConfig(column: ColumnConfig<unknown>): FilterFieldConfig<string> {
   const icon: ReactNode | undefined = column.icon
-    ? createElement(column.icon, { className: "size-4" })
+    ? createElement(column.icon, { className: "size-4 text-muted-foreground" })
     : undefined;
 
   return {
@@ -134,6 +134,8 @@ export function TaskFilterAddMenu({
       trigger={trigger}
       size="sm"
       allowMultiple={false}
+      // Match Linear's "Add Filter…" header copy.
+      i18n={{ searchFields: "Add filter..." }}
       enableShortcut={enableShortcut}
       shortcutKey="f"
     />

@@ -1,9 +1,12 @@
+import type { ComponentType } from "react";
+
 import type { ColumnConfig, ColumnOption, FilterItem } from "./types";
 
 type BuilderState<TData, TValue, TType extends FilterItem["type"]> = {
   accessor?: (row: TData) => TValue;
   displayName?: string;
   hidden?: boolean;
+  icon?: ComponentType<{ className?: string }>;
   id?: string;
   options?: readonly ColumnOption[];
   type: TType;
@@ -24,6 +27,10 @@ class ColumnConfigBuilder<TData, TValue, TType extends FilterItem["type"]> {
     return new ColumnConfigBuilder({ ...this.state, hidden: true });
   }
 
+  icon(icon: ComponentType<{ className?: string }>) {
+    return new ColumnConfigBuilder({ ...this.state, icon });
+  }
+
   id(id: string) {
     return new ColumnConfigBuilder({ ...this.state, id });
   }
@@ -41,6 +48,7 @@ class ColumnConfigBuilder<TData, TValue, TType extends FilterItem["type"]> {
       accessor: this.state.accessor,
       displayName: this.state.displayName,
       hidden: this.state.hidden,
+      icon: this.state.icon,
       id: this.state.id,
       options: this.state.options,
       type: this.state.type,

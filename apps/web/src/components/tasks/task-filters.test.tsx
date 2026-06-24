@@ -29,8 +29,21 @@ function fieldIds(fields: ReturnType<typeof buildTaskFilterFields>) {
   return fields.map((field) => field.id);
 }
 
+const cycles = [
+  { id: "cycle-1", name: "Jun 15 – 21" },
+  { id: "cycle-2", name: "Jun 22 – 28" },
+];
+const templates = [
+  { id: "template-1", name: "Sunday Service" },
+  { id: "template-2", name: "Guest Follow-up" },
+];
+const labels = [
+  { id: "label-1", name: "Music", color: "blue" },
+  { id: "label-2", name: "Tech", color: "emerald" },
+];
+
 describe("task filter field catalog (per-surface)", () => {
-  test("our_work shows all five backend-backed fields", () => {
+  test("our_work leads with the Status group then the people/scope fields", () => {
     const fields = buildTaskFilterFields({
       surface: "our_work",
       tab: "all",
@@ -38,13 +51,51 @@ describe("task filter field catalog (per-surface)", () => {
       teams,
       workflowStatuses: statuses,
     });
-    expect(fieldIds(fields)).toEqual([
-      "assignee",
-      "creator",
-      "team",
-      "workflowStatus",
-      "taskState",
-    ]);
+    expect(fieldIds(fields)).toEqual(["workflowStatus", "priority", "assignee", "creator", "team"]);
+  });
+
+  test("Week, Label, and Template fields appear when their collections are non-empty", () => {
+    const fields = buildTaskFilterFields({
+      surface: "our_work",
+      tab: "all",
+      users,
+      teams,
+      workflowStatuses: statuses,
+      cycles,
+      templates,
+      labels,
+    });
+    expect(fieldIds(fields)).toContain("cycle");
+    expect(fieldIds(fields)).toContain("label");
+    expect(fieldIds(fields)).toContain("template");
+    expect(fields.find((field) => field.id === "cycle")?.displayName).toBe("Week");
+  });
+
+  test("Week, Label, and Template fields are omitted when their collections are empty", () => {
+    const fields = buildTaskFilterFields({
+      surface: "our_work",
+      tab: "all",
+      users,
+      teams,
+      workflowStatuses: statuses,
+    });
+    expect(fieldIds(fields)).not.toContain("cycle");
+    expect(fieldIds(fields)).not.toContain("label");
+    expect(fieldIds(fields)).not.toContain("template");
+  });
+
+  test("every field carries a leading type icon (Linear-style menu rows)", () => {
+    const fields = buildTaskFilterFields({
+      surface: "our_work",
+      tab: "all",
+      users,
+      teams,
+      workflowStatuses: statuses,
+      cycles,
+      templates,
+      labels,
+    });
+    expect(fields.every((field) => field.icon !== undefined)).toBe(true);
   });
 
   test("team_board hides Team (already pinned)", () => {
@@ -99,16 +150,6 @@ describe("task filter field catalog (per-surface)", () => {
     });
     const status = fields.find((field) => field.id === "workflowStatus");
     expect(status?.options?.map((option) => option.label)).toEqual(["To Do", "In Progress"]);
-  });
-
-  test("task state field is presented as Status type", () => {
-    const fields = buildTaskFilterFields({
-      surface: "our_work",
-      users,
-      teams,
-      workflowStatuses: statuses,
-    });
-    expect(fields.find((field) => field.id === "taskState")?.displayName).toBe("Status type");
   });
 });
 

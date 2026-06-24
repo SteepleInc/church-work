@@ -133,6 +133,7 @@ function PrivateWorkContent({ activePanel }: { activePanel: ActiveWorkPanel }) {
   const [taskFilters, setTaskFilters] = useFilters(FilterKeys.Tasks);
   const taskFilterFields = useTaskFilterFields({
     churchId: showTopBar ? activeChurchId : null,
+    currentUserId,
     surface,
     teamId: selectedTeam?.id ?? null,
     tab: activeTab,

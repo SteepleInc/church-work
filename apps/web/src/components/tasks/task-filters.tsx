@@ -1,5 +1,14 @@
 import { useMemo } from "react";
-import { CircleUserRound } from "lucide-react";
+import {
+  CalendarRange,
+  CircleDashed,
+  CircleUserRound,
+  LayoutTemplate,
+  Tag,
+  Triangle,
+  User,
+  Users,
+} from "lucide-react";
 
 import { TeamAvatar } from "@/components/avatars/teamAvatar";
 import { UserAvatar } from "@/components/avatars/userAvatar";
@@ -11,6 +20,7 @@ import type {
 } from "@/components/data-table-filter/core/types";
 import {
   getPriorityMeta,
+  labelDotClassName,
   PRIORITY_OPTIONS,
   WorkflowStatusIcon,
 } from "@/components/tasks/task-card-fields";
@@ -21,10 +31,13 @@ import type {
 } from "@/components/tasks/task-execution-surface-utils";
 import {
   groupWorkflowStatusesByIdentity,
-  taskStateLabel,
   UNASSIGNED_COLUMN_ID,
 } from "@/components/tasks/task-kanban-adapter";
 import type { TaskViewTab } from "@/components/tasks/task-view-options";
+import { cn } from "@/lib/utils";
+import { getWeekDisplayName, useCyclesCollection } from "@/data/cycles/cyclesData.app";
+import { useLabelsCollection } from "@/data/labels/labelsData.app";
+import { useTemplatesCollection } from "@/data/templates/templatesData.app";
 import { getUserDisplayName, useChurchUsersCollection } from "@/data/users/usersData.app";
 import { useTeamsCollection } from "@/data/teams/teamsData.app";
 import {
@@ -56,8 +69,10 @@ type WorkflowStatusOption = {
   readonly name: string;
   readonly taskState: TaskState;
 };
+type CycleOption = { readonly id: string; readonly name: string };
+type TemplateOption = { readonly id: string; readonly name: string };
+type LabelOption = { readonly id: string; readonly name: string; readonly color: string };
 
-const TASK_STATE_VALUES: readonly TaskState[] = ["todo", "in_progress", "done", "canceled"];
 const WORKFLOW_STATUS_GROUP_PREFIX = "workflow-status-group:";
 
 function userOptions(users: readonly UserOption[]): readonly ColumnOption[] {
@@ -98,14 +113,6 @@ function workflowStatusOptions(statuses: readonly WorkflowStatusOption[]): reado
   }));
 }
 
-function taskStateOptions(): readonly ColumnOption[] {
-  return TASK_STATE_VALUES.map((taskState) => ({
-    value: taskState,
-    label: taskStateLabel(taskState),
-    icon: <WorkflowStatusIcon taskState={taskState} />,
-  }));
-}
-
 function priorityOptions(): readonly ColumnOption[] {
   return PRIORITY_OPTIONS.map((priority) => {
     const meta = getPriorityMeta(priority.value);
@@ -116,6 +123,32 @@ function priorityOptions(): readonly ColumnOption[] {
       icon: <Icon className={meta.className} />,
     };
   });
+}
+
+function cycleOptions(cycles: readonly CycleOption[]): readonly ColumnOption[] {
+  return cycles.map((cycle) => ({
+    value: cycle.id,
+    label: cycle.name,
+    icon: <CalendarRange className="size-[18px] text-muted-foreground" strokeWidth={1.5} />,
+  }));
+}
+
+function templateOptions(templates: readonly TemplateOption[]): readonly ColumnOption[] {
+  return templates.map((template) => ({
+    value: template.id,
+    label: template.name,
+    icon: <LayoutTemplate className="size-[18px] text-muted-foreground" strokeWidth={1.5} />,
+  }));
+}
+
+function labelOptions(labels: readonly LabelOption[]): readonly ColumnOption[] {
+  return labels.map((label) => ({
+    value: label.id,
+    label: label.name,
+    icon: (
+      <span className={cn("size-2.5 rounded-full", labelDotClassName(label))} aria-hidden="true" />
+    ),
+  }));
 }
 
 /**
@@ -130,11 +163,34 @@ export function buildTaskFilterFields(args: {
   readonly users: readonly UserOption[];
   readonly teams: readonly TeamOption[];
   readonly workflowStatuses: readonly WorkflowStatusOption[];
+  readonly cycles?: readonly CycleOption[];
+  readonly templates?: readonly TemplateOption[];
+  readonly labels?: readonly LabelOption[];
 }): ReadonlyArray<ColumnConfig<TaskSummary>> {
   const fields: Array<ColumnConfig<TaskSummary>> = [];
 
   const hideAssignee = args.surface === "my_work" && args.tab === "assigned";
   const hideCreator = args.surface === "my_work" && args.tab === "created";
+
+  // Status group first, mirroring Linear's filter menu ordering.
+  fields.push(
+    dtf
+      .option()
+      .id("workflowStatus")
+      .accessor((task) => task.workflowStatusId)
+      .displayName("Status")
+      .icon(CircleDashed)
+      .options(workflowStatusOptions(args.workflowStatuses))
+      .build(),
+    dtf
+      .option()
+      .id("priority")
+      .accessor((task) => task.priority ?? "no_priority")
+      .displayName("Priority")
+      .icon(Triangle)
+      .options(priorityOptions())
+      .build(),
+  );
 
   if (!hideAssignee) {
     fields.push(
@@ -143,6 +199,7 @@ export function buildTaskFilterFields(args: {
         .id("assignee")
         .accessor((task) => task.assignedUserId ?? UNASSIGNED_FILTER_VALUE)
         .displayName("Assignee")
+        .icon(User)
         .options(assigneeOptions(args.users))
         .build(),
     );
@@ -158,6 +215,7 @@ export function buildTaskFilterFields(args: {
         .id("creator")
         .accessor(() => "")
         .displayName("Creator")
+        .icon(User)
         .options(userOptions(args.users))
         .build(),
     );
@@ -170,34 +228,52 @@ export function buildTaskFilterFields(args: {
         .id("team")
         .accessor((task) => task.teamId)
         .displayName("Team")
+        .icon(Users)
         .options(teamOptions(args.teams))
         .build(),
     );
   }
 
-  fields.push(
-    dtf
-      .option()
-      .id("workflowStatus")
-      .accessor((task) => task.workflowStatusId)
-      .displayName("Status")
-      .options(workflowStatusOptions(args.workflowStatuses))
-      .build(),
-    dtf
-      .option()
-      .id("taskState")
-      .accessor((task) => task.taskState)
-      .displayName("Status type")
-      .options(taskStateOptions())
-      .build(),
-    dtf
-      .option()
-      .id("priority")
-      .accessor((task) => task.priority ?? "no_priority")
-      .displayName("Priority")
-      .options(priorityOptions())
-      .build(),
-  );
+  if (args.cycles && args.cycles.length > 0) {
+    fields.push(
+      dtf
+        .option()
+        .id("cycle")
+        .accessor((task) => task.cycleId ?? "")
+        .displayName("Week")
+        .icon(CalendarRange)
+        .options(cycleOptions(args.cycles))
+        .build(),
+    );
+  }
+
+  if (args.labels && args.labels.length > 0) {
+    fields.push(
+      dtf
+        .option()
+        .id("label")
+        .accessor((task) => (task.labelIds && task.labelIds[0]) ?? "")
+        .displayName("Label")
+        .icon(Tag)
+        .options(labelOptions(args.labels))
+        .build(),
+    );
+  }
+
+  if (args.templates && args.templates.length > 0) {
+    fields.push(
+      // Template filtering is server-side via source_template_id; the accessor
+      // is required by ColumnConfig but unused for server filtering.
+      dtf
+        .option()
+        .id("template")
+        .accessor(() => "")
+        .displayName("Template")
+        .icon(LayoutTemplate)
+        .options(templateOptions(args.templates))
+        .build(),
+    );
+  }
 
   return fields;
 }
@@ -210,6 +286,7 @@ export function buildTaskFilterFields(args: {
  */
 export function useTaskFilterFields(args: {
   readonly churchId: string | null;
+  readonly currentUserId?: string | null;
   readonly surface: ExecutionSurface;
   readonly teamId?: string | null;
   readonly tab?: TaskViewTab;
@@ -218,6 +295,12 @@ export function useTaskFilterFields(args: {
   const teams = useTeamsCollection({ churchId: args.churchId });
   const workflows = useWorkflowsCollection({ churchId: args.churchId });
   const workflowStatuses = useWorkflowStatusesCollection({ churchId: args.churchId });
+  const cycles = useCyclesCollection({
+    churchId: args.churchId,
+    currentUserId: args.currentUserId ?? null,
+  });
+  const templates = useTemplatesCollection({ churchId: args.churchId });
+  const labels = useLabelsCollection({ churchId: args.churchId });
 
   return useMemo(() => {
     const userOptionItems: UserOption[] = users.usersCollection.map((user) => ({
@@ -228,6 +311,19 @@ export function useTaskFilterFields(args: {
       id: team.id,
       name: team.name,
       color: (team as { readonly color?: string | null }).color ?? null,
+    }));
+    const cycleOptionItems: CycleOption[] = cycles.cyclesCollection.map((cycle) => ({
+      id: cycle.id,
+      name: getWeekDisplayName(cycle),
+    }));
+    const templateOptionItems: TemplateOption[] = templates.templatesCollection.map((template) => ({
+      id: template.id,
+      name: template.name,
+    }));
+    const labelOptionItems: LabelOption[] = labels.labelsCollection.map((label) => ({
+      id: label.id,
+      name: label.name,
+      color: label.color,
     }));
 
     const teamWorkflow =
@@ -257,12 +353,18 @@ export function useTaskFilterFields(args: {
       users: userOptionItems,
       teams: teamOptionItems,
       workflowStatuses: statusOptionItems,
+      cycles: cycleOptionItems,
+      templates: templateOptionItems,
+      labels: labelOptionItems,
     });
   }, [
     users.usersCollection,
     teams.teamsCollection,
     workflows.workflowsCollection,
     workflowStatuses.workflowStatusesCollection,
+    cycles.cyclesCollection,
+    templates.templatesCollection,
+    labels.labelsCollection,
     args.surface,
     args.teamId,
     args.tab,
