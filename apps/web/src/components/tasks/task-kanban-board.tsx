@@ -385,10 +385,14 @@ export function TaskKanbanBoard({
     >
       {/* Grid items stretch by default, so every Board Column fills the full
           board height; each column scrolls its own cards internally. The
-          ScrollArea provides horizontal scrolling across the row of columns. */}
+          ScrollArea provides horizontal scrolling across the row of columns.
+          The negative margins break the scroll container out of the page
+          wrapper's padding so it runs edge to edge and all the way to the
+          bottom; the matching viewport padding turns that former outer margin
+          into inner padding around the columns. */}
       <ScrollArea
-        className="min-h-0 w-full min-w-0 flex-1"
-        viewportClassName="[&>[data-slot=scroll-area-content]]:h-full"
+        className="-mr-4 -mb-4 -ml-4 min-h-0 w-auto min-w-0 flex-1"
+        viewportClassName="px-4 pb-4 [&>[data-slot=scroll-area-content]]:h-full"
         maskHeight={0}
         clampContentMinWidth={false}
       >
