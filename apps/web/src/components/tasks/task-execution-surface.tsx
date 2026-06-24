@@ -119,6 +119,7 @@ const taskColumnMap = {
   parentTask: "parent_task_id",
   taskState: "task_state",
   team: "team_id",
+  template: "source_template_id",
   workflowStatus: "workflow_status_id",
 } as const;
 

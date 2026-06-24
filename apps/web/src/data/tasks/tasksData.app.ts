@@ -246,6 +246,36 @@ const matchesPriorityFilter = (
   values: readonly (string | null)[] | null,
 ) => values === null || values.some((value) => value === task.priority);
 
+/**
+ * Label filtering runs client-side because `label_ids` is a JSON-serialized
+ * string column (not a native array), so the generic option filter cannot
+ * express set membership. We read the active "label" filter (operator +
+ * values) off the list args and match a Task when any/none of its Labels are
+ * selected, matching the behavior of the other "is any of / is none of"
+ * option filters.
+ */
+const labelFilter = (
+  listArgs: ListArgs | undefined,
+): { readonly operator: string; readonly values: readonly string[] } | null => {
+  const filter = listArgs?.filters?.find((item) => item.column_id === "label");
+  if (!filter) return null;
+  const values = filter.values.filter((value): value is string => typeof value === "string");
+  if (values.length === 0) return null;
+  return { operator: filter.operator, values };
+};
+
+const matchesLabelFilter = (
+  task: TaskCollectionItem,
+  filter: { readonly operator: string; readonly values: readonly string[] } | null,
+): boolean => {
+  if (filter === null) return true;
+  const taskLabelIds = task.labelIds ?? [];
+  const hasAny = filter.values.some((value) => taskLabelIds.includes(value));
+  // "is not" / "is none of" exclude Tasks carrying any selected Label; the
+  // default ("is" / "is any of") includes Tasks carrying any selected Label.
+  return filter.operator === "is not" || filter.operator === "is none of" ? !hasAny : hasAny;
+};
+
 const timestampToIso = (value: number | null | undefined): string | null =>
   typeof value === "number" ? new Date(value).toISOString() : null;
 
@@ -744,6 +774,11 @@ export function useTasksCollection(params: {
   );
   const teamsById = new Map(teamRows.map((team) => [team.id, team]));
   const schedulesById = new Map(scheduleRows.map((schedule) => [schedule.id, schedule]));
+  // Label filtering runs client-side (see labelFilter); applied to both the
+  // materialized rows and the projected Template Tasks so the result matches
+  // the server-side filters. We project from the full (unfiltered) materialized
+  // set so dedup stays correct, then filter both at the end.
+  const activeLabelFilter = labelFilter(params.listArgs);
   const materializedCollection =
     params.churchId === null
       ? []
@@ -764,7 +799,9 @@ export function useTasksCollection(params: {
           workflowStatuses: workflowStatusRows,
         }).filter((task) => matchesPriorityFilter(task, priorityFilterValues(params.listArgs)))
       : [];
-  const collection = [...materializedCollection, ...projectedCollection];
+  const collection = [...materializedCollection, ...projectedCollection].filter((task) =>
+    matchesLabelFilter(task, activeLabelFilter),
+  );
 
   return {
     loading: false,

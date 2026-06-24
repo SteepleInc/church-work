@@ -480,6 +480,7 @@ export const queries = defineQueries({
           "id",
           "parent_task_id",
           "priority",
+          "source_template_id",
           "task_state",
           "team_id",
           "workflow_status_id",
