@@ -1,5 +1,12 @@
 import { CalendarIcon, ChevronRight, Tag, Triangle } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentPropsWithoutRef,
+} from "react";
 import { toast } from "sonner";
 
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
@@ -63,30 +70,32 @@ import type { ActivityResolvers } from "./task-activity-feed-utils";
  * Borderless by default (Linear treats property chips as quiet ghost buttons),
  * tinted via `border` only when a value is set and we want it to read as active.
  */
-function FieldPill({
-  children,
-  muted = false,
-  bordered = false,
-  className,
-}: {
-  readonly children: ReactNode;
-  readonly muted?: boolean;
-  readonly bordered?: boolean;
-  readonly className?: string;
-}) {
+const FieldPill = forwardRef<
+  HTMLSpanElement,
+  ComponentPropsWithoutRef<"span"> & {
+    readonly muted?: boolean;
+    readonly bordered?: boolean;
+  }
+>(function FieldPill({ children, muted = false, bordered = false, className, ...rest }, ref) {
+  // Spreads `rest` and forwards `ref` so base-ui's `<TooltipTrigger render>` can
+  // attach its hover wiring (event handlers, `data-slot`, `aria-*`) to the real
+  // span — without this the field tooltips never mount (the trigger props would
+  // be silently dropped by an opaque component).
   return (
     <span
+      ref={ref}
       className={cn(
         "inline-flex h-7 max-w-full items-center gap-1.5 rounded-md px-2 font-medium text-[13px] transition-colors hover:bg-accent",
         bordered ? "border" : "border border-transparent",
         muted && "text-muted-foreground",
         className,
       )}
+      {...rest}
     >
       {children}
     </span>
   );
-}
+});
 
 /** Small rounded-square avatar for the breadcrumb (matches the org switcher). */
 function BreadcrumbOrgAvatar({ name }: { readonly name: string }) {

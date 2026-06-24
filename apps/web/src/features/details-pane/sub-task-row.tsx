@@ -30,7 +30,13 @@ import {
 } from "@/features/details-pane/sub-task-view-options";
 import type { SubTaskNode } from "@/features/details-pane/sub-task-tree";
 import { cn } from "@/lib/utils";
-import { useMemo, useRef, type MutableRefObject } from "react";
+import {
+  forwardRef,
+  useMemo,
+  useRef,
+  type ComponentPropsWithoutRef,
+  type MutableRefObject,
+} from "react";
 
 export type SubTaskRowTask = SubTaskNode["task"] & {
   readonly depth: number;
@@ -403,21 +409,24 @@ function SubTaskRow({
   );
 }
 
-function RowPill({
-  children,
-  muted = false,
-}: {
-  readonly children: React.ReactNode;
-  readonly muted?: boolean;
-}) {
+const RowPill = forwardRef<
+  HTMLSpanElement,
+  ComponentPropsWithoutRef<"span"> & { readonly muted?: boolean }
+>(function RowPill({ children, muted = false, className, ...rest }, ref) {
+  // Spreads `rest` and forwards `ref` so base-ui's `<TooltipTrigger render>` can
+  // attach its hover wiring to the real span; an opaque component would drop the
+  // injected props and the sub-task field tooltips would never mount.
   return (
     <span
+      ref={ref}
       className={cn(
         "inline-flex h-6 cursor-pointer items-center gap-1 rounded-md border px-1.5 transition-colors hover:bg-accent",
         muted && "text-muted-foreground",
+        className,
       )}
+      {...rest}
     >
       {children}
     </span>
   );
-}
+});

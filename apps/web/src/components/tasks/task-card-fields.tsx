@@ -19,11 +19,13 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import {
+  forwardRef,
   useId,
   useMemo,
   useRef,
   useState,
   type ComponentProps,
+  type ComponentPropsWithoutRef,
   type ComponentType,
   type KeyboardEvent as ReactKeyboardEvent,
   type MutableRefObject,
@@ -1548,74 +1550,83 @@ export function WeekComboboxSelector({
 
 // --- Shared creation/editing property pill triggers --------------------------
 
-/** The Linear-style Task property pill used as picker trigger chrome. */
-export function TaskPropertyPill({
-  children,
-  muted = false,
-  className,
-}: {
-  readonly children: ReactNode;
-  readonly muted?: boolean;
-  readonly className?: string;
-}) {
+/**
+ * The Linear-style Task property pill used as picker trigger chrome. Forwards
+ * its `ref` and spreads incoming props onto the underlying `<span>` so base-ui's
+ * `<TooltipTrigger render>` can attach its hover wiring to a real DOM node — an
+ * opaque component would drop the injected props and the tooltip would never
+ * mount.
+ */
+export const TaskPropertyPill = forwardRef<
+  HTMLSpanElement,
+  ComponentPropsWithoutRef<"span"> & { readonly muted?: boolean }
+>(function TaskPropertyPill({ children, muted = false, className, ...rest }, ref) {
   return (
     <span
+      ref={ref}
       className={cn(
         "inline-flex h-7 items-center gap-1.5 rounded-md border bg-background px-2 font-medium text-xs transition-colors hover:bg-accent",
         muted && "text-muted-foreground",
         className,
       )}
+      {...rest}
     >
       {children}
     </span>
   );
-}
+});
 
-export function TaskPriorityPillTrigger({ value }: { readonly value: TaskPriority }) {
+export const TaskPriorityPillTrigger = forwardRef<
+  HTMLSpanElement,
+  ComponentPropsWithoutRef<"span"> & { readonly value: TaskPriority }
+>(function TaskPriorityPillTrigger({ value, ...rest }, ref) {
   const meta = getPriorityMeta(value);
   const Icon = meta.icon;
   return (
-    <TaskPropertyPill muted={value === "no_priority"}>
+    <TaskPropertyPill muted={value === "no_priority"} ref={ref} {...rest}>
       <Icon className={cn("size-3.5", meta.className)} />
       {value === "no_priority" ? "Priority" : meta.label}
     </TaskPropertyPill>
   );
-}
+});
 
-export function TaskEstimatePillTrigger({ value }: { readonly value: TaskEstimate }) {
+export const TaskEstimatePillTrigger = forwardRef<
+  HTMLSpanElement,
+  ComponentPropsWithoutRef<"span"> & { readonly value: TaskEstimate }
+>(function TaskEstimatePillTrigger({ value, ...rest }, ref) {
   const meta = getEstimateMeta(value);
   return (
-    <TaskPropertyPill muted={value === "no_estimate"}>
+    <TaskPropertyPill muted={value === "no_estimate"} ref={ref} {...rest}>
       <Triangle className="size-3.5" />
       {value === "no_estimate" ? "Estimate" : meta.label}
     </TaskPropertyPill>
   );
-}
+});
 
-export function TaskAssigneePillTrigger({
-  assignee,
-  avatarSize = 14,
-}: {
-  readonly assignee: AssigneeOption | null;
-  readonly avatarSize?: number;
-}) {
+export const TaskAssigneePillTrigger = forwardRef<
+  HTMLSpanElement,
+  ComponentPropsWithoutRef<"span"> & {
+    readonly assignee: AssigneeOption | null;
+    readonly avatarSize?: number;
+  }
+>(function TaskAssigneePillTrigger({ assignee, avatarSize = 14, ...rest }, ref) {
   return (
-    <TaskPropertyPill muted={assignee === null}>
+    <TaskPropertyPill muted={assignee === null} ref={ref} {...rest}>
       <AssigneeAvatar assignee={assignee} size={avatarSize} />
       {assignee?.label ?? "Assignee"}
     </TaskPropertyPill>
   );
-}
+});
 
-export function TaskTeamPillTrigger({
-  team,
-  avatarSize = 14,
-}: {
-  readonly team: TeamPickerOption | null;
-  readonly avatarSize?: number;
-}) {
+export const TaskTeamPillTrigger = forwardRef<
+  HTMLSpanElement,
+  ComponentPropsWithoutRef<"span"> & {
+    readonly team: TeamPickerOption | null;
+    readonly avatarSize?: number;
+  }
+>(function TaskTeamPillTrigger({ team, avatarSize = 14, ...rest }, ref) {
   return (
-    <TaskPropertyPill muted={team === null}>
+    <TaskPropertyPill muted={team === null} ref={ref} {...rest}>
       {team ? (
         <>
           <TeamAvatar color={team.color} name={team.name} size={avatarSize} />
@@ -1626,17 +1637,17 @@ export function TaskTeamPillTrigger({
       )}
     </TaskPropertyPill>
   );
-}
+});
 
-export function TaskLabelsPillTrigger({
-  labels,
-  showEmptyIcon = true,
-}: {
-  readonly labels: readonly TaskLabelOption[];
-  readonly showEmptyIcon?: boolean;
-}) {
+export const TaskLabelsPillTrigger = forwardRef<
+  HTMLSpanElement,
+  ComponentPropsWithoutRef<"span"> & {
+    readonly labels: readonly TaskLabelOption[];
+    readonly showEmptyIcon?: boolean;
+  }
+>(function TaskLabelsPillTrigger({ labels, showEmptyIcon = true, ...rest }, ref) {
   return (
-    <TaskPropertyPill muted={labels.length === 0}>
+    <TaskPropertyPill muted={labels.length === 0} ref={ref} {...rest}>
       {labels.length === 0 ? (
         <>
           {showEmptyIcon ? <Tag className="size-3.5" /> : null}
@@ -1662,29 +1673,33 @@ export function TaskLabelsPillTrigger({
       )}
     </TaskPropertyPill>
   );
-}
+});
 
-export function TaskDueDatePillTrigger({ value }: { readonly value: string | null }) {
+export const TaskDueDatePillTrigger = forwardRef<
+  HTMLSpanElement,
+  ComponentPropsWithoutRef<"span"> & { readonly value: string | null }
+>(function TaskDueDatePillTrigger({ value, ...rest }, ref) {
   const label = formatDueDate(value);
   return (
-    <TaskPropertyPill muted={label === null}>
+    <TaskPropertyPill muted={label === null} ref={ref} {...rest}>
       <CalendarIcon className="size-3.5" />
       {label ?? "Due date"}
     </TaskPropertyPill>
   );
-}
+});
 
-export function TaskStatusPillTrigger({
-  status,
-}: {
-  readonly status: {
-    readonly id: string;
-    readonly name: string;
-    readonly taskState: TaskBoardTaskState;
-  } | null;
-}) {
+export const TaskStatusPillTrigger = forwardRef<
+  HTMLSpanElement,
+  ComponentPropsWithoutRef<"span"> & {
+    readonly status: {
+      readonly id: string;
+      readonly name: string;
+      readonly taskState: TaskBoardTaskState;
+    } | null;
+  }
+>(function TaskStatusPillTrigger({ status, ...rest }, ref) {
   return (
-    <TaskPropertyPill muted={status === null}>
+    <TaskPropertyPill muted={status === null} ref={ref} {...rest}>
       {status ? (
         <>
           <WorkflowStatusIcon className="size-3.5" taskState={status.taskState} />
@@ -1695,7 +1710,7 @@ export function TaskStatusPillTrigger({
       )}
     </TaskPropertyPill>
   );
-}
+});
 
 export function PriorityTaskField(
   props: Omit<
