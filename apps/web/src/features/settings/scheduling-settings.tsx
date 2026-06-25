@@ -26,6 +26,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrentOrgOpt, type CurrentOrg } from "@/data/orgs/orgData.app";
 import { SettingsFieldRow, SettingsSection } from "@/features/settings/settings-page";
+import { useSession } from "@/hooks/use-session";
 import { authClient } from "@/lib/auth-client";
 
 /** The Rolling Materialization Window is constrained to 1 through 52 Cycles. */
@@ -91,7 +92,7 @@ function SchedulingSkeleton() {
 }
 
 function SchedulingForm({ activeChurch }: { readonly activeChurch: CurrentOrg }) {
-  const { refetch: refetchSession } = authClient.useSession();
+  const { refetch: refetchSession } = useSession();
   const canUpdate = canUpdateChurchSettings(activeChurch.role);
 
   const savedWindow = clampWindow(activeChurch.rollingMaterializationWindowCycles);

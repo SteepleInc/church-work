@@ -5,7 +5,7 @@ import { type ReactNode, useCallback, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerTrigger } from "@/components/ui/drawer";
-import { authClient } from "@/lib/auth-client";
+import { useSession } from "@/hooks/use-session";
 import { cn } from "@/lib/utils";
 
 type MobileMarketingNavigationProps = {
@@ -15,7 +15,7 @@ type MobileMarketingNavigationProps = {
 export const MobileMarketingNavigation = (props: MobileMarketingNavigationProps) => {
   const { className, ...domProps } = props;
   const [open, setOpen] = useState(false);
-  const { data: session } = authClient.useSession();
+  const { session } = useSession();
 
   const onOpenChange = useCallback((newOpen: boolean) => {
     setOpen(newOpen);

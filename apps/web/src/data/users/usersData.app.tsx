@@ -4,6 +4,7 @@ import { useQuery } from "@rocicorp/zero/react";
 import { useChurchId } from "@/data/useChurchId";
 import { useIsAppAdmin } from "@/data/users/adminData.app";
 import { useTeamMembershipsCollection, useTeamsCollection } from "@/data/teams/teamsData.app";
+import { useSession } from "@/hooks/use-session";
 import { authClient } from "@/lib/auth-client";
 import { FilterKeys } from "@/shared/global-state";
 import { useZeroListArgs } from "@/shared/hooks/useZeroListArgs";
@@ -34,13 +35,13 @@ export function getUserDisplayName(user: Pick<UserCollectionItem, "id" | "name" 
 
 export function useChurchUsersCollection(params: { readonly churchId: string | null }) {
   const { data: activeOrg, isPending: activeOrgPending } = authClient.useActiveOrganization();
-  const session = authClient.useSession();
+  const { isPending: sessionPending, session } = useSession();
   const members = activeOrg?.id === params.churchId ? (activeOrg.members ?? []) : [];
   const collection = members.map((member) => {
     const user = "user" in member ? member.user : null;
     const id = user?.id ?? member.userId;
-    const email = user?.email ?? (id === session.data?.user?.id ? session.data.user.email : null);
-    const name = user?.name ?? (id === session.data?.user?.id ? session.data.user.name : null);
+    const email = user?.email ?? (id === session?.user?.id ? session.user.email : null);
+    const name = user?.name ?? (id === session?.user?.id ? session.user.name : null);
 
     return {
       id,
@@ -54,7 +55,7 @@ export function useChurchUsersCollection(params: { readonly churchId: string | n
   });
 
   return {
-    loading: params.churchId !== null && (activeOrgPending || session.isPending),
+    loading: params.churchId !== null && (activeOrgPending || sessionPending),
     collection,
     usersCollection: collection,
   };

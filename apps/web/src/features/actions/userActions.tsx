@@ -8,6 +8,7 @@ import { EntityActionsMenu } from "@/features/actions/entityActionsMenu";
 import { editUserQuickActionStateAtom } from "@/features/quick-actions/edit-user-quick-action";
 import { authClient } from "@/lib/auth-client";
 import { useIsAppAdmin } from "@/data/users/adminData.app";
+import { useSession } from "@/hooks/use-session";
 
 type UserActionsProps = {
   readonly userId: string;
@@ -24,7 +25,7 @@ export function useUserActions({
   readonly onClose?: () => void;
 }): ReadonlyArray<EntityAction> {
   const isAdmin = useIsAppAdmin();
-  const { refetch: refetchSession } = authClient.useSession();
+  const { refetch: refetchSession } = useSession();
   const setEditUserState = useSetAtom(editUserQuickActionStateAtom);
   const [impersonating, setImpersonating] = useState(false);
 

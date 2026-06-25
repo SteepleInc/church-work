@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { recordFromCollection } from "@/data/collection-query-state";
 import { useUserOrgsCollection, type OrgCollectionItem } from "@/data/orgs/orgsData.app";
+import { useSession } from "@/hooks/use-session";
 import { authClient } from "@/lib/auth-client";
 
 export type CurrentOrg = {
@@ -43,10 +44,8 @@ export function useOrgData(params: { readonly orgId: string }) {
 
 export function useCurrentOrgOpt() {
   const { data: activeOrg, isPending } = authClient.useActiveOrganization();
-  const session = authClient.useSession();
-  const activeMember = activeOrg?.members?.find(
-    (member) => member.userId === session.data?.user?.id,
-  );
+  const { isPending: sessionPending, session } = useSession();
+  const activeMember = activeOrg?.members?.find((member) => member.userId === session?.user?.id);
   const currentOrgOpt: CurrentOrg | null = activeOrg
     ? {
         id: activeOrg.id,
@@ -67,7 +66,7 @@ export function useCurrentOrgOpt() {
         longitude: activeOrg.longitude ?? null,
         size: activeOrg.size ?? null,
         role: activeMember?.role ?? "member",
-        currentUserId: session.data?.user?.id ?? "",
+        currentUserId: session?.user?.id ?? "",
         invitations:
           activeOrg.invitations?.map((invitation) => ({
             id: invitation.id,
@@ -79,7 +78,7 @@ export function useCurrentOrgOpt() {
     : null;
 
   return {
-    loading: isPending || session.isPending,
+    loading: isPending || sessionPending,
     currentOrgOpt,
   };
 }

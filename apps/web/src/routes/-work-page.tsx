@@ -41,6 +41,7 @@ import { useUserInvitationsCollection } from "@/data/invitations/invitationsData
 import { useCyclesCollection } from "@/data/cycles/cyclesData.app";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { useTeamsCollection } from "@/data/teams/teamsData.app";
+import { useSession } from "@/hooks/use-session";
 import { authClient } from "@/lib/auth-client";
 import { useQuickActionOpeners } from "@/features/quick-actions/quick-actions-state";
 import {
@@ -49,7 +50,6 @@ import {
   resolveTeamByRouteIdentifier,
   type WorkSearch,
 } from "@/routes/-work-page-utils";
-import type { SessionOrgRoutingFields } from "@/data/org-routing";
 
 export type ActiveWorkPanel =
   | "my_work"
@@ -60,7 +60,7 @@ export type ActiveWorkPanel =
 function PrivateWorkContent({ activePanel }: { activePanel: ActiveWorkPanel }) {
   const search = useSearch({ strict: false }) as WorkSearch;
   const navigate = useNavigate();
-  const { data: sessionData } = authClient.useSession();
+  const { session: sessionData } = useSession();
   const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
   const setActivePanel = (panel: ActiveWorkPanel) => {
     const routeSearch = getWorkSearchForPanel(search);
@@ -79,8 +79,7 @@ function PrivateWorkContent({ activePanel }: { activePanel: ActiveWorkPanel }) {
       search: routeSearch,
     });
   };
-  const sessionRouting = sessionData?.session as SessionOrgRoutingFields | undefined;
-  const activeChurchId = activeChurch?.id ?? sessionRouting?.activeOrganizationId ?? null;
+  const activeChurchId = activeChurch?.id ?? sessionData?.session.activeOrganizationId ?? null;
   const currentUserId = activeChurch?.currentUserId ?? sessionData?.user?.id ?? null;
   const teams = useTeamsCollection({ churchId: activeChurchId });
   const cyclesCollection = useCyclesCollection({ churchId: activeChurchId, currentUserId });
@@ -442,11 +441,10 @@ function churchSlug(name: string) {
 
 function ChurchOnboardingGate({ activePanel }: { activePanel: ActiveWorkPanel }) {
   const { currentOrgOpt: activeChurch, loading: activeChurchLoading } = useCurrentOrgOpt();
-  const { data: sessionData } = authClient.useSession();
-  const sessionRouting = sessionData?.session as SessionOrgRoutingFields | undefined;
+  const { session: sessionData } = useSession();
   const hasActiveChurch = Boolean(activeChurch);
   const sessionHasCompletedActiveChurch = Boolean(
-    sessionRouting?.activeOrganizationId && sessionRouting.orgCompletedOnboarding,
+    sessionData?.session.activeOrganizationId && sessionData.session.orgCompletedOnboarding,
   );
   const [error, setError] = useState<string | null>(null);
   const [invitationError, setInvitationError] = useState<string | null>(null);

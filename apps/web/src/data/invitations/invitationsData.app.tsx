@@ -3,6 +3,7 @@ import { useQuery } from "@rocicorp/zero/react";
 import { useEffect, useState } from "react";
 
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
+import { useSession } from "@/hooks/use-session";
 import { authClient } from "@/lib/auth-client";
 
 export type InvitationCollectionItem = {
@@ -59,8 +60,8 @@ export function usePendingInvitationsCount() {
 }
 
 export function useUserInvitationsCollection() {
-  const session = authClient.useSession();
-  const userId = session.data?.user.id;
+  const session = useSession();
+  const userId = session.session?.user.id;
   const [collection, setCollection] = useState<readonly InvitationCollectionItem[]>([]);
   const [loading, setLoading] = useState(false);
 

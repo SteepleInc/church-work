@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrentOrgOpt, type CurrentOrg } from "@/data/orgs/orgData.app";
 import { SettingsFieldRow, SettingsSection } from "@/features/settings/settings-page";
+import { useSession } from "@/hooks/use-session";
 import { authClient } from "@/lib/auth-client";
 import {
   getChurchProfileSettingsDefaultValues,
@@ -87,8 +88,8 @@ const ChurchProfileSettingsSchema = Schema.Struct({
 });
 
 export function SettingsProfilePanel() {
-  const { data, refetch: refetchSession } = authClient.useSession();
-  const user = data?.user;
+  const { refetch: refetchSession, session } = useSession();
+  const user = session?.user;
 
   if (!user) {
     return <SettingsCardSkeleton rowCounts={[2, 1]} />;
@@ -248,7 +249,7 @@ function SettingsProfileForm({
 
 export function SettingsChurchPanel() {
   const { currentOrgOpt: activeChurch, loading } = useCurrentOrgOpt();
-  const { refetch: refetchSession } = authClient.useSession();
+  const { refetch: refetchSession } = useSession();
 
   if (loading) {
     return <SettingsCardSkeleton rowCounts={[3, 2, 5]} />;

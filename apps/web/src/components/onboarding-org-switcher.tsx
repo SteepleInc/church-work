@@ -16,16 +16,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useCreateOrg } from "@/data/useCreateOrg";
 import { useChangeOrg } from "@/data/useChangeOrg";
 import { type OrgCollectionItem, useUserOrgsCollection } from "@/data/orgs/orgsData.app";
-import type { SessionOrgRoutingFields } from "@/data/org-routing";
-import { authClient } from "@/lib/auth-client";
+import { useSession } from "@/hooks/use-session";
 import { cn } from "@/lib/utils";
 import { Link } from "@tanstack/react-router";
 
 export function OnboardingOrgSwitcher({ className }: { readonly className?: string }) {
   const { orgsCollection, loading } = useUserOrgsCollection();
-  const { data: session } = authClient.useSession();
-  const sessionRouting = session?.session as SessionOrgRoutingFields | undefined;
-  const orgId = sessionRouting?.activeOrganizationId ?? "";
+  const { session } = useSession();
+  const orgId = session?.session.activeOrganizationId ?? "";
   const [search, setSearch] = useState("");
   const { changeOrg, isChangingOrg } = useChangeOrg();
   const { createOrg } = useCreateOrg();

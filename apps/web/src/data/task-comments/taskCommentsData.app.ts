@@ -6,8 +6,8 @@ import {
 } from "@church-work/zero";
 import { useQuery, useZero } from "@rocicorp/zero/react";
 
-import { authClient } from "@/lib/auth-client";
 import type { TaskCommentModerationViewer } from "@/data/task-comments/taskCommentModeration-utils";
+import { useSession } from "@/hooks/use-session";
 
 export type TaskCommentCollectionItem = TaskComment;
 export type TaskCommentSubscriptionCollectionItem = TaskCommentSubscription;
@@ -35,8 +35,8 @@ function getSessionRoles(session: unknown): SessionWithRoles {
 export function useTaskCommentModerationViewer(params: {
   readonly currentUserId: string | null;
 }): TaskCommentModerationViewer {
-  const { data } = authClient.useSession();
-  const session = getSessionRoles(data?.session);
+  const { session: sessionData } = useSession();
+  const session = getSessionRoles(sessionData?.session);
 
   return {
     currentUserId: params.currentUserId,

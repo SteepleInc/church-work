@@ -12,6 +12,7 @@ import {
 import { clearIntentionalSignOut, markIntentionalSignOut } from "@/features/auth/sign-out-routing";
 import { useNavigate } from "@tanstack/react-router";
 
+import { useSession } from "@/hooks/use-session";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
@@ -21,8 +22,8 @@ type UserMenuProps = ComponentProps<typeof Button> & {
 
 export default function UserMenu({ avatarSize = 24, className, ...buttonProps }: UserMenuProps) {
   const navigate = useNavigate();
-  const session = authClient.useSession();
-  const currentUser = session.data?.user ?? null;
+  const { session } = useSession();
+  const currentUser = session?.user ?? null;
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   const signOut = async () => {

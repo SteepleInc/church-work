@@ -9,7 +9,7 @@ import {
   ChurchWorkWordmarkSvg,
 } from "@/components/church-work-logo";
 import UserMenu from "@/components/user-menu";
-import { authClient } from "@/lib/auth-client";
+import { useSession } from "@/hooks/use-session";
 
 // The persistent marketing scroll surface is an inner container, so it's
 // registered with the router's scroll restoration (see router.tsx, which lists
@@ -204,7 +204,7 @@ function Header() {
   const active = useRouterState({
     select: (state) => activeFromPathname(state.location.pathname),
   });
-  const { data: session } = authClient.useSession();
+  const { session } = useSession();
   return (
     <header className="mx-auto flex max-w-[1400px] items-center justify-between px-6 pt-6 md:px-10 md:pt-8">
       {/* Logo group */}

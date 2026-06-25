@@ -54,7 +54,7 @@ describe("web dev server environment", () => {
   });
 
   test("does not fetch active organization before mounting Zero", () => {
-    expect(zeroRuntimeProviderSource).toContain("authClient.useSession()");
+    expect(zeroRuntimeProviderSource).toContain("useSession()");
     expect(zeroRuntimeProviderSource).not.toContain("useActiveOrganization");
   });
 });

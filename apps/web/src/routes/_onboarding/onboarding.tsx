@@ -32,6 +32,7 @@ import { OnboardingKeyDatesReview } from "@/features/onboarding/onboardingKeyDat
 import { OnboardingProgress } from "@/features/onboarding/onboardingProgress";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { authClient } from "@/lib/auth-client";
+import { useSession } from "@/hooks/use-session";
 import { detectedTimeZone, resolveTimeZoneFromCoordinates } from "@/lib/time-zone";
 import { revalidateLogic } from "@tanstack/react-form";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -147,7 +148,7 @@ function OnboardingRoute() {
 }
 
 function ChurchProfileStepCard() {
-  const { refetch: refetchSession } = authClient.useSession();
+  const { refetch: refetchSession } = useSession();
   const [error, setError] = useState<string | null>(null);
   const [churchEntryMode, setChurchEntryMode] = useState<"search" | "manual">("search");
   const [profileReady, setProfileReady] = useState(false);
@@ -456,7 +457,7 @@ function InitialTeamsStepCard(props: {
 }
 
 function FinishedStepCard(props: { readonly churchId: string }) {
-  const { refetch: refetchSession } = authClient.useSession();
+  const { refetch: refetchSession } = useSession();
   const [error, setError] = useState<string | null>(null);
   const [isCompleting, setIsCompleting] = useState(false);
 

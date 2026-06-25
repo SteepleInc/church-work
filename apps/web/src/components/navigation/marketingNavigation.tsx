@@ -4,11 +4,11 @@ import { motion } from "motion/react";
 import { ChurchWorkLogoMark, ChurchWorkWordmark } from "@/components/church-work-logo";
 import { Button } from "@/components/ui/button";
 import UserMenu from "@/components/user-menu";
-import { authClient } from "@/lib/auth-client";
+import { useSession } from "@/hooks/use-session";
 import { cn } from "@/lib/utils";
 
 export const MarketingNavigation = () => {
-  const { data: session } = authClient.useSession();
+  const { session } = useSession();
 
   return (
     <>

@@ -2,10 +2,9 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 import { COMPLETED_APP_LANDING_PATH } from "@/data/org-routing";
-import type { SessionOrgRoutingFields } from "@/data/org-routing";
 import { useCurrentOrgOpt, type CurrentOrg } from "@/data/orgs/orgData.app";
 import { clearIntentionalSignOut, isIntentionalSignOut } from "@/features/auth/sign-out-routing";
-import { authClient } from "@/lib/auth-client";
+import { useSession } from "@/hooks/use-session";
 
 type UseAuthGuardOptions = {
   /** Redirect to sign-in when there is no authenticated session. */
@@ -30,12 +29,11 @@ type UseAuthGuardResult = {
 export function useAuthGuard(options: UseAuthGuardOptions = {}): UseAuthGuardResult {
   const { requireAuth = false, requireOnboarding = false, redirectIfOnboarded = false } = options;
   const navigate = useNavigate();
-  const { data: session, isPending: sessionLoading } = authClient.useSession();
+  const { isPending: sessionLoading, session } = useSession();
   const { currentOrgOpt: activeChurch, loading } = useCurrentOrgOpt();
-  const sessionRouting = session?.session as SessionOrgRoutingFields | undefined;
-  const sessionActiveChurchId = sessionRouting?.activeOrganizationId ?? null;
+  const sessionActiveChurchId = session?.session.activeOrganizationId ?? null;
   const hasCompletedOnboarding = Boolean(
-    sessionRouting?.orgCompletedOnboarding ?? activeChurch?.completedOnboarding,
+    session?.session.orgCompletedOnboarding ?? activeChurch?.completedOnboarding,
   );
 
   useEffect(() => {

@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { getOrgSwitchTarget } from "@/data/org-routing";
+import { useSession } from "@/hooks/use-session";
 import { authClient } from "@/lib/auth-client";
 
 type ChangeOrgParams = {
@@ -14,7 +15,7 @@ export function useChangeOrg() {
   const navigate = useNavigate();
   const [isChangingOrg, setIsChangingOrg] = useState(false);
   const changingOrgRef = useRef(false);
-  const { refetch: refetchSession } = authClient.useSession();
+  const { refetch: refetchSession } = useSession();
 
   const changeOrg = async (params: ChangeOrgParams) => {
     if (changingOrgRef.current) {

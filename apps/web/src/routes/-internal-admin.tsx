@@ -11,7 +11,6 @@ import { useTeamsCollection } from "@/data/teams/teamsData.app";
 import { useIsAppAdmin } from "@/data/users/adminData.app";
 import { useSession } from "@/hooks/use-session";
 import { useChurchUsersCollection } from "@/data/users/usersData.app";
-import { authClient } from "@/lib/auth-client";
 
 export function InternalPageFrame({
   eyebrow,
@@ -47,9 +46,9 @@ export function DevSessionPanel() {
 }
 
 function DevSessionContent() {
-  const session = authClient.useSession();
+  const session = useSession();
   const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
-  const sessionUser = session.data?.user;
+  const sessionUser = session.session?.user;
 
   return (
     <InternalPageFrame
