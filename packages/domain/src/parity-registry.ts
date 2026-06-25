@@ -72,6 +72,8 @@ export const AGENT_OPERATION_REGISTRY = [
 
 const surfaceStatus = (surface: AgentParitySurfaceCoverage) => surface.status;
 
+const markdownTableCell = (value: string) => value.replaceAll("\\", "\\\\").replaceAll("|", "\\|");
+
 const contextSummary = (entry: AgentOperationRegistryEntry) =>
   [
     entry.context.session,
@@ -86,7 +88,18 @@ export const generateAgentParityReport = (
 ) => {
   const rows = registry.map(
     (entry) =>
-      `| ${entry.domainArea} | ${entry.operation} | ${entry.kind} | ${surfaceStatus(entry.surfaces.ui)} | ${surfaceStatus(entry.surfaces.mcp)} | ${surfaceStatus(entry.surfaces.cli)} | ${contextSummary(entry)} | ${entry.uiBehavior} |`,
+      `| ${[
+        entry.domainArea,
+        entry.operation,
+        entry.kind,
+        surfaceStatus(entry.surfaces.ui),
+        surfaceStatus(entry.surfaces.mcp),
+        surfaceStatus(entry.surfaces.cli),
+        contextSummary(entry),
+        entry.uiBehavior,
+      ]
+        .map(markdownTableCell)
+        .join(" | ")} |`,
   );
 
   return [

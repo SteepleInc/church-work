@@ -32,4 +32,16 @@ describe("Agent Operation parity registry", () => {
       "Coverage statuses: covered, partial, missing, generic-passthrough",
     );
   });
+
+  test("escapes Markdown table delimiters in registry text", () => {
+    expect(
+      generateAgentParityReport([
+        {
+          ...AGENT_OPERATION_REGISTRY[0],
+          domainArea: "Task | Planning",
+          operation: "List \\ Tasks",
+        },
+      ]),
+    ).toContain("| Task \\| Planning | List \\\\ Tasks |");
+  });
 });
