@@ -355,6 +355,60 @@ const requireString = (body: Record<string, unknown>, key: string) => {
   return value;
 };
 
+const resolveTemplateTeamMapping = (
+  services: AgentServices,
+  args: {
+    readonly churchId: string;
+    readonly session: AuthenticatedSession;
+    readonly teamId: string;
+    readonly templateId: string;
+  },
+) =>
+  Effect.gen(function* () {
+    const [existingTemplateTeam] = yield* Effect.promise(() =>
+      services.db
+        .select()
+        .from(template_teams)
+        .where(
+          and(
+            eq(template_teams.template_id, args.templateId),
+            eq(template_teams.mapped_team_id, args.teamId),
+            isNull(template_teams.deleted_at),
+          ),
+        )
+        .limit(1),
+    );
+    if (existingTemplateTeam) return existingTemplateTeam;
+
+    const [team] = yield* Effect.promise(() =>
+      services.db
+        .select()
+        .from(teams)
+        .where(and(eq(teams.id, args.teamId), eq(teams.church_id, args.churchId)))
+        .limit(1),
+    );
+    if (!team) throw new Error("Team not found.");
+
+    const now = new Date();
+    const templateTeam = {
+      _tag: "templateteam",
+      church_id: args.churchId,
+      created_at: now,
+      created_by: args.session.user.id,
+      deleted_at: null,
+      deleted_by: null,
+      id: getTemplateTeamId(),
+      key: slugKey(team.name),
+      mapped_team_id: args.teamId,
+      name: team.name,
+      template_id: args.templateId,
+      updated_at: now,
+      updated_by: args.session.user.id,
+    } as const;
+    yield* Effect.promise(() => services.db.insert(template_teams).values(templateTeam));
+    return templateTeam;
+  });
+
 const recordActivity = (
   db: ChurchWorkDb,
   args: {
@@ -840,47 +894,12 @@ const runTaskTool = (
         const now = new Date();
         const templateId = requireString(body, "templateId");
         const teamId = requireString(body, "teamId");
-        let [templateTeam] = yield* Effect.promise(() =>
-          services.db
-            .select()
-            .from(template_teams)
-            .where(
-              and(
-                eq(template_teams.template_id, templateId),
-                eq(template_teams.mapped_team_id, teamId),
-                isNull(template_teams.deleted_at),
-              ),
-            )
-            .limit(1),
-        );
-        if (!templateTeam) {
-          const [team] = yield* Effect.promise(() =>
-            services.db
-              .select()
-              .from(teams)
-              .where(and(eq(teams.id, teamId), eq(teams.church_id, churchId)))
-              .limit(1),
-          );
-          if (!team) throw new Error("Team not found.");
-          templateTeam = {
-            _tag: "templateteam",
-            church_id: churchId,
-            created_at: now,
-            created_by: session.user.id,
-            deleted_at: null,
-            deleted_by: null,
-            id: getTemplateTeamId(),
-            key: slugKey(team.name),
-            mapped_team_id: teamId,
-            name: team.name,
-            template_id: templateId,
-            updated_at: now,
-            updated_by: session.user.id,
-          };
-          const newTemplateTeam = templateTeam;
-          yield* Effect.promise(() => services.db.insert(template_teams).values(newTemplateTeam));
-        }
-        if (!templateTeam) throw new Error("Template Team not found.");
+        const templateTeam = yield* resolveTemplateTeamMapping(services, {
+          churchId,
+          session,
+          teamId,
+          templateId,
+        });
         const id = getTemplateTaskId();
         const title = requireString(body, "title");
         yield* Effect.promise(() =>
@@ -1079,8 +1098,28 @@ const runTaskTool = (
         ))
           if (body[inputKey] !== undefined) patch[column] = body[inputKey];
         if (isTask && body.labelIds !== undefined) patch.label_ids = JSON.stringify(body.labelIds);
+        if (isTask && body.parentTemplateTaskId !== undefined)
+          patch.parent_template_task_id = body.parentTemplateTaskId;
         if (isTask && body.schedulingRule !== undefined)
           patch.scheduling_rule = JSON.stringify(body.schedulingRule);
+        if (isTask && typeof body.teamId === "string") {
+          const teamId = body.teamId;
+          const [task] = yield* Effect.promise(() =>
+            services.db
+              .select({ template_id: template_tasks.template_id })
+              .from(template_tasks)
+              .where(and(eq(template_tasks.id, id), eq(template_tasks.church_id, churchId)))
+              .limit(1),
+          );
+          if (!task) throw new Error("Template Task not found.");
+          const templateTeam = yield* resolveTemplateTeamMapping(services, {
+            churchId,
+            session,
+            teamId,
+            templateId: task.template_id,
+          });
+          patch.template_team_id = templateTeam.id;
+        }
         if (!isTask && body.rule !== undefined) patch.rule = JSON.stringify(body.rule);
         const table = isTask ? template_tasks : template_schedules;
         const [entity] = yield* Effect.promise(() =>

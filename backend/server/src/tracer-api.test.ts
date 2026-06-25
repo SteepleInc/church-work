@@ -6,6 +6,7 @@ import {
   tasks,
   template_schedules,
   template_tasks,
+  template_teams,
   templates,
   teams,
   workflow_statuses,
@@ -697,6 +698,50 @@ describe("tracer API", () => {
         templateTask?: { id?: string };
       };
       expect(templateTaskCreated.templateTask?.id).toMatch(/^templatetask_/);
+
+      const mappedTeamId = `team_${crypto.randomUUID().replaceAll("-", "")}`;
+      await authRuntime.db.insert(teams).values({
+        _tag: "team",
+        church_id: org!.id,
+        color: "#2563eb",
+        created_by: null,
+        id: mappedTeamId,
+        identifier: "MAP",
+        name: "Mapped Team",
+        sort_order: 99,
+        updated_by: null,
+      });
+
+      const updateTemplateTaskResponse = await api.fetch(
+        new Request("http://127.0.0.1/api/mcp/tools/template-task-update", {
+          body: JSON.stringify({
+            churchId: org?.id,
+            parentTemplateTaskId: null,
+            teamId: mappedTeamId,
+            templateTaskId: templateTaskCreated.templateTask?.id,
+          }),
+          headers: { "content-type": "application/json", cookie },
+          method: "POST",
+        }),
+      );
+      expect(updateTemplateTaskResponse.ok).toBe(true);
+      await expect(updateTemplateTaskResponse.json()).resolves.toMatchObject({ ok: true });
+
+      const [updatedTemplateTask] = await authRuntime.db
+        .select()
+        .from(template_tasks)
+        .where(eq(template_tasks.id, templateTaskCreated.templateTask!.id!))
+        .limit(1);
+      const [mappedTemplateTeam] = await authRuntime.db
+        .select()
+        .from(template_teams)
+        .where(eq(template_teams.id, updatedTemplateTask!.template_team_id))
+        .limit(1);
+      expect(mappedTemplateTeam).toMatchObject({
+        mapped_team_id: mappedTeamId,
+        name: "Mapped Team",
+        template_id: templateCreated.template?.id,
+      });
 
       const [cycle] = await authRuntime.db
         .select()

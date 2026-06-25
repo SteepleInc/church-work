@@ -407,6 +407,72 @@ describe("Agent Operation parity registry", () => {
     );
   });
 
+  test("reports UI-led Template Task and Template Team mapping parity", () => {
+    const byId = new Map(AGENT_OPERATION_REGISTRY.map((entry) => [entry.id, entry]));
+
+    expect(byId.get("template-task.create")).toMatchObject({
+      id: "template-task.create",
+      domainArea: "Template Task",
+      operation: "Create Template Task",
+      inputContract:
+        "churchId, templateId, Team mapping, title, assignment, priority, estimate, placement, labels, and optional parent Template Task",
+      surfaces: {
+        ui: expect.objectContaining({ status: "covered" }),
+        mcp: { status: "covered", tool: "template-task-create" },
+        cli: expect.objectContaining({
+          command: "church-work mcp call template-task-create",
+          status: "generic-passthrough",
+        }),
+      },
+    });
+    expect(byId.get("template-task.add-at-placement")).toMatchObject({
+      id: "template-task.add-at-placement",
+      surfaces: {
+        ui: expect.objectContaining({ status: "covered" }),
+        mcp: { status: "covered", tool: "template-task-add-at-placement" },
+        cli: { command: "church-work template-task add-at-placement", status: "covered" },
+      },
+    });
+    for (const [id, tool] of [
+      ["template-task.update", "template-task-update"],
+      ["template-task.delete", "template-task-delete"],
+      ["template-task.restore", "template-task-restore"],
+    ] as const) {
+      expect(byId.get(id)).toMatchObject({
+        authorization: "Church Membership",
+        context: {
+          requiresActiveChurch: true,
+          requiresChurchMembership: true,
+          session: "authenticated",
+        },
+        surfaces: {
+          ui: expect.objectContaining({ status: "covered" }),
+          mcp: { status: "covered", tool },
+          cli: expect.objectContaining({
+            command: `church-work mcp call ${tool}`,
+            status: "generic-passthrough",
+          }),
+        },
+      });
+    }
+    expect(byId.get("template-team.mapping.resolve")).toMatchObject({
+      id: "template-team.mapping.resolve",
+      domainArea: "Template Team",
+      operation: "Resolve Template Team Mapping",
+      inputContract: "churchId, templateId, and mapped Team selected in the Template editor",
+      outputContract: "active Template Team mapping reused or created for the selected Team",
+      surfaces: {
+        ui: expect.objectContaining({ status: "covered" }),
+        mcp: { status: "covered", tool: "template-task-create/template-task-add-at-placement" },
+        cli: expect.objectContaining({ status: "generic-passthrough" }),
+      },
+    });
+
+    expect(generateAgentParityReport()).toContain(
+      "| Template Task | Update Template Task | write | covered | covered | generic-passthrough | authenticated, Active Church, Church Membership | Church Membership | Template editor Task fields update assignment, priority, estimate, placement, labels, parent Template Task, and Team mapping through Template Task mutation seams |",
+    );
+  });
+
   test("reports UI-led Church and Team Label behavior with agent coverage decisions", () => {
     const byId = new Map(AGENT_OPERATION_REGISTRY.map((entry) => [entry.id, entry]));
 
