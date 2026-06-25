@@ -255,6 +255,101 @@ describe("Agent Operation parity registry", () => {
     );
   });
 
+  test("reports UI-led Template Library lifecycle parity across MCP and CLI", () => {
+    const templateOperations = [
+      {
+        cliStatus: "generic-passthrough",
+        command: "church-work mcp call template-list",
+        id: "template.list",
+        kind: "read",
+        operation: "List Templates",
+        tool: "template-list",
+      },
+      {
+        cliStatus: "generic-passthrough",
+        command: "church-work mcp call template-get",
+        id: "template.get",
+        kind: "read",
+        operation: "Get Template",
+        tool: "template-get",
+      },
+      {
+        cliStatus: "covered",
+        command: "church-work template create-weekly-service",
+        id: "template.create.weekly-service",
+        kind: "write",
+        operation: "Create Weekly Service Template",
+        tool: "template-create-weekly-service",
+      },
+      {
+        cliStatus: "generic-passthrough",
+        command: "church-work mcp call template-update",
+        id: "template.update",
+        kind: "write",
+        operation: "Update Template",
+        tool: "template-update",
+      },
+      {
+        cliStatus: "generic-passthrough",
+        command: "church-work mcp call template-delete",
+        id: "template.delete",
+        kind: "write",
+        operation: "Delete Template",
+        tool: "template-delete",
+      },
+      {
+        cliStatus: "generic-passthrough",
+        command: "church-work mcp call template-restore",
+        id: "template.restore",
+        kind: "write",
+        operation: "Restore Template",
+        tool: "template-restore",
+      },
+      {
+        cliStatus: "generic-passthrough",
+        command: "church-work mcp call template-duplicate",
+        id: "template.duplicate",
+        kind: "write",
+        operation: "Duplicate Template",
+        tool: "template-duplicate",
+      },
+    ] as const;
+
+    expect(AGENT_OPERATION_REGISTRY).toEqual(
+      expect.arrayContaining(
+        templateOperations.map(({ cliStatus, command, id, kind, operation, tool }) =>
+          expect.objectContaining({
+            id,
+            authorization: "Church Membership",
+            context: {
+              requiresActiveChurch: true,
+              requiresChurchMembership: true,
+              session: "authenticated",
+            },
+            domainArea: "Template",
+            kind,
+            operation,
+            surfaces: {
+              ui: expect.objectContaining({ status: "covered" }),
+              mcp: { status: "covered", tool },
+              cli: expect.objectContaining({ command, status: cliStatus }),
+            },
+          }),
+        ),
+      ),
+    );
+
+    expect(generateAgentParityReport()).toContain(
+      "| Template | Delete Template | write | covered | covered | generic-passthrough | authenticated, Active Church, Church Membership | Template Library and Template detail soft-delete a Template through useTemplateSoftDeleteActions.deleteTemplate |",
+    );
+    expect(generateAgentParityReport()).toContain(
+      "| Template | Restore Template | write | covered | covered | generic-passthrough | authenticated, Active Church, Church Membership | Template deleted-item controls restore a Template through useTemplateSoftDeleteActions.restoreTemplate |",
+    );
+    expect(generateAgentParityReport()).toContain(
+      "| Template | Duplicate Template | write | covered | covered | generic-passthrough | authenticated, Active Church, Church Membership | Template detail duplicates a Template through useDuplicateTemplateAction |",
+    );
+  });
+
   test("reports UI-led Church and Team Label behavior with agent coverage decisions", () => {
     const byId = new Map(AGENT_OPERATION_REGISTRY.map((entry) => [entry.id, entry]));
 
