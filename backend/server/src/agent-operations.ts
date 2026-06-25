@@ -248,6 +248,60 @@ const listWorkflowStatuses = (db: ChurchWorkDb, churchId: string, workflowId?: s
     )
     .orderBy(asc(workflow_statuses.sort_order));
 
+const taskToolError = (code: string, message: string, status = 400) =>
+  json({ ok: false, error: { code, message } }, { status });
+
+const parentTaskReferenceError = (code: string) => {
+  if (code === "invalid_parent_task")
+    return taskToolError(code, "A Task cannot be its own parent.");
+  return taskToolError(code, "Parent Task was not found in the requested Church.");
+};
+
+const validateParentTaskReference = (
+  db: ChurchWorkDb,
+  args: { readonly churchId: string; readonly parentTaskId: string; readonly taskId?: string },
+) =>
+  Effect.tryPromise({
+    catch: (cause) => cause,
+    try: async () => {
+      if (args.parentTaskId === args.taskId) return "invalid_parent_task";
+      const [parent] = await db
+        .select({ id: tasks.id })
+        .from(tasks)
+        .where(
+          and(
+            eq(tasks.id, args.parentTaskId),
+            eq(tasks.church_id, args.churchId),
+            isNull(tasks.deleted_at),
+          ),
+        )
+        .limit(1);
+      return parent ? null : "parent_task_not_found";
+    },
+  });
+
+const validateCycleReference = (
+  db: ChurchWorkDb,
+  args: { readonly churchId: string; readonly cycleId: string },
+) =>
+  Effect.tryPromise({
+    catch: (cause) => cause,
+    try: async () => {
+      const [cycle] = await db
+        .select({ id: cycles.id })
+        .from(cycles)
+        .where(
+          and(
+            eq(cycles.id, args.cycleId),
+            eq(cycles.church_id, args.churchId),
+            isNull(cycles.deleted_at),
+          ),
+        )
+        .limit(1);
+      return cycle ? null : "cycle_not_found";
+    },
+  });
+
 const slugKey = (value: string) =>
   value
     .trim()
@@ -547,6 +601,15 @@ const runTaskTool = (
         );
         if (!team || !status) throw new Error("Team or Workflow Status not found.");
 
+        const parentTaskId = typeof body.parentTaskId === "string" ? body.parentTaskId : null;
+        if (parentTaskId) {
+          const parentError = yield* validateParentTaskReference(services.db, {
+            churchId,
+            parentTaskId,
+          });
+          if (parentError) return parentTaskReferenceError(parentError);
+        }
+
         const task = {
           _tag: "task",
           assigned_user_id: typeof body.assignedUserId === "string" ? body.assignedUserId : null,
@@ -559,7 +622,7 @@ const runTaskTool = (
           priority: maybeString(body, "priority") ?? null,
           id: getTaskId(),
           number: team.next_task_number,
-          parent_task_id: typeof body.parentTaskId === "string" ? body.parentTaskId : null,
+          parent_task_id: parentTaskId,
           task_state: status.task_state,
           team_id: team.id,
           title,
@@ -629,6 +692,24 @@ const runTaskTool = (
             patch.task_state = status.task_state;
             eventType = "task.status_moved";
           }
+
+          if (typeof patch.cycle_id === "string") {
+            const cycleError = yield* validateCycleReference(services.db, {
+              churchId,
+              cycleId: patch.cycle_id,
+            });
+            if (cycleError)
+              return taskToolError(cycleError, "Cycle was not found in the requested Church.");
+          }
+
+          if (typeof patch.parent_task_id === "string") {
+            const parentError = yield* validateParentTaskReference(services.db, {
+              churchId,
+              parentTaskId: patch.parent_task_id,
+              taskId: existing.id,
+            });
+            if (parentError) return parentTaskReferenceError(parentError);
+          }
         } else {
           const targetState = getStatusActionTargetState(tool);
           const [targetStatus] = yield* Effect.promise(() =>
@@ -656,13 +737,21 @@ const runTaskTool = (
         const [updated] = yield* Effect.promise(() =>
           services.db.update(tasks).set(patch).where(eq(tasks.id, existing.id)).returning(),
         );
+        const updatedTask = updated ?? existing;
+        const [updatedTeam] = yield* Effect.promise(() =>
+          services.db
+            .select({ identifier: teams.identifier })
+            .from(teams)
+            .where(eq(teams.id, updatedTask.team_id))
+            .limit(1),
+        );
         yield* recordTaskActivity(services.db, {
           actorId: session.user.id,
           churchId,
           entityId: existing.id,
           eventType,
         });
-        return json({ ok: true, task: toTaskDto(updated ?? existing), tool });
+        return json({ ok: true, task: toTaskDto(updatedTask, updatedTeam), tool });
       }
       case "template-create-weekly-service": {
         const name = requireString(body, "name");

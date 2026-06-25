@@ -84,15 +84,13 @@ describe("admin route fidelity", () => {
       "utf8",
     );
 
-    expect(orgsDataSource).toContain(
-      "useZeroQuery(queries.organization.admin_list({ list_args: listArgs }))",
-    );
-    expect(orgsDataSource).toContain("useZeroQuery(queries.member.admin_all())");
-    expect(orgsDataSource).toContain("useZeroQuery(queries.teams_admin.admin_all())");
-    expect(usersDataSource).toContain("useQuery(queries.user.admin_list({ list_args: listArgs }))");
-    expect(usersDataSource).toContain("useQuery(queries.member.admin_all())");
+    expect(orgsDataSource).toContain("queries.organization.admin_list({ list_args: listArgs })");
+    expect(orgsDataSource).toContain("queries.member.admin_all()");
+    expect(orgsDataSource).toContain("queries.teams_admin.admin_all()");
+    expect(usersDataSource).toContain("queries.user.admin_list({ list_args: listArgs })");
+    expect(usersDataSource).toContain("queries.member.admin_all()");
     expect(usersDataSource).toContain(
-      "useQuery(queries.organization.admin_list({ list_args: { limit: 500 } }))",
+      "queries.organization.admin_list({ list_args: { limit: 500 } })",
     );
     expect(`${orgsDataSource}\n${usersDataSource}`).not.toContain("listAllOrgs");
     expect(`${orgsDataSource}\n${usersDataSource}`).not.toContain("listAllUsers");

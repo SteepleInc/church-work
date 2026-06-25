@@ -432,8 +432,23 @@ function refreshBaseBranch() {
   sh(`git fetch origin ${quote(BASE_BRANCH)}`);
 
   if (currentBranch() === BASE_BRANCH) {
-    sh(`git pull --ff-only origin ${quote(BASE_BRANCH)}`);
+    try {
+      sh(`git pull --ff-only origin ${quote(BASE_BRANCH)}`);
+    } catch (error) {
+      if (!workingTreeIsClean()) {
+        throw error;
+      }
+
+      console.warn(
+        `  ${BASE_BRANCH} could not fast-forward; resetting clean local base branch to origin/${BASE_BRANCH}.`,
+      );
+      sh(`git reset --hard ${quote(`origin/${BASE_BRANCH}`)}`);
+    }
   }
+}
+
+function workingTreeIsClean() {
+  return sh("git status --porcelain").trim() === "";
 }
 
 function publishIssuePr({
