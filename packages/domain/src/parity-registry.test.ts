@@ -347,6 +347,48 @@ describe("Agent Operation parity registry", () => {
     );
   });
 
+  test("reports UI-led Notification Inbox behavior with recipient-scoped agent gaps", () => {
+    const byId = new Map(AGENT_OPERATION_REGISTRY.map((entry) => [entry.id, entry]));
+
+    for (const [id, operation] of [
+      ["notification.mark-read", "Mark Notification Read"],
+      ["notification.mark-unread", "Mark Notification Unread"],
+      ["notification.mark-all-read", "Mark All Notifications Read"],
+      ["notification.delete", "Delete Notification"],
+      ["notification.delete-read", "Delete Read Notifications"],
+      ["notification.snooze", "Snooze Notification"],
+    ]) {
+      expect(byId.get(id)).toMatchObject({
+        id,
+        domainArea: "Notification Inbox",
+        operation,
+        kind: "write",
+        context: {
+          requiresActiveChurch: true,
+          requiresChurchMembership: true,
+          session: "authenticated",
+        },
+        authorization: "Church Membership recipient",
+        surfaces: {
+          ui: { status: "covered" },
+          mcp: { status: "missing" },
+          cli: { status: "missing" },
+        },
+      });
+    }
+
+    expect(byId.get("notification.snooze")?.inputContract).toContain("future snoozedUntil");
+    expect(byId.get("notification.mark-read")?.outputContract).toContain(
+      "structured authentication or Active Church access error",
+    );
+    expect(byId.get("notification.delete-read")?.uiBehavior).toContain(
+      "bulk Delete read confirmation",
+    );
+    expect(generateAgentParityReport()).toContain(
+      "| Notification Inbox | Snooze Notification | write | covered | missing | missing | authenticated, Active Church, Church Membership | Church Membership recipient | Inbox notification row Snooze menu hides the current recipient's notification until a future preset time and invalid or past snooze inputs are rejected/no-op by the Zero mutator |",
+    );
+  });
+
   test("reports UI-led Template Library lifecycle parity across MCP and CLI", () => {
     const templateOperations = [
       {
@@ -722,6 +764,45 @@ describe("Agent Operation parity registry", () => {
 
     expect(generateAgentParityReport()).toContain(
       "| Onboarding | Complete Onboarding | write | covered | intentionally-ui-only | intentionally-ui-only | authenticated, Active Church, Church Membership | Church Membership | Finished onboarding step calls Better Auth completeOnboarding, refetches the session, and relies on redirectIfOnboarded once the Active Church reflects Completed Onboarding |",
+    );
+  });
+
+  test("reports UI-led Week/Cycle planning read parity", () => {
+    expect(AGENT_OPERATION_REGISTRY).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "cycle.list",
+          operation: "List Weeks",
+          inputContract: "churchId",
+          outputContract:
+            "active Week/Cycle rows with id, Monday-Sunday date range, custom name, description, and current/upcoming/completed planning metadata",
+          surfaces: {
+            ui: expect.objectContaining({ status: "covered" }),
+            mcp: { status: "covered", tool: "list-cycles" },
+            cli: { command: "church-work lookup cycles", status: "covered" },
+          },
+        }),
+        expect.objectContaining({
+          id: "cycle.details.update",
+          operation: "Update Week Details",
+          inputContract: "churchId, cycleId, optional Week name, and optional Week description",
+          outputContract: "updated Week/Cycle name and description",
+        }),
+        expect.objectContaining({
+          id: "week.progress.read",
+          surfaces: expect.objectContaining({
+            mcp: expect.objectContaining({ status: "missing" }),
+            cli: expect.objectContaining({ status: "missing" }),
+          }),
+        }),
+      ]),
+    );
+
+    expect(generateAgentParityReport()).toContain(
+      "| Week/Cycle | List Weeks | read | covered | covered | covered | authenticated, Active Church, Church Membership | Church Membership | Team Week board and Week picker list active persisted Weeks, classify them as current/upcoming/completed from today's date, show custom Cycle Name when present, and surface Cycle Description for planning details |",
+    );
+    expect(generateAgentParityReport()).toContain(
+      "| Week Progress | Read Week Progress | read | covered | missing | missing | authenticated, Active Church, Church Membership | Church Membership | Week tooltip and Week Progress pane read non-canceled Task totals, completed counts, and completion percentage for a selected Week |",
     );
   });
 

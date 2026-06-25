@@ -40,6 +40,7 @@ const TEAM_MANAGEMENT_AUTHORIZATION = "Church owner, Church admin, or App Admini
 const CHURCH_MEMBERSHIP_AUTHORIZATION = "Church Membership";
 const TASK_COMMENT_MODERATION_AUTHORIZATION =
   "Task Comment author, Church owner, Church admin, or App Administrator";
+const NOTIFICATION_RECIPIENT_AUTHORIZATION = "Church Membership recipient";
 
 const ACTIVE_CHURCH_MEMBERSHIP_CONTEXT = {
   requiresActiveChurch: true,
@@ -99,6 +100,16 @@ const UI_ONLY_ONBOARDING_SURFACES = {
   },
 } as const satisfies AgentOperationRegistryEntry["surfaces"];
 
+const UI_ONLY_NOTIFICATION_SURFACES = {
+  cli: missingNamedAgentSurface,
+  mcp: missingFocusedAgentSurface,
+  ui: {
+    notes:
+      "Inspected InboxPage, notificationsData.app Zero mutation hooks, Inbox e2e coverage, and Zero Notification mutator tests.",
+    status: "covered",
+  },
+} as const satisfies AgentOperationRegistryEntry["surfaces"];
+
 const coveredTaskOperation = (
   entry: Pick<
     AgentOperationRegistryEntry,
@@ -144,6 +155,20 @@ const uiOnlyTaskCommentOperation = (
 ): AgentOperationRegistryEntry => ({
   context: ACTIVE_CHURCH_MEMBERSHIP_CONTEXT,
   surfaces: UI_ONLY_COMMENT_SURFACES,
+  ...entry,
+});
+
+const uiOnlyNotificationOperation = (
+  entry: Pick<
+    AgentOperationRegistryEntry,
+    "id" | "inputContract" | "operation" | "outputContract" | "uiBehavior"
+  >,
+): AgentOperationRegistryEntry => ({
+  authorization: NOTIFICATION_RECIPIENT_AUTHORIZATION,
+  context: ACTIVE_CHURCH_MEMBERSHIP_CONTEXT,
+  domainArea: "Notification Inbox",
+  kind: "write",
+  surfaces: UI_ONLY_NOTIFICATION_SURFACES,
   ...entry,
 });
 
@@ -709,6 +734,89 @@ export const AGENT_OPERATION_REGISTRY = [
     uiBehavior:
       "Task Week field and Board/List controls update cycleId while preserving the Team-derived Task Identifier",
   }),
+  {
+    authorization: CHURCH_MEMBERSHIP_AUTHORIZATION,
+    context: ACTIVE_CHURCH_MEMBERSHIP_CONTEXT,
+    domainArea: "Week/Cycle",
+    id: "cycle.list",
+    inputContract: "churchId",
+    kind: "read",
+    operation: "List Weeks",
+    outputContract:
+      "active Week/Cycle rows with id, Monday-Sunday date range, custom name, description, and current/upcoming/completed planning metadata",
+    surfaces: {
+      cli: { command: "church-work lookup cycles", status: "covered" },
+      mcp: { status: "covered", tool: "list-cycles" },
+      ui: {
+        notes:
+          "Inspected cyclesData.app, Week picker options, TeamWeeksIndex, and WorkPage Week planning seams.",
+        status: "covered",
+      },
+    },
+    uiBehavior:
+      "Team Week board and Week picker list active persisted Weeks, classify them as current/upcoming/completed from today's date, show custom Cycle Name when present, and surface Cycle Description for planning details",
+  },
+  {
+    authorization: CHURCH_MEMBERSHIP_AUTHORIZATION,
+    context: ACTIVE_CHURCH_MEMBERSHIP_CONTEXT,
+    domainArea: "Week/Cycle",
+    id: "cycle.details.update",
+    inputContract: "churchId, cycleId, optional Week name, and optional Week description",
+    kind: "write",
+    operation: "Update Week Details",
+    outputContract: "updated Week/Cycle name and description",
+    surfaces: {
+      cli: missingNamedAgentSurface,
+      mcp: missingFocusedAgentSurface,
+      ui: {
+        notes: "Inspected useUpdateWeekDetailsMutation and Cycle detail planning controls.",
+        status: "covered",
+      },
+    },
+    uiBehavior:
+      "Week planning details can persist Cycle Name and Cycle Description through the UI Zero mutator; no focused MCP or named CLI seam exists yet",
+  },
+  {
+    authorization: CHURCH_MEMBERSHIP_AUTHORIZATION,
+    context: ACTIVE_CHURCH_MEMBERSHIP_CONTEXT,
+    domainArea: "Week Progress",
+    id: "week.progress.read",
+    inputContract: "churchId and cycleId",
+    kind: "read",
+    operation: "Read Week Progress",
+    outputContract:
+      "non-canceled Task total, completed Task count, and completed percentage for the selected Week",
+    surfaces: {
+      cli: missingNamedAgentSurface,
+      mcp: missingFocusedAgentSurface,
+      ui: {
+        notes: "Inspected useWeekProgress and Week Progress rendering seams.",
+        status: "covered",
+      },
+    },
+    uiBehavior:
+      "Week tooltip and Week Progress pane read non-canceled Task totals, completed counts, and completion percentage for a selected Week",
+  },
+  {
+    authorization: CHURCH_MEMBERSHIP_AUTHORIZATION,
+    context: ACTIVE_CHURCH_MEMBERSHIP_CONTEXT,
+    domainArea: "Week Breakdown",
+    id: "week.breakdown.read",
+    inputContract: "churchId, cycleId, and Team/Workflow Status breakdown filters",
+    kind: "read",
+    operation: "Read Week Breakdown",
+    outputContract: "Week planning breakdown rows grouped for the selected Team Week surface",
+    surfaces: {
+      cli: missingNamedAgentSurface,
+      mcp: missingFocusedAgentSurface,
+      ui: {
+        notes: "Inspected Team Week board/index planning read surfaces.",
+        status: "covered",
+      },
+    },
+    uiBehavior:
+      "Team Week board reads per-Week Task breakdowns from Zero queries for planning; no focused MCP or named CLI read exists yet beyond generic Task listing filters",
+  },
   coveredTaskOperation({
     command: "church-work task complete",
     id: "task.complete",
@@ -839,6 +947,61 @@ export const AGENT_OPERATION_REGISTRY = [
     uiBehavior:
       "Task Details Pane shows reverse-chronological Task Activity rows for task lifecycle, field, label, and comment events; other UI Activity entity types are queryable for agent history, but non-task entity events are not rendered by describeActivity yet",
   },
+  uiOnlyNotificationOperation({
+    id: "notification.mark-read",
+    inputContract: "churchId and notificationId for a non-deleted current-recipient Notification",
+    operation: "Mark Notification Read",
+    outputContract:
+      "current recipient's Notification read_at/read_by set, or structured authentication or Active Church access error for unauthorized Church context",
+    uiBehavior:
+      "Opening an Inbox notification or pressing Mark notification read marks only the current recipient's non-deleted Notification as read",
+  }),
+  uiOnlyNotificationOperation({
+    id: "notification.mark-unread",
+    inputContract: "churchId and notificationId for a non-deleted current-recipient Notification",
+    operation: "Mark Notification Unread",
+    outputContract:
+      "current recipient's Notification read_at/read_by cleared, or structured authentication or Active Church access error for unauthorized Church context",
+    uiBehavior:
+      "Inbox notification row Mark notification unread returns only the current recipient's Notification to unread",
+  }),
+  uiOnlyNotificationOperation({
+    id: "notification.mark-all-read",
+    inputContract: "churchId for the Active Church Notification Inbox",
+    operation: "Mark All Notifications Read",
+    outputContract:
+      "all unread, non-deleted Notifications for the current recipient in the Active Church marked read, or structured authentication or Active Church access error",
+    uiBehavior:
+      "Inbox Mark all read action marks the current recipient's unread Notifications read and leaves other recipients' Notifications untouched",
+  }),
+  uiOnlyNotificationOperation({
+    id: "notification.delete",
+    inputContract: "churchId and notificationId for a non-deleted current-recipient Notification",
+    operation: "Delete Notification",
+    outputContract:
+      "current recipient's Notification soft-deleted, or structured authentication or Active Church access error for unauthorized Church context",
+    uiBehavior:
+      "Inbox notification row Delete action soft-deletes only the current recipient's Notification",
+  }),
+  uiOnlyNotificationOperation({
+    id: "notification.delete-read",
+    inputContract: "churchId for the Active Church Notification Inbox",
+    operation: "Delete Read Notifications",
+    outputContract:
+      "read, non-deleted Notifications for the current recipient in the Active Church soft-deleted, or structured authentication or Active Church access error",
+    uiBehavior:
+      "Inbox bulk Delete read confirmation soft-deletes read Notifications for the current recipient only",
+  }),
+  uiOnlyNotificationOperation({
+    id: "notification.snooze",
+    inputContract:
+      "churchId, notificationId for a non-deleted current-recipient Notification, and future snoozedUntil ISO timestamp",
+    operation: "Snooze Notification",
+    outputContract:
+      "current recipient's Notification snoozed_until set to a future time, structured authentication or Active Church access error for unauthorized Church context, or no update for invalid/past snooze input",
+    uiBehavior:
+      "Inbox notification row Snooze menu hides the current recipient's notification until a future preset time and invalid or past snooze inputs are rejected/no-op by the Zero mutator",
+  }),
   coveredTemplateOperation({
     cliStatus: "generic-passthrough",
     command: "church-work mcp call template-list",
