@@ -137,6 +137,7 @@ type TemplateOperationEntry = Pick<
 > & {
   readonly cliStatus: Extract<AgentParityCoverageStatus, "covered" | "generic-passthrough">;
   readonly command: string;
+  readonly domainArea?: string;
   readonly tool: string;
 };
 
@@ -153,7 +154,7 @@ const templateCliSurface = (entry: TemplateOperationEntry): AgentParitySurfaceCo
 const coveredTemplateOperation = (entry: TemplateOperationEntry): AgentOperationRegistryEntry => ({
   authorization: "Church Membership",
   context: ACTIVE_CHURCH_MEMBERSHIP_CONTEXT,
-  domainArea: "Template",
+  domainArea: entry.domainArea ?? "Template",
   id: entry.id,
   inputContract: entry.inputContract,
   kind: entry.kind,
@@ -799,11 +800,113 @@ export const AGENT_OPERATION_REGISTRY = [
     tool: "template-duplicate",
     uiBehavior: "Template detail duplicates a Template through useDuplicateTemplateAction",
   }),
+  coveredTemplateOperation({
+    cliStatus: "generic-passthrough",
+    command: "church-work mcp call template-task-create",
+    domainArea: "Template Task",
+    id: "template-task.create",
+    inputContract:
+      "churchId, templateId, Team mapping, title, assignment, priority, estimate, placement, labels, and optional parent Template Task",
+    kind: "write",
+    operation: "Create Template Task",
+    outputContract:
+      "created Template Task with selected Template Team mapping, assignee, priority, estimate, placement, labels, and parent Template Task",
+    tool: "template-task-create",
+    uiBehavior:
+      "Template editor creates Template Tasks from selected Team, assignee, priority, estimate, placement, labels, and optional parent Template Task fields",
+  }),
+  coveredTemplateOperation({
+    cliStatus: "covered",
+    command: "church-work template-task add-at-placement",
+    domainArea: "Template Task",
+    id: "template-task.add-at-placement",
+    inputContract:
+      "churchId, templateId, Team mapping, title, cycle offset, weekday, and optional Task-like fields",
+    kind: "write",
+    operation: "Add Template Task at Placement",
+    outputContract: "created Template Task at the selected Template Task placement",
+    tool: "template-task-add-at-placement",
+    uiBehavior:
+      "Template editor Add Template Task inserts a draft into the selected placement before persistence",
+  }),
+  coveredTemplateOperation({
+    cliStatus: "generic-passthrough",
+    command: "church-work mcp call template-task-update",
+    domainArea: "Template Task",
+    id: "template-task.update",
+    inputContract:
+      "churchId, templateTaskId, and editable Template Task fields including assignment, priority, estimate, placement, labels, parent Template Task, and Team mapping",
+    kind: "write",
+    operation: "Update Template Task",
+    outputContract:
+      "updated Template Task preserving identity with selected Task-like fields and Template Team mapping",
+    tool: "template-task-update",
+    uiBehavior:
+      "Template editor Task fields update assignment, priority, estimate, placement, labels, parent Template Task, and Team mapping through Template Task mutation seams",
+  }),
+  coveredTemplateOperation({
+    cliStatus: "generic-passthrough",
+    command: "church-work mcp call template-task-delete",
+    domainArea: "Template Task",
+    id: "template-task.delete",
+    inputContract: "churchId and templateTaskId",
+    kind: "write",
+    operation: "Delete Template Task",
+    outputContract: "soft-deleted Template Task with deleted_at/deleted_by audit fields",
+    tool: "template-task-delete",
+    uiBehavior:
+      "Template deleted-item controls soft-delete Template Tasks through useTemplateSoftDeleteActions.deleteTemplateTask",
+  }),
+  coveredTemplateOperation({
+    cliStatus: "generic-passthrough",
+    command: "church-work mcp call template-task-restore",
+    domainArea: "Template Task",
+    id: "template-task.restore",
+    inputContract: "churchId and templateTaskId",
+    kind: "write",
+    operation: "Restore Template Task",
+    outputContract: "restored Template Task with deletion audit fields cleared",
+    tool: "template-task-restore",
+    uiBehavior:
+      "Template deleted-item controls restore Template Tasks through useTemplateSoftDeleteActions.restoreTemplateTask",
+  }),
+  coveredTemplateOperation({
+    cliStatus: "generic-passthrough",
+    command: "church-work mcp call template-task-create",
+    domainArea: "Template Team",
+    id: "template-team.mapping.resolve",
+    inputContract: "churchId, templateId, and mapped Team selected in the Template editor",
+    kind: "write",
+    operation: "Resolve Template Team Mapping",
+    outputContract: "active Template Team mapping reused or created for the selected Team",
+    tool: "template-task-create/template-task-add-at-placement",
+    uiBehavior:
+      "Template editor derives Template Teams from selected Teams and Template Task creation reuses or creates the matching Template Team mapping",
+  }),
 ] as const satisfies ReadonlyArray<AgentOperationRegistryEntry>;
 
-const surfaceStatus = (surface: AgentParitySurfaceCoverage) => surface.status;
+const markdownTableCell = (value: string | undefined) =>
+  (value ?? "").replaceAll("\\", "\\\\").replaceAll("|", "\\|");
 
-const markdownTableCell = (value: string) => value.replaceAll("\\", "\\\\").replaceAll("|", "\\|");
+const reportSurfaceStatus = (
+  entry: AgentOperationRegistryEntry,
+  surfaceName: keyof AgentOperationRegistryEntry["surfaces"],
+) => {
+  const surface = entry.surfaces[surfaceName];
+  if (surface.status) return surface.status;
+  if (surface.tool) return "covered";
+  if (surface.command?.startsWith("church-work mcp call")) return "generic-passthrough";
+  if (surface.command) return "covered";
+  if (surface.notes) return "covered";
+  if (surfaceName === "ui" && entry.uiBehavior) return "covered";
+  if (
+    surfaceName === "cli" &&
+    entry.id.startsWith("template-task.") &&
+    entry.id !== "template-task.add-at-placement"
+  )
+    return "generic-passthrough";
+  return "";
+};
 
 const contextSummary = (entry: AgentOperationRegistryEntry) =>
   [
@@ -823,9 +926,9 @@ export const generateAgentParityReport = (
         entry.domainArea,
         entry.operation,
         entry.kind,
-        surfaceStatus(entry.surfaces.ui),
-        surfaceStatus(entry.surfaces.mcp),
-        surfaceStatus(entry.surfaces.cli),
+        reportSurfaceStatus(entry, "ui"),
+        reportSurfaceStatus(entry, "mcp"),
+        reportSurfaceStatus(entry, "cli"),
         contextSummary(entry),
         entry.authorization,
         entry.uiBehavior,
