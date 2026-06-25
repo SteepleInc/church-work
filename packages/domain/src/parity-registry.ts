@@ -1505,36 +1505,7 @@ const markdownTableCell = (value: string | undefined) =>
 const reportSurfaceStatus = (
   entry: AgentOperationRegistryEntry,
   surfaceName: keyof AgentOperationRegistryEntry["surfaces"],
-) => {
-  const surface = entry.surfaces[surfaceName];
-  if (surface.status) return surface.status;
-  if (surface.notes === "No named CLI command yet.") return "missing";
-  if (surface.notes === "No focused MCP/API operation yet.") return "missing";
-  if (surface.notes === "Onboarding setup is intentionally browser-led.")
-    return "intentionally-ui-only";
-  if (
-    (entry.id === "onboarding.church-profile.create" || entry.id === "onboarding.complete") &&
-    (surfaceName === "mcp" || surfaceName === "cli")
-  )
-    return "intentionally-ui-only";
-  if (
-    (entry.id.startsWith("team.") || entry.id.startsWith("team.membership.")) &&
-    surfaceName !== "ui"
-  )
-    return "missing";
-  if (surface.tool) return "covered";
-  if (surface.command?.startsWith("church-work mcp call")) return "generic-passthrough";
-  if (surface.command) return "covered";
-  if (surface.notes) return "covered";
-  if (surfaceName === "ui" && entry.uiBehavior) return "covered";
-  if (
-    surfaceName === "cli" &&
-    entry.id.startsWith("template-task.") &&
-    entry.id !== "template-task.add-at-placement"
-  )
-    return "generic-passthrough";
-  return "";
-};
+) => entry.surfaces[surfaceName].status;
 
 const contextSummary = (entry: AgentOperationRegistryEntry) =>
   [
