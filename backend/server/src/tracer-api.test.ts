@@ -414,9 +414,28 @@ describe("tracer API", () => {
           ),
         )
         .limit(1);
+      const [doneStatus] = await authRuntime.db
+        .select()
+        .from(workflow_statuses)
+        .where(
+          and(eq(workflow_statuses.church_id, org!.id), eq(workflow_statuses.task_state, "done")),
+        )
+        .limit(1);
+      const [canceledStatus] = await authRuntime.db
+        .select()
+        .from(workflow_statuses)
+        .where(
+          and(
+            eq(workflow_statuses.church_id, org!.id),
+            eq(workflow_statuses.task_state, "canceled"),
+          ),
+        )
+        .limit(1);
       expect(team?.id).toMatch(/^team_/);
       expect(todoStatus?.id).toMatch(/^workflowstatus_/);
       expect(doingStatus?.id).toMatch(/^workflowstatus_/);
+      expect(doneStatus?.id).toMatch(/^workflowstatus_/);
+      expect(canceledStatus?.id).toMatch(/^workflowstatus_/);
 
       const createTaskResponse = await api.fetch(
         new Request("http://127.0.0.1/api/mcp/tools/create-task", {
@@ -451,6 +470,54 @@ describe("tracer API", () => {
         task: { id: created.task?.id, taskState: "in_progress", workflowStatusId: doingStatus!.id },
       });
 
+      const completeTaskResponse = await api.fetch(
+        new Request("http://127.0.0.1/api/mcp/tools/complete-task", {
+          body: JSON.stringify({ churchId: org?.id, taskIdentifier: `${team!.identifier}-1` }),
+          headers: { "content-type": "application/json", cookie },
+          method: "POST",
+        }),
+      );
+      await expect(completeTaskResponse.json()).resolves.toMatchObject({
+        ok: true,
+        task: { id: created.task?.id, taskState: "done", workflowStatusId: doneStatus!.id },
+      });
+
+      const reopenTaskResponse = await api.fetch(
+        new Request("http://127.0.0.1/api/mcp/tools/reopen-task", {
+          body: JSON.stringify({ churchId: org?.id, taskId: created.task?.id }),
+          headers: { "content-type": "application/json", cookie },
+          method: "POST",
+        }),
+      );
+      await expect(reopenTaskResponse.json()).resolves.toMatchObject({
+        ok: true,
+        task: { id: created.task?.id, taskState: "todo", workflowStatusId: todoStatus!.id },
+      });
+
+      const cancelTaskResponse = await api.fetch(
+        new Request("http://127.0.0.1/api/mcp/tools/cancel-task", {
+          body: JSON.stringify({ churchId: org?.id, taskIdentifier: `${team!.identifier}-1` }),
+          headers: { "content-type": "application/json", cookie },
+          method: "POST",
+        }),
+      );
+      await expect(cancelTaskResponse.json()).resolves.toMatchObject({
+        ok: true,
+        task: { id: created.task?.id, taskState: "canceled", workflowStatusId: canceledStatus!.id },
+      });
+
+      const reopenCanceledTaskResponse = await api.fetch(
+        new Request("http://127.0.0.1/api/mcp/tools/reopen-task", {
+          body: JSON.stringify({ churchId: org?.id, taskId: created.task?.id }),
+          headers: { "content-type": "application/json", cookie },
+          method: "POST",
+        }),
+      );
+      await expect(reopenCanceledTaskResponse.json()).resolves.toMatchObject({
+        ok: true,
+        task: { id: created.task?.id, taskState: "todo", workflowStatusId: todoStatus!.id },
+      });
+
       const listTasksResponse = await api.fetch(
         new Request("http://127.0.0.1/api/mcp/tools/list-tasks", {
           body: JSON.stringify({ churchId: org?.id }),
@@ -461,6 +528,23 @@ describe("tracer API", () => {
       await expect(listTasksResponse.json()).resolves.toMatchObject({
         ok: true,
         tasks: [expect.objectContaining({ id: created.task?.id, title: "Create from new MCP" })],
+      });
+
+      const filteredTasksResponse = await api.fetch(
+        new Request("http://127.0.0.1/api/mcp/tools/list-tasks", {
+          body: JSON.stringify({
+            churchId: org?.id,
+            taskState: "todo",
+            teamId: team!.id,
+            workflowStatusId: todoStatus!.id,
+          }),
+          headers: { "content-type": "application/json", cookie },
+          method: "POST",
+        }),
+      );
+      await expect(filteredTasksResponse.json()).resolves.toMatchObject({
+        ok: true,
+        tasks: [expect.objectContaining({ id: created.task?.id })],
       });
 
       const templateCreateResponse = await api.fetch(

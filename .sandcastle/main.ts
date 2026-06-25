@@ -342,6 +342,14 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
       await runPostPrReview({ issue, prUrl });
     }
 
+    const readyAfterReview = await ensurePrBranchUpToDate({ issue, prUrl });
+    if (!readyAfterReview) {
+      console.warn(`  PR branch could not be brought up to date after review: ${prUrl}`);
+      process.exitCode = 1;
+      stopRun = true;
+      break;
+    }
+
     const autoMergeEnabled = AUTO_MERGE_PRS ? enableAutoMerge(prUrl) : false;
     if (autoMergeEnabled) {
       console.log(`  GitHub auto-merge enabled for ${prUrl}`);
@@ -732,6 +740,15 @@ async function repairFailedPrChecks({
   prUrl: string;
 }) {
   for (let attempt = 1; attempt <= MAX_REPAIR_ATTEMPTS; attempt++) {
+    const status = getPrMergeStatus(prUrl);
+    if (isConflictedPrStatus(status)) {
+      console.log(
+        `  PR has merge conflicts before checks; running conflict repair (${attempt}/${MAX_REPAIR_ATTEMPTS}): ${prUrl}`,
+      );
+      await repairPrConflicts({ issue, prUrl });
+      continue;
+    }
+
     console.log(`  Waiting for PR checks (${attempt}/${MAX_REPAIR_ATTEMPTS}): ${prUrl}`);
     const checks = await waitForChecks(prUrl);
     const failedChecks = checks.filter(
@@ -788,6 +805,14 @@ async function waitForChecks(prUrl: string) {
 
   while (Date.now() < deadline) {
     pollCount++;
+
+    const status = getPrMergeStatus(prUrl);
+    if (isConflictedPrStatus(status)) {
+      console.log(
+        `  PR is conflicted (mergeState=${status.mergeStateStatus ?? "unknown"}, mergeable=${status.mergeable ?? "unknown"}); stopping check polling: ${prUrl}`,
+      );
+      return [];
+    }
 
     if (prIsMerged(prUrl)) {
       console.log(`  PR already merged; stopping check polling: ${prUrl}`);

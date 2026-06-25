@@ -13,7 +13,8 @@
     "//#lint": {},
     "//#format:check": {},
     "//#test:e2e": {
-      "cache": false
+      "inputs": ["$TURBO_DEFAULT$", ".env.e2e", "playwright.config.*", "tests/e2e/**"],
+      "outputs": ["playwright-report/**", "test-results/**"]
     },
     "check-types": {
       "dependsOn": ["^check-types"]

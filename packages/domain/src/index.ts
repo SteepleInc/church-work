@@ -63,6 +63,7 @@ export const DEFAULT_WORKFLOW_STATUSES = [
   { key: "to-do", name: "To Do", task_state: "todo", sort_order: 0 },
   { key: "in-progress", name: "In Progress", task_state: "in_progress", sort_order: 1 },
   { key: "done", name: "Done", task_state: "done", sort_order: 2 },
+  { key: "canceled", name: "Canceled", task_state: "canceled", sort_order: 3 },
 ] as const;
 
 export const TEAM_IDENTIFIER_MAX_LENGTH = 7;

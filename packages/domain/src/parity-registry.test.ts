@@ -187,6 +187,74 @@ describe("Agent Operation parity registry", () => {
     );
   });
 
+  test("reports UI-led Team and Team Membership behavior with agent coverage decisions", () => {
+    const byId = new Map(AGENT_OPERATION_REGISTRY.map((entry) => [entry.id, entry]));
+
+    expect(byId.get("team.create")).toMatchObject({
+      id: "team.create",
+      authorization: "Church owner, Church admin, or App Administrator",
+      surfaces: {
+        ui: { status: "covered" },
+        mcp: { status: "missing" },
+        cli: { status: "missing" },
+      },
+    });
+    for (const id of [
+      "team.rename",
+      "team.identifier.change",
+      "team.delete",
+      "team.reorder",
+      "team.membership.add",
+      "team.membership.remove",
+    ]) {
+      expect(byId.get(id)).toMatchObject({
+        authorization: "Church owner, Church admin, or App Administrator",
+      });
+    }
+
+    expect(generateAgentParityReport()).toContain(
+      "| Team | Create Team | write | covered | missing | missing | authenticated, Active Church, Church Membership | Settings and sidebar Team creation use useCreateTeamMutation, which creates the Team, creator Team Membership, owned Workflow, and default Workflow Statuses |",
+    );
+    expect(generateAgentParityReport()).toContain(
+      "| Team Membership | Add Team Membership | write | covered | missing | missing | authenticated, Active Church, Church Membership | Team navigation membership action uses useAddTeamMemberMutation and de-duplicates existing Team Memberships |",
+    );
+  });
+
+  test("reports UI-led Task get/create/update/status operations across MCP and CLI", () => {
+    expect(AGENT_OPERATION_REGISTRY).toEqual(
+      expect.arrayContaining(
+        [
+          ["task.get", "Get Task", "get-task", "church-work task get"],
+          ["task.create", "Create Task", "create-task", "church-work task create"],
+          ["task.update", "Update Task", "update-task", "church-work task update"],
+          ["task.complete", "Complete Task", "complete-task", "church-work task complete"],
+          ["task.cancel", "Cancel Task", "cancel-task", "church-work task cancel"],
+          ["task.reopen", "Reopen Task", "reopen-task", "church-work task reopen"],
+        ].map(([id, operation, tool, command]) =>
+          expect.objectContaining({
+            id,
+            domainArea: "Task",
+            operation,
+            context: {
+              requiresActiveChurch: true,
+              requiresChurchMembership: true,
+              session: "authenticated",
+            },
+            surfaces: {
+              ui: expect.objectContaining({ status: "covered" }),
+              mcp: { status: "covered", tool },
+              cli: { command, status: "covered" },
+            },
+          }),
+        ),
+      ),
+    );
+
+    expect(generateAgentParityReport()).toContain(
+      "| Task | Complete Task | write | covered | covered | covered | authenticated, Active Church, Church Membership | Task status controls can move a Task to a completed Workflow Status |",
+    );
+  });
+
   test("escapes Markdown table delimiters in registry text", () => {
     expect(
       generateAgentParityReport([

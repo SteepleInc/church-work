@@ -207,7 +207,9 @@ test("authors and schedules a Key Date Template", async ({ page }, testInfo) => 
   await page.getByPlaceholder("Key Date name").fill("Good Friday Prep Anchor");
   await page.getByRole("button", { exact: true, name: "Good Friday" }).click();
   await page.getByRole("button", { name: "Create" }).click();
-  await expect(page.getByRole("button", { name: /Good Friday Prep Anchor/ })).toBeVisible();
+  await expect(
+    page.getByRole("button", { exact: true, name: "Good Friday Prep Anchor" }),
+  ).toBeVisible();
   await expect(page.getByText("Next occurrence")).toBeVisible();
   await stepperNext(page);
 

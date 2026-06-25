@@ -25,7 +25,7 @@ import {
   getTemplateTaskId,
   getTemplateTeamId,
 } from "@church-work/shared/get-ids";
-import { and, asc, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, or, type SQL } from "drizzle-orm";
 import { Effect } from "effect";
 
 import {
@@ -149,6 +149,32 @@ const recordTaskActivity = (
         updated_by: args.actorId,
       }),
   });
+
+const getStatusActionTargetState = (tool: string) => {
+  switch (tool) {
+    case "complete-task":
+      return TaskStatus.done;
+    case "cancel-task":
+      return TaskStatus.canceled;
+    case "reopen-task":
+      return TaskStatus.todo;
+    default:
+      throw new Error(`Unsupported Task status action: ${tool}`);
+  }
+};
+
+const getStatusActionEventType = (tool: string) => {
+  switch (tool) {
+    case "complete-task":
+      return "task.completed";
+    case "cancel-task":
+      return "task.canceled";
+    case "reopen-task":
+      return "task.reopened";
+    default:
+      throw new Error(`Unsupported Task status action: ${tool}`);
+  }
+};
 
 const resolveTask = (db: ChurchWorkDb, body: Record<string, unknown>) =>
   Effect.tryPromise({
@@ -420,6 +446,27 @@ const runTaskTool = (
         });
       }
       case "list-tasks": {
+        const surface = typeof body.surface === "string" ? body.surface : undefined;
+        const assignedUserId =
+          typeof body.assignedUserId === "string" || body.assignedUserId === null
+            ? body.assignedUserId
+            : undefined;
+        const cycleId =
+          typeof body.cycleId === "string" || body.cycleId === null ? body.cycleId : undefined;
+        let assignedUserFilter: SQL | undefined;
+        if (assignedUserId === null) {
+          assignedUserFilter = isNull(tasks.assigned_user_id);
+        } else if (typeof assignedUserId === "string") {
+          assignedUserFilter = eq(tasks.assigned_user_id, assignedUserId);
+        } else if (surface === "my_work") {
+          assignedUserFilter = eq(tasks.assigned_user_id, session.user.id);
+        }
+        let cycleFilter: SQL | undefined;
+        if (cycleId === null) {
+          cycleFilter = isNull(tasks.cycle_id);
+        } else if (typeof cycleId === "string") {
+          cycleFilter = eq(tasks.cycle_id, cycleId);
+        }
         const priorityValues = Array.isArray(body.priority)
           ? body.priority.filter(
               (value): value is string | null => value === null || typeof value === "string",
@@ -441,6 +488,15 @@ const runTaskTool = (
                 and(
                   eq(tasks.church_id, churchId),
                   isNull(tasks.deleted_at),
+                  typeof body.teamId === "string" ? eq(tasks.team_id, body.teamId) : undefined,
+                  typeof body.workflowStatusId === "string"
+                    ? eq(tasks.workflow_status_id, body.workflowStatusId)
+                    : undefined,
+                  typeof body.taskState === "string"
+                    ? eq(tasks.task_state, body.taskState)
+                    : undefined,
+                  assignedUserFilter,
+                  cycleFilter,
                   priorityValues.length > 0
                     ? or(
                         priorityStrings.length > 0
@@ -574,20 +630,27 @@ const runTaskTool = (
             eventType = "task.status_moved";
           }
         } else {
-          const targetState =
-            tool === "complete-task"
-              ? TaskStatus.done
-              : tool === "cancel-task"
-                ? TaskStatus.canceled
-                : TaskStatus.todo;
+          const targetState = getStatusActionTargetState(tool);
+          const [targetStatus] = yield* Effect.promise(() =>
+            services.db
+              .select()
+              .from(workflow_statuses)
+              .where(
+                and(
+                  eq(workflow_statuses.church_id, churchId),
+                  eq(workflow_statuses.workflow_id, existing.workflow_id),
+                  eq(workflow_statuses.task_state, targetState),
+                  isNull(workflow_statuses.deleted_at),
+                ),
+              )
+              .orderBy(asc(workflow_statuses.sort_order))
+              .limit(1),
+          );
+          if (!targetStatus) throw new Error(`Workflow Status for ${targetState} not found.`);
           patch.task_state = targetState;
+          patch.workflow_status_id = targetStatus.id;
           patch.finished_at = targetState === TaskStatus.todo ? null : new Date();
-          eventType =
-            tool === "complete-task"
-              ? "task.completed"
-              : tool === "cancel-task"
-                ? "task.canceled"
-                : "task.reopened";
+          eventType = getStatusActionEventType(tool);
         }
 
         const [updated] = yield* Effect.promise(() =>
