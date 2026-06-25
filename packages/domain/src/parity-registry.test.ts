@@ -88,7 +88,7 @@ describe("Agent Operation parity registry", () => {
       ]),
     );
     expect(appAdministrationOperations).toEqual(
-      appAdministrationOperations.map((operation) =>
+      appAdministrationOperations.map(() =>
         expect.objectContaining({
           authorization: "App Administrator",
           context: {
