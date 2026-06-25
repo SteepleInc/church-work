@@ -223,6 +223,9 @@ describe("Agent Operation parity registry", () => {
     expect(generateAgentParityReport()).toContain(
       "| Template | Restore Template | write | covered | covered | generic-passthrough | authenticated, Active Church, Church Membership | Template deleted-item controls restore a Template through useTemplateSoftDeleteActions.restoreTemplate |",
     );
+    expect(generateAgentParityReport()).toContain(
+      "| Template | Duplicate Template | write | covered | covered | generic-passthrough | authenticated, Active Church, Church Membership | Template detail duplicates a Template through useDuplicateTemplateAction |",
+    );
   });
 
   test("escapes Markdown table delimiters in registry text", () => {
