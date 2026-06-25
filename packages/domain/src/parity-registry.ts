@@ -83,7 +83,7 @@ const UI_ONLY_LABEL_SURFACES = {
   },
 } as const satisfies AgentOperationRegistryEntry["surfaces"];
 
-const uiOnlyOnboardingAgentSurfaces = (): AgentOperationRegistryEntry["surfaces"] => ({
+const UI_ONLY_ONBOARDING_SURFACES = {
   cli: {
     notes: "Onboarding setup is intentionally browser-led.",
     status: "intentionally-ui-only",
@@ -97,7 +97,7 @@ const uiOnlyOnboardingAgentSurfaces = (): AgentOperationRegistryEntry["surfaces"
       "Inspected Onboarding route, onboarding step resolver, onboarding Team review, Starter Key Dates review, and Better Auth onboarding endpoints.",
     status: "covered",
   },
-});
+} as const satisfies AgentOperationRegistryEntry["surfaces"];
 
 const coveredTaskOperation = (
   entry: Pick<
@@ -261,7 +261,7 @@ export const AGENT_OPERATION_REGISTRY = [
     operation: "Create Church Profile",
     outputContract:
       "created Church with completedOnboarding=false selected as the session Active Church",
-    surfaces: uiOnlyOnboardingAgentSurfaces(),
+    surfaces: UI_ONLY_ONBOARDING_SURFACES,
     uiBehavior:
       "Church profile onboarding step creates a Better Auth organization, persists completedOnboarding=false, selects it as Active Church, and advances from live Active Church state",
   },
@@ -290,7 +290,7 @@ export const AGENT_OPERATION_REGISTRY = [
     outputContract: "Starter Key Dates listed with next occurrences and optionally soft-deleted",
     surfaces: {
       cli: {
-        command: "church-work mcp call key-date-list/key-date-delete",
+        command: "church-work mcp call key-date-list; church-work mcp call key-date-delete",
         notes:
           "Starter Key Dates are available through generic CLI MCP passthrough using Key Date list and delete tools; no onboarding-specific named command yet.",
         status: "generic-passthrough",
@@ -315,7 +315,7 @@ export const AGENT_OPERATION_REGISTRY = [
     operation: "Complete Onboarding",
     outputContract:
       "Church marked completedOnboarding=true and Active Church guard can enter Church Work",
-    surfaces: uiOnlyOnboardingAgentSurfaces(),
+    surfaces: UI_ONLY_ONBOARDING_SURFACES,
     uiBehavior:
       "Finished onboarding step calls Better Auth completeOnboarding, refetches the session, and relies on redirectIfOnboarded once the Active Church reflects Completed Onboarding",
   },
@@ -1165,8 +1165,7 @@ const reportSurfaceStatus = (
   surfaceName: keyof AgentOperationRegistryEntry["surfaces"],
 ) => {
   const surface = entry.surfaces[surfaceName];
-  const explicitStatus = "status" in surface ? surface.status : undefined;
-  if (explicitStatus) return explicitStatus;
+  if (surface.status) return surface.status;
   if (surface.tool) return "covered";
   if (surface.command?.startsWith("church-work mcp call")) return "generic-passthrough";
   if (surface.command) return "covered";

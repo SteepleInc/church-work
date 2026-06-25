@@ -693,7 +693,7 @@ describe("Agent Operation parity registry", () => {
         ui: expect.objectContaining({ status: "covered" }),
         mcp: { status: "covered", tool: "key-date-list/key-date-delete" },
         cli: {
-          command: "church-work mcp call key-date-list/key-date-delete",
+          command: "church-work mcp call key-date-list; church-work mcp call key-date-delete",
           status: "generic-passthrough",
         },
       },
