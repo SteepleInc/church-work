@@ -3,7 +3,11 @@ import { motion, useInView } from "motion/react";
 import type { ReactNode } from "react";
 import { createContext, useContext, useRef } from "react";
 
-import mainLogo from "@/assets/main-logo.svg";
+import {
+  CHURCH_WORK_WORDMARK_PATH_COUNT,
+  ChurchWorkLogoMark,
+  ChurchWorkWordmarkSvg,
+} from "@/components/church-work-logo";
 import UserMenu from "@/components/user-menu";
 import { authClient } from "@/lib/auth-client";
 
@@ -34,14 +38,12 @@ export const BACK_OUT = [0.34, 1.56, 0.64, 1] as const;
 
 const HEADER_TIMING = {
   logo: { delay: 0, duration: 0.5 },
-  // Wordmark animates letter by letter; the last letter starts at
-  // wordmark.delay + (letters - 1) * wordmark.stagger.
+  // Wordmark animates SVG path by SVG path; the last path starts at
+  // wordmark.delay + (paths - 1) * wordmark.stagger.
   wordmark: { delay: 0.5, stagger: 0.06, duration: 0.6 },
   nav: { delay: 1.0, stagger: 0.08, duration: 0.5 },
   button: { delay: 1.3, duration: 0.5 },
 } as const;
-
-const WORDMARK = "Church Work";
 
 type NavKey = "home" | "how" | "product" | "pricing";
 
@@ -61,7 +63,7 @@ const NAV_LINKS: ReadonlyArray<{
 export const HEADER_SETTLE = Math.max(
   HEADER_TIMING.logo.delay + HEADER_TIMING.logo.duration,
   HEADER_TIMING.wordmark.delay +
-    (WORDMARK.length - 1) * HEADER_TIMING.wordmark.stagger +
+    (CHURCH_WORK_WORDMARK_PATH_COUNT - 1) * HEADER_TIMING.wordmark.stagger +
     HEADER_TIMING.wordmark.duration,
   HEADER_TIMING.nav.delay +
     (NAV_LINKS.length - 1) * HEADER_TIMING.nav.stagger +
@@ -207,36 +209,23 @@ function Header() {
     <header className="mx-auto flex max-w-[1400px] items-center justify-between px-6 pt-6 md:px-10 md:pt-8">
       {/* Logo group */}
       <Link className="flex items-center" style={{ gap: "9.23px" }} to="/">
-        <motion.img
-          alt="Church Work"
+        <motion.div
+          aria-hidden="true"
           animate={{ scale: 1 }}
-          height={38}
+          className="size-[38px] shrink-0"
           initial={{ scale: 0 }}
-          src={mainLogo}
           transition={{ duration: HEADER_TIMING.logo.duration, ease: BACK_OUT }}
-          width={38}
-        />
-        <span
-          aria-label={WORDMARK}
-          className="flex font-semibold text-[28px] text-black leading-none"
         >
-          {WORDMARK.split("").map((letter, i) => (
-            <span className="inline-block overflow-hidden" key={i}>
-              <motion.span
-                animate={{ opacity: 1, y: "0%" }}
-                className="inline-block"
-                initial={{ opacity: 0, y: "110%" }}
-                transition={{
-                  delay: HEADER_TIMING.wordmark.delay + i * HEADER_TIMING.wordmark.stagger,
-                  duration: HEADER_TIMING.wordmark.duration,
-                  ease: RISE_EASE,
-                }}
-              >
-                {letter === " " ? "\u00A0" : letter}
-              </motion.span>
-            </span>
-          ))}
-        </span>
+          <ChurchWorkLogoMark className="size-full" />
+        </motion.div>
+        <ChurchWorkWordmarkSvg
+          animated
+          className="h-[24px] w-[168px] overflow-visible"
+          pathDelay={HEADER_TIMING.wordmark.delay}
+          pathDuration={HEADER_TIMING.wordmark.duration}
+          pathEase={[...RISE_EASE]}
+          pathStagger={HEADER_TIMING.wordmark.stagger}
+        />
       </Link>
 
       {/* Center nav */}

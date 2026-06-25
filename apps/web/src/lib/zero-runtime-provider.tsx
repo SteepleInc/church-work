@@ -3,7 +3,7 @@
 import { env } from "@church-work/env/web";
 import { mutators, schema, type OptionalZeroSessionContext } from "@church-work/zero";
 import { ZeroProvider } from "@rocicorp/zero/react";
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 
 import { authClient } from "@/lib/auth-client";
 
@@ -46,27 +46,42 @@ export function ZeroRuntimeProvider(props: { readonly children: React.ReactNode 
 
   const activeChurchId = session?.activeOrganizationId ?? null;
   const sessionId = session?.id ?? data?.session?.id;
-  const nextContext: OptionalZeroSessionContext =
-    !data?.user || !data.session || !userId || !sessionId
-      ? null
-      : {
-          authenticated: true,
-          active_church_id: activeChurchId,
-          church_role: session?.orgRole ?? null,
-          is_app_admin: session?.userRole === "admin",
-          runtime: "client",
-          session_id: sessionId,
-          user_id: data.user.id,
-        };
+  const churchRole = session?.orgRole ?? null;
+  const isAppAdmin = session?.userRole === "admin";
+  const hasSession = Boolean(data?.user && data.session && userId && sessionId);
+
+  // Build a context with a stable identity: ZeroProvider reconstructs its
+  // client when any prop's reference changes, so a fresh object every render
+  // would thrash the client. Memoize on the primitive fields instead.
+  const nextContext = useMemo<OptionalZeroSessionContext>(
+    () =>
+      !hasSession || !userId || !sessionId
+        ? null
+        : {
+            authenticated: true,
+            active_church_id: activeChurchId,
+            church_role: churchRole,
+            is_app_admin: isAppAdmin,
+            runtime: "client",
+            session_id: sessionId,
+            user_id: userId,
+          },
+    [hasSession, userId, sessionId, activeChurchId, churchRole, isAppAdmin],
+  );
   if (nextContext) lastAuthenticatedContext.current = nextContext;
   const context = sessionPending ? lastAuthenticatedContext.current : nextContext;
 
+  const cacheURL = useMemo(() => getZeroCacheUrl(), []);
+
   return (
     <ZeroProvider
-      cacheURL={getZeroCacheUrl()}
+      cacheURL={cacheURL}
       context={context}
-      // ZeroProvider creates the client from initial props; remount when auth context changes.
-      key={`${userId ?? "anonymous"}:${sessionId ?? "anonymous"}:${activeChurchId ?? "none"}`}
+      // No external key: ZeroProvider rebuilds its client internally when
+      // userID changes and updates context/auth on the existing instance
+      // otherwise. Keying on the session would unmount the whole subtree on
+      // every auth resolution, replaying header animations and dropping Zero's
+      // synced state.
       mutators={mutators}
       schema={schema}
       userID={userId}

@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { motion } from "motion/react";
 
+import { ChurchWorkLogoMark, ChurchWorkWordmark } from "@/components/church-work-logo";
 import { Button } from "@/components/ui/button";
 import UserMenu from "@/components/user-menu";
 import { authClient } from "@/lib/auth-client";
@@ -11,10 +12,9 @@ export const MarketingNavigation = () => {
 
   return (
     <>
-      <Link to="/">
-        <span className="block h-10 w-auto font-medium font-serif text-3xl text-white leading-10">
-          Church Work
-        </span>
+      <Link aria-label="Church Work" className="flex items-center gap-2.5" to="/">
+        <ChurchWorkLogoMark className="size-10 shrink-0" />
+        <ChurchWorkWordmark className="block h-10 w-auto text-3xl leading-10 [&>span:first-child]:text-white [&>span:last-child]:text-[#F97316]" />
       </Link>
 
       <div className="flax ml-auto flex items-center gap-4">
