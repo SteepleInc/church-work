@@ -948,7 +948,7 @@ describe("tracer API", () => {
         },
       });
 
-      await expect(authRuntime.db.select().from(tasks)).resolves.toHaveLength(2);
+      await expect(authRuntime.db.select().from(tasks)).resolves.toHaveLength(3);
       await expect(authRuntime.db.select().from(templates)).resolves.toHaveLength(1);
       await expect(authRuntime.db.select().from(template_schedules)).resolves.toHaveLength(1);
       await expect(authRuntime.db.select().from(template_tasks)).resolves.toHaveLength(1);
