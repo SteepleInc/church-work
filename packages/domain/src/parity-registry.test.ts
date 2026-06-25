@@ -139,6 +139,92 @@ describe("Agent Operation parity registry", () => {
     );
   });
 
+  test("reports UI-led Template Library lifecycle parity across MCP and CLI", () => {
+    expect(AGENT_OPERATION_REGISTRY).toEqual(
+      expect.arrayContaining(
+        [
+          [
+            "template.list",
+            "List Templates",
+            "template-list",
+            "church-work mcp call template-list",
+            "read",
+          ],
+          [
+            "template.get",
+            "Get Template",
+            "template-get",
+            "church-work mcp call template-get",
+            "read",
+          ],
+          [
+            "template.create.weekly-service",
+            "Create Weekly Service Template",
+            "template-create-weekly-service",
+            "church-work template create-weekly-service",
+            "write",
+          ],
+          [
+            "template.update",
+            "Update Template",
+            "template-update",
+            "church-work mcp call template-update",
+            "write",
+          ],
+          [
+            "template.delete",
+            "Delete Template",
+            "template-delete",
+            "church-work mcp call template-delete",
+            "write",
+          ],
+          [
+            "template.restore",
+            "Restore Template",
+            "template-restore",
+            "church-work mcp call template-restore",
+            "write",
+          ],
+          [
+            "template.duplicate",
+            "Duplicate Template",
+            "template-duplicate",
+            "church-work mcp call template-duplicate",
+            "write",
+          ],
+        ].map(([id, operation, tool, command, kind]) =>
+          expect.objectContaining({
+            id,
+            authorization: "Church Membership",
+            context: {
+              requiresActiveChurch: true,
+              requiresChurchMembership: true,
+              session: "authenticated",
+            },
+            domainArea: "Template",
+            kind,
+            operation,
+            surfaces: {
+              ui: expect.objectContaining({ status: "covered" }),
+              mcp: { status: "covered", tool },
+              cli:
+                command === "church-work template create-weekly-service"
+                  ? { command, status: "covered" }
+                  : expect.objectContaining({ command, status: "generic-passthrough" }),
+            },
+          }),
+        ),
+      ),
+    );
+
+    expect(generateAgentParityReport()).toContain(
+      "| Template | Delete Template | write | covered | covered | generic-passthrough | authenticated, Active Church, Church Membership | Template Library and Template detail soft-delete a Template through useTemplateSoftDeleteActions.deleteTemplate |",
+    );
+    expect(generateAgentParityReport()).toContain(
+      "| Template | Restore Template | write | covered | covered | generic-passthrough | authenticated, Active Church, Church Membership | Template deleted-item controls restore a Template through useTemplateSoftDeleteActions.restoreTemplate |",
+    );
+  });
+
   test("escapes Markdown table delimiters in registry text", () => {
     expect(
       generateAgentParityReport([

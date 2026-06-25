@@ -89,6 +89,42 @@ const coveredTaskOperation = (
   uiBehavior: entry.uiBehavior,
 });
 
+const templateCliSurface = (command: string): AgentParitySurfaceCoverage =>
+  command === "church-work template create-weekly-service"
+    ? { command, status: "covered" }
+    : {
+        command,
+        notes:
+          "Available through the generic CLI MCP passthrough; no named Template lifecycle command yet.",
+        status: "generic-passthrough",
+      };
+
+const coveredTemplateOperation = (
+  entry: Pick<
+    AgentOperationRegistryEntry,
+    "id" | "inputContract" | "kind" | "operation" | "outputContract" | "uiBehavior"
+  > & { readonly command: string; readonly tool: string },
+): AgentOperationRegistryEntry => ({
+  authorization: "Church Membership",
+  context: ACTIVE_CHURCH_MEMBERSHIP_CONTEXT,
+  domainArea: "Template",
+  id: entry.id,
+  inputContract: entry.inputContract,
+  kind: entry.kind,
+  operation: entry.operation,
+  outputContract: entry.outputContract,
+  surfaces: {
+    cli: templateCliSurface(entry.command),
+    mcp: { status: "covered", tool: entry.tool },
+    ui: {
+      notes:
+        "Inspected Template Library, Template detail, template-soft-delete, and templatesData.app Zero mutation seams.",
+      status: "covered",
+    },
+  },
+  uiBehavior: entry.uiBehavior,
+});
+
 export const AGENT_OPERATION_REGISTRY = [
   {
     authorization: "Authenticated User",
@@ -328,6 +364,84 @@ export const AGENT_OPERATION_REGISTRY = [
       "Task moved back to todo Task State with matching Workflow Status and no finished timestamp",
     tool: "reopen-task",
     uiBehavior: "Task status controls can reopen finished or canceled Tasks into active work",
+  }),
+  coveredTemplateOperation({
+    command: "church-work mcp call template-list",
+    id: "template.list",
+    inputContract: "churchId",
+    kind: "read",
+    operation: "List Templates",
+    outputContract: "active Template rows for the Active Church",
+    tool: "template-list",
+    uiBehavior: "Template Library lists non-deleted Templates through useTemplatesCollection",
+  }),
+  coveredTemplateOperation({
+    command: "church-work mcp call template-get",
+    id: "template.get",
+    inputContract: "churchId and templateId",
+    kind: "read",
+    operation: "Get Template",
+    outputContract: "Template with active Template Tasks and Template Schedules",
+    tool: "template-get",
+    uiBehavior:
+      "Template detail opens a selected Template with its Template Tasks and Template Schedules",
+  }),
+  coveredTemplateOperation({
+    command: "church-work template create-weekly-service",
+    id: "template.create.weekly-service",
+    inputContract:
+      "churchId, Template name/key/description, service weekday, start date, Template Teams, Template Tasks, and optional Template Schedule",
+    kind: "write",
+    operation: "Create Weekly Service Template",
+    outputContract:
+      "created weekly-service Template plus optional Template Schedule, Template Teams, and Template Tasks",
+    tool: "template-create-weekly-service",
+    uiBehavior:
+      "Template creation flow creates weekly-service Templates through mutators.templates.create",
+  }),
+  coveredTemplateOperation({
+    command: "church-work mcp call template-update",
+    id: "template.update",
+    inputContract:
+      "churchId, templateId, and editable Template fields such as name, recurrence, and placement shape",
+    kind: "write",
+    operation: "Update Template",
+    outputContract: "updated Template row",
+    tool: "template-update",
+    uiBehavior: "Template detail persists Template field changes through Template update actions",
+  }),
+  coveredTemplateOperation({
+    command: "church-work mcp call template-delete",
+    id: "template.delete",
+    inputContract: "churchId and templateId",
+    kind: "write",
+    operation: "Delete Template",
+    outputContract: "soft-deleted Template with deleted_at/deleted_by audit fields",
+    tool: "template-delete",
+    uiBehavior:
+      "Template Library and Template detail soft-delete a Template through useTemplateSoftDeleteActions.deleteTemplate",
+  }),
+  coveredTemplateOperation({
+    command: "church-work mcp call template-restore",
+    id: "template.restore",
+    inputContract: "churchId and templateId",
+    kind: "write",
+    operation: "Restore Template",
+    outputContract: "restored Template with deletion audit fields cleared",
+    tool: "template-restore",
+    uiBehavior:
+      "Template deleted-item controls restore a Template through useTemplateSoftDeleteActions.restoreTemplate",
+  }),
+  coveredTemplateOperation({
+    command: "church-work mcp call template-duplicate",
+    id: "template.duplicate",
+    inputContract: "churchId, templateId, and optional duplicate name",
+    kind: "write",
+    operation: "Duplicate Template",
+    outputContract:
+      "new Template copy with copied Template Teams, Template Tasks, and Template Schedules",
+    tool: "template-duplicate",
+    uiBehavior: "Template detail duplicates a Template through useDuplicateTemplateAction",
   }),
 ] as const satisfies ReadonlyArray<AgentOperationRegistryEntry>;
 

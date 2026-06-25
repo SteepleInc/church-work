@@ -425,6 +425,36 @@ describe("church-work task execution", () => {
       ],
       { backendLayer, env },
     );
+    await runCli(
+      [
+        "mcp",
+        "call",
+        "template-delete",
+        "--json",
+        JSON.stringify({ churchId: "church_123", templateId: "template_123" }),
+      ],
+      { backendLayer, env },
+    );
+    await runCli(
+      [
+        "mcp",
+        "call",
+        "template-restore",
+        "--json",
+        JSON.stringify({ churchId: "church_123", templateId: "template_123" }),
+      ],
+      { backendLayer, env },
+    );
+    await runCli(
+      [
+        "mcp",
+        "call",
+        "template-duplicate",
+        "--json",
+        JSON.stringify({ churchId: "church_123", templateId: "template_123" }),
+      ],
+      { backendLayer, env },
+    );
 
     expect(requests).toEqual([
       {
@@ -454,6 +484,21 @@ describe("church-work task execution", () => {
         token: "env-token",
         tool: "template-schedule-create",
         body: { churchId: "church_123", templateId: "template_123", kind: "monthly" },
+      },
+      {
+        token: "env-token",
+        tool: "template-delete",
+        body: { churchId: "church_123", templateId: "template_123" },
+      },
+      {
+        token: "env-token",
+        tool: "template-restore",
+        body: { churchId: "church_123", templateId: "template_123" },
+      },
+      {
+        token: "env-token",
+        tool: "template-duplicate",
+        body: { churchId: "church_123", templateId: "template_123" },
       },
     ]);
   });
