@@ -347,6 +347,48 @@ describe("Agent Operation parity registry", () => {
     );
   });
 
+  test("reports UI-led Notification Inbox behavior with recipient-scoped agent gaps", () => {
+    const byId = new Map(AGENT_OPERATION_REGISTRY.map((entry) => [entry.id, entry]));
+
+    for (const [id, operation] of [
+      ["notification.mark-read", "Mark Notification Read"],
+      ["notification.mark-unread", "Mark Notification Unread"],
+      ["notification.mark-all-read", "Mark All Notifications Read"],
+      ["notification.delete", "Delete Notification"],
+      ["notification.delete-read", "Delete Read Notifications"],
+      ["notification.snooze", "Snooze Notification"],
+    ]) {
+      expect(byId.get(id)).toMatchObject({
+        id,
+        domainArea: "Notification Inbox",
+        operation,
+        kind: "write",
+        context: {
+          requiresActiveChurch: true,
+          requiresChurchMembership: true,
+          session: "authenticated",
+        },
+        authorization: "Church Membership recipient",
+        surfaces: {
+          ui: { status: "covered" },
+          mcp: { status: "missing" },
+          cli: { status: "missing" },
+        },
+      });
+    }
+
+    expect(byId.get("notification.snooze")?.inputContract).toContain("future snoozedUntil");
+    expect(byId.get("notification.mark-read")?.outputContract).toContain(
+      "structured authentication or Active Church access error",
+    );
+    expect(byId.get("notification.delete-read")?.uiBehavior).toContain(
+      "bulk Delete read confirmation",
+    );
+    expect(generateAgentParityReport()).toContain(
+      "| Notification Inbox | Snooze Notification | write | covered | missing | missing | authenticated, Active Church, Church Membership | Church Membership recipient | Inbox notification row Snooze menu hides the current recipient's notification until a future preset time and invalid or past snooze inputs are rejected/no-op by the Zero mutator |",
+    );
+  });
+
   test("reports UI-led Template Library lifecycle parity across MCP and CLI", () => {
     const templateOperations = [
       {

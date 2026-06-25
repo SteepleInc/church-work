@@ -40,6 +40,7 @@ const TEAM_MANAGEMENT_AUTHORIZATION = "Church owner, Church admin, or App Admini
 const CHURCH_MEMBERSHIP_AUTHORIZATION = "Church Membership";
 const TASK_COMMENT_MODERATION_AUTHORIZATION =
   "Task Comment author, Church owner, Church admin, or App Administrator";
+const NOTIFICATION_RECIPIENT_AUTHORIZATION = "Church Membership recipient";
 
 const ACTIVE_CHURCH_MEMBERSHIP_CONTEXT = {
   requiresActiveChurch: true,
@@ -79,6 +80,16 @@ const UI_ONLY_LABEL_SURFACES = {
   ui: {
     notes:
       "Inspected SettingsLabelsPanel, labelsData.app Zero mutator hooks, and Zero Label mutator tests.",
+    status: "covered",
+  },
+} as const satisfies AgentOperationRegistryEntry["surfaces"];
+
+const UI_ONLY_NOTIFICATION_SURFACES = {
+  cli: missingNamedAgentSurface,
+  mcp: missingFocusedAgentSurface,
+  ui: {
+    notes:
+      "Inspected InboxPage, notificationsData.app Zero mutation hooks, Inbox e2e coverage, and Zero Notification mutator tests.",
     status: "covered",
   },
 } as const satisfies AgentOperationRegistryEntry["surfaces"];
@@ -128,6 +139,20 @@ const uiOnlyTaskCommentOperation = (
 ): AgentOperationRegistryEntry => ({
   context: ACTIVE_CHURCH_MEMBERSHIP_CONTEXT,
   surfaces: UI_ONLY_COMMENT_SURFACES,
+  ...entry,
+});
+
+const uiOnlyNotificationOperation = (
+  entry: Pick<
+    AgentOperationRegistryEntry,
+    "id" | "inputContract" | "operation" | "outputContract" | "uiBehavior"
+  >,
+): AgentOperationRegistryEntry => ({
+  authorization: NOTIFICATION_RECIPIENT_AUTHORIZATION,
+  context: ACTIVE_CHURCH_MEMBERSHIP_CONTEXT,
+  domainArea: "Notification Inbox",
+  kind: "write",
+  surfaces: UI_ONLY_NOTIFICATION_SURFACES,
   ...entry,
 });
 
@@ -750,6 +775,61 @@ export const AGENT_OPERATION_REGISTRY = [
     uiBehavior:
       "Task Details Pane shows reverse-chronological Task Activity rows for task lifecycle, field, label, and comment events; other UI Activity entity types are queryable for agent history, but non-task entity events are not rendered by describeActivity yet",
   },
+  uiOnlyNotificationOperation({
+    id: "notification.mark-read",
+    inputContract: "churchId and notificationId for a non-deleted current-recipient Notification",
+    operation: "Mark Notification Read",
+    outputContract:
+      "current recipient's Notification read_at/read_by set, or structured authentication or Active Church access error for unauthorized Church context",
+    uiBehavior:
+      "Opening an Inbox notification or pressing Mark notification read marks only the current recipient's non-deleted Notification as read",
+  }),
+  uiOnlyNotificationOperation({
+    id: "notification.mark-unread",
+    inputContract: "churchId and notificationId for a non-deleted current-recipient Notification",
+    operation: "Mark Notification Unread",
+    outputContract:
+      "current recipient's Notification read_at/read_by cleared, or structured authentication or Active Church access error for unauthorized Church context",
+    uiBehavior:
+      "Inbox notification row Mark notification unread returns only the current recipient's Notification to unread",
+  }),
+  uiOnlyNotificationOperation({
+    id: "notification.mark-all-read",
+    inputContract: "churchId for the Active Church Notification Inbox",
+    operation: "Mark All Notifications Read",
+    outputContract:
+      "all unread, non-deleted Notifications for the current recipient in the Active Church marked read, or structured authentication or Active Church access error",
+    uiBehavior:
+      "Inbox Mark all read action marks the current recipient's unread Notifications read and leaves other recipients' Notifications untouched",
+  }),
+  uiOnlyNotificationOperation({
+    id: "notification.delete",
+    inputContract: "churchId and notificationId for a non-deleted current-recipient Notification",
+    operation: "Delete Notification",
+    outputContract:
+      "current recipient's Notification soft-deleted, or structured authentication or Active Church access error for unauthorized Church context",
+    uiBehavior:
+      "Inbox notification row Delete action soft-deletes only the current recipient's Notification",
+  }),
+  uiOnlyNotificationOperation({
+    id: "notification.delete-read",
+    inputContract: "churchId for the Active Church Notification Inbox",
+    operation: "Delete Read Notifications",
+    outputContract:
+      "read, non-deleted Notifications for the current recipient in the Active Church soft-deleted, or structured authentication or Active Church access error",
+    uiBehavior:
+      "Inbox bulk Delete read confirmation soft-deletes read Notifications for the current recipient only",
+  }),
+  uiOnlyNotificationOperation({
+    id: "notification.snooze",
+    inputContract:
+      "churchId, notificationId for a non-deleted current-recipient Notification, and future snoozedUntil ISO timestamp",
+    operation: "Snooze Notification",
+    outputContract:
+      "current recipient's Notification snoozed_until set to a future time, structured authentication or Active Church access error for unauthorized Church context, or no update for invalid/past snooze input",
+    uiBehavior:
+      "Inbox notification row Snooze menu hides the current recipient's notification until a future preset time and invalid or past snooze inputs are rejected/no-op by the Zero mutator",
+  }),
   coveredTemplateOperation({
     cliStatus: "generic-passthrough",
     command: "church-work mcp call template-list",

@@ -159,6 +159,58 @@ describe("Zero Cycle mutators", () => {
     expect(updateCalls[0]?.set.snoozed_until).toEqual(new Date("2999-01-01T09:00:00.000Z"));
   });
 
+  test("rejects unauthorized and invalid Notification Inbox actions without updating", async () => {
+    const updateCalls: Array<{ readonly table: unknown; readonly set: Record<string, unknown> }> =
+      [];
+    const tx = {
+      dbTransaction: {
+        wrappedTransaction: {
+          update: (table: unknown) => ({
+            set: (set: Record<string, unknown>) => ({
+              where: async () => updateCalls.push({ table, set }),
+            }),
+          }),
+        },
+      },
+      location: "server",
+    } as never;
+
+    await expect(
+      mustGetMutator(mutators, "notifications.mark_read").fn({
+        args: { church_id: "org_test", notification_id: "notification_test" },
+        ctx: { authenticated: false, runtime: "server" },
+        tx,
+      }),
+    ).rejects.toThrow("Authentication required.");
+    await expect(
+      mustGetMutator(mutators, "notifications.mark_unread").fn({
+        args: { church_id: "org_other", notification_id: "notification_test" },
+        ctx: signedInContext,
+        tx,
+      }),
+    ).rejects.toThrow("Active Church access required.");
+    await mustGetMutator(mutators, "notifications.snooze").fn({
+      args: {
+        church_id: "org_test",
+        notification_id: "notification_test",
+        snoozed_until: "not-a-date",
+      },
+      ctx: signedInContext,
+      tx,
+    });
+    await mustGetMutator(mutators, "notifications.snooze").fn({
+      args: {
+        church_id: "org_test",
+        notification_id: "notification_test",
+        snoozed_until: "2000-01-01T09:00:00.000Z",
+      },
+      ctx: signedInContext,
+      tx,
+    });
+
+    expect(updateCalls).toHaveLength(0);
+  });
+
   test("soft-deletes and restores Templates without hard delete", async () => {
     const updateCalls: Array<{ readonly table: unknown; readonly set: Record<string, unknown> }> =
       [];
