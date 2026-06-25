@@ -620,6 +620,89 @@ export const AGENT_OPERATION_REGISTRY = [
     uiBehavior:
       "Task Week field and Board/List controls update cycleId while preserving the Team-derived Task Identifier",
   }),
+  {
+    authorization: CHURCH_MEMBERSHIP_AUTHORIZATION,
+    context: ACTIVE_CHURCH_MEMBERSHIP_CONTEXT,
+    domainArea: "Week/Cycle",
+    id: "cycle.list",
+    inputContract: "churchId",
+    kind: "read",
+    operation: "List Weeks",
+    outputContract:
+      "active Week/Cycle rows with id, Monday-Sunday date range, custom name, description, and current/upcoming/completed planning metadata",
+    surfaces: {
+      cli: { command: "church-work lookup cycles", status: "covered" },
+      mcp: { status: "covered", tool: "list-cycles" },
+      ui: {
+        notes:
+          "Inspected cyclesData.app, Week picker options, TeamWeeksIndex, and WorkPage Week planning seams.",
+        status: "covered",
+      },
+    },
+    uiBehavior:
+      "Team Week board and Week picker list active persisted Weeks, classify them as current/upcoming/completed from today's date, show custom Cycle Name when present, and surface Cycle Description for planning details",
+  },
+  {
+    authorization: CHURCH_MEMBERSHIP_AUTHORIZATION,
+    context: ACTIVE_CHURCH_MEMBERSHIP_CONTEXT,
+    domainArea: "Week/Cycle",
+    id: "cycle.details.update",
+    inputContract: "churchId, cycleId, optional Week name, and optional Week description",
+    kind: "write",
+    operation: "Update Week Details",
+    outputContract: "updated Week/Cycle name and description",
+    surfaces: {
+      cli: missingNamedAgentSurface,
+      mcp: missingFocusedAgentSurface,
+      ui: {
+        notes: "Inspected useUpdateWeekDetailsMutation and Cycle detail planning controls.",
+        status: "covered",
+      },
+    },
+    uiBehavior:
+      "Week planning details can persist Cycle Name and Cycle Description through the UI Zero mutator; no focused MCP or named CLI seam exists yet",
+  },
+  {
+    authorization: CHURCH_MEMBERSHIP_AUTHORIZATION,
+    context: ACTIVE_CHURCH_MEMBERSHIP_CONTEXT,
+    domainArea: "Week Progress",
+    id: "week.progress.read",
+    inputContract: "churchId and cycleId",
+    kind: "read",
+    operation: "Read Week Progress",
+    outputContract:
+      "non-canceled Task total, completed Task count, and completed percentage for the selected Week",
+    surfaces: {
+      cli: missingNamedAgentSurface,
+      mcp: missingFocusedAgentSurface,
+      ui: {
+        notes: "Inspected useWeekProgress and Week Progress rendering seams.",
+        status: "covered",
+      },
+    },
+    uiBehavior:
+      "Week tooltip and Week Progress pane read non-canceled Task totals, completed counts, and completion percentage for a selected Week",
+  },
+  {
+    authorization: CHURCH_MEMBERSHIP_AUTHORIZATION,
+    context: ACTIVE_CHURCH_MEMBERSHIP_CONTEXT,
+    domainArea: "Week Breakdown",
+    id: "week.breakdown.read",
+    inputContract: "churchId, cycleId, and Team/Workflow Status breakdown filters",
+    kind: "read",
+    operation: "Read Week Breakdown",
+    outputContract: "Week planning breakdown rows grouped for the selected Team Week surface",
+    surfaces: {
+      cli: missingNamedAgentSurface,
+      mcp: missingFocusedAgentSurface,
+      ui: {
+        notes: "Inspected Team Week board/index planning read surfaces.",
+        status: "covered",
+      },
+    },
+    uiBehavior:
+      "Team Week board reads per-Week Task breakdowns from Zero queries for planning; no focused MCP or named CLI read exists yet beyond generic Task listing filters",
+  },
   coveredTaskOperation({
     command: "church-work task complete",
     id: "task.complete",
