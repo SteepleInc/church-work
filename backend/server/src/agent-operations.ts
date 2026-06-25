@@ -25,7 +25,7 @@ import {
   getTemplateTaskId,
   getTemplateTeamId,
 } from "@church-work/shared/get-ids";
-import { and, asc, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, or, type SQL } from "drizzle-orm";
 import { Effect } from "effect";
 
 import {
@@ -149,6 +149,32 @@ const recordTaskActivity = (
         updated_by: args.actorId,
       }),
   });
+
+const getStatusActionTargetState = (tool: string) => {
+  switch (tool) {
+    case "complete-task":
+      return TaskStatus.done;
+    case "cancel-task":
+      return TaskStatus.canceled;
+    case "reopen-task":
+      return TaskStatus.todo;
+    default:
+      throw new Error(`Unsupported Task status action: ${tool}`);
+  }
+};
+
+const getStatusActionEventType = (tool: string) => {
+  switch (tool) {
+    case "complete-task":
+      return "task.completed";
+    case "cancel-task":
+      return "task.canceled";
+    case "reopen-task":
+      return "task.reopened";
+    default:
+      throw new Error(`Unsupported Task status action: ${tool}`);
+  }
+};
 
 const resolveTask = (db: ChurchWorkDb, body: Record<string, unknown>) =>
   Effect.tryPromise({
@@ -427,6 +453,20 @@ const runTaskTool = (
             : undefined;
         const cycleId =
           typeof body.cycleId === "string" || body.cycleId === null ? body.cycleId : undefined;
+        let assignedUserFilter: SQL | undefined;
+        if (assignedUserId === null) {
+          assignedUserFilter = isNull(tasks.assigned_user_id);
+        } else if (typeof assignedUserId === "string") {
+          assignedUserFilter = eq(tasks.assigned_user_id, assignedUserId);
+        } else if (surface === "my_work") {
+          assignedUserFilter = eq(tasks.assigned_user_id, session.user.id);
+        }
+        let cycleFilter: SQL | undefined;
+        if (cycleId === null) {
+          cycleFilter = isNull(tasks.cycle_id);
+        } else if (typeof cycleId === "string") {
+          cycleFilter = eq(tasks.cycle_id, cycleId);
+        }
         const priorityValues = Array.isArray(body.priority)
           ? body.priority.filter(
               (value): value is string | null => value === null || typeof value === "string",
@@ -455,18 +495,8 @@ const runTaskTool = (
                   typeof body.taskState === "string"
                     ? eq(tasks.task_state, body.taskState)
                     : undefined,
-                  assignedUserId !== undefined
-                    ? assignedUserId === null
-                      ? isNull(tasks.assigned_user_id)
-                      : eq(tasks.assigned_user_id, assignedUserId)
-                    : surface === "my_work"
-                      ? eq(tasks.assigned_user_id, session.user.id)
-                      : undefined,
-                  cycleId !== undefined
-                    ? cycleId === null
-                      ? isNull(tasks.cycle_id)
-                      : eq(tasks.cycle_id, cycleId)
-                    : undefined,
+                  assignedUserFilter,
+                  cycleFilter,
                   priorityValues.length > 0
                     ? or(
                         priorityStrings.length > 0
@@ -600,12 +630,7 @@ const runTaskTool = (
             eventType = "task.status_moved";
           }
         } else {
-          const targetState =
-            tool === "complete-task"
-              ? TaskStatus.done
-              : tool === "cancel-task"
-                ? TaskStatus.canceled
-                : TaskStatus.todo;
+          const targetState = getStatusActionTargetState(tool);
           const [targetStatus] = yield* Effect.promise(() =>
             services.db
               .select()
@@ -625,12 +650,7 @@ const runTaskTool = (
           patch.task_state = targetState;
           patch.workflow_status_id = targetStatus.id;
           patch.finished_at = targetState === TaskStatus.todo ? null : new Date();
-          eventType =
-            tool === "complete-task"
-              ? "task.completed"
-              : tool === "cancel-task"
-                ? "task.canceled"
-                : "task.reopened";
+          eventType = getStatusActionEventType(tool);
         }
 
         const [updated] = yield* Effect.promise(() =>
