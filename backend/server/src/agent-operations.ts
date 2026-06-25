@@ -738,13 +738,21 @@ const runTaskTool = (
         const [updated] = yield* Effect.promise(() =>
           services.db.update(tasks).set(patch).where(eq(tasks.id, existing.id)).returning(),
         );
+        const updatedTask = updated ?? existing;
+        const [updatedTeam] = yield* Effect.promise(() =>
+          services.db
+            .select({ identifier: teams.identifier })
+            .from(teams)
+            .where(eq(teams.id, updatedTask.team_id))
+            .limit(1),
+        );
         yield* recordTaskActivity(services.db, {
           actorId: session.user.id,
           churchId,
           entityId: existing.id,
           eventType,
         });
-        return json({ ok: true, task: toTaskDto(updated ?? existing), tool });
+        return json({ ok: true, task: toTaskDto(updatedTask, updatedTeam), tool });
       }
       case "template-create-weekly-service": {
         const name = requireString(body, "name");
