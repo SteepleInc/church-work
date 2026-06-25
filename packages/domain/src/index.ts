@@ -25,6 +25,17 @@ export const TEAM_COLORS = [
 
 export type TeamColor = (typeof TEAM_COLORS)[number];
 
+export {
+  AGENT_OPERATION_REGISTRY,
+  AGENT_PARITY_COVERAGE_STATUSES,
+  generateAgentParityReport,
+} from "./parity-registry";
+export type {
+  AgentOperationRegistryEntry,
+  AgentParityCoverageStatus,
+  AgentParitySurfaceCoverage,
+} from "./parity-registry";
+
 export const LABEL_COLORS = TEAM_COLORS;
 
 export type LabelColor = (typeof LABEL_COLORS)[number];

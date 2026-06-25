@@ -204,6 +204,7 @@
         "@church-work/config": "workspace:*",
         "@types/node": "catalog:",
         "typescript": "catalog:",
+        "vitest": "catalog:",
       },
     },
     "packages/env": {
