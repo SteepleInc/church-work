@@ -361,6 +361,31 @@ const parseJsonText = (value: string | null | undefined, fallback: unknown) => {
   }
 };
 
+type CycleAdjustmentOverrideInput = {
+  readonly field: string;
+  readonly value: unknown;
+};
+
+const cycleAdjustmentOverrides = (value: unknown): readonly CycleAdjustmentOverrideInput[] =>
+  Array.isArray(value)
+    ? value.filter(
+        (override): override is CycleAdjustmentOverrideInput =>
+          Boolean(override) &&
+          typeof override === "object" &&
+          typeof (override as { readonly field?: unknown }).field === "string",
+      )
+    : [];
+
+const mergeCycleAdjustmentOverrides = (
+  existingOverrides: readonly CycleAdjustmentOverrideInput[],
+  incomingOverrides: readonly CycleAdjustmentOverrideInput[],
+) => {
+  const overridesByField = new Map<string, CycleAdjustmentOverrideInput>();
+  for (const override of existingOverrides) overridesByField.set(override.field, override);
+  for (const override of incomingOverrides) overridesByField.set(override.field, override);
+  return [...overridesByField.values()];
+};
+
 const maybeString = (body: Record<string, unknown>, key: string) =>
   typeof body[key] === "string" ? body[key] : undefined;
 
@@ -1303,40 +1328,67 @@ const runTaskTool = (
       }
       case "projected-template-task-adjust": {
         const now = new Date();
-        const id = getCycleAdjustmentId();
-        yield* Effect.promise(() =>
+        const cycleId = requireString(body, "cycleId");
+        const occurrenceKey = requireString(body, "occurrenceKey");
+        const templateScheduleId = requireString(body, "templateScheduleId");
+        const templateTaskId = requireString(body, "templateTaskId");
+        const [existing] = yield* Effect.promise(() =>
           services.db
-            .insert(cycle_adjustments)
-            .values({
+            .select({ id: cycle_adjustments.id, overrides: cycle_adjustments.overrides })
+            .from(cycle_adjustments)
+            .where(
+              and(
+                eq(cycle_adjustments.church_id, churchId),
+                eq(cycle_adjustments.cycle_id, cycleId),
+                eq(cycle_adjustments.source_template_schedule_id, templateScheduleId),
+                eq(cycle_adjustments.template_task_id, templateTaskId),
+                eq(cycle_adjustments.source_template_occurrence_key, occurrenceKey),
+                isNull(cycle_adjustments.deleted_at),
+              ),
+            )
+            .limit(1),
+        );
+        const overrides = JSON.stringify(
+          mergeCycleAdjustmentOverrides(
+            cycleAdjustmentOverrides(parseJsonText(existing?.overrides, [])),
+            cycleAdjustmentOverrides(body.overrides),
+          ),
+        );
+        const lifecycle = maybeString(body, "lifecycle") ?? "active";
+        const id = existing?.id ?? getCycleAdjustmentId();
+        if (existing) {
+          yield* Effect.promise(() =>
+            services.db
+              .update(cycle_adjustments)
+              .set({ lifecycle, overrides, updated_at: now, updated_by: session.user.id })
+              .where(eq(cycle_adjustments.id, existing.id)),
+          );
+        } else {
+          yield* Effect.promise(() =>
+            services.db.insert(cycle_adjustments).values({
               _tag: "cycleadjustment",
               church_id: churchId,
               created_at: now,
               created_by: session.user.id,
-              cycle_id: requireString(body, "cycleId"),
+              cycle_id: cycleId,
               id,
-              lifecycle: maybeString(body, "lifecycle") ?? "active",
-              overrides: JSON.stringify(body.overrides ?? []),
-              source_template_occurrence_key: requireString(body, "occurrenceKey"),
-              source_template_schedule_id: requireString(body, "templateScheduleId"),
-              template_task_id: requireString(body, "templateTaskId"),
+              lifecycle,
+              overrides,
+              source_template_occurrence_key: occurrenceKey,
+              source_template_schedule_id: templateScheduleId,
+              template_task_id: templateTaskId,
               updated_at: now,
               updated_by: session.user.id,
-            })
-            .onConflictDoUpdate({
-              target: [
-                cycle_adjustments.cycle_id,
-                cycle_adjustments.source_template_schedule_id,
-                cycle_adjustments.template_task_id,
-                cycle_adjustments.source_template_occurrence_key,
-              ],
-              set: {
-                lifecycle: maybeString(body, "lifecycle") ?? "active",
-                overrides: JSON.stringify(body.overrides ?? []),
-                updated_at: now,
-                updated_by: session.user.id,
-              },
             }),
-        );
+          );
+        }
+        yield* recordActivity(services.db, {
+          actorId: session.user.id,
+          churchId,
+          entityId: id,
+          entityType: "cycle_adjustment",
+          eventType: existing ? "cycle_adjustment.updated" : "cycle_adjustment.created",
+        });
         return json({ ok: true, tool, cycleAdjustment: { id } });
       }
       case "template-duplicate": {
