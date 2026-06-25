@@ -932,7 +932,7 @@ const formatError = (error: CliError) => {
       return failure({
         code: "unknown_command",
         message:
-          "Run `church-work health`, `church-work login --name <name>`, `church-work current-user`, `church-work active-church`, `church-work setup read --church-id <id>`, `church-work setup write --json <batch>`, `church-work task <list|get|create|update|complete|cancel|reopen>`, `church-work lookup <users|teams|cycles|workflow-statuses>`, `church-work auth status`, or `church-work auth logout`.",
+          "Run `church-work health`, `church-work login --name <name>`, `church-work current-user`, `church-work active-church`, `church-work setup read --church-id <id>`, `church-work setup write --json <batch>`, `church-work task <list|get|create|update|complete|cancel|reopen>`, `church-work template <list|get|update|delete|restore|duplicate>`, `church-work template-schedule <create|update|delete|restore>`, `church-work key-date <list|create|update|delete|restore|preview-occurrences>`, `church-work lookup <users|teams|cycles|workflow-statuses>`, `church-work auth status`, or `church-work auth logout`.",
       });
   }
 };
