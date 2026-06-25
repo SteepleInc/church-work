@@ -139,6 +139,51 @@ describe("Agent Operation parity registry", () => {
     );
   });
 
+  test("reports UI-led Task Comment and Comment Thread behavior with intentional agent gaps", () => {
+    const byId = new Map(AGENT_OPERATION_REGISTRY.map((entry) => [entry.id, entry]));
+
+    for (const [id, operation] of [
+      ["task.comment.create", "Create Task Comment"],
+      ["task.comment.reply", "Reply to Task Comment"],
+      ["task.comment.update", "Edit Task Comment"],
+      ["task.comment.delete", "Delete Task Comment"],
+      ["task.comment.thread.subscribe", "Subscribe to Comment Thread"],
+      ["task.comment.thread.unsubscribe", "Unsubscribe from Comment Thread"],
+    ]) {
+      expect(byId.get(id)).toMatchObject({
+        domainArea: id.includes("thread") ? "Comment Thread" : "Task Comment",
+        operation,
+        context: {
+          requiresActiveChurch: true,
+          requiresChurchMembership: true,
+          session: "authenticated",
+        },
+        surfaces: {
+          ui: { status: "covered" },
+          mcp: { status: "missing" },
+          cli: { status: "missing" },
+        },
+      });
+    }
+
+    expect(byId.get("task.comment.update")?.authorization).toBe(
+      "Task Comment author, Church owner, Church admin, or App Administrator",
+    );
+    expect(byId.get("task.comment.delete")?.authorization).toBe(
+      "Task Comment author, Church owner, Church admin, or App Administrator",
+    );
+    expect(byId.get("task.comment.reply")?.inputContract).toContain(
+      "root parent Task Comment only; replies are one level deep",
+    );
+
+    expect(generateAgentParityReport()).toContain(
+      "| Task Comment | Reply to Task Comment | write | covered | missing | missing | authenticated, Active Church, Church Membership | Task Activity Feed Reply composer creates a one-level reply under a root Task Comment and rejects nested replies in the Zero mutator |",
+    );
+    expect(generateAgentParityReport()).toContain(
+      "| Comment Thread | Subscribe to Comment Thread | write | covered | missing | missing | authenticated, Active Church, Church Membership | Root Task Comment action menu toggles a persisted Comment Thread subscription and shows a subscribed indicator for the current User |",
+    );
+  });
+
   test("escapes Markdown table delimiters in registry text", () => {
     expect(
       generateAgentParityReport([
