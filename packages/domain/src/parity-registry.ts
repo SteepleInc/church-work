@@ -720,7 +720,7 @@ export const AGENT_OPERATION_REGISTRY = [
     domainArea: "Activity",
     id: "activity.feed.read",
     inputContract:
-      "churchId, entityType, and entityId for a Task, Template, or Team Activity entity",
+      "churchId, entityType, and entityId for a UI Activity entity (Task, Template, Cycle, Team, Workflow, Key Date, or Church)",
     kind: "read",
     operation: "Read Activity Feed",
     outputContract:
@@ -740,7 +740,7 @@ export const AGENT_OPERATION_REGISTRY = [
       },
     },
     uiBehavior:
-      "Task Details Pane shows reverse-chronological Task Activity rows for task lifecycle, field, label, and comment events; Template and Team Activity storage is readable for agent history, but non-task entity events are not rendered by describeActivity yet",
+      "Task Details Pane shows reverse-chronological Task Activity rows for task lifecycle, field, label, and comment events; other UI Activity entity types are queryable for agent history, but non-task entity events are not rendered by describeActivity yet",
   },
   coveredTemplateOperation({
     cliStatus: "generic-passthrough",

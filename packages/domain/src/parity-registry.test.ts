@@ -321,7 +321,7 @@ describe("Agent Operation parity registry", () => {
       operation: "Read Activity Feed",
       kind: "read",
       inputContract:
-        "churchId, entityType, and entityId for a Task, Template, or Team Activity entity",
+        "churchId, entityType, and entityId for a UI Activity entity (Task, Template, Cycle, Team, Workflow, Key Date, or Church)",
       outputContract: expect.stringContaining("event_type, actor, occurred_at, and metadata"),
       context: {
         requiresActiveChurch: true,
@@ -343,7 +343,7 @@ describe("Agent Operation parity registry", () => {
       "non-task entity events are not rendered by describeActivity",
     );
     expect(generateAgentParityReport()).toContain(
-      "| Activity | Read Activity Feed | read | covered | covered | generic-passthrough | authenticated, Active Church, Church Membership | Church Membership | Task Details Pane shows reverse-chronological Task Activity rows for task lifecycle, field, label, and comment events; Template and Team Activity storage is readable for agent history, but non-task entity events are not rendered by describeActivity yet |",
+      "| Activity | Read Activity Feed | read | covered | covered | generic-passthrough | authenticated, Active Church, Church Membership | Church Membership | Task Details Pane shows reverse-chronological Task Activity rows for task lifecycle, field, label, and comment events; other UI Activity entity types are queryable for agent history, but non-task entity events are not rendered by describeActivity yet |",
     );
   });
 

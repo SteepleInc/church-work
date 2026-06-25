@@ -132,17 +132,35 @@ const parseActivityMetadata = (metadata: string) => {
 };
 
 const toActivityDto = (activity: typeof activities.$inferSelect) => ({
+  actor_id: activity.actor_id,
   actorId: activity.actor_id,
+  actor_type: activity.actor_type,
   actorType: activity.actor_type,
+  church_id: activity.church_id,
   churchId: activity.church_id,
+  cycle_id: activity.cycle_id,
   cycleId: activity.cycle_id,
+  entity_id: activity.entity_id,
   entityId: activity.entity_id,
+  entity_type: activity.entity_type,
   entityType: activity.entity_type,
+  event_type: activity.event_type,
   eventType: activity.event_type,
   id: activity.id,
   metadata: parseActivityMetadata(activity.metadata),
+  occurred_at: activity.occurred_at.toISOString(),
   occurredAt: activity.occurred_at.toISOString(),
 });
+
+const ACTIVITY_ENTITY_TYPES = [
+  "task",
+  "template",
+  "cycle",
+  "team",
+  "workflow",
+  "key_date",
+  "church",
+] as const;
 
 const recordTaskActivity = (
   db: ChurchWorkDb,
@@ -536,13 +554,13 @@ const runTaskTool = (
             { status: 400 },
           );
         }
-        if (!["task", "template", "team"].includes(entityType)) {
+        if (!ACTIVITY_ENTITY_TYPES.includes(entityType as (typeof ACTIVITY_ENTITY_TYPES)[number])) {
           return json(
             {
               ok: false,
               error: {
                 code: "unsupported_activity_entity",
-                message: "Activity Feed reads support task, template, and team entities.",
+                message: `Activity Feed reads support ${ACTIVITY_ENTITY_TYPES.join(", ")} entities.`,
               },
               tool,
             },
