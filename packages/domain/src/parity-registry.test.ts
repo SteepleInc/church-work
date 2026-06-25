@@ -139,6 +139,45 @@ describe("Agent Operation parity registry", () => {
     );
   });
 
+  test("reports UI-led Church and Team Label behavior with agent coverage decisions", () => {
+    const byId = new Map(AGENT_OPERATION_REGISTRY.map((entry) => [entry.id, entry]));
+
+    expect(byId.get("label.create")).toMatchObject({
+      id: "label.create",
+      authorization: "Church Membership",
+      domainArea: "Label",
+      inputContract: "churchId, Label name, and optional teamId for a Team Label",
+      outputContract:
+        "created Church Label or Team Label with deterministic default Label color and scoped uniqueness",
+      surfaces: {
+        ui: { status: "covered" },
+        mcp: { status: "missing" },
+        cli: { status: "missing" },
+      },
+    });
+    expect(byId.get("label.update")).toMatchObject({
+      id: "label.update",
+      authorization: "Church Membership",
+      domainArea: "Label",
+      inputContract: "churchId, labelId, optional Label name, and optional Label color",
+      outputContract: "updated Label name and/or Label color",
+    });
+    expect(byId.get("label.delete")).toMatchObject({
+      id: "label.delete",
+      authorization: "Church Membership",
+      domainArea: "Label",
+      inputContract: "churchId and labelId",
+      outputContract: "deleted Label and Task label_ids cleaned of the deleted Label",
+    });
+
+    expect(generateAgentParityReport()).toContain(
+      "| Label | Create Label | write | covered | missing | missing | authenticated, Active Church, Church Membership | Label settings use useCreateLabelMutation for Church Labels; Zero label creation also supports Team Labels with same-name scoped uniqueness and deterministic default color |",
+    );
+    expect(generateAgentParityReport()).toContain(
+      "| Label | Delete Label | write | covered | missing | missing | authenticated, Active Church, Church Membership | Label settings delete action uses useDeleteLabelMutation; deleting a Label removes it from every Task label_ids list |",
+    );
+  });
+
   test("escapes Markdown table delimiters in registry text", () => {
     expect(
       generateAgentParityReport([

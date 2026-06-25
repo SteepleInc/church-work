@@ -59,6 +59,16 @@ const UI_ONLY_TEAM_SURFACES = {
   ui: { status: "covered" },
 } as const satisfies AgentOperationRegistryEntry["surfaces"];
 
+const UI_ONLY_LABEL_SURFACES = {
+  cli: missingNamedAgentSurface,
+  mcp: missingFocusedAgentSurface,
+  ui: {
+    notes:
+      "Inspected SettingsLabelsPanel, labelsData.app Zero mutator hooks, and Zero Label mutator tests.",
+    status: "covered",
+  },
+} as const satisfies AgentOperationRegistryEntry["surfaces"];
+
 const coveredTaskOperation = (
   entry: Pick<
     AgentOperationRegistryEntry,
@@ -259,6 +269,46 @@ export const AGENT_OPERATION_REGISTRY = [
     outputContract: "removed Team Membership",
     surfaces: UI_ONLY_TEAM_SURFACES,
     uiBehavior: "Team navigation membership action uses useRemoveTeamMemberMutation",
+  },
+  {
+    authorization: "Church Membership",
+    context: ACTIVE_CHURCH_MEMBERSHIP_CONTEXT,
+    domainArea: "Label",
+    id: "label.create",
+    inputContract: "churchId, Label name, and optional teamId for a Team Label",
+    kind: "write",
+    operation: "Create Label",
+    outputContract:
+      "created Church Label or Team Label with deterministic default Label color and scoped uniqueness",
+    surfaces: UI_ONLY_LABEL_SURFACES,
+    uiBehavior:
+      "Label settings use useCreateLabelMutation for Church Labels; Zero label creation also supports Team Labels with same-name scoped uniqueness and deterministic default color",
+  },
+  {
+    authorization: "Church Membership",
+    context: ACTIVE_CHURCH_MEMBERSHIP_CONTEXT,
+    domainArea: "Label",
+    id: "label.update",
+    inputContract: "churchId, labelId, optional Label name, and optional Label color",
+    kind: "write",
+    operation: "Update Label",
+    outputContract: "updated Label name and/or Label color",
+    surfaces: UI_ONLY_LABEL_SURFACES,
+    uiBehavior:
+      "Label settings inline name form and color picker use useUpdateLabelMutation; invalid stored colors fall back to deterministic name-derived Label colors in the UI",
+  },
+  {
+    authorization: "Church Membership",
+    context: ACTIVE_CHURCH_MEMBERSHIP_CONTEXT,
+    domainArea: "Label",
+    id: "label.delete",
+    inputContract: "churchId and labelId",
+    kind: "write",
+    operation: "Delete Label",
+    outputContract: "deleted Label and Task label_ids cleaned of the deleted Label",
+    surfaces: UI_ONLY_LABEL_SURFACES,
+    uiBehavior:
+      "Label settings delete action uses useDeleteLabelMutation; deleting a Label removes it from every Task label_ids list",
   },
   coveredTaskOperation({
     command: "church-work task get",
