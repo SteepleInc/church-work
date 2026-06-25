@@ -1631,6 +1631,15 @@ const AGENT_BACKLOG_STATUS_SECTIONS = [
   },
 ] as const;
 
+const EXPLICIT_AGENT_DECISION_STATUSES = new Set<AgentParityCoverageStatus>([
+  "intentionally-ui-only",
+  "not-applicable",
+]);
+
+const hasExplicitAgentDecision = (entry: AgentOperationRegistryEntry) =>
+  EXPLICIT_AGENT_DECISION_STATUSES.has(entry.surfaces.mcp.status) ||
+  EXPLICIT_AGENT_DECISION_STATUSES.has(entry.surfaces.cli.status);
+
 const backlogItem = (entry: AgentOperationRegistryEntry, title: string) =>
   [
     `### ${title}`,
@@ -1657,11 +1666,7 @@ export const generateAgentParityBacklog = (
     ];
   });
 
-  const explicitDecisions = registry.filter((entry) =>
-    [entry.surfaces.mcp.status, entry.surfaces.cli.status].some(
-      (status) => status === "intentionally-ui-only" || status === "not-applicable",
-    ),
-  );
+  const explicitDecisions = registry.filter(hasExplicitAgentDecision);
 
   return [
     "# Agent Parity Follow-up Backlog",
