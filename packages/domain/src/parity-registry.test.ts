@@ -651,6 +651,45 @@ describe("Agent Operation parity registry", () => {
     );
   });
 
+  test("reports UI-led Week/Cycle planning read parity", () => {
+    expect(AGENT_OPERATION_REGISTRY).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "cycle.list",
+          operation: "List Weeks",
+          inputContract: "churchId",
+          outputContract:
+            "active Week/Cycle rows with id, Monday-Sunday date range, custom name, description, and current/upcoming/completed planning metadata",
+          surfaces: {
+            ui: expect.objectContaining({ status: "covered" }),
+            mcp: { status: "covered", tool: "list-cycles" },
+            cli: { command: "church-work lookup cycles", status: "covered" },
+          },
+        }),
+        expect.objectContaining({
+          id: "cycle.details.update",
+          operation: "Update Week Details",
+          inputContract: "churchId, cycleId, optional Week name, and optional Week description",
+          outputContract: "updated Week/Cycle name and description",
+        }),
+        expect.objectContaining({
+          id: "week.progress.read",
+          surfaces: expect.objectContaining({
+            mcp: expect.objectContaining({ status: "missing" }),
+            cli: expect.objectContaining({ status: "missing" }),
+          }),
+        }),
+      ]),
+    );
+
+    expect(generateAgentParityReport()).toContain(
+      "| Week/Cycle | List Weeks | read | covered | covered | covered | authenticated, Active Church, Church Membership | Church Membership | Team Week board and Week picker list active persisted Weeks, classify them as current/upcoming/completed from today's date, show custom Cycle Name when present, and surface Cycle Description for planning details |",
+    );
+    expect(generateAgentParityReport()).toContain(
+      "| Week Progress | Read Week Progress | read | covered | missing | missing | authenticated, Active Church, Church Membership | Church Membership | Week tooltip and Week Progress pane read non-canceled Task totals, completed counts, and completion percentage for a selected Week |",
+    );
+  });
+
   test("escapes Markdown table delimiters in registry text", () => {
     expect(
       generateAgentParityReport([
