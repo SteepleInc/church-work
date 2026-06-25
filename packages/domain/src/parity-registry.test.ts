@@ -72,30 +72,34 @@ describe("Agent Operation parity registry", () => {
   });
 
   test("reports UI-led App Administration and impersonation support decisions", () => {
+    const appAdministratorContext = {
+      requiresActiveChurch: false,
+      requiresChurchMembership: false,
+      session: "authenticated",
+    } as const;
     const appAdministrationOperations = AGENT_OPERATION_REGISTRY.filter(
       (operation) => operation.domainArea === "App Administration",
     );
+    const report = generateAgentParityReport();
 
     expect(appAdministrationOperations).toHaveLength(6);
     expect(appAdministrationOperations).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: "app-administration.access.check" }),
-        expect.objectContaining({ id: "app-administration.church.collection" }),
-        expect.objectContaining({ id: "app-administration.user.collection" }),
-        expect.objectContaining({ id: "app-administration.church.edit-support-action" }),
-        expect.objectContaining({ id: "app-administration.user.edit-support-action" }),
-        expect.objectContaining({ id: "app-administration.user.impersonate" }),
-      ]),
+      expect.arrayContaining(
+        [
+          "app-administration.access.check",
+          "app-administration.church.collection",
+          "app-administration.user.collection",
+          "app-administration.church.edit-support-action",
+          "app-administration.user.edit-support-action",
+          "app-administration.user.impersonate",
+        ].map((id) => expect.objectContaining({ id })),
+      ),
     );
     expect(appAdministrationOperations).toEqual(
       appAdministrationOperations.map(() =>
         expect.objectContaining({
           authorization: "App Administrator",
-          context: {
-            requiresActiveChurch: false,
-            requiresChurchMembership: false,
-            session: "authenticated",
-          },
+          context: appAdministratorContext,
           surfaces: expect.objectContaining({
             ui: expect.objectContaining({ status: "covered" }),
           }),
@@ -110,11 +114,7 @@ describe("Agent Operation parity registry", () => {
           domainArea: "App Administration",
           operation: "Check App Administrator Access",
           authorization: "App Administrator",
-          context: {
-            requiresActiveChurch: false,
-            requiresChurchMembership: false,
-            session: "authenticated",
-          },
+          context: appAdministratorContext,
           surfaces: {
             ui: expect.objectContaining({ status: "covered" }),
             mcp: expect.objectContaining({ status: "missing" }),
@@ -175,22 +175,14 @@ describe("Agent Operation parity registry", () => {
       ]),
     );
 
-    expect(generateAgentParityReport()).toContain(
+    [
       "| App Administration | Check App Administrator Access | read | covered | missing | missing | authenticated | InternalAccessGate renders App Administrator access required unless useIsAppAdmin and authenticated Zero context allow support surfaces |",
-    );
-    expect(generateAgentParityReport()).toContain(
       "| App Administration | List Churches for Support | read | covered | missing | missing | authenticated | Admin Churches collection reads Zero-backed admin Church rows and shows App Administrator-only edit org row actions |",
-    );
-    expect(generateAgentParityReport()).toContain(
       "| App Administration | List Users for Support | read | covered | missing | missing | authenticated | Admin Users collection reads Zero-backed admin User rows and shows App Administrator-only edit user and impersonate row actions |",
-    );
-    expect(generateAgentParityReport()).toContain(
       "| App Administration | Start User Impersonation | write | covered | intentionally-ui-only | intentionally-ui-only | authenticated | Admin User actions call Better Auth admin.impersonateUser only after useIsAppAdmin gating |",
-    );
-    expect(generateAgentParityReport()).toContain(
       "| App Administration | Edit Church Support Details | write | covered | missing | missing | authenticated | Admin Church details pane action opens the App Administrator-only edit Church quick action from OrgActions |",
-    );
-    expect(generateAgentParityReport()).toContain(
+    ].forEach((expectedReportRow) => expect(report).toContain(expectedReportRow));
+    expect(report).toContain(
       "Coverage statuses: covered, partial, missing, generic-passthrough, intentionally-ui-only",
     );
   });
