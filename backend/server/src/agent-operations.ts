@@ -1,5 +1,7 @@
 import {
   activeChurchResponse,
+  activeChurchAuthenticationRequiredResponse,
+  churchNotFoundResponse,
   currentUserResponse,
   formatTaskIdentifier,
   noActiveChurchResponse,
@@ -1288,22 +1290,14 @@ export const handleAgentRequest = (services: AgentServices, request: Request) =>
     }
 
     if (url.pathname === "/api/agent/active-church" && request.method === "POST") {
-      const session = yield* requireAuthSession(services, request);
+      const session = yield* getAuthSession(services, request);
+      if (!session) return json(activeChurchAuthenticationRequiredResponse(), { status: 401 });
       const body = yield* readBody(request);
       const churchId =
         getRequestedChurchId(body) ??
         (session.session.activeOrganizationId as string | null | undefined) ??
         null;
       if (!churchId) return json(noActiveChurchResponse());
-
-      const [membership] = yield* Effect.promise(() =>
-        services.db
-          .select({ role: member.role })
-          .from(member)
-          .where(and(eq(member.userId, session.user.id), eq(member.organizationId, churchId)))
-          .limit(1),
-      );
-      if (!membership) return json(notChurchMemberResponse(), { status: 403 });
 
       const [church] = yield* Effect.promise(() =>
         services.db
@@ -1317,10 +1311,19 @@ export const handleAgentRequest = (services: AgentServices, request: Request) =>
           .where(eq(organization.id, churchId))
           .limit(1),
       );
-      const response: ActiveChurchResponse = church
-        ? activeChurchResponse({ church, membership })
-        : noActiveChurchResponse();
-      return json(response, response.ok ? undefined : { status: 403 });
+      if (!church) return json(churchNotFoundResponse(), { status: 404 });
+
+      const [membership] = yield* Effect.promise(() =>
+        services.db
+          .select({ role: member.role })
+          .from(member)
+          .where(and(eq(member.userId, session.user.id), eq(member.organizationId, churchId)))
+          .limit(1),
+      );
+      if (!membership) return json(notChurchMemberResponse(), { status: 403 });
+
+      const response: ActiveChurchResponse = activeChurchResponse({ church, membership });
+      return json(response);
     }
 
     if (url.pathname === "/api/agent/core-work/batch-read" && request.method === "POST") {

@@ -192,6 +192,25 @@ describe("church-work active-church", () => {
     expect(result.stdout).toBe("");
     expect(JSON.parse(result.stderr)).toEqual(authorizationError);
   });
+
+  it("returns the shared structured Active Church auth error when no CLI auth token is available", async () => {
+    const result = await runCli(["active-church"], {
+      env: {},
+      backendLayer: fakeBackend({}),
+      credentialStorageLayer: fakeCredentialStorage({ read: Effect.succeed(null) }),
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(JSON.parse(result.stderr)).toEqual({
+      ok: false,
+      operation: "activeChurch",
+      error: {
+        code: "authentication_required",
+        message: "Authentication required to resolve Active Church.",
+      },
+    });
+  });
 });
 
 describe("church-work setup read", () => {

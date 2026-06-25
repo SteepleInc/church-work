@@ -3,6 +3,44 @@ import { describe, expect, test } from "vitest";
 import { AGENT_OPERATION_REGISTRY, generateAgentParityReport } from "./parity-registry";
 
 describe("Agent Operation parity registry", () => {
+  test("reports UI-led current User and Active Church auth/session parity", () => {
+    expect(AGENT_OPERATION_REGISTRY).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "user.current",
+          domainArea: "User",
+          operation: "Read Current User",
+          surfaces: expect.objectContaining({
+            cli: { command: "church-work current-user", status: "covered" },
+            mcp: { status: "covered", tool: "GET /api/agent/current-user" },
+            ui: expect.objectContaining({ status: "covered" }),
+          }),
+        }),
+        expect.objectContaining({
+          id: "church.active.resolve",
+          domainArea: "Church",
+          operation: "Resolve Active Church",
+          context: {
+            requiresActiveChurch: true,
+            requiresChurchMembership: true,
+            session: "authenticated",
+          },
+          outputContract:
+            "Active Church, Church Membership role, noActiveChurch state, or structured authentication/membership error",
+          surfaces: expect.objectContaining({
+            cli: { command: "church-work active-church", status: "covered" },
+            mcp: { status: "covered", tool: "POST /api/agent/active-church" },
+            ui: expect.objectContaining({ status: "covered" }),
+          }),
+        }),
+      ]),
+    );
+
+    expect(generateAgentParityReport()).toContain(
+      "| Church | Resolve Active Church | read | covered | covered | covered | authenticated, Active Church, Church Membership | App shell and Work page resolve Active Church from session activeOrganizationId and membership-backed Church data |",
+    );
+  });
+
   test("reports the UI-led Task list tracer bullet across UI, MCP, and CLI surfaces", () => {
     const taskList = AGENT_OPERATION_REGISTRY.find((operation) => operation.id === "task.list");
 

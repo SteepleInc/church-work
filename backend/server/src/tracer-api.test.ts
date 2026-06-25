@@ -249,6 +249,34 @@ describe("tracer API", () => {
     }
   }, 60_000);
 
+  test("returns structured Active Church auth errors for unauthenticated agent callers", async () => {
+    const harness = await startPostgresHarness();
+    const api = createTracerApi(harness.connectionString);
+
+    try {
+      const response = await api.fetch(
+        new Request("http://127.0.0.1/api/agent/active-church", {
+          body: JSON.stringify({}),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        }),
+      );
+
+      expect(response.status).toBe(401);
+      await expect(response.json()).resolves.toEqual({
+        error: {
+          code: "authentication_required",
+          message: "Authentication required to resolve Active Church.",
+        },
+        ok: false,
+        operation: "activeChurch",
+      });
+    } finally {
+      await api.close();
+      await harness.stop();
+    }
+  }, 60_000);
+
   test("serves agent and MCP operations through the new Drizzle-backed HTTP API", async () => {
     const harness = await startPostgresHarness();
     const api = createTracerApi(harness.connectionString);
@@ -321,6 +349,20 @@ describe("tracer API", () => {
           status: "activeChurchReady",
         },
         ok: true,
+        operation: "activeChurch",
+      });
+
+      const missingChurchResponse = await api.fetch(
+        new Request("http://127.0.0.1/api/agent/active-church", {
+          body: JSON.stringify({ churchId: "org_missing" }),
+          headers: { "content-type": "application/json", cookie },
+          method: "POST",
+        }),
+      );
+      expect(missingChurchResponse.status).toBe(404);
+      await expect(missingChurchResponse.json()).resolves.toMatchObject({
+        error: { code: "church_not_found", message: "Requested Church was not found." },
+        ok: false,
         operation: "activeChurch",
       });
 

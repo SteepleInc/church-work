@@ -37,6 +37,56 @@ export type AgentOperationRegistryEntry = {
 
 export const AGENT_OPERATION_REGISTRY = [
   {
+    authorization: "Authenticated User",
+    context: {
+      requiresActiveChurch: false,
+      requiresChurchMembership: false,
+      session: "anonymous",
+    },
+    domainArea: "User",
+    id: "user.current",
+    inputContract: "optional browser session cookie or CLI API key bearer token",
+    kind: "read",
+    operation: "Read Current User",
+    outputContract: "current User identity or null for an anonymous caller",
+    surfaces: {
+      cli: { command: "church-work current-user", status: "covered" },
+      mcp: { status: "covered", tool: "GET /api/agent/current-user" },
+      ui: {
+        notes: "Inspected shared useSession hook and auth guard consumers.",
+        status: "covered",
+      },
+    },
+    uiBehavior:
+      "Shared useSession reads the current User and allows anonymous/null while auth resolves",
+  },
+  {
+    authorization: "Church Membership",
+    context: {
+      requiresActiveChurch: true,
+      requiresChurchMembership: true,
+      session: "authenticated",
+    },
+    domainArea: "Church",
+    id: "church.active.resolve",
+    inputContract: "optional churchId override; otherwise session Active Church",
+    kind: "read",
+    operation: "Resolve Active Church",
+    outputContract:
+      "Active Church, Church Membership role, noActiveChurch state, or structured authentication/membership error",
+    surfaces: {
+      cli: { command: "church-work active-church", status: "covered" },
+      mcp: { status: "covered", tool: "POST /api/agent/active-church" },
+      ui: {
+        notes:
+          "Inspected useCurrentOrgOpt/useAuthGuard and Work page Active Church fallback behavior.",
+        status: "covered",
+      },
+    },
+    uiBehavior:
+      "App shell and Work page resolve Active Church from session activeOrganizationId and membership-backed Church data",
+  },
+  {
     authorization: "Church Membership",
     context: {
       requiresActiveChurch: true,

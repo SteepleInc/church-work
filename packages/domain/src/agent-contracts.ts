@@ -12,6 +12,14 @@ export type CurrentUserResponse = {
 
 export type ActiveChurchResponse =
   | {
+      readonly error: {
+        readonly code: "authentication_required";
+        readonly message: string;
+      };
+      readonly ok: false;
+      readonly operation: "activeChurch";
+    }
+  | {
       readonly data: {
         readonly activeChurch: null;
         readonly membership: null;
@@ -32,6 +40,14 @@ export type ActiveChurchResponse =
         readonly status: "activeChurchReady";
       };
       readonly ok: true;
+      readonly operation: "activeChurch";
+    }
+  | {
+      readonly error: {
+        readonly code: "church_not_found";
+        readonly message: string;
+      };
+      readonly ok: false;
       readonly operation: "activeChurch";
     }
   | {
@@ -87,6 +103,15 @@ export const noActiveChurchResponse = (): ActiveChurchResponse => ({
   operation: "activeChurch",
 });
 
+export const activeChurchAuthenticationRequiredResponse = (): ActiveChurchResponse => ({
+  error: {
+    code: "authentication_required",
+    message: "Authentication required to resolve Active Church.",
+  },
+  ok: false,
+  operation: "activeChurch",
+});
+
 export const activeChurchResponse = (args: {
   readonly church: {
     readonly churchTimeZone: string | null;
@@ -102,6 +127,15 @@ export const activeChurchResponse = (args: {
     status: "activeChurchReady",
   },
   ok: true,
+  operation: "activeChurch",
+});
+
+export const churchNotFoundResponse = (): ActiveChurchResponse => ({
+  error: {
+    code: "church_not_found",
+    message: "Requested Church was not found.",
+  },
+  ok: false,
   operation: "activeChurch",
 });
 
