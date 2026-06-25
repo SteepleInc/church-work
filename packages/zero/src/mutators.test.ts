@@ -934,6 +934,33 @@ describe("Zero Label mutators", () => {
     expect(labelInserts.map((label) => label.team_id)).toEqual([null, "team_worship"]);
   });
 
+  test("rejects duplicate Label names within the same Church or Team scope", async () => {
+    const memberContext = { ...signedInContext, church_role: "member" } as const;
+
+    const { tx: churchDuplicateTx } = createServerTx([
+      [{ id: "label_church", name: "Worship", team_id: null }],
+    ]);
+    await expect(
+      mustGetMutator(mutators, "labels.create").fn({
+        args: { church_id: "org_test", name: "Worship" },
+        ctx: memberContext,
+        tx: churchDuplicateTx,
+      }),
+    ).rejects.toThrow("A Label with that name already exists in this scope.");
+
+    const { tx: teamDuplicateTx } = createServerTx([
+      [{ id: "team_worship" }],
+      [{ id: "label_team", name: "Worship", team_id: "team_worship" }],
+    ]);
+    await expect(
+      mustGetMutator(mutators, "labels.create").fn({
+        args: { church_id: "org_test", name: "Worship", team_id: "team_worship" },
+        ctx: memberContext,
+        tx: teamDuplicateTx,
+      }),
+    ).rejects.toThrow("A Label with that name already exists in this scope.");
+  });
+
   test("updates Labels and hard-deletes them from Tasks for any Church member", async () => {
     const { deleteCalls, tx, updateCalls } = createServerTx([
       [{ id: "label_worship", name: "Worship", team_id: null }],
