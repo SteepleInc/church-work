@@ -1601,3 +1601,85 @@ export const generateAgentParityReport = (
     "",
   ].join("\n");
 };
+
+const AGENT_BACKLOG_STATUS_SECTIONS = [
+  {
+    heading: "Missing focused MCP/API operation",
+    matches: (entry: AgentOperationRegistryEntry) => entry.surfaces.mcp.status === "missing",
+    title: (entry: AgentOperationRegistryEntry) =>
+      `Add focused MCP/API coverage for ${entry.domainArea}: ${entry.operation}`,
+  },
+  {
+    heading: "Missing named CLI command",
+    matches: (entry: AgentOperationRegistryEntry) => entry.surfaces.cli.status === "missing",
+    title: (entry: AgentOperationRegistryEntry) =>
+      `Add named CLI coverage for ${entry.domainArea}: ${entry.operation}`,
+  },
+  {
+    heading: "Generic CLI MCP passthrough only",
+    matches: (entry: AgentOperationRegistryEntry) =>
+      entry.surfaces.cli.status === "generic-passthrough",
+    title: (entry: AgentOperationRegistryEntry) =>
+      `Add named CLI coverage for ${entry.domainArea}: ${entry.operation}`,
+  },
+  {
+    heading: "Partial surface coverage",
+    matches: (entry: AgentOperationRegistryEntry) =>
+      entry.surfaces.mcp.status === "partial" || entry.surfaces.cli.status === "partial",
+    title: (entry: AgentOperationRegistryEntry) =>
+      `Complete partial agent coverage for ${entry.domainArea}: ${entry.operation}`,
+  },
+] as const;
+
+const EXPLICIT_AGENT_DECISION_STATUSES = new Set<AgentParityCoverageStatus>([
+  "intentionally-ui-only",
+  "not-applicable",
+]);
+
+const hasExplicitAgentDecision = (entry: AgentOperationRegistryEntry) =>
+  EXPLICIT_AGENT_DECISION_STATUSES.has(entry.surfaces.mcp.status) ||
+  EXPLICIT_AGENT_DECISION_STATUSES.has(entry.surfaces.cli.status);
+
+const backlogItem = (entry: AgentOperationRegistryEntry, title: string) =>
+  [
+    `### ${title}`,
+    `- Operation: \`${entry.id}\``,
+    `- Current status: UI \`${entry.surfaces.ui.status}\`, MCP \`${entry.surfaces.mcp.status}\`, CLI \`${entry.surfaces.cli.status}\``,
+    `- UI behavior to match: ${entry.uiBehavior}`,
+    `- Context: ${contextSummary(entry)}`,
+    `- Authorization: ${entry.authorization}`,
+    "- First failing test: add a public MCP/API or CLI parity test that matches this UI behavior.",
+    "",
+  ].join("\n");
+
+export const generateAgentParityBacklog = (
+  registry: ReadonlyArray<AgentOperationRegistryEntry> = AGENT_OPERATION_REGISTRY,
+) => {
+  const sections = AGENT_BACKLOG_STATUS_SECTIONS.flatMap((section) => {
+    const entries = registry.filter(section.matches);
+    if (entries.length === 0) return [];
+
+    return [
+      `## ${section.heading}`,
+      "",
+      ...entries.map((entry) => backlogItem(entry, section.title(entry))),
+    ];
+  });
+
+  const explicitDecisions = registry.filter(hasExplicitAgentDecision);
+
+  return [
+    "# Agent Parity Follow-up Backlog",
+    "",
+    "Each item is intended to become an independent follow-up issue with a first failing public-interface test.",
+    "",
+    ...sections,
+    "## Explicit UI-only or non-applicable decisions",
+    "",
+    ...explicitDecisions.map(
+      (entry) =>
+        `- ${entry.domainArea}: ${entry.operation} (\`${entry.id}\`) remains ${entry.surfaces.mcp.status} for MCP and ${entry.surfaces.cli.status} for CLI.`,
+    ),
+    "",
+  ].join("\n");
+};
