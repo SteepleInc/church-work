@@ -1,6 +1,10 @@
 import { describe, expect, test } from "vitest";
 
-import { AGENT_OPERATION_REGISTRY, generateAgentParityReport } from "./parity-registry";
+import {
+  AGENT_OPERATION_REGISTRY,
+  generateAgentParityBacklog,
+  generateAgentParityReport,
+} from "./parity-registry";
 
 describe("Agent Operation parity registry", () => {
   test("reports UI-led current User and Active Church auth/session parity", () => {
@@ -1038,6 +1042,63 @@ describe("Agent Operation parity registry", () => {
     );
     expect(report).toContain(
       "Coverage statuses: covered, partial, missing, generic-passthrough, intentionally-ui-only, not-applicable",
+    );
+  });
+
+  test("generates a final parity report with every PRD feature area and an issue-ready backlog", () => {
+    const report = generateAgentParityReport();
+    const backlog = generateAgentParityBacklog();
+
+    for (const featureArea of [
+      "User",
+      "Church",
+      "Task",
+      "Team",
+      "Team Membership",
+      "Label",
+      "Template",
+      "Template Team",
+      "Template Task",
+      "Template Schedule",
+      "Key Date",
+      "Projected Template Task",
+      "Week/Cycle",
+      "Week Progress",
+      "Week Breakdown",
+      "Work View",
+      "Board",
+      "View Tab",
+      "View Options",
+      "Insights",
+      "Task Comment",
+      "Comment Thread",
+      "Activity",
+      "Notification Inbox",
+      "Church Settings",
+      "Church Time Zone",
+      "Rolling Materialization Window",
+      "Onboarding",
+      "App Administration",
+    ]) {
+      expect(report).toContain(`| ${featureArea} |`);
+    }
+
+    expect(backlog).toContain("# Agent Parity Follow-up Backlog");
+    expect(backlog).toContain("## Missing focused MCP/API operation");
+    expect(backlog).toContain("## Missing named CLI command");
+    expect(backlog).toContain("## Generic CLI MCP passthrough only");
+    expect(backlog).toContain("### Add focused MCP/API coverage for Team: Create Team");
+    expect(backlog).toContain("- Operation: `team.create`");
+    expect(backlog).toContain(
+      "- First failing test: add a public MCP/API or CLI parity test that matches this UI behavior.",
+    );
+    expect(backlog).toContain("### Add named CLI coverage for Template Task: Create Template Task");
+    expect(backlog).toContain(
+      "- Current status: UI `covered`, MCP `covered`, CLI `generic-passthrough`",
+    );
+    expect(backlog).toContain("## Explicit UI-only or non-applicable decisions");
+    expect(backlog).toContain(
+      "- Onboarding: Complete Onboarding (`onboarding.complete`) remains intentionally-ui-only for MCP and intentionally-ui-only for CLI.",
     );
   });
 });

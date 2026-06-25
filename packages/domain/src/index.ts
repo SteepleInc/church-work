@@ -28,6 +28,7 @@ export type TeamColor = (typeof TEAM_COLORS)[number];
 export {
   AGENT_OPERATION_REGISTRY,
   AGENT_PARITY_COVERAGE_STATUSES,
+  generateAgentParityBacklog,
   generateAgentParityReport,
 } from "./parity-registry";
 export type {
