@@ -148,6 +148,8 @@ const TEMPLATE_SCHEDULE_UI_NOTES =
   "Inspected Template schedule controls, key-date Template setup, and templatesData.app Zero mutation seams.";
 const KEY_DATE_UI_NOTES =
   "Inspected Key Dates settings, Template setup Key Date flows, and keyDatesData.app Zero mutation seams.";
+const PROJECTED_TEMPLATE_TASK_UI_NOTES =
+  "Inspected Work page projected Template Task cards, task field target seams, and templates-new-stack projected adjustment behavior.";
 
 const templateCliSurface = (entry: TemplateOperationEntry): AgentParitySurfaceCoverage =>
   entry.cliStatus === "covered"
@@ -1065,6 +1067,38 @@ export const AGENT_OPERATION_REGISTRY = [
     tool: "template-task-create/template-task-add-at-placement",
     uiBehavior:
       "Template editor derives Template Teams from selected Teams and Template Task creation reuses or creates the matching Template Team mapping",
+  }),
+  coveredTemplateOperation({
+    cliStatus: "generic-passthrough",
+    command: "church-work mcp call projected-template-task-adjust",
+    domainArea: "Projected Template Task",
+    id: "projected-template-task.adjust",
+    inputContract:
+      "churchId, cycleId, templateScheduleId, templateTaskId, occurrenceKey, lifecycle, and UI-selected planning field overrides",
+    kind: "write",
+    operation: "Adjust Projected Template Task",
+    outputContract:
+      "upserted Cycle Adjustment preserving Template Schedule, Template Task, occurrence, and Week/Cycle identity",
+    tool: "projected-template-task-adjust",
+    uiBehavior:
+      "Projected Template Task fields persist skip, move, and changed planning values as Cycle Adjustments for the selected Template Schedule occurrence",
+    uiNotes: PROJECTED_TEMPLATE_TASK_UI_NOTES,
+  }),
+  coveredTemplateOperation({
+    cliStatus: "generic-passthrough",
+    command: "church-work mcp call projected-template-task-materialize",
+    domainArea: "Projected Template Task",
+    id: "projected-template-task.materialize",
+    inputContract:
+      "churchId, cycleId, templateId, templateScheduleId, templateTaskId, occurrenceKey, Team, Workflow Status, title, and adjusted Task fields",
+    kind: "write",
+    operation: "Materialize Projected Template Task",
+    outputContract:
+      "deduped real Task preserving Template source identity, occurrence key, and Week/Cycle context",
+    tool: "projected-template-task-materialize",
+    uiBehavior:
+      "Projected Template Task actions materialize the selected occurrence into one real Task, deduping by Template Schedule, Template Task, and occurrence while preserving Cycle context",
+    uiNotes: PROJECTED_TEMPLATE_TASK_UI_NOTES,
   }),
 ] as const satisfies ReadonlyArray<AgentOperationRegistryEntry>;
 

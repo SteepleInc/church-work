@@ -612,6 +612,52 @@ describe("Agent Operation parity registry", () => {
     );
   });
 
+  test("reports UI-led Projected Template Task adjustment and materialization parity", () => {
+    const byId = new Map(AGENT_OPERATION_REGISTRY.map((entry) => [entry.id, entry]));
+
+    expect(byId.get("projected-template-task.adjust")).toMatchObject({
+      domainArea: "Projected Template Task",
+      id: "projected-template-task.adjust",
+      inputContract:
+        "churchId, cycleId, templateScheduleId, templateTaskId, occurrenceKey, lifecycle, and UI-selected planning field overrides",
+      kind: "write",
+      operation: "Adjust Projected Template Task",
+      outputContract:
+        "upserted Cycle Adjustment preserving Template Schedule, Template Task, occurrence, and Week/Cycle identity",
+      surfaces: {
+        ui: expect.objectContaining({ status: "covered" }),
+        mcp: { status: "covered", tool: "projected-template-task-adjust" },
+        cli: {
+          command: "church-work mcp call projected-template-task-adjust",
+          status: "generic-passthrough",
+        },
+      },
+    });
+
+    expect(byId.get("projected-template-task.materialize")).toMatchObject({
+      domainArea: "Projected Template Task",
+      id: "projected-template-task.materialize",
+      inputContract:
+        "churchId, cycleId, templateId, templateScheduleId, templateTaskId, occurrenceKey, Team, Workflow Status, title, and adjusted Task fields",
+      kind: "write",
+      operation: "Materialize Projected Template Task",
+      outputContract:
+        "deduped real Task preserving Template source identity, occurrence key, and Week/Cycle context",
+      surfaces: {
+        ui: expect.objectContaining({ status: "covered" }),
+        mcp: { status: "covered", tool: "projected-template-task-materialize" },
+        cli: {
+          command: "church-work mcp call projected-template-task-materialize",
+          status: "generic-passthrough",
+        },
+      },
+    });
+
+    expect(generateAgentParityReport()).toContain(
+      "| Projected Template Task | Materialize Projected Template Task | write | covered | covered | generic-passthrough | authenticated, Active Church, Church Membership | Church Membership | Projected Template Task actions materialize the selected occurrence into one real Task, deduping by Template Schedule, Template Task, and occurrence while preserving Cycle context |",
+    );
+  });
+
   test("reports UI-led Subtask parent changes and Task Cycle Move parity", () => {
     expect(AGENT_OPERATION_REGISTRY).toEqual(
       expect.arrayContaining([

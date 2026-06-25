@@ -839,7 +839,51 @@ describe("tracer API", () => {
       await expect(materializeResponse.json()).resolves.toMatchObject({
         deduped: false,
         ok: true,
-        task: { title: "Prepare slides" },
+        task: {
+          cycleId: cycle!.id,
+          title: "Prepare slides",
+        },
+      });
+
+      const [materializedTask] = await authRuntime.db
+        .select()
+        .from(tasks)
+        .where(eq(tasks.source_template_task_id, templateTaskCreated.templateTask!.id!))
+        .limit(1);
+      expect(materializedTask).toMatchObject({
+        cycle_id: cycle!.id,
+        source_template_id: templateCreated.template?.id,
+        source_template_occurrence_key: "2026-06-07",
+        source_template_schedule_id: templateCreated.templateSchedule?.id,
+        source_template_task_id: templateTaskCreated.templateTask?.id,
+        title: "Prepare slides",
+      });
+
+      const dedupedMaterializeResponse = await api.fetch(
+        new Request("http://127.0.0.1/api/mcp/tools/projected-template-task-materialize", {
+          body: JSON.stringify({
+            churchId: org?.id,
+            cycleId: cycle!.id,
+            occurrenceKey: "2026-06-07",
+            teamId: team!.id,
+            templateId: templateCreated.template?.id,
+            templateScheduleId: templateCreated.templateSchedule?.id,
+            templateTaskId: templateTaskCreated.templateTask?.id,
+            title: "Prepare slides again",
+            workflowStatusId: todoStatus!.id,
+          }),
+          headers: { "content-type": "application/json", cookie },
+          method: "POST",
+        }),
+      );
+      await expect(dedupedMaterializeResponse.json()).resolves.toMatchObject({
+        deduped: true,
+        ok: true,
+        task: {
+          cycleId: cycle!.id,
+          id: materializedTask!.id,
+          title: "Prepare slides",
+        },
       });
 
       await expect(authRuntime.db.select().from(tasks)).resolves.toHaveLength(2);
