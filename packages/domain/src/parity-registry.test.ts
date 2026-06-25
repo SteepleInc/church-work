@@ -187,6 +187,56 @@ describe("Agent Operation parity registry", () => {
     );
   });
 
+  test("reports UI-led Church settings, Church Time Zone, and materialization settings behavior", () => {
+    const byId = new Map(AGENT_OPERATION_REGISTRY.map((entry) => [entry.id, entry]));
+
+    expect(byId.get("church.settings.profile.update")).toMatchObject({
+      authorization: "Church owner, Church admin, or App Administrator",
+      domainArea: "Church Settings",
+      inputContract:
+        "Active Church id, Church name, Church Time Zone, website, address, country, and size fields",
+      operation: "Update Church Profile Settings",
+      surfaces: {
+        ui: expect.objectContaining({ status: "covered" }),
+        mcp: expect.objectContaining({ status: "missing" }),
+        cli: expect.objectContaining({ status: "missing" }),
+      },
+    });
+    expect(byId.get("church.settings.time-zone.update")).toMatchObject({
+      authorization: "Church owner, Church admin, or App Administrator",
+      domainArea: "Church Time Zone",
+      operation: "Update Church Time Zone",
+      outputContract:
+        "Church Time Zone updated; past Cycles preserved, current Cycle start preserved, and current/future Cycle end/start UTC boundaries recalculated from the new Church Time Zone",
+      surfaces: {
+        ui: expect.objectContaining({ status: "covered" }),
+        mcp: expect.objectContaining({ status: "missing" }),
+        cli: expect.objectContaining({ status: "missing" }),
+      },
+    });
+    expect(byId.get("church.settings.materialization-window.update")).toMatchObject({
+      authorization: "Church owner, Church admin, or App Administrator",
+      domainArea: "Rolling Materialization Window",
+      inputContract: "Active Church id and Rolling Materialization Window from 1 through 52 Cycles",
+      operation: "Update Rolling Materialization Window",
+      outputContract:
+        "Church Rolling Materialization Window updated; expanding warns that additional future Projected Template Tasks will materialize, and narrowing never deletes existing Tasks",
+      surfaces: {
+        ui: expect.objectContaining({ status: "covered" }),
+        mcp: expect.objectContaining({ status: "missing" }),
+        cli: expect.objectContaining({ status: "missing" }),
+      },
+    });
+
+    const report = generateAgentParityReport();
+    expect(report).toContain(
+      "| Church Time Zone | Update Church Time Zone | write | covered | missing | missing | authenticated, Active Church, Church Membership | Church owner, Church admin, or App Administrator | Settings Workspace General saves Church Time Zone through Better Auth organization.update; the auth hook adjusts Cycle rows so past Cycles keep their old boundaries, the current Cycle keeps its start instant, and current/future Cycle end/start boundaries use the new Church Time Zone |",
+    );
+    expect(report).toContain(
+      "| Rolling Materialization Window | Update Rolling Materialization Window | write | covered | missing | missing | authenticated, Active Church, Church Membership | Church owner, Church admin, or App Administrator | Settings Workspace Scheduling clamps the Rolling Materialization Window to 1-52 Weeks, confirms before expansion because additional scheduled Template work may become real Tasks, and documents that narrowing never deletes already materialized Tasks |",
+    );
+  });
+
   test("reports UI-led Team and Team Membership behavior with agent coverage decisions", () => {
     const byId = new Map(AGENT_OPERATION_REGISTRY.map((entry) => [entry.id, entry]));
 
