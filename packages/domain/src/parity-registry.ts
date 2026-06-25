@@ -101,6 +101,16 @@ const UI_ONLY_ONBOARDING_SURFACES = {
   },
 } as const satisfies AgentOperationRegistryEntry["surfaces"];
 
+const UI_ONLY_CHURCH_SETTINGS_SURFACES = {
+  cli: missingNamedAgentSurface,
+  mcp: missingFocusedAgentSurface,
+  ui: {
+    notes:
+      "Inspected SettingsChurchPanel, SettingsSchedulingPanel, orgData.app hooks, Better Auth organization.update, and Cycle time-zone adjustment tests.",
+    status: "covered",
+  },
+} as const satisfies AgentOperationRegistryEntry["surfaces"];
+
 const UI_ONLY_NOTIFICATION_SURFACES = {
   cli: missingNamedAgentSurface,
   mcp: missingFocusedAgentSurface,
@@ -170,6 +180,19 @@ const uiOnlyNotificationOperation = (
   domainArea: "Notification Inbox",
   kind: "write",
   surfaces: UI_ONLY_NOTIFICATION_SURFACES,
+  ...entry,
+});
+
+const uiOnlyChurchSettingsOperation = (
+  entry: Pick<
+    AgentOperationRegistryEntry,
+    "domainArea" | "id" | "inputContract" | "operation" | "outputContract" | "uiBehavior"
+  >,
+): AgentOperationRegistryEntry => ({
+  authorization: TEAM_MANAGEMENT_AUTHORIZATION,
+  context: ACTIVE_CHURCH_MEMBERSHIP_CONTEXT,
+  kind: "write",
+  surfaces: UI_ONLY_CHURCH_SETTINGS_SURFACES,
   ...entry,
 });
 
@@ -303,6 +326,37 @@ export const AGENT_OPERATION_REGISTRY = [
     uiBehavior:
       "App shell and Work page resolve Active Church from session activeOrganizationId and membership-backed Church data",
   },
+  uiOnlyChurchSettingsOperation({
+    domainArea: "Church Settings",
+    id: "church.settings.profile.update",
+    inputContract:
+      "Active Church id, Church name, Church Time Zone, website, address, country, and size fields",
+    operation: "Update Church Profile Settings",
+    outputContract:
+      "Church profile settings updated through Better Auth organization fields for the Active Church",
+    uiBehavior:
+      "Settings Workspace General saves Church profile fields through Better Auth organization.update, normalizes optional blank values, requires Church name and Church Time Zone, and disables edits for non-owner/admin Church Members",
+  }),
+  uiOnlyChurchSettingsOperation({
+    domainArea: "Church Time Zone",
+    id: "church.settings.time-zone.update",
+    inputContract: "Active Church id and valid IANA Church Time Zone",
+    operation: "Update Church Time Zone",
+    outputContract:
+      "Church Time Zone updated; past Cycles preserved, current Cycle start preserved, and current/future Cycle end/start UTC boundaries recalculated from the new Church Time Zone",
+    uiBehavior:
+      "Settings Workspace General saves Church Time Zone through Better Auth organization.update; the auth hook adjusts Cycle rows so past Cycles keep their old boundaries, the current Cycle keeps its start instant, and current/future Cycle end/start boundaries use the new Church Time Zone",
+  }),
+  uiOnlyChurchSettingsOperation({
+    domainArea: "Rolling Materialization Window",
+    id: "church.settings.materialization-window.update",
+    inputContract: "Active Church id and Rolling Materialization Window from 1 through 52 Cycles",
+    operation: "Update Rolling Materialization Window",
+    outputContract:
+      "Church Rolling Materialization Window updated; expanding warns that additional future Projected Template Tasks will materialize, and narrowing never deletes existing Tasks",
+    uiBehavior:
+      "Settings Workspace Scheduling clamps the Rolling Materialization Window to 1-52 Weeks, confirms before expansion because additional scheduled Template work may become real Tasks, and documents that narrowing never deletes already materialized Tasks",
+  }),
   {
     authorization: "Authenticated User",
     context: {
