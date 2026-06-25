@@ -512,6 +512,71 @@ describe("Agent Operation parity registry", () => {
     );
   });
 
+  test("reports UI-led Template Schedule and Key Date behavior across MCP and CLI", () => {
+    const byId = new Map(AGENT_OPERATION_REGISTRY.map((entry) => [entry.id, entry]));
+
+    for (const [id, operation, tool] of [
+      ["template-schedule.create", "Create Template Schedule", "template-schedule-create"],
+      ["template-schedule.update", "Update Template Schedule", "template-schedule-update"],
+      ["template-schedule.delete", "Delete Template Schedule", "template-schedule-delete"],
+      ["template-schedule.restore", "Restore Template Schedule", "template-schedule-restore"],
+    ] as const) {
+      expect(byId.get(id)).toMatchObject({
+        authorization: "Church Membership",
+        context: {
+          requiresActiveChurch: true,
+          requiresChurchMembership: true,
+          session: "authenticated",
+        },
+        domainArea: "Template Schedule",
+        operation,
+        surfaces: {
+          ui: { status: "covered" },
+          mcp: { status: "covered", tool },
+          cli: { command: `church-work mcp call ${tool}`, status: "generic-passthrough" },
+        },
+      });
+    }
+
+    for (const [id, operation, kind, tool] of [
+      ["key-date.list", "List Key Dates", "read", "key-date-list"],
+      ["key-date.create", "Create Key Date", "write", "key-date-create"],
+      ["key-date.update", "Update Key Date", "write", "key-date-update"],
+      ["key-date.delete", "Delete Key Date", "write", "key-date-delete"],
+      ["key-date.restore", "Restore Key Date", "write", "key-date-restore"],
+      [
+        "key-date.occurrence.preview",
+        "Preview Key Date Occurrences",
+        "read",
+        "key-date-preview-occurrences",
+      ],
+    ] as const) {
+      expect(byId.get(id)).toMatchObject({
+        authorization: "Church Membership",
+        context: {
+          requiresActiveChurch: true,
+          requiresChurchMembership: true,
+          session: "authenticated",
+        },
+        domainArea: "Key Date",
+        kind,
+        operation,
+        surfaces: {
+          ui: { status: "covered" },
+          mcp: { status: "covered", tool },
+          cli: { command: `church-work mcp call ${tool}`, status: "generic-passthrough" },
+        },
+      });
+    }
+
+    expect(generateAgentParityReport()).toContain(
+      "| Template Schedule | Create Template Schedule | write | covered | covered | generic-passthrough | authenticated, Active Church, Church Membership | Church Membership | Template authoring creates Template Schedules through mutators.templates.create and key-date Template setup writes a Key Date anchored Template Schedule |",
+    );
+    expect(generateAgentParityReport()).toContain(
+      "| Key Date | Preview Key Date Occurrences | read | covered | covered | generic-passthrough | authenticated, Active Church, Church Membership | Church Membership | Key Date forms preview computed yearly, fixed yearly, and one-time local-date occurrences with calculateKeyDateOccurrence before save |",
+    );
+  });
+
   test("reports UI-led Subtask parent changes and Task Cycle Move parity", () => {
     expect(AGENT_OPERATION_REGISTRY).toEqual(
       expect.arrayContaining([

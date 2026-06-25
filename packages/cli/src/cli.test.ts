@@ -429,6 +429,109 @@ describe("church-work task execution", () => {
       [
         "mcp",
         "call",
+        "template-schedule-update",
+        "--json",
+        JSON.stringify({
+          churchId: "church_123",
+          templateScheduleId: "schedule_123",
+          name: "Monthly",
+        }),
+      ],
+      { backendLayer, env },
+    );
+    await runCli(
+      [
+        "mcp",
+        "call",
+        "template-schedule-delete",
+        "--json",
+        JSON.stringify({ churchId: "church_123", templateScheduleId: "schedule_123" }),
+      ],
+      { backendLayer, env },
+    );
+    await runCli(
+      [
+        "mcp",
+        "call",
+        "template-schedule-restore",
+        "--json",
+        JSON.stringify({ churchId: "church_123", templateScheduleId: "schedule_123" }),
+      ],
+      { backendLayer, env },
+    );
+    await runCli(
+      ["mcp", "call", "key-date-list", "--json", JSON.stringify({ churchId: "church_123" })],
+      { backendLayer, env },
+    );
+    await runCli(
+      [
+        "mcp",
+        "call",
+        "key-date-create",
+        "--json",
+        JSON.stringify({
+          churchId: "church_123",
+          key: "easter",
+          name: "Easter",
+          schedule: { kind: "computedYearly", rule: "easter" },
+        }),
+      ],
+      { backendLayer, env },
+    );
+    await runCli(
+      [
+        "mcp",
+        "call",
+        "key-date-update",
+        "--json",
+        JSON.stringify({
+          churchId: "church_123",
+          keyDateId: "keydate_123",
+          key: "easter",
+          name: "Easter Sunday",
+          schedule: { kind: "computedYearly", rule: "easter" },
+        }),
+      ],
+      { backendLayer, env },
+    );
+    await runCli(
+      [
+        "mcp",
+        "call",
+        "key-date-delete",
+        "--json",
+        JSON.stringify({ churchId: "church_123", keyDateId: "keydate_123" }),
+      ],
+      { backendLayer, env },
+    );
+    await runCli(
+      [
+        "mcp",
+        "call",
+        "key-date-restore",
+        "--json",
+        JSON.stringify({ churchId: "church_123", keyDateId: "keydate_123" }),
+      ],
+      { backendLayer, env },
+    );
+    await runCli(
+      [
+        "mcp",
+        "call",
+        "key-date-preview-occurrences",
+        "--json",
+        JSON.stringify({
+          churchId: "church_123",
+          schedule: { kind: "computedYearly", rule: "easter" },
+          startYear: 2026,
+        }),
+      ],
+      { backendLayer, env },
+    );
+    await runCli(
+      [
+        "mcp",
+        "call",
         "template-delete",
         "--json",
         JSON.stringify({ churchId: "church_123", templateId: "template_123" }),
@@ -484,6 +587,66 @@ describe("church-work task execution", () => {
         token: "env-token",
         tool: "template-schedule-create",
         body: { churchId: "church_123", templateId: "template_123", kind: "monthly" },
+      },
+      {
+        token: "env-token",
+        tool: "template-schedule-update",
+        body: { churchId: "church_123", templateScheduleId: "schedule_123", name: "Monthly" },
+      },
+      {
+        token: "env-token",
+        tool: "template-schedule-delete",
+        body: { churchId: "church_123", templateScheduleId: "schedule_123" },
+      },
+      {
+        token: "env-token",
+        tool: "template-schedule-restore",
+        body: { churchId: "church_123", templateScheduleId: "schedule_123" },
+      },
+      {
+        token: "env-token",
+        tool: "key-date-list",
+        body: { churchId: "church_123" },
+      },
+      {
+        token: "env-token",
+        tool: "key-date-create",
+        body: {
+          churchId: "church_123",
+          key: "easter",
+          name: "Easter",
+          schedule: { kind: "computedYearly", rule: "easter" },
+        },
+      },
+      {
+        token: "env-token",
+        tool: "key-date-update",
+        body: {
+          churchId: "church_123",
+          keyDateId: "keydate_123",
+          key: "easter",
+          name: "Easter Sunday",
+          schedule: { kind: "computedYearly", rule: "easter" },
+        },
+      },
+      {
+        token: "env-token",
+        tool: "key-date-delete",
+        body: { churchId: "church_123", keyDateId: "keydate_123" },
+      },
+      {
+        token: "env-token",
+        tool: "key-date-restore",
+        body: { churchId: "church_123", keyDateId: "keydate_123" },
+      },
+      {
+        token: "env-token",
+        tool: "key-date-preview-occurrences",
+        body: {
+          churchId: "church_123",
+          schedule: { kind: "computedYearly", rule: "easter" },
+          startYear: 2026,
+        },
       },
       {
         token: "env-token",
