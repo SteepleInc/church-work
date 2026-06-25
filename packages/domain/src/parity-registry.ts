@@ -84,6 +84,22 @@ const UI_ONLY_LABEL_SURFACES = {
   },
 } as const satisfies AgentOperationRegistryEntry["surfaces"];
 
+const UI_ONLY_ONBOARDING_SURFACES = {
+  cli: {
+    notes: "Onboarding setup is intentionally browser-led.",
+    status: "intentionally-ui-only",
+  },
+  mcp: {
+    notes: "Onboarding setup is intentionally browser-led.",
+    status: "intentionally-ui-only",
+  },
+  ui: {
+    notes:
+      "Inspected Onboarding route, onboarding step resolver, onboarding Team review, Starter Key Dates review, and Better Auth onboarding endpoints.",
+    status: "covered",
+  },
+} as const satisfies AgentOperationRegistryEntry["surfaces"];
+
 const UI_ONLY_NOTIFICATION_SURFACES = {
   cli: missingNamedAgentSurface,
   mcp: missingFocusedAgentSurface,
@@ -256,6 +272,79 @@ export const AGENT_OPERATION_REGISTRY = [
     },
     uiBehavior:
       "App shell and Work page resolve Active Church from session activeOrganizationId and membership-backed Church data",
+  },
+  {
+    authorization: "Authenticated User",
+    context: {
+      requiresActiveChurch: false,
+      requiresChurchMembership: false,
+      session: "authenticated",
+    },
+    domainArea: "Onboarding",
+    id: "onboarding.church-profile.create",
+    inputContract:
+      "Church name, slug, Church Time Zone, optional address, website, size, and location fields",
+    kind: "write",
+    operation: "Create Church Profile",
+    outputContract:
+      "created Church with completedOnboarding=false selected as the session Active Church",
+    surfaces: UI_ONLY_ONBOARDING_SURFACES,
+    uiBehavior:
+      "Church profile onboarding step creates a Better Auth organization, persists completedOnboarding=false, selects it as Active Church, and advances from live Active Church state",
+  },
+  {
+    authorization: TEAM_MANAGEMENT_AUTHORIZATION,
+    context: ACTIVE_CHURCH_MEMBERSHIP_CONTEXT,
+    domainArea: "Onboarding",
+    id: "onboarding.starter-teams.review",
+    inputContract: "Active Church with seeded Starter Teams",
+    kind: "write",
+    operation: "Review Starter Teams",
+    outputContract:
+      "Starter Teams reviewed, edited, added, or removed while at least one Team remains",
+    surfaces: UI_ONLY_TEAM_SURFACES,
+    uiBehavior:
+      "Initial Teams onboarding step lists seeded Starter Teams by sort order, opens Team create/edit quick actions, allows removal, and disables continue until at least one Team remains",
+  },
+  {
+    authorization: CHURCH_MEMBERSHIP_AUTHORIZATION,
+    context: ACTIVE_CHURCH_MEMBERSHIP_CONTEXT,
+    domainArea: "Onboarding",
+    id: "onboarding.starter-key-dates.review",
+    inputContract: "Active Church with seeded Starter Key Dates",
+    kind: "write",
+    operation: "Review Starter Key Dates",
+    outputContract: "Starter Key Dates listed with next occurrences and optionally soft-deleted",
+    surfaces: {
+      cli: {
+        command: "church-work mcp call key-date-list; church-work mcp call key-date-delete",
+        notes:
+          "Starter Key Dates are available through generic CLI MCP passthrough using Key Date list and delete tools; no onboarding-specific named command yet.",
+        status: "generic-passthrough",
+      },
+      mcp: { status: "covered", tool: "key-date-list/key-date-delete" },
+      ui: {
+        notes: "Inspected OnboardingKeyDatesReview and keyDatesData.app hooks.",
+        status: "covered",
+      },
+    },
+    uiBehavior:
+      "Finished onboarding step reviews seeded Starter Key Dates, sorts by next occurrence, shows editable-later copy, and lets Users remove unwanted Key Dates before entering Church Work",
+  },
+  {
+    authorization: CHURCH_MEMBERSHIP_AUTHORIZATION,
+    context: ACTIVE_CHURCH_MEMBERSHIP_CONTEXT,
+    domainArea: "Onboarding",
+    id: "onboarding.complete",
+    inputContract:
+      "Active Church id after Church profile, Starter Teams, and Starter Key Dates are ready",
+    kind: "write",
+    operation: "Complete Onboarding",
+    outputContract:
+      "Church marked completedOnboarding=true and Active Church guard can enter Church Work",
+    surfaces: UI_ONLY_ONBOARDING_SURFACES,
+    uiBehavior:
+      "Finished onboarding step calls Better Auth completeOnboarding, refetches the session, and relies on redirectIfOnboarded once the Active Church reflects Completed Onboarding",
   },
   {
     authorization: CHURCH_MEMBERSHIP_AUTHORIZATION,
