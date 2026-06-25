@@ -651,6 +651,80 @@ describe("Agent Operation parity registry", () => {
     );
   });
 
+  test("reports UI-led Onboarding and Church setup behavior", () => {
+    const byId = new Map(AGENT_OPERATION_REGISTRY.map((entry) => [entry.id, entry]));
+
+    expect(byId.get("onboarding.church-profile.create")).toMatchObject({
+      id: "onboarding.church-profile.create",
+      domainArea: "Onboarding",
+      operation: "Create Church Profile",
+      kind: "write",
+      authorization: "Authenticated User",
+      context: {
+        requiresActiveChurch: false,
+        requiresChurchMembership: false,
+        session: "authenticated",
+      },
+      surfaces: {
+        ui: expect.objectContaining({ status: "covered" }),
+        mcp: expect.objectContaining({ status: "intentionally-ui-only" }),
+        cli: expect.objectContaining({ status: "intentionally-ui-only" }),
+      },
+    });
+
+    expect(byId.get("onboarding.starter-teams.review")).toMatchObject({
+      operation: "Review Starter Teams",
+      authorization: "Church owner, Church admin, or App Administrator",
+      context: {
+        requiresActiveChurch: true,
+        requiresChurchMembership: true,
+        session: "authenticated",
+      },
+      surfaces: {
+        ui: expect.objectContaining({ status: "covered" }),
+        mcp: expect.objectContaining({ status: "missing" }),
+        cli: expect.objectContaining({ status: "missing" }),
+      },
+    });
+
+    expect(byId.get("onboarding.starter-key-dates.review")).toMatchObject({
+      operation: "Review Starter Key Dates",
+      surfaces: {
+        ui: expect.objectContaining({ status: "covered" }),
+        mcp: { status: "covered", tool: "key-date-list/key-date-delete" },
+        cli: {
+          command: "church-work mcp call key-date-list/key-date-delete",
+          status: "generic-passthrough",
+        },
+      },
+    });
+
+    const completeOnboarding = byId.get("onboarding.complete");
+    expect(completeOnboarding?.operation).toBe("Complete Onboarding");
+    expect(completeOnboarding?.outputContract).toBe(
+      "Church marked completedOnboarding=true and Active Church guard can enter Church Work",
+    );
+    expect(completeOnboarding?.surfaces).toEqual({
+      cli: {
+        notes: "Onboarding setup is intentionally browser-led.",
+        status: "intentionally-ui-only",
+      },
+      mcp: {
+        notes: "Onboarding setup is intentionally browser-led.",
+        status: "intentionally-ui-only",
+      },
+      ui: {
+        notes:
+          "Inspected Onboarding route, onboarding step resolver, onboarding Team review, Starter Key Dates review, and Better Auth onboarding endpoints.",
+        status: "covered",
+      },
+    });
+
+    expect(generateAgentParityReport()).toContain(
+      "| Onboarding | Complete Onboarding | write | covered | intentionally-ui-only | intentionally-ui-only | authenticated, Active Church, Church Membership | Church Membership | Finished onboarding step calls Better Auth completeOnboarding, refetches the session, and relies on redirectIfOnboarded once the Active Church reflects Completed Onboarding |",
+    );
+  });
+
   test("escapes Markdown table delimiters in registry text", () => {
     expect(
       generateAgentParityReport([
