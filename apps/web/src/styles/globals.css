@@ -504,15 +504,10 @@
 /* The rail: the upcoming Weeks the Template projects onto. */
 .marketing-page .cw-proj-rail {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   overflow: hidden;
 }
 @media (max-width: 1100px) {
-  .marketing-page .cw-proj-rail {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-@media (max-width: 520px) {
   .marketing-page .cw-proj-rail {
     grid-template-columns: 1fr;
   }
@@ -529,28 +524,19 @@
 .marketing-page .cw-proj-rail .cw-proj-week:last-child {
   border-right: 0;
 }
-/* When the rail wraps to 2 columns or 1, restore horizontal rules between rows
-   so wrapped weeks stay separated. */
+/* When the rail wraps to a single column, restore horizontal rules between rows
+   so the stacked weeks stay separated. */
 @media (max-width: 1100px) {
   .marketing-page .cw-proj-week {
+    border-right: 0;
     border-bottom: 1px solid var(--mkt-border);
   }
-  .marketing-page .cw-proj-rail .cw-proj-week:nth-child(even) {
-    border-right: 0;
-  }
 }
-@media (max-width: 520px) {
-  .marketing-page .cw-proj-week {
-    border-right: 0;
-  }
-}
-/* Future weeks recede as they go out, so the rail reads as "and on, and on."
-   The dashed ghost chips already say "projected"; the fade just adds distance. */
-.marketing-page .cw-proj-week[data-future="2"] {
-  opacity: 0.82;
-}
-.marketing-page .cw-proj-week[data-future="3"] {
-  opacity: 0.62;
+/* The bracketing weeks (before/after) recede slightly so the live week of
+   service reads as the anchor — projected prep on one side, follow-up on the
+   other. The dashed ghost chips already say "projected"; the fade adds focus. */
+.marketing-page .cw-proj-week[data-future="1"] {
+  opacity: 0.78;
 }
 /* This week is live — a warm top edge marks where projection becomes real. */
 .marketing-page .cw-proj-week[data-live="true"] {
@@ -597,12 +583,12 @@
    the same contrast the product draws between planned and real work. */
 .marketing-page .cw-proj-chip {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 7px;
-  padding: 5px 9px;
+  padding: 6px 9px;
   border-radius: 8px;
   font-size: 12.5px;
-  line-height: 1.2;
+  line-height: 1.25;
   border: 1px dashed oklch(0.62 0.01 260 / 0.4);
   color: var(--mkt-muted);
 }
@@ -612,6 +598,40 @@
   background: var(--mkt-bg);
   color: var(--mkt-fg);
   box-shadow: 0 1px 2px oklch(0 0 0 / 0.04);
+}
+/* The dot is a leading marker, so nudge it onto the first line of a label that
+   may now wrap to two lines. */
+.marketing-page .cw-proj-chip .cw-proj-dot {
+  margin-top: 5px;
+}
+/* Task labels are real, descriptive work now — let them wrap instead of
+   truncating, with the owning Team sitting just beneath. */
+.marketing-page .cw-proj-chip-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.marketing-page .cw-proj-chip-label {
+  min-width: 0;
+}
+
+/* The Team that owns each piece of work — a quiet pill, so a row reads as "this
+   work · this Team," the same ownership the product shows. In the chips it sits
+   below the label; in the definition rows it trails to the edge. */
+.marketing-page .cw-proj-team {
+  align-self: flex-start;
+  flex: none;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--mkt-muted);
+  background: color-mix(in oklch, var(--mkt-fg) 6%, transparent);
+  border-radius: 5px;
+  padding: 1px 6px;
+}
+.marketing-page .cw-proj-defrow .cw-proj-team {
+  margin-left: auto;
 }
 
 /* Process spine: the three moments are a real ordered sequence

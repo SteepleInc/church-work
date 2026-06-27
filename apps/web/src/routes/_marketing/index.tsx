@@ -5,8 +5,8 @@ import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
 import browserMockup from "@/assets/browser-mockup.png";
+import farmerImage from "@/assets/farmer.png";
 import frame207 from "@/assets/frame-207.svg";
-import nurseVideo from "@/assets/nurse-video.mp4";
 import programmingArrow from "@/assets/programming-arrow.svg";
 
 import {
@@ -271,20 +271,17 @@ function Hero({ base }: { readonly base: number }) {
           <AnimatedWords
             delayStart={at(HERO_OFFSET.h1Line1)}
             stagger={0.05}
-            text="Plan your tasks"
+            text="Built for ministry"
           />
         </span>
         <span className="block">
-          <AnimatedWords delayStart={at(HERO_OFFSET.h1Line2)} stagger={0.05} text="around" />{" "}
-          <motion.video
+          <AnimatedWords delayStart={at(HERO_OFFSET.h1Line2)} stagger={0.05} text="not" />{" "}
+          <motion.img
+            alt="Farmer"
             animate={{ scale: 1 }}
-            autoPlay
-            className="inline-block h-[88px] w-[88px] rounded-full object-cover align-middle md:h-[108px] md:w-[108px]"
+            className="inline-block h-[56px] w-[56px] -translate-y-[0.2em] object-contain align-middle md:h-[64px] md:w-[64px]"
             initial={{ scale: 0 }}
-            loop
-            muted
-            playsInline
-            src={nurseVideo}
+            src={farmerImage}
             transition={{
               delay: at(HERO_OFFSET.video),
               duration: 0.6,
@@ -295,7 +292,7 @@ function Hero({ base }: { readonly base: number }) {
             className="text-mkt-fg/25"
             delayStart={at(HERO_OFFSET.h1Tail)}
             stagger={0.05}
-            text="Sunday services"
+            text="projects"
           />
         </span>
       </h1>
@@ -312,9 +309,10 @@ function Hero({ base }: { readonly base: number }) {
           ease: "easeOut",
         }}
       >
-        Built for how church work actually happens. It recurs every week. It spans every team. It
+        Most task managers help you complete one and done projects. Church Work helps you lead recurring ministry. Build repeatable templates for your weekly services, big events like Christmas and Easter, and your monthly rhythms.
+        {/* Built for how church work actually happens. It recurs every week. It spans every team. It
         slips through the cracks. Church Work turns Templates, Cycles, and Tasks into one shared
-        plan — so everyone knows what's next.
+        plan — so everyone knows what's next. */}
       </motion.p>
 
       {/* CTA row */}
@@ -510,10 +508,10 @@ function LeftCard({ shift }: { readonly shift: number }) {
               style={
                 feature.active
                   ? {
-                      background: "#F4F4F4",
-                      borderRadius: 4.312,
-                      padding: "6px 4px",
-                    }
+                    background: "#F4F4F4",
+                    borderRadius: 4.312,
+                    padding: "6px 4px",
+                  }
                   : { padding: "6px 4px" }
               }
             >
@@ -676,32 +674,75 @@ function Showcase({ base }: { readonly base: number }) {
 /* weeks ahead, then the ordered weekly rhythm beneath it.             */
 /* ------------------------------------------------------------------ */
 
-// The recurring work the Template owns — written once, inherited by every Week.
-// Each Task's Team color is the same vocabulary the product uses, so the
-// definition and its projections read as the same work.
-const TEMPLATE_DEFINITION = [
-  { color: "var(--t-violet)", label: "Confirm band lineup" },
-  { color: "var(--t-blue)", label: "Render lyric slides" },
-  { color: "var(--t-orange)", label: "Print check-in labels" },
-] as const;
+// Each Team keeps one color across every week, so a glance reads ownership the
+// same way the product does: teal is always Admin, violet always Worship.
+const TEAM_COLOR = {
+  Admin: "var(--t-teal)",
+  Worship: "var(--t-violet)",
+  Production: "var(--t-blue)",
+  Creative: "var(--t-orange)",
+  Welcome: "var(--t-emerald)",
+} as const;
 
-// The rail the Template projects onto: this week lands live, the weeks after
-// are still ghost projections waiting for their Cycle to open. The contrast is
-// the whole point — define it once, and it's already on every week ahead.
+type Team = keyof typeof TEAM_COLOR;
+type Task = { readonly label: string; readonly team: Team };
+
+// A Sunday Service isn't one burst of work — it's phased. The Template owns the
+// whole arc: prep lands in the week before, execution in the week of, recap in
+// the week after. Same definition, but each week inherits its own real Tasks.
 type ProjectionWeek = {
   readonly name: string;
   readonly date: string;
   readonly tag: string;
-  // 0 = live this week; 1..3 = how many weeks out (drives the receding fade).
-  readonly future: 0 | 1 | 2 | 3;
+  // 0 = the live week of service; 1 = the weeks bracketing it (drives the fade).
+  readonly future: 0 | 1;
+  readonly tasks: readonly Task[];
 };
 
 const PROJECTION_WEEKS: readonly ProjectionWeek[] = [
-  { name: "This week", date: "Feb 2 — 8", future: 0, tag: "Live" },
-  { name: "Next week", date: "Feb 9 — 15", future: 1, tag: "Projected" },
-  { name: "In 2 weeks", date: "Feb 16 — 22", future: 2, tag: "Projected" },
-  { name: "In 3 weeks", date: "Feb 23 — 29", future: 3, tag: "Projected" },
+  {
+    name: "Week before",
+    date: "Feb 2 — 8",
+    future: 1,
+    tag: "Prep",
+    tasks: [
+      { label: "Confirm the roster", team: "Admin" },
+      { label: "Send the roster email", team: "Admin" },
+      { label: "Finish sermon graphics", team: "Creative" },
+    ],
+  },
+  {
+    name: "Week of service",
+    date: "Feb 9 — 15",
+    future: 0,
+    tag: "Live",
+    tasks: [
+      { label: "Lock the song list", team: "Worship" },
+      { label: "Finalize the run sheet", team: "Admin" },
+      { label: "Post Sunday promos", team: "Creative" },
+    ],
+  },
+  {
+    name: "Week after",
+    date: "Feb 16 — 22",
+    future: 1,
+    tag: "Follow-up",
+    tasks: [
+      { label: "Follow up on connection cards", team: "Welcome" },
+      { label: "Post the recap", team: "Creative" },
+      { label: "Clip content for social", team: "Creative" },
+    ],
+  },
 ];
+
+// The left panel summarizes the arc the Template owns — three phases, not three
+// identical Tasks — so the projection reads as "one definition, phased across
+// the weeks it lands on."
+const TEMPLATE_PHASES = [
+  { label: "Prep the week before", team: "Admin" },
+  { label: "Run the week of", team: "Worship" },
+  { label: "Recap the week after", team: "Welcome" },
+] as const satisfies readonly Task[];
 
 // The weekly rhythm as a real ordered process: define the Template, the Cycle
 // runs it, then rollover carries the rest forward. The order is information, so
@@ -733,12 +774,12 @@ function HowItWorks() {
           className="mt-5 max-w-[820px] font-medium text-[40px] tracking-tight md:text-[56px]"
           style={{ letterSpacing: "-0.03em", lineHeight: 1.05 }}
         >
-          A church doesn&rsquo;t plan in projects. It plans in weeks.
+          Churches don't plan in projects. They plan in weeks.
         </h2>
         <p className="mt-5 max-w-[580px] text-[18px] text-mkt-muted" style={{ lineHeight: 1.5 }}>
-          So you build the recurring work once as a Template — and Church Work projects it onto
-          every week ahead. Here&rsquo;s the same Sunday service, fanned across the weeks it lands
-          on.
+          So you build the recurring work once as a Template — and Church Work projects it onto the
+          weeks ahead. One Sunday service, phased across the weeks it touches: prep before, the run
+          itself, recap after.
         </p>
       </Reveal>
 
@@ -765,12 +806,13 @@ function HowItWorks() {
             </div>
 
             <div>
-              <p className="cw-proj-deflabel">Recurring Tasks</p>
+              <p className="cw-proj-deflabel">Recurring work, phased</p>
               <div className="mt-2.5 flex flex-col">
-                {TEMPLATE_DEFINITION.map((task) => (
-                  <span className="cw-proj-defrow" key={task.label}>
-                    <span className="cw-proj-dot" style={{ background: task.color }} />
-                    {task.label}
+                {TEMPLATE_PHASES.map((phase) => (
+                  <span className="cw-proj-defrow" key={phase.label}>
+                    <span className="cw-proj-dot" style={{ background: TEAM_COLOR[phase.team] }} />
+                    <span className="min-w-0 truncate">{phase.label}</span>
+                    <span className="cw-proj-team">{phase.team}</span>
                   </span>
                 ))}
               </div>
@@ -798,7 +840,7 @@ function HowItWorks() {
                   </div>
                   <span className="text-[11.5px] text-mkt-muted tabular-nums">{week.date}</span>
                   <div className="cw-proj-chips">
-                    {TEMPLATE_DEFINITION.map((task) => (
+                    {week.tasks.map((task) => (
                       <span
                         className="cw-proj-chip"
                         data-solid={isLive ? "true" : undefined}
@@ -807,11 +849,14 @@ function HowItWorks() {
                         <span
                           className="cw-proj-dot"
                           style={{
-                            background: task.color,
+                            background: TEAM_COLOR[task.team],
                             opacity: isLive ? 1 : 0.7,
                           }}
                         />
-                        <span className="min-w-0 truncate">{task.label}</span>
+                        <span className="cw-proj-chip-body">
+                          <span className="cw-proj-chip-label">{task.label}</span>
+                          <span className="cw-proj-team">{task.team}</span>
+                        </span>
                       </span>
                     ))}
                   </div>
@@ -932,55 +977,55 @@ const BOARD_COLUMNS: readonly {
   readonly title: string;
   readonly tasks: readonly PresentationTask[];
 }[] = [
-  {
-    state: "todo",
-    title: "To Do",
-    tasks: [
-      {
-        identifier: "EXP-058",
-        title: "Order communion supplies",
-        state: "todo",
-        priority: "low",
-        labels: [{ color: "pink", name: "Experience" }],
-        assignee: PEOPLE.user_mr,
-      },
-      {
-        identifier: "EXP-061",
-        title: "Confirm greeter schedule",
-        state: "todo",
-        labels: [{ color: "teal", name: "Welcome" }],
-        assignee: PEOPLE.user_cn,
-      },
-    ],
-  },
-  {
-    state: "in_progress",
-    title: "In Progress",
-    tasks: [
-      {
-        identifier: "WOR-130",
-        title: "Band rehearsal run-through",
-        state: "in_progress",
-        priority: "high",
-        labels: [{ color: "violet", name: "Worship" }],
-        assignee: PEOPLE.user_ak,
-      },
-    ],
-  },
-  {
-    state: "done",
-    title: "Done",
-    tasks: [
-      {
-        identifier: "KID-066",
-        title: "Kids check-in tested",
-        state: "done",
-        labels: [{ color: "orange", name: "Kids" }],
-        assignee: PEOPLE.user_jd,
-      },
-    ],
-  },
-];
+    {
+      state: "todo",
+      title: "To Do",
+      tasks: [
+        {
+          identifier: "EXP-058",
+          title: "Order communion supplies",
+          state: "todo",
+          priority: "low",
+          labels: [{ color: "pink", name: "Experience" }],
+          assignee: PEOPLE.user_mr,
+        },
+        {
+          identifier: "EXP-061",
+          title: "Confirm greeter schedule",
+          state: "todo",
+          labels: [{ color: "teal", name: "Welcome" }],
+          assignee: PEOPLE.user_cn,
+        },
+      ],
+    },
+    {
+      state: "in_progress",
+      title: "In Progress",
+      tasks: [
+        {
+          identifier: "WOR-130",
+          title: "Band rehearsal run-through",
+          state: "in_progress",
+          priority: "high",
+          labels: [{ color: "violet", name: "Worship" }],
+          assignee: PEOPLE.user_ak,
+        },
+      ],
+    },
+    {
+      state: "done",
+      title: "Done",
+      tasks: [
+        {
+          identifier: "KID-066",
+          title: "Kids check-in tested",
+          state: "done",
+          labels: [{ color: "orange", name: "Kids" }],
+          assignee: PEOPLE.user_jd,
+        },
+      ],
+    },
+  ];
 
 function BoardMock() {
   return (
