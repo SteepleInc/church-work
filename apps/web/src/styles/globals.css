@@ -131,10 +131,9 @@
 
 @theme inline {
   --font-sans:
-    "PP Neue Montreal", "Inter Variable", ui-sans-serif, system-ui, sans-serif,
-    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-  --font-serif:
-    "PP Pangaia", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+    "PP Neue Montreal", "Inter Variable", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-serif: "PP Pangaia", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -259,41 +258,13 @@
   position: relative;
   background-color: #0c0a09;
   background-image:
-    radial-gradient(
-      55% 95% at 100% 50%,
-      rgba(120, 180, 255, 0.85) 0%,
-      rgba(120, 180, 255, 0) 70%
-    ),
-    radial-gradient(
-      45% 75% at 88% 50%,
-      rgba(170, 210, 255, 0.7) 0%,
-      rgba(170, 210, 255, 0) 70%
-    ),
-    radial-gradient(
-      60% 75% at 60% 50%,
-      rgba(255, 215, 90, 0.95) 0%,
-      rgba(255, 215, 90, 0) 70%
-    ),
-    radial-gradient(
-      75% 80% at 50% 55%,
-      rgba(255, 175, 60, 0.7) 0%,
-      rgba(255, 175, 60, 0) 65%
-    ),
-    radial-gradient(
-      80% 80% at 30% 60%,
-      rgba(255, 150, 40, 0.6) 0%,
-      rgba(255, 130, 30, 0) 60%
-    ),
-    radial-gradient(
-      60% 70% at 12% 95%,
-      rgba(255, 110, 25, 0.7) 0%,
-      rgba(255, 110, 25, 0) 65%
-    ),
-    radial-gradient(
-      55% 75% at 0% 0%,
-      rgba(120, 80, 40, 0.85) 0%,
-      rgba(120, 80, 40, 0) 60%
-    ),
+    radial-gradient(55% 95% at 100% 50%, rgba(120, 180, 255, 0.85) 0%, rgba(120, 180, 255, 0) 70%),
+    radial-gradient(45% 75% at 88% 50%, rgba(170, 210, 255, 0.7) 0%, rgba(170, 210, 255, 0) 70%),
+    radial-gradient(60% 75% at 60% 50%, rgba(255, 215, 90, 0.95) 0%, rgba(255, 215, 90, 0) 70%),
+    radial-gradient(75% 80% at 50% 55%, rgba(255, 175, 60, 0.7) 0%, rgba(255, 175, 60, 0) 65%),
+    radial-gradient(80% 80% at 30% 60%, rgba(255, 150, 40, 0.6) 0%, rgba(255, 130, 30, 0) 60%),
+    radial-gradient(60% 70% at 12% 95%, rgba(255, 110, 25, 0.7) 0%, rgba(255, 110, 25, 0) 65%),
+    radial-gradient(55% 75% at 0% 0%, rgba(120, 80, 40, 0.85) 0%, rgba(120, 80, 40, 0) 60%),
     linear-gradient(180deg, #1a120c 0%, #0c0a09 100%);
   background-size:
     100% 100%,
@@ -434,72 +405,228 @@
   opacity: 0.4;
 }
 
-/* The Week strip: the Monday→Sunday spine that carries the process.
-   Seven cells, hairline-separated, with the active days tinted warm. */
-.marketing-page .cw-weekstrip {
+/* ------------------------------------------------------------------ */
+/* Template projection diagram — the signature device for "build once, */
+/* it appears every week." One Template source on the left fans the    */
+/* same recurring Tasks rightward onto a rail of upcoming Weeks: this   */
+/* week lands solid/live, future weeks are dashed projections fading    */
+/* out — the exact projected-Task language the live app uses.          */
+/* ------------------------------------------------------------------ */
+
+.marketing-page .cw-proj {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: minmax(240px, 320px) 1fr;
+  gap: 0;
   border: 1px solid var(--mkt-border);
-  border-radius: 16px;
+  border-radius: 20px;
   overflow: hidden;
   background: var(--mkt-bg);
 }
-.marketing-page .cw-weekcell {
+@media (max-width: 860px) {
+  .marketing-page .cw-proj {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The source: the Template definition, set apart on a faint tinted panel
+   so it reads as the origin the weeks flow out of. */
+.marketing-page .cw-proj-source {
   position: relative;
-  padding: 14px 12px 18px;
+  padding: 26px 26px 24px;
   border-right: 1px solid var(--mkt-border);
-  min-height: 92px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.marketing-page .cw-weekcell:last-child {
-  border-right: 0;
-}
-.marketing-page .cw-weekcell[data-active="true"] {
   background: linear-gradient(
     180deg,
-    oklch(0.88 0.18 95 / 0.16) 0%,
-    oklch(0.88 0.18 95 / 0) 100%
+    oklch(0.88 0.18 95 / 0.1) 0%,
+    oklch(0.88 0.18 95 / 0.02) 100%
   );
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
-.marketing-page .cw-weekcell[data-edge="true"]::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 3px;
+@media (max-width: 860px) {
+  .marketing-page .cw-proj-source {
+    border-right: 0;
+    border-bottom: 1px solid var(--mkt-border);
+  }
+}
+.marketing-page .cw-proj-tile {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.marketing-page .cw-proj-tile-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
   background: var(--mkt-accent);
+  color: var(--mkt-accent-fg);
+  flex: none;
 }
-/* On narrow screens the seven cells get tight; drop the in-cell moment label
-   (the cards below already carry it) and shrink padding so the Mon→Sun rail
-   stays legible as the signature device. */
-@media (max-width: 640px) {
-  .marketing-page .cw-weekcell {
-    padding: 10px 6px 12px;
-    min-height: 64px;
-  }
-  .marketing-page .cw-weekcell .cw-weekmoment {
-    display: none;
-  }
-  .marketing-page .cw-weekdate {
-    font-size: 12px;
-  }
+.marketing-page .cw-proj-tile-name {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
 }
-.marketing-page .cw-weekday {
+.marketing-page .cw-proj-tile-cadence {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--mkt-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The recurring Tasks the Template owns — the "definition" the weeks inherit. */
+.marketing-page .cw-proj-deflabel {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--mkt-muted);
-  font-variant-numeric: tabular-nums;
 }
-.marketing-page .cw-weekdate {
-  font-size: 13px;
-  font-weight: 500;
+.marketing-page .cw-proj-defrow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13.5px;
+  color: var(--mkt-fg);
+  padding: 2px 0;
+}
+.marketing-page .cw-proj-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex: none;
+}
+
+/* The rail: the upcoming Weeks the Template projects onto. */
+.marketing-page .cw-proj-rail {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  overflow: hidden;
+}
+@media (max-width: 1100px) {
+  .marketing-page .cw-proj-rail {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 520px) {
+  .marketing-page .cw-proj-rail {
+    grid-template-columns: 1fr;
+  }
+}
+.marketing-page .cw-proj-week {
+  position: relative;
+  padding: 16px 16px 18px;
+  border-right: 1px solid var(--mkt-border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 184px;
+}
+.marketing-page .cw-proj-rail .cw-proj-week:last-child {
+  border-right: 0;
+}
+/* When the rail wraps to 2 columns or 1, restore horizontal rules between rows
+   so wrapped weeks stay separated. */
+@media (max-width: 1100px) {
+  .marketing-page .cw-proj-week {
+    border-bottom: 1px solid var(--mkt-border);
+  }
+  .marketing-page .cw-proj-rail .cw-proj-week:nth-child(even) {
+    border-right: 0;
+  }
+}
+@media (max-width: 520px) {
+  .marketing-page .cw-proj-week {
+    border-right: 0;
+  }
+}
+/* Future weeks recede as they go out, so the rail reads as "and on, and on."
+   The dashed ghost chips already say "projected"; the fade just adds distance. */
+.marketing-page .cw-proj-week[data-future="2"] {
+  opacity: 0.82;
+}
+.marketing-page .cw-proj-week[data-future="3"] {
+  opacity: 0.62;
+}
+/* This week is live — a warm top edge marks where projection becomes real. */
+.marketing-page .cw-proj-week[data-live="true"] {
+  background: linear-gradient(180deg, oklch(0.88 0.18 95 / 0.14) 0%, oklch(0.88 0.18 95 / 0) 60%);
+}
+.marketing-page .cw-proj-week[data-live="true"]::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--mkt-accent);
+}
+.marketing-page .cw-proj-weekhead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+.marketing-page .cw-proj-weekname {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--mkt-fg);
   font-variant-numeric: tabular-nums;
+}
+.marketing-page .cw-proj-weektag {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mkt-muted);
+  font-variant-numeric: tabular-nums;
+}
+.marketing-page .cw-proj-week[data-live="true"] .cw-proj-weektag {
+  color: color-mix(in oklch, var(--mkt-accent) 70%, var(--mkt-fg));
+}
+.marketing-page .cw-proj-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* A projected Task: dashed ghost on future weeks, solid on the live week —
+   the same contrast the product draws between planned and real work. */
+.marketing-page .cw-proj-chip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 9px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  line-height: 1.2;
+  border: 1px dashed oklch(0.62 0.01 260 / 0.4);
+  color: var(--mkt-muted);
+}
+.marketing-page .cw-proj-chip[data-solid="true"] {
+  border-style: solid;
+  border-color: var(--mkt-border);
+  background: var(--mkt-bg);
+  color: var(--mkt-fg);
+  box-shadow: 0 1px 2px oklch(0 0 0 / 0.04);
+}
+
+/* Process spine: the three moments are a real ordered sequence
+   (define → run → roll over), so they earn typed 01/02/03 markers. */
+.marketing-page .cw-step-index {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--mkt-muted);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+.marketing-page .cw-step-index b {
+  color: var(--mkt-fg);
+  font-weight: 600;
 }
 
 /* Scroll reveal — a single quiet rise, respecting reduced motion. */
@@ -516,14 +643,14 @@
 }
 
 /* ------------------------------------------------------------------ */
-/* Week-strip Team dots — the only product-color device left in CSS.   */
+/* Team colors — the only product-color device left in marketing CSS.  */
 /* The in-app product imagery (My Work / Board / Insights) is rendered  */
 /* by the shared task-presentation components, not bespoke mock CSS, so */
 /* it can never drift from the live app.                               */
 /* ------------------------------------------------------------------ */
 
-/* The app's eight Team colors, surfaced as CSS vars so the Week strip's
-   dots reference the same vocabulary the product uses. */
+/* The app's eight Team colors, surfaced as CSS vars so the Template
+   projection diagram references the same vocabulary the product uses. */
 .marketing-page {
   --t-red: #ef4444;
   --t-orange: #f97316;
@@ -535,40 +662,16 @@
   --t-pink: #ec4899;
 }
 
-/* A small Team-color dot on the Week strip. */
-.marketing-page .cw-teamdot {
-  width: 9px;
-  height: 9px;
-  border-radius: 999px;
-  flex: none;
-}
-
 /* The second mesh band — a wider, cooler sweep than the hero so the
    page gets a fresh hit of color at its midpoint, not a repeat. */
 .marketing-page .mesh-band {
   position: relative;
   background-color: #0c0a09;
   background-image:
-    radial-gradient(
-      60% 120% at 8% 50%,
-      rgba(255, 180, 60, 0.85) 0%,
-      rgba(255, 180, 60, 0) 60%
-    ),
-    radial-gradient(
-      50% 90% at 30% 40%,
-      rgba(255, 120, 40, 0.6) 0%,
-      rgba(255, 120, 40, 0) 60%
-    ),
-    radial-gradient(
-      55% 100% at 62% 60%,
-      rgba(120, 90, 255, 0.55) 0%,
-      rgba(120, 90, 255, 0) 62%
-    ),
-    radial-gradient(
-      70% 120% at 100% 50%,
-      rgba(80, 170, 255, 0.85) 0%,
-      rgba(80, 170, 255, 0) 60%
-    ),
+    radial-gradient(60% 120% at 8% 50%, rgba(255, 180, 60, 0.85) 0%, rgba(255, 180, 60, 0) 60%),
+    radial-gradient(50% 90% at 30% 40%, rgba(255, 120, 40, 0.6) 0%, rgba(255, 120, 40, 0) 60%),
+    radial-gradient(55% 100% at 62% 60%, rgba(120, 90, 255, 0.55) 0%, rgba(120, 90, 255, 0) 62%),
+    radial-gradient(70% 120% at 100% 50%, rgba(80, 170, 255, 0.85) 0%, rgba(80, 170, 255, 0) 60%),
     linear-gradient(110deg, #1a120c 0%, #0b1020 100%);
   background-size:
     200% 200%,
@@ -604,26 +707,10 @@
   position: relative;
   background-color: #0c0a09;
   background-image:
-    radial-gradient(
-      70% 130% at 12% 20%,
-      rgba(255, 200, 70, 0.9) 0%,
-      rgba(255, 200, 70, 0) 60%
-    ),
-    radial-gradient(
-      60% 110% at 30% 60%,
-      rgba(255, 140, 45, 0.7) 0%,
-      rgba(255, 140, 45, 0) 60%
-    ),
-    radial-gradient(
-      75% 130% at 95% 90%,
-      rgba(110, 90, 240, 0.55) 0%,
-      rgba(110, 90, 240, 0) 62%
-    ),
-    radial-gradient(
-      80% 120% at 80% 5%,
-      rgba(80, 160, 255, 0.6) 0%,
-      rgba(80, 160, 255, 0) 60%
-    ),
+    radial-gradient(70% 130% at 12% 20%, rgba(255, 200, 70, 0.9) 0%, rgba(255, 200, 70, 0) 60%),
+    radial-gradient(60% 110% at 30% 60%, rgba(255, 140, 45, 0.7) 0%, rgba(255, 140, 45, 0) 60%),
+    radial-gradient(75% 130% at 95% 90%, rgba(110, 90, 240, 0.55) 0%, rgba(110, 90, 240, 0) 62%),
+    radial-gradient(80% 120% at 80% 5%, rgba(80, 160, 255, 0.6) 0%, rgba(80, 160, 255, 0) 60%),
     linear-gradient(135deg, #1a130c 0%, #0b0e1c 100%);
   background-size:
     180% 180%,

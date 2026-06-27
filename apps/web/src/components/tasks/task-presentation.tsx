@@ -2,12 +2,9 @@ import type { LabelColor, TaskStatus } from "@church-work/domain";
 import { CalendarIcon, LibraryBig, Tag, Triangle } from "lucide-react";
 import type { ReactNode } from "react";
 
-import {
-  AssigneeAvatar,
-  getPriorityMeta,
-  type TaskPriority,
-} from "./task-card-fields";
+import { AssigneeAvatar, getPriorityMeta, type TaskPriority } from "./task-card-fields";
 import { WorkflowStatusIcon } from "./task-card-fields";
+import { UserAvatar } from "@/components/avatars/userAvatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -44,6 +41,9 @@ export type PresentationLabel = {
 export type PresentationAssignee = {
   readonly id: string;
   readonly name: string;
+  // Optional avatar image URL. When present, the avatar renders this photo;
+  // otherwise it falls back to the app's generated geometric avatar.
+  readonly image?: string | null;
 };
 
 export type PresentationTask = {
@@ -60,11 +60,33 @@ export type PresentationTask = {
 function LabelBadge({ label }: { readonly label: PresentationLabel }) {
   return (
     <Badge className="text-muted-foreground" variant="outline">
-      <span
-        className={cn("size-1.5 rounded-full", LABEL_DOT_CLASS[label.color])}
-      />
+      <span className={cn("size-1.5 rounded-full", LABEL_DOT_CLASS[label.color])} />
       {label.name}
     </Badge>
+  );
+}
+
+/**
+ * The assignee avatar for a presentational Task. When the assignee carries an
+ * image URL we render it as a real photo (the same `UserAvatar` image path the
+ * live app uses); otherwise we fall back to the app's generated avatar via
+ * `AssigneeAvatar`, so an assignee without a photo still looks like the product.
+ */
+function PresentationAssigneeAvatar({
+  assignee,
+}: {
+  readonly assignee: PresentationAssignee | null | undefined;
+}) {
+  if (assignee?.image) {
+    return (
+      <UserAvatar avatar={assignee.image} name={assignee.name} size={20} userId={assignee.id} />
+    );
+  }
+  return (
+    <AssigneeAvatar
+      assignee={assignee ? { id: assignee.id, label: assignee.name } : null}
+      size={20}
+    />
   );
 }
 
@@ -81,13 +103,13 @@ function ChipShell({ children }: { readonly children: ReactNode }) {
  * priority icon, identifier, Workflow Status icon, title, then right-aligned
  * labels, cycle chip and assignee avatar.
  */
-export function TaskRowPresentation({
-  task,
-}: {
-  readonly task: PresentationTask;
-}) {
-  const priorityMeta = task.priority ? getPriorityMeta(task.priority) : null;
-  const PriorityIcon = priorityMeta?.icon;
+export function TaskRowPresentation({ task }: { readonly task: PresentationTask }) {
+  // Fall back to the no-priority meta so a Task with no priority still shows the
+  // app's muted "no priority" dashes — the same empty-state affordance the live
+  // rows use — keeping the priority slot filled so identifiers stay aligned.
+  const priorityMeta = getPriorityMeta(task.priority ?? "no_priority");
+  const PriorityIcon = priorityMeta.icon;
+  const hasPriority = task.priority != null && task.priority !== "no_priority";
   return (
     <div
       aria-label={`Task ${task.title}`}
@@ -96,11 +118,11 @@ export function TaskRowPresentation({
         task.state === "canceled" && "opacity-70",
       )}
     >
-      {priorityMeta && PriorityIcon ? (
-        <span className="flex size-5 items-center justify-center">
-          <PriorityIcon className={cn("size-4", priorityMeta.className)} />
-        </span>
-      ) : null}
+      <span className="flex size-5 shrink-0 items-center justify-center">
+        <PriorityIcon
+          className={cn("size-4", hasPriority ? priorityMeta.className : "text-muted-foreground")}
+        />
+      </span>
       <span className="w-14 shrink-0 truncate font-medium text-muted-foreground text-xs">
         {task.identifier}
       </span>
@@ -115,20 +137,11 @@ export function TaskRowPresentation({
         {task.cycleLabel ? (
           <ChipShell>
             <CalendarIcon className="size-3.5" />
-            <span className="text-muted-foreground text-xs">
-              {task.cycleLabel}
-            </span>
+            <span className="text-muted-foreground text-xs">{task.cycleLabel}</span>
           </ChipShell>
         ) : null}
         <span className="flex size-5 items-center justify-center">
-          <AssigneeAvatar
-            assignee={
-              task.assignee
-                ? { id: task.assignee.id, label: task.assignee.name }
-                : null
-            }
-            size={20}
-          />
+          <PresentationAssigneeAvatar assignee={task.assignee} />
         </span>
       </div>
     </div>
@@ -140,11 +153,7 @@ export function TaskRowPresentation({
  * renders: identifier + assignee header, Workflow Status icon beside the title,
  * then a priority/estimate/label/cycle chip row.
  */
-export function TaskCardPresentation({
-  task,
-}: {
-  readonly task: PresentationTask;
-}) {
+export function TaskCardPresentation({ task }: { readonly task: PresentationTask }) {
   const priorityMeta = task.priority ? getPriorityMeta(task.priority) : null;
   const PriorityIcon = priorityMeta?.icon;
   return (
@@ -160,14 +169,7 @@ export function TaskCardPresentation({
           {task.identifier}
         </span>
         <span className="flex size-5 items-center justify-center">
-          <AssigneeAvatar
-            assignee={
-              task.assignee
-                ? { id: task.assignee.id, label: task.assignee.name }
-                : null
-            }
-            size={20}
-          />
+          <PresentationAssigneeAvatar assignee={task.assignee} />
         </span>
       </CardHeader>
       <CardContent className="px-3 py-2">
@@ -191,9 +193,7 @@ export function TaskCardPresentation({
         {task.estimate ? (
           <ChipShell>
             <Triangle className="size-3.5" />
-            <span className="font-medium text-muted-foreground text-xs">
-              {task.estimate}
-            </span>
+            <span className="font-medium text-muted-foreground text-xs">{task.estimate}</span>
           </ChipShell>
         ) : null}
         {(task.labels ?? []).map((label) => (
@@ -202,9 +202,7 @@ export function TaskCardPresentation({
         {task.cycleLabel ? (
           <ChipShell>
             <CalendarIcon className="size-3.5" />
-            <span className="text-muted-foreground text-xs">
-              {task.cycleLabel}
-            </span>
+            <span className="text-muted-foreground text-xs">{task.cycleLabel}</span>
           </ChipShell>
         ) : null}
       </CardContent>
@@ -230,9 +228,7 @@ export function BoardColumnPresentation({
       <div className="flex items-center gap-2 px-3 pt-2 pb-1">
         <WorkflowStatusIcon taskState={state} />
         <span className="truncate font-medium text-sm">{title}</span>
-        <span className="text-muted-foreground text-sm tabular-nums">
-          {tasks.length}
-        </span>
+        <span className="text-muted-foreground text-sm tabular-nums">{tasks.length}</span>
       </div>
       <div className="flex flex-col gap-2 px-2 pt-1.5 pb-2">
         {tasks.map((task) => (
@@ -274,9 +270,7 @@ export function ProductFrame({
         <span className="size-2 rounded-full bg-red-400/80" />
         <span className="size-2 rounded-full bg-amber-400/80" />
         <span className="size-2 rounded-full bg-emerald-400/80" />
-        <span className="ml-1 font-medium text-muted-foreground text-xs">
-          {title}
-        </span>
+        <span className="ml-1 font-medium text-muted-foreground text-xs">{title}</span>
         {trailing ? <span className="ml-auto">{trailing}</span> : null}
       </div>
       <div className={cn("min-h-0", bodyClassName)}>{children}</div>
@@ -372,9 +366,7 @@ export function TemplateProjectionPresentation({
         <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
           <LibraryBig className="size-4" />
         </span>
-        <span className="min-w-0 flex-1 truncate font-medium text-sm">
-          {name}
-        </span>
+        <span className="min-w-0 flex-1 truncate font-medium text-sm">{name}</span>
         <Badge variant="secondary">{shape}</Badge>
         <span className="hidden items-center gap-1 text-muted-foreground text-xs sm:flex">
           <CalendarIcon className="size-3.5" />
@@ -398,16 +390,12 @@ export function TemplateProjectionPresentation({
               key={week.label}
             >
               <div className="mb-1.5 flex items-baseline justify-between gap-1 px-0.5">
-                <span className="truncate font-medium text-xs">
-                  {week.label}
-                </span>
+                <span className="truncate font-medium text-xs">{week.label}</span>
                 {week.relative ? (
                   <span
                     className={cn(
                       "shrink-0 text-[11px]",
-                      isLive
-                        ? "font-medium text-primary"
-                        : "text-muted-foreground",
+                      isLive ? "font-medium text-primary" : "text-muted-foreground",
                     )}
                   >
                     {week.relative}
