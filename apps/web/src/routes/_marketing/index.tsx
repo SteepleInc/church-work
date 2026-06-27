@@ -1224,25 +1224,28 @@ function WhatYouGet() {
 }
 
 /* ------------------------------------------------------------------ */
-/* The vocabulary — the domain's own words, defined plainly            */
+/* Before & after — the felt week. Everything above is mechanism; this  */
+/* is the human stakes. The dim "without" column is the Sunday scramble  */
+/* a church already lives; the lit "with" column is the same moment once */
+/* there's one shared plan. The contrast is the content.                */
 /* ------------------------------------------------------------------ */
 
-const TERMS = [
+const SHIFTS = [
   {
-    term: "Cadence",
-    def: "The rhythm that makes work recur — weekly, monthly, every Easter.",
+    without: "\u201cWho's got the slides?\u201d at 9 on Saturday night.",
+    with: "Every task has an owner the whole team can see.",
   },
   {
-    term: "Cycle",
-    def: "One Monday-to-Sunday week of work for the whole church.",
+    without: "A volunteer shows up not knowing they were on.",
+    with: "Their week is waiting for them in My Work.",
   },
   {
-    term: "Template",
-    def: "Recurring work written once, projected onto future Cycles.",
+    without: "Last week's loose ends quietly disappear.",
+    with: "Unfinished work rolls into next week on its own.",
   },
   {
-    term: "Rollover",
-    def: "Sunday's hand-off that carries unfinished work into next week.",
+    without: "Every Sunday rebuilt from scratch in a group text.",
+    with: "The recurring plan is already there, every week.",
   },
 ] as const;
 
@@ -1252,33 +1255,38 @@ function Vocabulary() {
       <div className="overflow-hidden rounded-[28px] bg-mkt-surface p-8 text-white md:p-12">
         <Reveal>
           <p className="cw-eyebrow" style={{ color: "rgba(255,255,255,0.55)" }}>
-            Speaks your language
+            Before &amp; after
           </p>
           <h2
             className="mt-5 max-w-[680px] font-medium text-[32px] tracking-tight md:text-[44px]"
             style={{ letterSpacing: "-0.03em", lineHeight: 1.1 }}
           >
-            Built on the words a ministry team already uses.
+            Same Sunday. Without the scramble.
           </h2>
+          <p
+            className="mt-5 max-w-[520px] text-[16px]"
+            style={{ color: "rgba(255,255,255,0.55)", lineHeight: 1.55 }}
+          >
+            The work was always there. What changes is that everyone can see it, own it, and trust
+            it carries forward.
+          </p>
         </Reveal>
 
-        <dl className="mt-10 grid gap-x-10 sm:grid-cols-2">
-          {TERMS.map((t, i) => (
-            <Reveal
-              className="flex flex-col gap-2 border-white/10 border-t py-6"
-              delay={i * 80}
-              key={t.term}
-            >
-              <dt className="font-medium text-[20px] tracking-tight">{t.term}</dt>
-              <dd
-                className="text-[15px]"
-                style={{ color: "rgba(255,255,255,0.55)", lineHeight: 1.5 }}
-              >
-                {t.def}
-              </dd>
+        <div className="cw-shift mt-12">
+          <div className="cw-shift-head">
+            <span className="cw-shift-head-from">Today</span>
+            <span className="cw-shift-head-to">With Church Work</span>
+          </div>
+          {SHIFTS.map((s, i) => (
+            <Reveal className="cw-shift-row" delay={i * 80} key={s.with}>
+              <p className="cw-shift-from">{s.without}</p>
+              <span aria-hidden className="cw-shift-arrow">
+                &rarr;
+              </span>
+              <p className="cw-shift-to">{s.with}</p>
             </Reveal>
           ))}
-        </dl>
+        </div>
       </div>
     </section>
   );

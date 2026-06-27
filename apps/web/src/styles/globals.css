@@ -649,6 +649,86 @@
   font-weight: 600;
 }
 
+/* ------------------------------------------------------------------ */
+/* Before & after shift — the felt week. A dim "today" column (the      */
+/* Sunday scramble) resolving into a lit "with Church Work" column.     */
+/* Lives on the dark mkt-surface card, so it's tuned in white/alpha.    */
+/* The accent arrow is the hinge between the two states.                */
+/* ------------------------------------------------------------------ */
+.marketing-page .cw-shift {
+  display: grid;
+  gap: 0;
+}
+/* Column headers, aligned to the same grid as each row's two states. */
+.marketing-page .cw-shift-head {
+  display: grid;
+  grid-template-columns: 1fr 28px 1fr;
+  gap: 0 28px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.marketing-page .cw-shift-head-from,
+.marketing-page .cw-shift-head-to {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.marketing-page .cw-shift-head-from {
+  color: rgba(255, 255, 255, 0.34);
+}
+.marketing-page .cw-shift-head-to {
+  grid-column: 3;
+  color: var(--mkt-accent);
+}
+.marketing-page .cw-shift-row {
+  display: grid;
+  grid-template-columns: 1fr 28px 1fr;
+  align-items: center;
+  gap: 0 28px;
+  padding: 20px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.marketing-page .cw-shift-row:first-of-type {
+  border-top: 0;
+}
+/* The lived-with state — receded, the way a problem you've stopped
+   noticing recedes. */
+.marketing-page .cw-shift-from {
+  font-size: 16px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.4);
+}
+/* The hinge between the two states. */
+.marketing-page .cw-shift-arrow {
+  justify-self: center;
+  font-size: 16px;
+  color: var(--mkt-accent);
+}
+/* The resolved state — full white, the thing you'd actually want. */
+.marketing-page .cw-shift-to {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+  color: #fff;
+}
+@media (max-width: 720px) {
+  .marketing-page .cw-shift-head {
+    display: none;
+  }
+  .marketing-page .cw-shift-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 18px 0;
+  }
+  /* Stacked: a down-arrow hinge reads better than a sideways one. */
+  .marketing-page .cw-shift-arrow {
+    justify-self: start;
+    transform: rotate(90deg);
+  }
+}
+
 /* Scroll reveal — a single quiet rise, respecting reduced motion. */
 .marketing-page .cw-reveal {
   opacity: 0;
