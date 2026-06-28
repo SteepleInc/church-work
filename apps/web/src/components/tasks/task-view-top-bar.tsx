@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useWeekTaskCount } from "@/data/cycles/cyclesData.app";
 import {
   Select,
   SelectContent,
@@ -43,6 +44,10 @@ type TaskViewTopBarProps = {
   readonly filterFields?: ReadonlyArray<ColumnConfig<unknown>>;
   readonly filters?: readonly FilterItem[];
   readonly onFiltersChange?: (filters: FilterItem[]) => void;
+  // The Week board scope used by the total-issues count that replaces the View
+  // Tabs (Linear shows a plain issue count on a cycle, not state filter pills).
+  readonly churchId?: string | null;
+  readonly cycleId?: string | null;
   // Imperative opener populated for the keyboard layer: Shift+V opens View
   // Options. The route passes a mutable ref the keyboard layer calls. (Filter's
   // `F` shortcut is handled natively by TaskFilterAddMenu.)
@@ -86,36 +91,50 @@ export function TaskViewTopBar({
   filterFields,
   filters,
   onFiltersChange,
+  churchId,
+  cycleId,
   openDisplayOptionsRef,
 }: TaskViewTopBarProps) {
   const tabs = getTaskViewTabs(surface);
   const canFilter = Boolean(filterFields && onFiltersChange);
   const activeFilters = filters ?? [];
+  // A Week board reads as a single Cycle scope (ADR 0013): instead of state
+  // filter pills, it shows the Week's total issue count, mirroring Linear's
+  // cycle header.
+  const showWeekCount = surface === "team_board";
 
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="flex flex-1 flex-wrap items-center gap-2">
-          <div aria-label="View Tabs" className="flex flex-wrap items-center gap-2" role="tablist">
-            {tabs.map((candidate) => {
-              const isActive = candidate.value === tab;
+          {showWeekCount ? (
+            <WeekIssueCount churchId={churchId ?? null} cycleId={cycleId ?? null} />
+          ) : (
+            <div
+              aria-label="View Tabs"
+              className="flex flex-wrap items-center gap-2"
+              role="tablist"
+            >
+              {tabs.map((candidate) => {
+                const isActive = candidate.value === tab;
 
-              return (
-                <Button
-                  aria-selected={isActive}
-                  className="rounded-full"
-                  key={candidate.value}
-                  onClick={() => onTabChange(candidate.value)}
-                  role="tab"
-                  size="sm"
-                  type="button"
-                  variant={isActive ? "secondary" : "ghost"}
-                >
-                  {candidate.label}
-                </Button>
-              );
-            })}
-          </div>
+                return (
+                  <Button
+                    aria-selected={isActive}
+                    className="rounded-full"
+                    key={candidate.value}
+                    onClick={() => onTabChange(candidate.value)}
+                    role="tab"
+                    size="sm"
+                    type="button"
+                    variant={isActive ? "secondary" : "ghost"}
+                  >
+                    {candidate.label}
+                  </Button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-1">
@@ -162,6 +181,27 @@ export function TaskViewTopBar({
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * The Week board's total issue count, replacing the state filter pills. Reads
+ * the live per-Week count (canceled Tasks excluded, matching the Week picker
+ * and Weeks index), so the header mirrors Linear's "N issues" on a cycle.
+ */
+function WeekIssueCount({
+  churchId,
+  cycleId,
+}: {
+  readonly churchId: string | null;
+  readonly cycleId: string | null;
+}) {
+  const count = useWeekTaskCount({ churchId, cycleId });
+
+  return (
+    <span className="text-muted-foreground px-1 text-sm tabular-nums">
+      {count} {count === 1 ? "issue" : "issues"}
+    </span>
   );
 }
 

@@ -253,6 +253,8 @@ function PrivateWorkContent({ activePanel }: { activePanel: ActiveWorkPanel }) {
           filterFields={taskFilterFields as ReadonlyArray<ColumnConfig<unknown>>}
           filters={taskFilters}
           onFiltersChange={setTaskFilters}
+          churchId={activeChurchId}
+          cycleId={surface === "team_board" ? (scopedCycle?.id ?? null) : null}
           onCreateTask={() =>
             openCreateTask({
               assignTo: activePanel === "my_work" ? currentUserId : null,

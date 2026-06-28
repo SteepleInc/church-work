@@ -80,9 +80,9 @@ test("keeps list group headers pinned and surfaces an off-screen-below beacon wh
     await expect(taskCard(page, title)).toBeVisible({ timeout: 20_000 });
   }
 
-  // Show every Workflow Status (All tab) so Done Tasks stay visible after their
-  // status change — the default Active tab hides Done work.
-  await page.getByRole("tab", { name: "All" }).click();
+  // The Week board shows every Task State across its Workflow Status columns
+  // (it has no state filter pills, just the Week's total issue count), so Done
+  // Tasks stay visible after their status change without any tab toggle.
 
   // Move the In Progress and Done groups into their Workflow Statuses on the
   // board (the list shares the same grouping) so all three groups are populated.

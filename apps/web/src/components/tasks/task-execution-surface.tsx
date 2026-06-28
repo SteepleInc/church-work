@@ -306,7 +306,12 @@ export function TaskExecutionSurface({
         teamId: team?.id ?? null,
         cycleId: taskReadArgs.cycleId,
         currentUserId,
-        tab,
+        // A Week board has no state filter pills (it shows the Week's total
+        // issue count instead), so it pins the "all" tab: every Task State
+        // renders across the board's columns the way Linear lays out a cycle.
+        // (Passing undefined would resolve to the default "active" tab and hide
+        // Done work.)
+        tab: surface === "team_board" ? "all" : tab,
         showSubtasks: resolvedView.showSubtasks,
         ordering: resolvedView.ordering,
       })
