@@ -19,6 +19,7 @@ import {
 } from "@/components/tasks/task-presentation";
 
 import { BACK_OUT, Reveal, RISE_EASE, useHeaderEntrance } from "./-marketing-shell";
+import { LivingWeekSection, ToolsContrastSection } from "./-rhythm-concepts";
 
 export const Route = createFileRoute("/_marketing/")({
   component: HomePage,
@@ -309,7 +310,9 @@ function Hero({ base }: { readonly base: number }) {
           ease: "easeOut",
         }}
       >
-        Most task managers help you complete one and done projects. Church Work helps you lead recurring ministry. Build repeatable templates for your weekly services, big events like Christmas and Easter, and your monthly rhythms.
+        Most task managers help you complete one and done projects. Church Work helps you lead
+        recurring ministry. Build repeatable templates for your weekly services, big events like
+        Christmas and Easter, and your monthly rhythms.
         {/* Built for how church work actually happens. It recurs every week. It spans every team. It
         slips through the cracks. Church Work turns Templates, Cycles, and Tasks into one shared
         plan — so everyone knows what's next. */}
@@ -508,10 +511,10 @@ function LeftCard({ shift }: { readonly shift: number }) {
               style={
                 feature.active
                   ? {
-                    background: "#F4F4F4",
-                    borderRadius: 4.312,
-                    padding: "6px 4px",
-                  }
+                      background: "#F4F4F4",
+                      borderRadius: 4.312,
+                      padding: "6px 4px",
+                    }
                   : { padding: "6px 4px" }
               }
             >
@@ -977,55 +980,55 @@ const BOARD_COLUMNS: readonly {
   readonly title: string;
   readonly tasks: readonly PresentationTask[];
 }[] = [
-    {
-      state: "todo",
-      title: "To Do",
-      tasks: [
-        {
-          identifier: "EXP-058",
-          title: "Order communion supplies",
-          state: "todo",
-          priority: "low",
-          labels: [{ color: "pink", name: "Experience" }],
-          assignee: PEOPLE.user_mr,
-        },
-        {
-          identifier: "EXP-061",
-          title: "Confirm greeter schedule",
-          state: "todo",
-          labels: [{ color: "teal", name: "Welcome" }],
-          assignee: PEOPLE.user_cn,
-        },
-      ],
-    },
-    {
-      state: "in_progress",
-      title: "In Progress",
-      tasks: [
-        {
-          identifier: "WOR-130",
-          title: "Band rehearsal run-through",
-          state: "in_progress",
-          priority: "high",
-          labels: [{ color: "violet", name: "Worship" }],
-          assignee: PEOPLE.user_ak,
-        },
-      ],
-    },
-    {
-      state: "done",
-      title: "Done",
-      tasks: [
-        {
-          identifier: "KID-066",
-          title: "Kids check-in tested",
-          state: "done",
-          labels: [{ color: "orange", name: "Kids" }],
-          assignee: PEOPLE.user_jd,
-        },
-      ],
-    },
-  ];
+  {
+    state: "todo",
+    title: "To Do",
+    tasks: [
+      {
+        identifier: "EXP-058",
+        title: "Order communion supplies",
+        state: "todo",
+        priority: "low",
+        labels: [{ color: "pink", name: "Experience" }],
+        assignee: PEOPLE.user_mr,
+      },
+      {
+        identifier: "EXP-061",
+        title: "Confirm greeter schedule",
+        state: "todo",
+        labels: [{ color: "teal", name: "Welcome" }],
+        assignee: PEOPLE.user_cn,
+      },
+    ],
+  },
+  {
+    state: "in_progress",
+    title: "In Progress",
+    tasks: [
+      {
+        identifier: "WOR-130",
+        title: "Band rehearsal run-through",
+        state: "in_progress",
+        priority: "high",
+        labels: [{ color: "violet", name: "Worship" }],
+        assignee: PEOPLE.user_ak,
+      },
+    ],
+  },
+  {
+    state: "done",
+    title: "Done",
+    tasks: [
+      {
+        identifier: "KID-066",
+        title: "Kids check-in tested",
+        state: "done",
+        labels: [{ color: "orange", name: "Kids" }],
+        assignee: PEOPLE.user_jd,
+      },
+    ],
+  },
+];
 
 function BoardMock() {
   return (
@@ -1224,75 +1227,6 @@ function WhatYouGet() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Before & after — the felt week. Everything above is mechanism; this  */
-/* is the human stakes. The dim "without" column is the Sunday scramble  */
-/* a church already lives; the lit "with" column is the same moment once */
-/* there's one shared plan. The contrast is the content.                */
-/* ------------------------------------------------------------------ */
-
-const SHIFTS = [
-  {
-    without: "\u201cWho's got the slides?\u201d at 9 on Saturday night.",
-    with: "Every task has an owner the whole team can see.",
-  },
-  {
-    without: "A volunteer shows up not knowing they were on.",
-    with: "Their week is waiting for them in My Work.",
-  },
-  {
-    without: "Last week's loose ends quietly disappear.",
-    with: "Unfinished work rolls into next week on its own.",
-  },
-  {
-    without: "Every Sunday rebuilt from scratch in a group text.",
-    with: "The recurring plan is already there, every week.",
-  },
-] as const;
-
-function Vocabulary() {
-  return (
-    <section className="mx-auto max-w-[1400px] px-6 pt-28 md:px-10 md:pt-36">
-      <div className="overflow-hidden rounded-[28px] bg-mkt-surface p-8 text-white md:p-12">
-        <Reveal>
-          <p className="cw-eyebrow" style={{ color: "rgba(255,255,255,0.55)" }}>
-            Before &amp; after
-          </p>
-          <h2
-            className="mt-5 max-w-[680px] font-medium text-[32px] tracking-tight md:text-[44px]"
-            style={{ letterSpacing: "-0.03em", lineHeight: 1.1 }}
-          >
-            Same Sunday. Without the scramble.
-          </h2>
-          <p
-            className="mt-5 max-w-[520px] text-[16px]"
-            style={{ color: "rgba(255,255,255,0.55)", lineHeight: 1.55 }}
-          >
-            The work was always there. What changes is that everyone can see it, own it, and trust
-            it carries forward.
-          </p>
-        </Reveal>
-
-        <div className="cw-shift mt-12">
-          <div className="cw-shift-head">
-            <span className="cw-shift-head-from">Today</span>
-            <span className="cw-shift-head-to">With Church Work</span>
-          </div>
-          {SHIFTS.map((s, i) => (
-            <Reveal className="cw-shift-row" delay={i * 80} key={s.with}>
-              <p className="cw-shift-from">{s.without}</p>
-              <span aria-hidden className="cw-shift-arrow">
-                &rarr;
-              </span>
-              <p className="cw-shift-to">{s.with}</p>
-            </Reveal>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------------ */
 /* Closing call to action                                              */
 /* ------------------------------------------------------------------ */
 
@@ -1457,7 +1391,10 @@ function HomePage() {
       <HowItWorks />
       <WhatYouGet />
       <GradientBand />
-      <Vocabulary />
+      {/* The "not projects" thesis: first the concrete proof of the one shared
+          week, then the positioning argument. */}
+      <LivingWeekSection />
+      <ToolsContrastSection />
       <ClosingCTA />
       <div className="h-16" />
     </>
