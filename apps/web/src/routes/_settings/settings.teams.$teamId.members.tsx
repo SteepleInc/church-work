@@ -28,7 +28,7 @@ function RouteComponent() {
           "Team"
         )}
       </SettingsBackLink>
-      <SettingsPageHeader description="Manage who belongs to this Team." title="Members" />
+      <SettingsPageHeader description="Manage who belongs to this Team." title="Team members" />
       <TeamMembersPanel teamId={teamId} />
     </SettingsPage>
   );
