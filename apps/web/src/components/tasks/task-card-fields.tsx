@@ -182,7 +182,10 @@ export function labelDotClassName(option: {
  * Linear-style "Created" label for a Task's creation timestamp (epoch ms).
  * Shows month + day (e.g. "Feb 25") and only appends the year when the Task
  * was created in a different calendar year than `now`. Returns `null` for
- * missing/invalid timestamps so callers can omit the footer entirely.
+ * missing/invalid timestamps so callers can omit the footer entirely. Projected
+ * Template Tasks use `0` as a UI-only placeholder timestamp because they do not
+ * have durable Task rows yet; treat non-positive values as missing rather than
+ * showing the Unix epoch as Dec 31, 1969 in local time.
  */
 export function formatDueDate(
   dueDate: string | null | undefined,
@@ -205,7 +208,7 @@ export function formatCreatedAt(
   createdAt: number | null | undefined,
   now: Date = new Date(),
 ): string | null {
-  if (createdAt == null || !Number.isFinite(createdAt)) return null;
+  if (createdAt == null || !Number.isFinite(createdAt) || createdAt <= 0) return null;
   const created = new Date(createdAt);
   if (Number.isNaN(created.getTime())) return null;
   const sameYear = created.getFullYear() === now.getFullYear();
@@ -227,7 +230,7 @@ export function formatTimestampTooltip(
   timestamp: number | null | undefined,
   now: Date = new Date(),
 ): string | null {
-  if (timestamp == null || !Number.isFinite(timestamp)) return null;
+  if (timestamp == null || !Number.isFinite(timestamp) || timestamp <= 0) return null;
   const value = new Date(timestamp);
   if (Number.isNaN(value.getTime())) return null;
   const sameYear = value.getFullYear() === now.getFullYear();

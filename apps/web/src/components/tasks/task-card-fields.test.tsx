@@ -282,6 +282,7 @@ describe("formatCreatedAt", () => {
   test("returns null for missing or invalid timestamps", () => {
     expect(formatCreatedAt(null, now)).toBeNull();
     expect(formatCreatedAt(undefined, now)).toBeNull();
+    expect(formatCreatedAt(0, now)).toBeNull();
     expect(formatCreatedAt(Number.NaN, now)).toBeNull();
   });
 });
