@@ -36,7 +36,10 @@ import { isSubTaskRowArmed } from "@/features/details-pane/sub-task-row-shortcut
 import type { SubTaskCreateInput } from "@/features/details-pane/sub-task-creator";
 import { TeamAvatar } from "@/components/avatars/teamAvatar";
 import { useChangeDetailsPaneId } from "@/components/details-pane/details-pane-helpers";
-import { DescriptionEditor } from "@/components/editor/description-editor";
+import {
+  DescriptionEditor,
+  type DescriptionEditorHandle,
+} from "@/components/editor/description-editor";
 import {
   parseDescriptionValue,
   serializeDescriptionValue,
@@ -151,6 +154,19 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
   // only on mount), so we mirror the latest editor value in a ref and commit it
   // to the Task on blur — same commit-on-blur model as the title.
   const descriptionDraftRef = useRef<Value | null>(null);
+  // The title and description read as one surface (Linear): arrowing down past
+  // the title drops into the description at its top, and arrowing up from the
+  // top of the description returns to the end of the title.
+  const titleRef = useRef<HTMLTextAreaElement>(null);
+  const descriptionFocusRef = useRef<DescriptionEditorHandle>(null);
+  const focusDescriptionStart = () => descriptionFocusRef.current?.focusStart();
+  const focusTitleEnd = () => {
+    const input = titleRef.current;
+    if (!input) return;
+    input.focus();
+    const end = input.value.length;
+    input.setSelectionRange(end, end);
+  };
   useEffect(() => {
     setTitleDraft(null);
     descriptionDraftRef.current = null;
@@ -718,9 +734,27 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
                 if (event.key === "Enter") {
                   event.preventDefault();
                   event.currentTarget.blur();
+                  return;
+                }
+                if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+                const input = event.currentTarget;
+                const { selectionStart, selectionEnd, value } = input;
+                const collapsed = selectionStart === selectionEnd;
+                const caretAtEnd = collapsed && selectionEnd === value.length;
+                // The title and description read as one surface (Linear): drop
+                // into the description on ArrowDown from the last line, or on
+                // ArrowRight once the caret is at the very end of the title.
+                const onLastLine = collapsed && !value.slice(selectionStart).includes("\n");
+                if (event.key === "ArrowDown" && onLastLine) {
+                  event.preventDefault();
+                  focusDescriptionStart();
+                } else if (event.key === "ArrowRight" && caretAtEnd) {
+                  event.preventDefault();
+                  focusDescriptionStart();
                 }
               }}
               placeholder="Task title"
+              ref={titleRef}
               rows={1}
               value={titleValue}
             />
@@ -738,10 +772,13 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
             <DescriptionEditor
               key={task.id}
               readOnly={task.isProjected}
+              ariaLabel="Task description"
               className="-mx-2 text-[15px] text-foreground/90 leading-relaxed"
               contentClassName="px-2"
+              focusHandleRef={descriptionFocusRef}
               placeholder="Add a description..."
               value={parseDescriptionValue(task.description)}
+              onEscapeStart={focusTitleEnd}
               onChange={(value) => {
                 descriptionDraftRef.current = value;
               }}

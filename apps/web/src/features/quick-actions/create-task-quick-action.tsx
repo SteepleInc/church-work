@@ -9,7 +9,10 @@ import { toast } from "sonner";
 
 import { TeamAvatar } from "@/components/avatars/teamAvatar";
 import { useOpenTaskDetailsPaneUrl } from "@/components/details-pane/details-pane-helpers";
-import { DescriptionEditor } from "@/components/editor/description-editor";
+import {
+  DescriptionEditor,
+  type DescriptionEditorHandle,
+} from "@/components/editor/description-editor";
 import {
   parseDescriptionValue,
   serializeDescriptionValue,
@@ -204,6 +207,27 @@ export function CreateTaskQuickAction() {
 
   const titleInputRef = useRef<HTMLInputElement>(null);
   const descriptionInputRef = useRef<HTMLDivElement>(null);
+  // Imperative handle for the description editor so the title can hand focus
+  // down with the caret at the top (a plain `.focus()` would restore the last
+  // caret), making the title↔description seam read as one surface (Linear).
+  const descriptionFocusRef = useRef<DescriptionEditorHandle>(null);
+  // Move focus from the title down into the description, caret at the top.
+  const focusDescriptionStart = () => {
+    const handle = descriptionFocusRef.current;
+    if (handle) {
+      handle.focusStart();
+    } else {
+      descriptionInputRef.current?.focus();
+    }
+  };
+  // Move focus from the description back up into the title, caret at the end.
+  const focusTitleEnd = () => {
+    const input = titleInputRef.current;
+    if (!input) return;
+    input.focus();
+    const end = input.value.length;
+    input.setSelectionRange(end, end);
+  };
   // Holds the serialized description the uncontrolled editor should mount with.
   // Set synchronously (before bumping `editorResetKey`) so a remount reads the
   // intended value even if the form store hasn't flushed yet — e.g. a prefill
@@ -600,10 +624,24 @@ export function CreateTaskQuickAction() {
                   disabled={isLoading}
                   onChange={(event) => field.handleChange(event.target.value)}
                   onKeyDown={(event) => {
-                    // Enter moves on to the description (Cmd+Enter submits).
-                    if (event.key === "Enter" && !event.metaKey && !event.ctrlKey) {
+                    if (event.metaKey || event.ctrlKey || event.altKey) return;
+                    const input = event.currentTarget;
+                    const caretAtEnd =
+                      input.selectionStart === input.value.length &&
+                      input.selectionEnd === input.value.length;
+                    // Enter and ArrowDown both drop into the description; the
+                    // title and description read as one surface (Linear), so
+                    // ArrowRight also crosses the seam once the caret is at the
+                    // end of the title (Cmd+Enter still submits).
+                    if (event.key === "Enter" && !event.shiftKey) {
                       event.preventDefault();
-                      descriptionInputRef.current?.focus();
+                      focusDescriptionStart();
+                    } else if (event.key === "ArrowDown") {
+                      event.preventDefault();
+                      focusDescriptionStart();
+                    } else if (event.key === "ArrowRight" && caretAtEnd) {
+                      event.preventDefault();
+                      focusDescriptionStart();
                     }
                   }}
                   placeholder="Task title"
@@ -619,10 +657,12 @@ export function CreateTaskQuickAction() {
                     key={editorResetKey}
                     ariaLabel="Add description"
                     editorRef={descriptionInputRef}
+                    focusHandleRef={descriptionFocusRef}
                     disabled={isLoading}
                     placeholder="Add description..."
                     value={initialDescriptionValue}
                     onChange={(value) => field.handleChange(serializeDescriptionValue(value) ?? "")}
+                    onEscapeStart={focusTitleEnd}
                   />
                 </div>
               )}

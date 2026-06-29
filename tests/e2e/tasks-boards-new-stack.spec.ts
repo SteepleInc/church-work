@@ -363,3 +363,42 @@ test("creates, assigns, moves, and preserves Task board state on the local Postg
   await expect(page.getByRole("navigation", { name: "Week" })).toBeVisible({ timeout: 20_000 });
   await expect(taskCard(page, sharedTaskTitle)).toBeVisible({ timeout: 20_000 });
 });
+
+// The title and description in the create dialog read as one surface (Linear):
+// arrowing down past the title drops into the description, and arrowing up from
+// the top of the description returns to the title — no clicking between fields.
+test("title and description arrow-navigate as one surface in the create dialog", async ({
+  page,
+}, testInfo) => {
+  const suffix = `${Date.now()}-${testInfo.workerIndex}`;
+  await startAuthenticatedSession(page, {
+    churchName: `E2E Seam Church ${suffix}`,
+    email: `tasks-seam-${suffix}@example.com`,
+    userName: "E2E Seam Owner",
+  });
+
+  await page.getByRole("main").getByRole("button", { name: "Create Task" }).click();
+  const dialog = page.getByRole("dialog", { name: /New Task/ });
+  await expect(dialog).toBeVisible();
+
+  const title = dialog.getByRole("textbox", { name: "Task title" });
+  const description = dialog.getByRole("textbox", { name: "Add description" });
+  // The title autofocuses; type into it, then ArrowDown should cross the seam
+  // into the description without ever touching the description directly.
+  await expect(title).toBeFocused();
+  await title.pressSequentially("Seam title");
+  await title.press("ArrowDown");
+  await expect(description).toBeFocused();
+
+  // Typing lands in the description, proving focus actually crossed the seam.
+  await page.keyboard.type("Body line");
+  await expect(description).toContainText("Body line");
+
+  // ArrowUp from the first (here, only) line of the description returns to the
+  // title with the caret at its end — the seam works in both directions.
+  await description.press("ArrowUp");
+  await expect(title).toBeFocused();
+  // Caret sits at the end of the title, so typing appends.
+  await page.keyboard.type("!");
+  await expect(title).toHaveValue("Seam title!");
+});
