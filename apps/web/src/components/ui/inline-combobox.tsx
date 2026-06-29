@@ -157,6 +157,10 @@ const InlineCombobox = ({
   );
 
   const store = useComboboxStore({
+    // Anchor the popover's left edge to the trigger (Linear behavior) instead of
+    // centering it, which pushed the menu left of the caret and clipped it
+    // against the details pane's edge.
+    placement: "bottom-start",
     setValue: (newValue) => React.startTransition(() => setValue(newValue)),
   });
 
@@ -262,8 +266,25 @@ const InlineComboboxContent: typeof ComboboxPopover = ({ className, ...props }) 
   return (
     <Portal>
       <ComboboxPopover
+        // Float clear of the trigger, flip above the caret when there's no room
+        // below, and shift to stay on-screen. `--popover-available-height` caps
+        // the height to the space left in the viewport so the list never spills
+        // past the fold (the `max-h-[288px]` keeps it compact when there is room).
+        flip
+        gutter={4}
+        shift={0}
+        // Anchor to the whole trigger chip (the `@`/`/` glyph + input) rather
+        // than the bare input, so a `bottom-start` menu lines up under the glyph
+        // instead of starting to its right. Ariakit passes the combobox input as
+        // `anchor`; we walk up to its chip wrapper, falling back to the store's
+        // base element and finally the input itself.
+        getAnchorRect={(anchor) => {
+          const base = (anchor ?? store?.getState().baseElement ?? null) as HTMLElement | null;
+          const chip = base?.closest<HTMLElement>("[data-combobox-anchor]") ?? null;
+          return (chip ?? base)?.getBoundingClientRect() ?? null;
+        }}
         className={cn(
-          "z-500 max-h-[288px] w-[300px] overflow-y-auto rounded-md border bg-popover shadow-md",
+          "z-500 max-h-[min(288px,var(--popover-available-height))] w-[300px] overflow-y-auto rounded-md border bg-popover shadow-md",
           className,
         )}
         onKeyDownCapture={handleKeyDown}

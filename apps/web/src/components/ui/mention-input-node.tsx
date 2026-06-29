@@ -82,11 +82,14 @@ export function MentionInputElement(props: PlateElementProps<TElement>) {
         showTrigger={false}
         trigger="@"
       >
-        <span className="inline-block rounded-md bg-muted px-1.5 py-0.5 align-baseline text-sm ring-ring focus-within:ring-2">
+        <span
+          data-combobox-anchor
+          className="-my-0.5 inline-block rounded-md bg-muted px-1.5 py-0.5 align-baseline text-sm ring-ring focus-within:ring-2"
+        >
           @<InlineComboboxInput />
         </span>
 
-        <InlineComboboxContent className="my-1.5">
+        <InlineComboboxContent>
           <InlineComboboxEmpty>No results</InlineComboboxEmpty>
 
           <InlineComboboxGroup>

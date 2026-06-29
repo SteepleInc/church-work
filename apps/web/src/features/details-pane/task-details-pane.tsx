@@ -1,4 +1,5 @@
 import { CalendarIcon, ChevronRight, Tag, Triangle } from "lucide-react";
+import type { Value } from "platejs";
 import {
   forwardRef,
   useEffect,
@@ -36,7 +37,10 @@ import type { SubTaskCreateInput } from "@/features/details-pane/sub-task-creato
 import { TeamAvatar } from "@/components/avatars/teamAvatar";
 import { useChangeDetailsPaneId } from "@/components/details-pane/details-pane-helpers";
 import { DescriptionEditor } from "@/components/editor/description-editor";
-import { parseDescriptionValue } from "@/components/editor/description-value";
+import {
+  parseDescriptionValue,
+  serializeDescriptionValue,
+} from "@/components/editor/description-value";
 import { DetailsShell } from "@/components/details-pane/details-shell";
 import { useQuickActionOpeners } from "@/features/quick-actions/quick-actions-state";
 import {
@@ -143,8 +147,13 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
 
   // Locally-buffered title, committed to the Task on blur (Linear behavior).
   const [titleDraft, setTitleDraft] = useState<string | null>(null);
+  // Locally-buffered description value. Plate is uncontrolled (it reads `value`
+  // only on mount), so we mirror the latest editor value in a ref and commit it
+  // to the Task on blur — same commit-on-blur model as the title.
+  const descriptionDraftRef = useRef<Value | null>(null);
   useEffect(() => {
     setTitleDraft(null);
+    descriptionDraftRef.current = null;
   }, [canonicalIdentifier]);
 
   // Picker openers for pane-level keyboard shortcuts (S/P/A/L/⇧E/D/T). Each
@@ -716,17 +725,34 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
               value={titleValue}
             />
 
-            {/* Description */}
-            {task.description ? (
-              <DescriptionEditor
-                key={task.id}
-                readOnly
-                className="text-[15px] text-foreground/90 leading-relaxed"
-                value={parseDescriptionValue(task.description)}
-              />
-            ) : (
-              <p className="text-muted-foreground text-[15px]">Add a description...</p>
-            )}
+            {/* Description — edit-in-place (Linear behavior): click anywhere and
+              type. Plate is uncontrolled, so the latest value is buffered in a
+              ref and committed to the Task on blur. Persisting `description`
+              routes through the same mutator path that re-syncs the mention
+              graph and logs the change. Projected Tasks are read-only until
+              materialized (mirrors the title). */}
+            {/* Inset the editable content so the `@` chip's focus ring (and the
+              mention popover anchored to it) isn't clipped by the editor's left
+              edge, then pull the container back by the same amount so the text
+              still lines up with the title above. */}
+            <DescriptionEditor
+              key={task.id}
+              readOnly={task.isProjected}
+              className="-mx-2 text-[15px] text-foreground/90 leading-relaxed"
+              contentClassName="px-2"
+              placeholder="Add a description..."
+              value={parseDescriptionValue(task.description)}
+              onChange={(value) => {
+                descriptionDraftRef.current = value;
+              }}
+              onBlur={() => {
+                const draft = descriptionDraftRef.current;
+                if (draft === null) return;
+                const next = serializeDescriptionValue(draft);
+                if (next !== (task.description ?? null)) persist({ description: next });
+                descriptionDraftRef.current = null;
+              }}
+            />
 
             {/* Parent context */}
             {parentTask ? (

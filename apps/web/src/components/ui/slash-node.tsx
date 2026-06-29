@@ -114,8 +114,13 @@ export function SlashInputElement(props: PlateElementProps<TComboboxInputElement
 
   return (
     <PlateElement {...props} as="span">
-      <InlineCombobox element={element} trigger="/">
-        <InlineComboboxInput />
+      <InlineCombobox element={element} showTrigger={false} trigger="/">
+        <span
+          data-combobox-anchor
+          className="-my-0.5 inline-block rounded-md bg-muted px-1.5 py-0.5 align-baseline text-sm ring-ring focus-within:ring-2"
+        >
+          /<InlineComboboxInput />
+        </span>
 
         <InlineComboboxContent>
           <InlineComboboxEmpty>No results</InlineComboboxEmpty>
