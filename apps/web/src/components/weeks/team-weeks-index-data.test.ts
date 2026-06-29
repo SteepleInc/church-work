@@ -145,6 +145,40 @@ describe("Team Weeks index data", () => {
 
     expect(rows[0]?.taskCount).toBe(1);
   });
+
+  test("counts projected Template Tasks toward a future Projected Week's scope", () => {
+    // A future Week with no saved Cycle row is a Projected Week. Template Tasks
+    // scheduled into it arrive as projections carrying the Projected Week's id
+    // as their cycleId, so they must count toward that Week's scope rather than
+    // leaving it at "0 scope". (The Weeks index feeds these in via
+    // useMultiCycleProjectedTasksCollection.)
+    const projectedWeekId = "projected-week:2026-06-15";
+    const rows = buildTeamWeeksIndexRows({
+      churchTimeZone: "UTC",
+      cycles: [
+        { id: "current", startDate: "2026-06-08", endDate: "2026-06-14", name: null },
+        { id: projectedWeekId, startDate: "2026-06-15", endDate: "2026-06-21", name: null },
+      ],
+      tasks: [
+        // A projected Template Task placed into the future Projected Week.
+        { id: "proj-1", cycleId: projectedWeekId, teamId: "team-care", taskState: "todo" },
+        { id: "proj-2", cycleId: projectedWeekId, teamId: "team-care", taskState: "todo" },
+      ],
+      teamId: "team-care",
+      teamIdentifier: "care",
+      today: "2026-06-10",
+    });
+
+    const futureRow = rows.find((row) => row.id === projectedWeekId);
+    expect(futureRow).toMatchObject({
+      status: "upcoming",
+      taskCount: 2,
+      // Projected Tasks are planned (todo), so nothing is started/completed yet.
+      startedCount: 0,
+      completedCount: 0,
+      completedPercentage: 0,
+    });
+  });
 });
 
 describe("Week burndown series", () => {

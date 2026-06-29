@@ -3,7 +3,7 @@ import { TeamAvatar } from "@/components/avatars/teamAvatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCyclesCollection } from "@/data/cycles/cyclesData.app";
-import { useTasksCollection } from "@/data/tasks/tasksData.app";
+import { useMultiCycleProjectedTasksCollection } from "@/data/tasks/tasksData.app";
 import { cn } from "@/lib/utils";
 import { Link } from "@tanstack/react-router";
 import {
@@ -91,15 +91,25 @@ export function TeamWeeksIndex({
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const cyclesCollection = useCyclesCollection({ churchId, currentUserId });
-  const tasksCollection = useTasksCollection({
-    churchId,
-    currentUserId,
-    filters: { teamId: team.id },
-  });
   const cycles = buildProjectedWeekCycles({
     churchTimeZone,
     cycles: cyclesCollection.cyclesCollection,
     today,
+  });
+  // Project Template Tasks across every Week (saved + Projected) so future
+  // Weeks count the Template Tasks scheduled into them rather than showing an
+  // empty "0 scope". Projection dedups against materialized Tasks, so saved
+  // Weeks never double-count. Each Cycle's id/window drives the placement.
+  const projectionCycles = cycles.map((cycle) => ({
+    id: cycle.id,
+    startDate: cycle.startDate,
+    endDate: cycle.endDate,
+  }));
+  const tasksCollection = useMultiCycleProjectedTasksCollection({
+    churchId,
+    currentUserId,
+    filters: { teamId: team.id },
+    projectionCycles,
   });
   const rows = buildTeamWeeksTimelineRows({
     cycles,
@@ -110,8 +120,9 @@ export function TeamWeeksIndex({
     churchTimeZone,
   });
   // Lightweight CSV rows for the per-Week "Export tasks" action. The index does
-  // not load the workflow/assignee/team lookup collections, so the
-  // name-derived columns stay null here; the core columns still export.
+  // not resolve workflow-status/assignee display names, so those name-derived
+  // columns stay null here; the core columns (including projected Template
+  // Tasks) still export.
   const weekCsvTasks: readonly WeekCsvTask[] = tasksCollection.tasksCollection.map((task) => ({
     identifier: task.identifier,
     title: task.title,
@@ -164,7 +175,7 @@ export function TeamWeeksIndex({
                   isLast={index === rows.length - 1}
                   row={row}
                 />
-                <div className={cn("min-w-0 flex-1 border-b", index === 0 && "border-t")}>
+                <div className="min-w-0 flex-1 border-b">
                   <WeekRow
                     churchId={churchId}
                     expanded={row.id === expandedCycleId}
@@ -356,7 +367,11 @@ function WeekRow({
           </span>
         </Link>
 
-        <div className="relative z-10 ml-auto flex shrink-0 items-center gap-2 sm:gap-4">
+        {/* Linear clusters a Cycle's metadata at the row's right (status ·
+            capacity · scope · ⋯) with a steady, compact gap. The pill keeps its
+            natural size; only the numeric columns get fixed widths so their
+            rings and counts line up into clean vertical lanes row-to-row. */}
+        <div className="relative z-10 ml-auto flex shrink-0 items-center gap-3 sm:gap-4">
           <span
             className={cn(
               "rounded-full px-2 py-0.5 text-[11px] font-medium",
@@ -368,7 +383,7 @@ function WeekRow({
 
           <button
             aria-expanded={expanded}
-            className="hidden items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex"
+            className="hidden w-[92px] shrink-0 items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex"
             onClick={(event) => {
               event.stopPropagation();
               toggleProgress();
@@ -381,8 +396,8 @@ function WeekRow({
             </span>
           </button>
 
-          <span className="hidden items-center gap-1.5 text-xs text-muted-foreground md:flex">
-            <Layers aria-hidden className="size-3.5" />
+          <span className="hidden w-[72px] shrink-0 items-center gap-1.5 text-xs text-muted-foreground md:flex">
+            <Layers aria-hidden className="size-3.5 shrink-0" />
             <span className="tabular-nums">
               <span className="font-medium text-foreground">{row.taskCount}</span> scope
             </span>

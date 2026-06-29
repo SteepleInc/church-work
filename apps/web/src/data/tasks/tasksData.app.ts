@@ -102,7 +102,7 @@ export type TemplateSourceBadge = {
   readonly dotClassName: string;
 };
 
-type CycleProjectionContext = {
+export type CycleProjectionContext = {
   readonly id: string;
   readonly startDate: string;
   readonly endDate: string;
@@ -802,6 +802,98 @@ export function useTasksCollection(params: {
           workflowStatuses: workflowStatusRows,
         }).filter((task) => matchesPriorityFilter(task, priorityFilterValues(params.listArgs)))
       : [];
+  const collection = [...materializedCollection, ...projectedCollection].filter((task) =>
+    matchesLabelFilter(task, activeLabelFilter),
+  );
+
+  return {
+    loading: false,
+    collection,
+    tasksCollection: collection,
+  };
+}
+
+/**
+ * Like {@link useTasksCollection}, but projects Template Tasks across *many*
+ * Cycles at once and returns the materialized Tasks merged with every Cycle's
+ * projections. The Weeks index uses this so future Weeks (which exist only as
+ * Projected Weeks, with no saved Cycle row yet) still count the Template Tasks
+ * scheduled into them — `useTasksCollection` only projects for a single Cycle.
+ *
+ * Projections are built per Cycle against the full materialized set so the
+ * per-Cycle dedup (existing Tasks already materialized from a Template) stays
+ * correct, then concatenated. Each projected Task carries the originating
+ * Cycle's id as its `cycleId`, so callers can group/count by Week as usual.
+ */
+export function useMultiCycleProjectedTasksCollection(params: {
+  readonly churchId: string | null;
+  readonly currentUserId: string | null;
+  readonly filters?: TaskCollectionFilters;
+  readonly listArgs?: ListArgs;
+  readonly projectionCycles?: readonly CycleProjectionContext[];
+}) {
+  const [taskRows] = useQuery(
+    queries.tasks.filtered({
+      assigned_user_id:
+        params.filters?.surface === "my_work" ? (params.currentUserId ?? undefined) : undefined,
+      church_id: params.churchId ?? "__no_church__",
+      list_args: params.listArgs ?? {},
+      team_id: params.filters?.teamId,
+    }),
+  );
+  const activeTaskRows = taskRows ?? [];
+  const [teamRows] = useQuery(
+    queries.teams.by_church({ church_id: params.churchId ?? "__no_church__" }),
+  );
+  const [scheduleRows] = useQuery(
+    queries.template_schedules.by_church({ church_id: params.churchId ?? "__no_church__" }),
+  );
+  const [templateTaskRows] = useQuery(
+    queries.template_tasks.by_church({ church_id: params.churchId ?? "__no_church__" }),
+  );
+  const [templateTeamRows] = useQuery(
+    queries.template_teams.by_church({ church_id: params.churchId ?? "__no_church__" }),
+  );
+  const [keyDateRows] = useQuery(
+    queries.key_dates.by_church({ church_id: params.churchId ?? "__no_church__" }),
+  );
+  const [workflowRows] = useQuery(
+    queries.workflows.by_church({ church_id: params.churchId ?? "__no_church__" }),
+  );
+  const [workflowStatusRows] = useQuery(
+    queries.workflow_statuses.by_church({ church_id: params.churchId ?? "__no_church__" }),
+  );
+  const [cycleAdjustmentRows] = useQuery(
+    queries.cycle_adjustments.by_church({ church_id: params.churchId ?? "__no_church__" }),
+  );
+  const [labelRows] = useQuery(
+    queries.labels.by_church({ church_id: params.churchId ?? "__no_church__" }),
+  );
+  const teamsById = new Map(teamRows.map((team) => [team.id, team]));
+  const schedulesById = new Map(scheduleRows.map((schedule) => [schedule.id, schedule]));
+  const activeLabelFilter = labelFilter(params.listArgs);
+  const materializedCollection =
+    params.churchId === null
+      ? []
+      : activeTaskRows.map((task) => mapTask(task, teamsById, schedulesById));
+  const projectedCollection =
+    params.churchId === null
+      ? []
+      : (params.projectionCycles ?? []).flatMap((cycle) =>
+          buildProjectedTemplateTasksForCycle({
+            cycle,
+            existingTasks: materializedCollection,
+            keyDates: keyDateRows,
+            schedules: scheduleRows,
+            cycleAdjustments: cycleAdjustmentRows,
+            labels: labelRows,
+            teamFilterId: params.filters?.teamId,
+            templateTasks: templateTaskRows,
+            templateTeams: templateTeamRows,
+            workflows: workflowRows,
+            workflowStatuses: workflowStatusRows,
+          }).filter((task) => matchesPriorityFilter(task, priorityFilterValues(params.listArgs))),
+        );
   const collection = [...materializedCollection, ...projectedCollection].filter((task) =>
     matchesLabelFilter(task, activeLabelFilter),
   );
