@@ -598,6 +598,40 @@ export const task_comment_subscriptions = pgTable(
   ],
 );
 
+/**
+ * Normalized mention graph extracted from Task `description` bodies. Each live
+ * row is one edge: the `source_task_id` Task mentions either a user
+ * (`mention_kind = "user"`, `target_user_id` set) or another Task
+ * (`mention_kind = "task"`, `target_task_id` set). Edges are diffed against the
+ * description on every Task create/update — re-adding a mention revives the
+ * soft-deleted row, removing it soft-deletes. We store the graph here rather
+ * than parsing prose at query time so "mentioned in" backlinks and mention
+ * notifications stay cheap and indexable.
+ */
+export const task_mentions = pgTable(
+  "task_mentions",
+  {
+    id: text("id").primaryKey(),
+    ...baseEntityFields,
+    church_id: text("church_id").notNull(),
+    source_task_id: text("source_task_id").notNull(),
+    mention_kind: text("mention_kind").notNull(),
+    target_user_id: text("target_user_id"),
+    target_task_id: text("target_task_id"),
+  },
+  (table) => [
+    index("task_mentions_source_idx").on(table.church_id, table.source_task_id),
+    index("task_mentions_target_user_idx").on(table.church_id, table.target_user_id),
+    index("task_mentions_target_task_idx").on(table.church_id, table.target_task_id),
+    uniqueIndex("task_mentions_user_edge_live_idx")
+      .on(table.church_id, table.source_task_id, table.target_user_id)
+      .where(sql`${table.deleted_at} IS NULL AND ${table.target_user_id} IS NOT NULL`),
+    uniqueIndex("task_mentions_task_edge_live_idx")
+      .on(table.church_id, table.source_task_id, table.target_task_id)
+      .where(sql`${table.deleted_at} IS NULL AND ${table.target_task_id} IS NOT NULL`),
+  ],
+);
+
 export const notifications = pgTable(
   "notifications",
   {
@@ -697,6 +731,7 @@ export const schema = {
   tasks,
   task_comments,
   task_comment_subscriptions,
+  task_mentions,
   user,
   verification,
   workflow_statuses,
@@ -709,6 +744,8 @@ export type TaskComment = typeof task_comments.$inferSelect;
 export type NewTaskComment = typeof task_comments.$inferInsert;
 export type TaskCommentSubscription = typeof task_comment_subscriptions.$inferSelect;
 export type NewTaskCommentSubscription = typeof task_comment_subscriptions.$inferInsert;
+export type TaskMention = typeof task_mentions.$inferSelect;
+export type NewTaskMention = typeof task_mentions.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;
 export type NewNotification = typeof notifications.$inferInsert;
 

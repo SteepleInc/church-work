@@ -29,11 +29,14 @@ import {
   useWorkflowsCollection,
   useWorkflowStatusesCollection,
 } from "@/data/workflows/workflowsData.app";
+import { MentionedInSection } from "@/features/details-pane/mentioned-in-section";
 import { SubTaskSection } from "@/features/details-pane/sub-task-section";
 import { isSubTaskRowArmed } from "@/features/details-pane/sub-task-row-shortcuts";
 import type { SubTaskCreateInput } from "@/features/details-pane/sub-task-creator";
 import { TeamAvatar } from "@/components/avatars/teamAvatar";
 import { useChangeDetailsPaneId } from "@/components/details-pane/details-pane-helpers";
+import { DescriptionEditor } from "@/components/editor/description-editor";
+import { parseDescriptionValue } from "@/components/editor/description-value";
 import { DetailsShell } from "@/components/details-pane/details-shell";
 import { useQuickActionOpeners } from "@/features/quick-actions/quick-actions-state";
 import {
@@ -64,7 +67,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { TaskActivityFeed } from "./task-activity-feed";
-import type { ActivityResolvers } from "./task-activity-feed-utils";
 
 /**
  * Linear-style property pill used in the Task pane's fixed property band. The
@@ -480,20 +482,6 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
     return result.data.labels[0]?.id ?? null;
   };
 
-  // Name resolvers for the Activity Feed: prefer the live record's current name,
-  // letting the feed fall back to the snapshot label in metadata when an id no
-  // longer resolves (renamed/deleted records).
-  const activityResolvers: ActivityResolvers = {
-    label: (id) => labels.labelsCollection.find((entry) => entry.id === id)?.name ?? null,
-    status: (id) =>
-      workflowStatuses.workflowStatusesCollection.find((entry) => entry.id === id)?.name ?? null,
-    team: (id) => teams.teamsCollection.find((entry) => entry.id === id)?.name ?? null,
-    user: (id) => {
-      const found = users.usersCollection.find((entry) => entry.id === id);
-      return found ? getUserDisplayName(found) : null;
-    },
-  };
-
   return (
     // The app shell wraps everything in a `delay={0}` tooltip provider (for the
     // collapsed-sidebar tooltips), so re-establish the default 304ms field-tooltip
@@ -730,9 +718,12 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
 
             {/* Description */}
             {task.description ? (
-              <p className="whitespace-pre-wrap break-words text-[15px] text-foreground/90 leading-relaxed">
-                {task.description}
-              </p>
+              <DescriptionEditor
+                key={task.id}
+                readOnly
+                className="text-[15px] text-foreground/90 leading-relaxed"
+                value={parseDescriptionValue(task.description)}
+              />
             ) : (
               <p className="text-muted-foreground text-[15px]">Add a description...</p>
             )}
@@ -792,6 +783,17 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
               }))}
             />
 
+            {/* Mentioned-in backlinks: other Tasks that reference this one.
+              Projected Tasks have no real id to be mentioned, so the section is
+              only shown for real Tasks. */}
+            {task.isProjected ? null : (
+              <MentionedInSection
+                churchId={churchId}
+                onOpenTask={(identifier) => changeDetailsPaneId(identifier).forceNav()}
+                taskId={task.id}
+              />
+            )}
+
             {/* Activity Feed (read-only history). Projected Tasks have no real
               Activity rows yet, so the feed is only shown for real Tasks. */}
             {task.isProjected ? null : (
@@ -799,8 +801,6 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
                 churchId={churchId}
                 currentUserId={currentUserId}
                 onCreateTaskFromComment={(prefill) => openCreateTask(prefill)}
-                resolveActorName={activityResolvers.user}
-                resolvers={activityResolvers}
                 sourceTask={{
                   id: task.id,
                   identifier: task.identifier,

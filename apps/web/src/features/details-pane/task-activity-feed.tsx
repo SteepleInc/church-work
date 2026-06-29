@@ -1,4 +1,5 @@
 import {
+  AtSign,
   Ban,
   Bell,
   BellOff,
@@ -42,6 +43,10 @@ import {
   canModerateTaskComment,
   type TaskCommentModerationViewer,
 } from "@/data/task-comments/taskCommentModeration-utils";
+import { useLabelName } from "@/data/labels/labelsData.app";
+import { useTeamName } from "@/data/teams/teamData.app";
+import { useChurchUserName } from "@/data/users/usersData.app";
+import { useWorkflowStatusName } from "@/data/workflows/workflowsData.app";
 import { UserAvatar } from "@/components/avatars/userAvatar";
 import { useAppForm } from "@/components/form/ts-form";
 import type { TaskEstimate, TaskPriority } from "@/components/tasks/task-card-fields";
@@ -73,8 +78,14 @@ import { cn } from "@/lib/utils";
 import {
   describeActivity,
   formatActivityTime,
+  parseActivityMetadata,
+  readRef,
+  readRefList,
   type ActivityGlyph,
+  type ActivityLine,
+  type ActivityRef,
   type ActivityResolvers,
+  type NameResolver,
 } from "./task-activity-feed-utils";
 
 const GLYPH_ICON: Record<ActivityGlyph, LucideIcon> = {
@@ -87,6 +98,8 @@ const GLYPH_ICON: Record<ActivityGlyph, LucideIcon> = {
   estimate: Triangle,
   generic: CircleDot,
   labels: Tag,
+  mention: AtSign,
+  mentioned_in: LinkIcon,
   priority: CircleDot,
   reopened: RotateCcw,
   status: CircleDot,
@@ -118,11 +131,8 @@ type ActivityFeedProps = {
   readonly churchId: string | null;
   readonly currentUserId: string | null;
   readonly taskEntityId: string;
-  readonly resolvers: ActivityResolvers;
   readonly sourceTask: TaskCommentSourceTask;
   readonly onCreateTaskFromComment: (prefill: TaskCommentTaskPrefill) => void;
-  /** Resolves an actor user id to a display name; null when the user is gone. */
-  readonly resolveActorName: (userId: string) => string | null;
 };
 
 type TaskCommentSourceTask = {
@@ -233,6 +243,10 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
   const moderationViewer = useTaskCommentModerationViewer({
     currentUserId: props.currentUserId,
   });
+  const currentUserName = useChurchUserName({
+    churchId: props.churchId,
+    userId: props.currentUserId,
+  });
   const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null);
   const clearHighlightTimeoutRef = useRef<number | null>(null);
 
@@ -332,16 +346,16 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
               activity={activity}
               key={activity.id}
               now={now}
+              churchId={props.churchId}
               commentsById={commentsById}
               createComment={createComment}
               currentUserId={props.currentUserId}
+              currentUserName={currentUserName}
               deleteComment={deleteComment}
               highlightedCommentId={highlightedCommentId}
               moderationViewer={moderationViewer}
               onCreateTaskFromComment={props.onCreateTaskFromComment}
-              resolveActorName={props.resolveActorName}
               repliesByParentCommentId={repliesByParentCommentId}
-              resolvers={props.resolvers}
               sourceTask={props.sourceTask}
               subscribedRootCommentIds={subscribedRootCommentIds}
               subscribeThread={subscribeThread}
@@ -354,9 +368,7 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
 
       <ActivityCommentComposer
         currentUserId={props.currentUserId}
-        currentUserName={
-          props.currentUserId ? (props.resolveActorName(props.currentUserId) ?? null) : null
-        }
+        currentUserName={currentUserName}
         onSubmit={createComment}
       />
     </section>
@@ -375,18 +387,128 @@ function ActivityFeedEmpty() {
   );
 }
 
+/**
+ * Resolves the per-row Activity line by looking up exactly the records this row
+ * references through their own single-entity subscriptions, then feeding those
+ * live names into the pure `describeActivity`. A fixed set of reference slots is
+ * resolved every render (unused slots pass a null id, so their query is
+ * disabled), keeping hook order stable. The `labels_changed` event is handled by
+ * `ActivityLabelsLine` instead, since its references are a variable-length list.
+ */
+function useActivityLine(
+  churchId: string | null,
+  eventType: string,
+  metadata: ReturnType<typeof parseActivityMetadata>,
+): ActivityLine | null {
+  const from = readRef(metadata.from);
+  const to = readRef(metadata.to);
+  const mentionedUserId = (metadata.mentioned_user_id ?? null) as string | null;
+
+  // Resolve every bounded reference slot up front (stable hook order). Each
+  // resolver is fed only the names relevant to the event it serves.
+  const fromUserName = useChurchUserName({ churchId, userId: from?.id ?? null });
+  const toUserName = useChurchUserName({ churchId, userId: to?.id ?? null });
+  const mentionedUserName = useChurchUserName({ churchId, userId: mentionedUserId });
+  const fromStatusName = useWorkflowStatusName({ churchId, statusId: from?.id ?? null });
+  const toStatusName = useWorkflowStatusName({ churchId, statusId: to?.id ?? null });
+  const toTeamName = useTeamName({ churchId, teamId: to?.id ?? null });
+
+  const userResolver: NameResolver = (id) =>
+    id === from?.id ? fromUserName : id === to?.id ? toUserName : null;
+  const statusResolver: NameResolver = (id) =>
+    id === from?.id ? fromStatusName : id === to?.id ? toStatusName : null;
+  const teamResolver: NameResolver = (id) => (id === to?.id ? toTeamName : null);
+
+  // The labels resolver is intentionally inert here; label lines never reach
+  // `describeActivity` in the component (see `ActivityLabelsLine`).
+  const resolvers: ActivityResolvers = {
+    label: () => null,
+    status: statusResolver,
+    team: teamResolver,
+    user: (id) => {
+      if (id === mentionedUserId) return mentionedUserName;
+      return userResolver(id);
+    },
+  };
+
+  return describeActivity(eventType, metadata, resolvers);
+}
+
+/**
+ * Renders the `task.labels_changed` line, resolving each referenced Label's
+ * current name through its own subscription (via `LabelName`). The added/removed
+ * counts come straight from the metadata ref lists, so the summary is correct
+ * even when a Label was later deleted; a single changed Label is named inline.
+ */
+function ActivityLabelsLine({
+  churchId,
+  metadata,
+}: {
+  readonly churchId: string | null;
+  readonly metadata: ReturnType<typeof parseActivityMetadata>;
+}) {
+  const added = readRefList(metadata.added);
+  const removed = readRefList(metadata.removed);
+
+  if (added.length > 0 && removed.length === 0) {
+    return (
+      <span>
+        added <LabelSummary churchId={churchId} refs={added} />
+      </span>
+    );
+  }
+  if (removed.length > 0 && added.length === 0) {
+    return (
+      <span>
+        removed <LabelSummary churchId={churchId} refs={removed} />
+      </span>
+    );
+  }
+  return <span>changed the labels</span>;
+}
+
+/** "the <Name> label" for a single Label, or "N labels" for several. */
+function LabelSummary({
+  churchId,
+  refs,
+}: {
+  readonly churchId: string | null;
+  readonly refs: readonly ActivityRef[];
+}) {
+  if (refs.length === 1) {
+    return (
+      <>
+        the <LabelName churchId={churchId} labelRef={refs[0]!} /> label
+      </>
+    );
+  }
+  return <>{refs.length} labels</>;
+}
+
+/** A single Label's current name, resolved per-row, falling back to its snapshot. */
+function LabelName({
+  churchId,
+  labelRef,
+}: {
+  readonly churchId: string | null;
+  readonly labelRef: ActivityRef;
+}) {
+  const liveName = useLabelName({ churchId, labelId: labelRef.id ?? null });
+  return <>{liveName ?? labelRef.label ?? "a label"}</>;
+}
+
 function ActivityRow({
   activity,
   now,
+  churchId,
   commentsById,
   createComment,
   currentUserId,
+  currentUserName,
   deleteComment,
   highlightedCommentId,
   moderationViewer,
   onCreateTaskFromComment,
-  resolvers,
-  resolveActorName,
   repliesByParentCommentId,
   subscribedRootCommentIds,
   sourceTask,
@@ -395,16 +517,16 @@ function ActivityRow({
   updateComment,
 }: {
   readonly activity: ActivityCollectionItem;
+  readonly churchId: string | null;
   readonly commentsById: ReadonlyMap<string, TaskCommentCollectionItem>;
   readonly createComment: (body: string, parentCommentId?: string | null) => Promise<void>;
   readonly currentUserId: string | null;
+  readonly currentUserName: string | null;
   readonly deleteComment: (commentId: string) => Promise<void>;
   readonly highlightedCommentId: string | null;
   readonly moderationViewer: TaskCommentModerationViewer;
   readonly onCreateTaskFromComment: (prefill: TaskCommentTaskPrefill) => void;
   readonly now: number;
-  readonly resolvers: ActivityResolvers;
-  readonly resolveActorName: (userId: string) => string | null;
   readonly repliesByParentCommentId: ReadonlyMap<string, readonly TaskCommentCollectionItem[]>;
   readonly updateComment: (commentId: string, body: string) => Promise<void>;
   readonly subscribedRootCommentIds: ReadonlySet<string>;
@@ -412,7 +534,14 @@ function ActivityRow({
   readonly subscribeThread: (rootCommentId: string) => Promise<void>;
   readonly unsubscribeThread: (rootCommentId: string) => Promise<void>;
 }) {
-  const metadata = parseMetadata(activity.metadata);
+  const metadata = parseActivityMetadata(activity.metadata);
+  // Resolve the (non-comment) line via per-row single-entity lookups. Called
+  // unconditionally to keep hook order stable; ignored for comment rows.
+  const line = useActivityLine(churchId, activity.event_type, metadata);
+  const actorId = activity.actor_id ?? null;
+  const isUserActor = activity.actor_type === "user" && actorId !== null;
+  const resolvedActorName = useChurchUserName({ churchId, userId: actorId });
+
   if (activity.event_type === "comment_created") {
     const commentId = getCommentId(metadata);
     const comment = commentId ? commentsById.get(commentId) : undefined;
@@ -421,8 +550,10 @@ function ActivityRow({
 
     return (
       <TaskCommentCard
+        churchId={churchId}
         comment={comment}
         currentUserId={currentUserId}
+        currentUserName={currentUserName}
         highlighted={highlightedCommentId === comment.id}
         highlightedCommentId={highlightedCommentId}
         moderationViewer={moderationViewer}
@@ -434,20 +565,21 @@ function ActivityRow({
         onDelete={deleteComment}
         onUpdate={updateComment}
         replies={repliesByParentCommentId.get(comment.id) ?? []}
-        resolveActorName={resolveActorName}
         sourceTask={sourceTask}
         subscribed={subscribedRootCommentIds.has(comment.id)}
         title={new Date(activity.occurred_at).toLocaleString()}
       />
     );
   }
-  const line = describeActivity(activity.event_type, metadata, resolvers);
-  if (!line) return null;
 
-  const Icon = GLYPH_ICON[line.glyph];
-  const actorId = activity.actor_id ?? null;
-  const isUserActor = activity.actor_type === "user" && actorId !== null;
-  const actorName = isUserActor ? (resolveActorName(actorId) ?? "Unknown user") : "Church Work";
+  // `labels_changed` resolves its variable-length label references through child
+  // components; every other event uses the pre-resolved `line`.
+  const isLabelsLine = activity.event_type === "task.labels_changed";
+  if (!isLabelsLine && !line) return null;
+
+  const glyph: ActivityGlyph = isLabelsLine ? "labels" : (line?.glyph ?? "generic");
+  const Icon = GLYPH_ICON[glyph];
+  const actorName = isUserActor ? (resolvedActorName ?? "Unknown user") : "Church Work";
   const occurredAt = activity.occurred_at;
   const absolute = new Date(occurredAt).toLocaleString();
 
@@ -461,7 +593,12 @@ function ActivityRow({
         </span>
       )}
       <p className="min-w-0 text-foreground/90 leading-5">
-        <span className="font-medium text-foreground">{actorName}</span> <span>{line.text}</span>
+        <span className="font-medium text-foreground">{actorName}</span>{" "}
+        {isLabelsLine ? (
+          <ActivityLabelsLine churchId={churchId} metadata={metadata} />
+        ) : (
+          <span>{line?.text}</span>
+        )}
         <span className="text-muted-foreground"> · {formatActivityTime(occurredAt, now)}</span>
       </p>
     </li>
@@ -476,8 +613,10 @@ function getCommentId(metadata: unknown): string | null {
 }
 
 function TaskCommentCard({
+  churchId,
   comment,
   currentUserId,
+  currentUserName,
   highlighted,
   highlightedCommentId,
   moderationViewer,
@@ -489,13 +628,14 @@ function TaskCommentCard({
   onUnsubscribeThread,
   onUpdate,
   replies,
-  resolveActorName,
   sourceTask,
   subscribed,
   title,
 }: {
+  readonly churchId: string | null;
   readonly comment: TaskCommentCollectionItem;
   readonly currentUserId: string | null;
+  readonly currentUserName: string | null;
   readonly highlighted: boolean;
   readonly highlightedCommentId: string | null;
   readonly moderationViewer: TaskCommentModerationViewer;
@@ -507,12 +647,15 @@ function TaskCommentCard({
   readonly onSubscribeThread: () => Promise<void>;
   readonly onUnsubscribeThread: () => Promise<void>;
   readonly replies: readonly TaskCommentCollectionItem[];
-  readonly resolveActorName: (userId: string) => string | null;
   readonly sourceTask: TaskCommentSourceTask;
   readonly subscribed: boolean;
   readonly title: string;
 }) {
-  const actorName = resolveActorName(comment.authored_by_user_id) ?? "Unknown user";
+  const resolvedActorName = useChurchUserName({
+    churchId,
+    userId: comment.authored_by_user_id,
+  });
+  const actorName = resolvedActorName ?? "Unknown user";
   const createdAt = comment.created_at ?? now;
   const [composing, setComposing] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -601,6 +744,7 @@ function TaskCommentCard({
             {replies.map((reply) => (
               <TaskCommentReply
                 key={reply.id}
+                churchId={churchId}
                 moderationViewer={moderationViewer}
                 now={now}
                 reply={reply}
@@ -609,7 +753,6 @@ function TaskCommentCard({
                 onCopyMarkdown={() => copyCommentMarkdown(reply.body)}
                 onCopyLink={() => copyTaskCommentLink(reply.id, "reply")}
                 onCreateTaskFromComment={onCreateTaskFromComment}
-                resolveActorName={resolveActorName}
                 sourceTask={sourceTask}
                 highlighted={highlightedCommentId === reply.id}
               />
@@ -621,9 +764,7 @@ function TaskCommentCard({
           {composing ? (
             <TaskCommentReplyComposer
               currentUserId={currentUserId}
-              currentUserName={
-                currentUserId ? (resolveActorName(currentUserId) ?? "Unknown user") : null
-              }
+              currentUserName={currentUserName}
               onCancel={() => setComposing(false)}
               onSubmit={async (reply) => {
                 await onReply(reply);
@@ -651,6 +792,7 @@ function TaskCommentCard({
 }
 
 function TaskCommentReply({
+  churchId,
   highlighted,
   moderationViewer,
   now,
@@ -660,9 +802,9 @@ function TaskCommentReply({
   onDelete,
   onUpdate,
   reply,
-  resolveActorName,
   sourceTask,
 }: {
+  readonly churchId: string | null;
   readonly now: number;
   readonly reply: TaskCommentCollectionItem;
   readonly moderationViewer: TaskCommentModerationViewer;
@@ -671,11 +813,14 @@ function TaskCommentReply({
   readonly onCopyMarkdown: () => Promise<void>;
   readonly onCopyLink: () => Promise<void>;
   readonly onCreateTaskFromComment: (prefill: TaskCommentTaskPrefill) => void;
-  readonly resolveActorName: (userId: string) => string | null;
   readonly sourceTask: TaskCommentSourceTask;
   readonly highlighted: boolean;
 }) {
-  const actorName = resolveActorName(reply.authored_by_user_id) ?? "Unknown user";
+  const resolvedActorName = useChurchUserName({
+    churchId,
+    userId: reply.authored_by_user_id,
+  });
+  const actorName = resolvedActorName ?? "Unknown user";
   const createdAt = reply.created_at ?? now;
   const [editing, setEditing] = useState(false);
   const isDeleted = reply.deleted_at !== null;
@@ -1370,12 +1515,3 @@ function ActivityFeedSkeleton() {
     </div>
   );
 }
-
-const parseMetadata = (raw: string | null | undefined): unknown => {
-  if (!raw) return {};
-  try {
-    return JSON.parse(raw) as unknown;
-  } catch {
-    return {};
-  }
-};

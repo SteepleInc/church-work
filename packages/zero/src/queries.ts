@@ -49,6 +49,12 @@ const TaskCommentSubscriptionsArgs = toZeroSchema(
 const TaskByIdentifierArgs = toZeroSchema(
   Schema.Struct({ church_id: Schema.String, identifier: Schema.String }),
 );
+const TaskMentionsByTaskArgs = toZeroSchema(
+  Schema.Struct({ church_id: Schema.String, task_id: Schema.String }),
+);
+const ChurchScopedByIdArgs = toZeroSchema(
+  Schema.Struct({ church_id: Schema.String, id: Schema.String }),
+);
 
 const defineChurchWorkQuery = defineQueryWithType<ZeroSchema, OptionalZeroSessionContext>();
 
@@ -202,6 +208,36 @@ export const queries = defineQueries({
         .orderBy("created_at", "asc");
     }),
   },
+  task_mentions: {
+    // Outgoing edges: who/what this Task mentions in its description.
+    by_source_task: defineChurchWorkQuery(TaskMentionsByTaskArgs, ({ args, ctx }) => {
+      if (!hasActiveChurchAccess(ctx, args.church_id)) {
+        if (isServerContext(ctx)) requireActiveChurchAccess(ctx, args.church_id);
+
+        return zql.task_mentions.where("id", "__unauthorized__").where("deleted_at", "IS", null);
+      }
+
+      return zql.task_mentions
+        .where("church_id", args.church_id)
+        .where("source_task_id", args.task_id)
+        .where("deleted_at", "IS", null)
+        .orderBy("created_at", "asc");
+    }),
+    // Incoming edges: other Tasks that mention this Task ("mentioned in").
+    by_target_task: defineChurchWorkQuery(TaskMentionsByTaskArgs, ({ args, ctx }) => {
+      if (!hasActiveChurchAccess(ctx, args.church_id)) {
+        if (isServerContext(ctx)) requireActiveChurchAccess(ctx, args.church_id);
+
+        return zql.task_mentions.where("id", "__unauthorized__").where("deleted_at", "IS", null);
+      }
+
+      return zql.task_mentions
+        .where("church_id", args.church_id)
+        .where("target_task_id", args.task_id)
+        .where("deleted_at", "IS", null)
+        .orderBy("created_at", "asc");
+    }),
+  },
   teams_admin: {
     admin_all: defineChurchWorkQuery(({ ctx }) => {
       requireAppAdminSession(ctx);
@@ -220,6 +256,21 @@ export const queries = defineQueries({
       }
 
       return scoped.where("deleted_at", "IS", null).orderBy("sort_order", "asc");
+    }),
+    // Resolves a single Team by id, for per-row lookups (e.g. resolving the
+    // owning Team of a Task to format its "TEAM-123" identifier).
+    by_id: defineChurchWorkQuery(ChurchScopedByIdArgs, ({ args, ctx }) => {
+      if (!hasActiveChurchAccess(ctx, args.church_id)) {
+        if (isServerContext(ctx)) requireActiveChurchAccess(ctx, args.church_id);
+
+        return zql.teams.where("id", "__unauthorized__").where("deleted_at", "IS", null).one();
+      }
+
+      return zql.teams
+        .where("church_id", args.church_id)
+        .where("id", args.id)
+        .where("deleted_at", "IS", null)
+        .one();
     }),
   },
   team_memberships: {
@@ -246,6 +297,21 @@ export const queries = defineQueries({
       }
 
       return scoped.where("deleted_at", "IS", null).orderBy("name", "asc");
+    }),
+    // Resolves a single Label by id, for per-row lookups (e.g. naming a Label
+    // referenced in an Activity Feed line).
+    by_id: defineChurchWorkQuery(ChurchScopedByIdArgs, ({ args, ctx }) => {
+      if (!hasActiveChurchAccess(ctx, args.church_id)) {
+        if (isServerContext(ctx)) requireActiveChurchAccess(ctx, args.church_id);
+
+        return zql.labels.where("id", "__unauthorized__").where("deleted_at", "IS", null).one();
+      }
+
+      return zql.labels
+        .where("church_id", args.church_id)
+        .where("id", args.id)
+        .where("deleted_at", "IS", null)
+        .one();
     }),
   },
   cycles: {
@@ -406,6 +472,24 @@ export const queries = defineQueries({
 
       return scoped.where("deleted_at", "IS", null).orderBy("sort_order", "asc");
     }),
+    // Resolves a single Workflow Status by id, for per-row lookups (e.g. naming
+    // the from/to status of an Activity Feed status-change line).
+    by_id: defineChurchWorkQuery(ChurchScopedByIdArgs, ({ args, ctx }) => {
+      if (!hasActiveChurchAccess(ctx, args.church_id)) {
+        if (isServerContext(ctx)) requireActiveChurchAccess(ctx, args.church_id);
+
+        return zql.workflow_statuses
+          .where("id", "__unauthorized__")
+          .where("deleted_at", "IS", null)
+          .one();
+      }
+
+      return zql.workflow_statuses
+        .where("church_id", args.church_id)
+        .where("id", args.id)
+        .where("deleted_at", "IS", null)
+        .one();
+    }),
   },
   tasks: {
     by_church: defineChurchWorkQuery(ChurchScopedArgs, ({ args, ctx }) => {
@@ -488,6 +572,22 @@ export const queries = defineQueries({
         default_order_by: "created_at",
         default_order_direction: "desc",
       });
+    }),
+    // Resolves a single Task by id, for per-row lookups (e.g. a "mentioned in"
+    // backlink row fetching its own source Task). Zero dedupes identical
+    // subscriptions client-side, so many rows asking for the same Task share one.
+    by_id: defineChurchWorkQuery(ChurchScopedByIdArgs, ({ args, ctx }) => {
+      if (!hasActiveChurchAccess(ctx, args.church_id)) {
+        if (isServerContext(ctx)) requireActiveChurchAccess(ctx, args.church_id);
+
+        return zql.tasks.where("id", "__unauthorized__").where("deleted_at", "IS", null).one();
+      }
+
+      return zql.tasks
+        .where("church_id", args.church_id)
+        .where("id", args.id)
+        .where("deleted_at", "IS", null)
+        .one();
     }),
     by_identifier: defineChurchWorkQuery(TaskByIdentifierArgs, ({ args, ctx }) => {
       const parsed = parseTaskIdentifier(args.identifier);

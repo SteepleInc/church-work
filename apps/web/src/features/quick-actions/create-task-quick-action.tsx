@@ -9,6 +9,11 @@ import { toast } from "sonner";
 
 import { TeamAvatar } from "@/components/avatars/teamAvatar";
 import { useOpenTaskDetailsPaneUrl } from "@/components/details-pane/details-pane-helpers";
+import { DescriptionEditor } from "@/components/editor/description-editor";
+import {
+  parseDescriptionValue,
+  serializeDescriptionValue,
+} from "@/components/editor/description-value";
 import { useAppForm } from "@/components/form/ts-form";
 import { DraftTaskPropertySurface } from "@/components/tasks/draft-task-property-surface";
 import {
@@ -198,7 +203,7 @@ export function CreateTaskQuickAction() {
   const effectiveTargetCycle = state?.targetCycle ?? routeTargetCycle;
 
   const titleInputRef = useRef<HTMLInputElement>(null);
-  const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
+  const descriptionInputRef = useRef<HTMLDivElement>(null);
   // "open" = save and open the created Task (Cmd+Alt+Enter).
   const submitModeRef = useRef<"default" | "open">("default");
 
@@ -307,13 +312,14 @@ export function CreateTaskQuickAction() {
         return;
       }
 
-      const trimmedDescription = value.description.trim();
+      // `description` holds serialized Plate JSON (or "" when the doc is empty).
+      const serializedDescription = value.description;
       setError(null);
       const result = await createTask({
         churchId,
         actorUserId: currentUserId,
         title: trimmedTitle,
-        description: trimmedDescription === "" ? null : trimmedDescription,
+        description: serializedDescription === "" ? null : serializedDescription,
         teamId: submitTeamId,
         assignedUserId: value.assignedUserId,
         workflowStatusId: submitStatus.id,
@@ -348,9 +354,12 @@ export function CreateTaskQuickAction() {
         // resets, ready for the next Task in the batch.
         formApi.setFieldValue("title", "");
         formApi.setFieldValue("description", "");
+        // Remount the (uncontrolled) description editor so it clears too.
+        setEditorResetKey((key) => key + 1);
         titleInputRef.current?.focus();
       } else {
         formApi.reset();
+        setEditorResetKey((key) => key + 1);
         setState(null);
       }
 
@@ -369,6 +378,16 @@ export function CreateTaskQuickAction() {
       }
     },
   });
+
+  // The description editor is uncontrolled (reads its `value` on mount). Bump
+  // this key to remount it after a reset so the contentEditable clears; the
+  // memo re-parses the freshly-reset field value for the new instance.
+  const [editorResetKey, setEditorResetKey] = useState(0);
+  const initialDescriptionValue = useMemo(
+    () => parseDescriptionValue(form.state.values.description),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [editorResetKey],
+  );
 
   // --- Effective Team / Workflow / Status resolution -------------------------
   // Pills hold "user-set" values; the effective value falls back through the
@@ -583,21 +602,16 @@ export function CreateTaskQuickAction() {
             </form.Field>
             <form.Field name="description">
               {(field) => (
-                <textarea
-                  aria-label="Add description"
-                  autoComplete="off"
-                  // field-sizing-content grows the textarea with what's typed;
-                  // flex-1 caps it at the available dialog height (the whole
-                  // height when expanded), after which it scrolls internally.
-                  className="field-sizing-content min-h-20 w-full flex-1 resize-none overflow-y-auto bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                  data-1p-ignore="true"
-                  disabled={isLoading}
-                  onChange={(event) => field.handleChange(event.target.value)}
-                  placeholder="Add description..."
-                  ref={descriptionInputRef}
-                  rows={4}
-                  value={field.state.value}
-                />
+                <div className="min-h-20 w-full flex-1 overflow-y-auto">
+                  <DescriptionEditor
+                    key={editorResetKey}
+                    editorRef={descriptionInputRef}
+                    disabled={isLoading}
+                    placeholder="Add description..."
+                    value={initialDescriptionValue}
+                    onChange={(value) => field.handleChange(serializeDescriptionValue(value) ?? "")}
+                  />
+                </div>
               )}
             </form.Field>
           </DraftTaskPropertySurface>

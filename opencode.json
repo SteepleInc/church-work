@@ -4,6 +4,10 @@
     "preach-x": {
       "path": "/Users/izakfilmalter/Projects/PreachX/preach-x",
       "description": "Use as the source reference for copied core shell code and design language patterns."
+    },
+    "plate": {
+      "repository": "udecode/plate",
+      "description": "Use as the source reference for Plate editor implementation patterns, APIs, and examples."
     }
   }
 }

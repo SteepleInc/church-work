@@ -137,6 +137,28 @@ export function useTaskLabelCard(labelId: string | null): TaskLabelCard | null {
   };
 }
 
+/**
+ * Resolves a single Label's current name by id through its own `labels.by_id`
+ * subscription, for per-row lookups (e.g. naming a Label referenced in an
+ * Activity Feed line). Returns `null` while loading or when the Label is gone,
+ * so callers can fall back to a snapshot label. Zero dedupes identical
+ * subscriptions, so many rows naming the same Label share one query.
+ */
+export function useLabelName(params: {
+  readonly churchId: string | null;
+  readonly labelId: string | null;
+}): string | null {
+  const [row] = useQuery(
+    queries.labels.by_id({
+      church_id: params.churchId ?? "__no_church__",
+      id: params.labelId ?? "__no_label__",
+    }),
+    { enabled: params.churchId !== null && params.labelId !== null },
+  );
+
+  return row?.name ?? null;
+}
+
 export function useCreateLabelMutation() {
   const zero = useZero();
 

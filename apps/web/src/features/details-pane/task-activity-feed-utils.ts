@@ -44,9 +44,22 @@ export type ActivityRef = {
   readonly id?: string;
   readonly value?: string;
   readonly label?: string | null;
+  /** Present on Task references (e.g. a backlink source): the "TEAM-123" code. */
+  readonly identifier?: string | null;
 };
 
 type ActivityMetadata = Record<string, unknown>;
+
+/** Parses the JSON `metadata` string stored on an Activity into an object. */
+export const parseActivityMetadata = (raw: string | null | undefined): ActivityMetadata => {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed !== null && typeof parsed === "object" ? (parsed as ActivityMetadata) : {};
+  } catch {
+    return {};
+  }
+};
 
 /** A resolver that returns the current display name for a record id, or null. */
 export type NameResolver = (id: string) => string | null;
@@ -76,6 +89,8 @@ export type ActivityGlyph =
   | "completed"
   | "canceled"
   | "reopened"
+  | "mention"
+  | "mentioned_in"
   | "generic";
 
 /**
@@ -88,15 +103,20 @@ export type ActivityLine = {
   readonly text: string;
 };
 
-const asRef = (value: unknown): ActivityRef | null => {
+/** Reads a single `ActivityRef` from an arbitrary metadata value, or null. */
+export const readRef = (value: unknown): ActivityRef | null => {
   if (value === null || typeof value !== "object") return null;
   return value as ActivityRef;
 };
 
-const asRefList = (value: unknown): readonly ActivityRef[] => {
+/** Reads a list of `ActivityRef`s from an arbitrary metadata value. */
+export const readRefList = (value: unknown): readonly ActivityRef[] => {
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is ActivityRef => item !== null && typeof item === "object");
 };
+
+const asRef = readRef;
+const asRefList = readRefList;
 
 /** Prefer the live name for a record reference, falling back to its snapshot. */
 const refName = (ref: ActivityRef | null, resolve: NameResolver): string | null => {
@@ -208,6 +228,23 @@ export function describeActivity(
 
     case "task.cycle_changed":
       return { glyph: "cycle", text: "moved this to a different week" };
+
+    case "task.mentioned": {
+      const mentionedUserId = (metadata.mentioned_user_id ?? null) as string | null;
+      const name = mentionedUserId ? resolvers.user(mentionedUserId) : null;
+      if (name === null) return { glyph: "mention", text: "mentioned someone" };
+      return { glyph: "mention", text: `mentioned ${name}` };
+    }
+
+    case "task.mentioned_in": {
+      const source = asRef(metadata.source);
+      const identifier = (source?.identifier ?? null) as string | null;
+      const title = (source?.label ?? null) as string | null;
+      const reference = identifier ?? title;
+      if (reference === null)
+        return { glyph: "mentioned_in", text: "was mentioned in another task" };
+      return { glyph: "mentioned_in", text: `was mentioned in ${reference}` };
+    }
 
     case "task.labels_changed": {
       const added = asRefList(metadata.added);
