@@ -1,7 +1,7 @@
-import { getHotkeyManager } from "@tanstack/hotkeys";
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtom, useAtomValue } from "jotai";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 
 import {
   CommandDialog,
@@ -47,36 +47,20 @@ export function QuickActions() {
 
   // Mod+K toggles the command palette. As a Meta/Ctrl shortcut it defaults to
   // `ignoreInputs: false`, so it still fires while the user is typing in a field.
-  useEffect(() => {
-    if (disableQuickActions) return;
-
-    const handle = getHotkeyManager().register(
-      "Mod+K",
-      (event) => {
-        if (event.repeat) return;
-        setQuickActionsIsOpen((isOpen) => !isOpen);
-      },
-      { preventDefault: true },
-    );
-    return () => handle.unregister();
-  }, [disableQuickActions, setQuickActionsIsOpen]);
+  useHotkey("Mod+K", () => setQuickActionsIsOpen((isOpen) => !isOpen), {
+    enabled: !disableQuickActions,
+    preventDefault: true,
+    requireReset: true,
+  });
 
   // Linear-style "C" opens Create Task from anywhere. As a single key it
   // defaults to `ignoreInputs: true`, so the manager skips it while the user is
   // typing in an input, textarea, or contentEditable.
-  useEffect(() => {
-    if (disableQuickActions) return;
-
-    const handle = getHotkeyManager().register(
-      "C",
-      (event) => {
-        if (event.repeat) return;
-        openCreateTask();
-      },
-      { preventDefault: true },
-    );
-    return () => handle.unregister();
-  }, [disableQuickActions, openCreateTask]);
+  useHotkey("C", () => openCreateTask(), {
+    enabled: !disableQuickActions,
+    preventDefault: true,
+    requireReset: true,
+  });
 
   const activeChurchId = activeChurch?.id ?? null;
   const actions = useMemo(

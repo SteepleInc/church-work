@@ -3,6 +3,7 @@
 import * as React from "react";
 import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -93,30 +94,10 @@ function SidebarProvider({
     return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
   }, [isMobile, setOpen, setOpenMobile]);
 
-  // Adds a keyboard shortcut to toggle the sidebar. Bare `[` (Linear-style),
-  // ignored while typing in a field or when a modifier is held.
-  React.useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== SIDEBAR_KEYBOARD_SHORTCUT) return;
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
-      const target = event.target;
-      if (target instanceof HTMLElement) {
-        if (
-          target.isContentEditable ||
-          target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.tagName === "SELECT"
-        ) {
-          return;
-        }
-      }
-      event.preventDefault();
-      toggleSidebar();
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleSidebar]);
+  // Adds a keyboard shortcut to toggle the sidebar. Bare `[` (Linear-style). As
+  // a single key it defaults to `ignoreInputs: true`, so the manager skips it
+  // while focus is in an input, textarea, select, or contentEditable.
+  useHotkey(SIDEBAR_KEYBOARD_SHORTCUT, () => toggleSidebar(), { preventDefault: true });
 
   // We add a state so that we can do data-state="expanded" or "collapsed".
   // This makes it easier to style the sidebar with Tailwind classes.

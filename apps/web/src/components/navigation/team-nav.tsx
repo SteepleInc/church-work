@@ -14,6 +14,7 @@ import {
   Time04Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { Link, useLocation, useNavigate, useSearch } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 import type { ComponentProps } from "react";
@@ -504,26 +505,19 @@ function TeamActionsMenu({
   const [confirmingLeave, setConfirmingLeave] = useState(false);
   const [leaving, setLeaving] = useState(false);
 
-  // The team menu's shortcuts (matching Linear) are scoped to this menu: they
-  // only fire while this team's menu is open, and they act on this team. There
-  // is no global registration, so two teams' menus can share the same keys
-  // without ambiguity.
-  useEffect(() => {
-    if (!menuOpen) return;
-
-    const handler = (event: KeyboardEvent) => {
-      if (event.repeat) return;
-      // Copy URL = ⌘⇧, (Cmd/Ctrl + Shift + comma), as in Linear.
-      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key === ",") {
-        event.preventDefault();
-        setMenuOpen(false);
-        void copyTeamLink(team.identifier);
-      }
-    };
-
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [menuOpen, team.identifier]);
+  // The team menu's shortcuts (matching Linear) are scoped to this menu via
+  // `enabled: menuOpen`: they only fire while this team's menu is open, and they
+  // act on this team. Two teams' menus can share the same keys without
+  // ambiguity because only the open one is enabled. Copy URL = ⌘⇧, (Mod + Shift
+  // + comma), as in Linear.
+  useHotkey(
+    { key: ",", mod: true, shift: true },
+    () => {
+      setMenuOpen(false);
+      void copyTeamLink(team.identifier);
+    },
+    { enabled: menuOpen, preventDefault: true, requireReset: true },
+  );
 
   const leaveTeam = async () => {
     if (!currentUserId) return;

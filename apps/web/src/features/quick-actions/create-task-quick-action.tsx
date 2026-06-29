@@ -1,3 +1,4 @@
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { revalidateLogic } from "@tanstack/react-form";
 import { Schema } from "effect";
@@ -498,21 +499,19 @@ export function CreateTaskQuickAction() {
     void form.handleSubmit();
   };
 
-  // Cmd+Enter creates; Cmd+Alt+Enter creates and opens. Property picker keys are
-  // handled by the shared hover-armed draft Task surface below.
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-        event.preventDefault();
-        submitModeRef.current = event.altKey ? "open" : "default";
-        void form.handleSubmit();
-        return;
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, form]);
+  // Cmd+Enter creates; Cmd+Alt+Enter creates and opens. These are Meta combos,
+  // so they default to `ignoreInputs: false` and still fire while the user types
+  // in the title or description. `enabled: isOpen` scopes them to the open
+  // dialog. Property picker keys are handled by the shared hover-armed draft
+  // Task surface below.
+  useHotkey("Mod+Enter", () => submit("default"), {
+    enabled: isOpen,
+    preventDefault: true,
+  });
+  useHotkey("Mod+Alt+Enter", () => submit("open"), {
+    enabled: isOpen,
+    preventDefault: true,
+  });
 
   return (
     <QuickActionsWrapper

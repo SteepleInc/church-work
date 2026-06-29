@@ -196,9 +196,11 @@ describe("Inbox navigation plumbing", () => {
       new URL("../../components/app-shell.tsx", import.meta.url),
     ).text();
 
-    expect(appShellSource).toContain('createSequenceMatcher(["G", "I"]');
+    // The "G then I" inbox shortcut runs through @tanstack/react-hotkeys'
+    // useHotkeySequence, which defaults to ignoreInputs: true (skipped while
+    // typing in an input, textarea, select, or contentEditable).
+    expect(appShellSource).toContain('useHotkeySequence(["G", "I"]');
     expect(appShellSource).toContain('navigate({ to: "/inbox" })');
-    expect(appShellSource).toContain("isEditableShortcutTarget(event.target)");
   });
 
   test("detects editable shortcut targets", () => {

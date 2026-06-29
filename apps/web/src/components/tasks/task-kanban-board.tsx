@@ -23,6 +23,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { CalendarIcon, EllipsisIcon, PlusIcon, Tag, Triangle } from "lucide-react";
 import {
   type ComponentProps,
@@ -354,20 +355,11 @@ export function TaskKanbanBoard({
     [columnTasks, grouping, keyboard, onMoveTasks],
   );
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!event.altKey || !event.shiftKey) return;
-      if (event.key === "ArrowUp") {
-        event.preventDefault();
-        reorderFocused(-1);
-      } else if (event.key === "ArrowDown") {
-        event.preventDefault();
-        reorderFocused(1);
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [reorderFocused]);
+  // ⌥⇧↑ / ⌥⇧↓ reorder the focused task within its column. As Alt/Shift combos
+  // they default to `ignoreInputs: true`, so they're skipped while a text field
+  // has focus.
+  useHotkey("Alt+Shift+ArrowUp", () => reorderFocused(-1), { preventDefault: true });
+  useHotkey("Alt+Shift+ArrowDown", () => reorderFocused(1), { preventDefault: true });
 
   return (
     <Kanban

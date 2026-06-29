@@ -8,11 +8,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { formatWeekDateRange, formatWeekNameParts } from "@/data/cycles/cyclesData.app";
 import { cn } from "@/lib/utils";
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { CalendarRange, ChevronDown, ChevronRight } from "lucide-react";
-import { useEffect } from "react";
-
-import { isEditableTarget } from "@/components/tasks/task-kanban-board-utils";
 
 type SelectorCycle = {
   readonly id: string;
@@ -63,26 +61,18 @@ export function TeamWeekSelector({
   };
 
   // `⌥K` / `⌥J` step to the next / previous Week — Linear's exact Cycle
-  // shortcuts — while the board (not a text field) has focus.
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!event.altKey || event.metaKey || event.ctrlKey) return;
-      if (isEditableTarget(event.target)) return;
-      // Option remaps letters on macOS (⌥K → "˚", ⌥J → "∆"); match on the
-      // physical key instead so the shortcut fires regardless of layout.
-      const code = event.code;
-      if (code === "KeyK" && nextWeek) {
-        event.preventDefault();
-        goToWeek(nextWeek.id);
-      } else if (code === "KeyJ" && previousWeek) {
-        event.preventDefault();
-        goToWeek(previousWeek.id);
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nextWeek?.id, previousWeek?.id]);
+  // shortcuts. As single-letter Alt combos they default to `ignoreInputs: true`,
+  // so they're skipped while a text field has focus. Option remaps letters on
+  // macOS (⌥K → "˚", ⌥J → "∆"), but the manager falls back to event.code, so
+  // these fire regardless of layout.
+  useHotkey("Alt+K", () => nextWeek && goToWeek(nextWeek.id), {
+    enabled: Boolean(nextWeek),
+    preventDefault: true,
+  });
+  useHotkey("Alt+J", () => previousWeek && goToWeek(previousWeek.id), {
+    enabled: Boolean(previousWeek),
+    preventDefault: true,
+  });
 
   return (
     <nav

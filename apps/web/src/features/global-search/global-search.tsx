@@ -1,8 +1,8 @@
-import { createHotkeyHandler } from "@tanstack/hotkeys";
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtom, useSetAtom } from "jotai";
 import { Building2Icon, ListTodoIcon, SettingsIcon, UserIcon, UsersIcon } from "lucide-react";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo } from "react";
 
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { useTasksCollection } from "@/data/tasks/tasksData.app";
@@ -28,11 +28,7 @@ export function GlobalSearch() {
   const setDisableQuickActions = useSetAtom(disableQuickActionsAtom);
   const navigate = useNavigate();
 
-  // Keep the latest "is an editor focused" flag in a ref so the keydown handler
-  // can read it without re-binding the listener on every focus change.
   const isEditorFocused = useIsEditorFocused();
-  const isEditorFocusedRef = useRef(isEditorFocused);
-  isEditorFocusedRef.current = isEditorFocused;
   const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
   const teams = useTeamsCollection({ churchId: activeChurch?.id ?? null });
   const users = useChurchUsersCollection({ churchId: activeChurch?.id ?? null });
@@ -41,29 +37,23 @@ export function GlobalSearch() {
     currentUserId: activeChurch?.currentUserId ?? null,
   });
 
-  useEffect(() => {
-    // `createHotkeyHandler` calls `preventDefault`/`stopPropagation` as soon as
-    // the hotkey matches — *before* our callback runs. If its built-in
-    // `preventDefault` fired while a rich-text editor was focused, a bare "/"
-    // would be swallowed (no `beforeinput`, no character) before we could bail.
-    // So we turn off its automatic prevention and decide ourselves: skip
-    // entirely while an editor is focused, otherwise open search and prevent
-    // the default. The `isEditableKeyboardTarget` check stays as a fallback for
-    // plain inputs/textareas that don't participate in editor focus tracking.
-    const handler = createHotkeyHandler(
-      GLOBAL_SEARCH_SHORTCUT,
-      (event) => {
-        if (event.repeat) return;
-        if (isEditorFocusedRef.current || isEditableKeyboardTarget(event.target)) return;
-        event.preventDefault();
-        setGlobalSearchIsOpen((isOpen) => !isOpen);
-      },
-      { preventDefault: false, stopPropagation: false },
-    );
-
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [setGlobalSearchIsOpen]);
+  // A bare "/" toggles global search. We can't let the manager preventDefault
+  // up front: if "/" were swallowed while a rich-text editor was focused, no
+  // character would be typed. So we keep `preventDefault`/`stopPropagation` off
+  // and `ignoreInputs` off, then decide ourselves — skip entirely while an
+  // editor is focused (or any editable target), otherwise open search and
+  // prevent the default. `useHotkey` re-syncs this callback every render, so
+  // `isEditorFocused` is always current without a ref.
+  useHotkey(
+    GLOBAL_SEARCH_SHORTCUT,
+    (event) => {
+      if (event.repeat) return;
+      if (isEditorFocused || isEditableKeyboardTarget(event.target)) return;
+      event.preventDefault();
+      setGlobalSearchIsOpen((isOpen) => !isOpen);
+    },
+    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+  );
 
   useEffect(() => {
     setDisableQuickActions(globalSearchIsOpen);
