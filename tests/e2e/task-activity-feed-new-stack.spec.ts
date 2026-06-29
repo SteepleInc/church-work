@@ -210,8 +210,10 @@ test.describe("Task details Activity Feed", () => {
     await expect(taskDialog.getByLabel("Add description")).toContainText(
       `@E2E Comment Task Owner said in`,
     );
+    // The comment text is carried into the new Task's description as a rich
+    // blockquote (Plate JSON), so it renders without a literal "> " prefix.
     await expect(taskDialog.getByLabel("Add description")).toContainText(
-      `> Bring the updated stage plot.`,
+      `Bring the updated stage plot.`,
     );
     await taskDialog.getByRole("button", { name: "Create Task" }).click();
     await expect(taskDialog).not.toBeVisible({ timeout: 20_000 });
@@ -371,7 +373,12 @@ test.describe("Task details Activity Feed", () => {
     // While editing, the card swaps its body text for the edit composer, so the
     // `originalBody` filter no longer matches it. Scope to the pane's open edit
     // composer instead, which is unique while a single comment is being edited.
-    await pane.getByRole("textbox", { name: "Edit comment" }).fill(editedBody);
+    // It is a rich-text editor (contentEditable): select all, then type the
+    // replacement the way a user would.
+    const editComposer = pane.getByRole("textbox", { name: "Edit comment" });
+    await editComposer.click();
+    await page.keyboard.press("ControlOrMeta+A");
+    await editComposer.pressSequentially(editedBody);
     await pane.getByRole("button", { exact: true, name: "Save" }).click();
 
     await expect(activityFeed(page).getByText(editedBody)).toBeVisible({ timeout: 20_000 });

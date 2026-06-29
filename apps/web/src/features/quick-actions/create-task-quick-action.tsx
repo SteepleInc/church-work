@@ -204,6 +204,11 @@ export function CreateTaskQuickAction() {
 
   const titleInputRef = useRef<HTMLInputElement>(null);
   const descriptionInputRef = useRef<HTMLDivElement>(null);
+  // Holds the serialized description the uncontrolled editor should mount with.
+  // Set synchronously (before bumping `editorResetKey`) so a remount reads the
+  // intended value even if the form store hasn't flushed yet — e.g. a prefill
+  // from "create Task from Comment".
+  const nextDescriptionRef = useRef("");
   // "open" = save and open the created Task (Cmd+Alt+Enter).
   const submitModeRef = useRef<"default" | "open">("default");
 
@@ -355,10 +360,12 @@ export function CreateTaskQuickAction() {
         formApi.setFieldValue("title", "");
         formApi.setFieldValue("description", "");
         // Remount the (uncontrolled) description editor so it clears too.
+        nextDescriptionRef.current = "";
         setEditorResetKey((key) => key + 1);
         titleInputRef.current?.focus();
       } else {
         formApi.reset();
+        nextDescriptionRef.current = "";
         setEditorResetKey((key) => key + 1);
         setState(null);
       }
@@ -384,7 +391,7 @@ export function CreateTaskQuickAction() {
   // memo re-parses the freshly-reset field value for the new instance.
   const [editorResetKey, setEditorResetKey] = useState(0);
   const initialDescriptionValue = useMemo(
-    () => parseDescriptionValue(form.state.values.description),
+    () => parseDescriptionValue(nextDescriptionRef.current),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [editorResetKey],
   );
@@ -436,6 +443,11 @@ export function CreateTaskQuickAction() {
     form.setFieldValue("estimate", state.estimate ?? "no_estimate");
     form.setFieldValue("labels", state.labelIds ?? []);
     form.setFieldValue("dueDate", state.dueDate ?? null);
+    // The description editor is uncontrolled and reads its value only on mount.
+    // Prefills (e.g. "create Task from Comment") set the field after the editor
+    // has mounted, so stage the value and remount it to pick the prefill up.
+    nextDescriptionRef.current = state.description ?? "";
+    setEditorResetKey((key) => key + 1);
   }, [isOpen, state, form]);
 
   // Inline label creation from the picker. Always creates a Church-scoped
@@ -605,6 +617,7 @@ export function CreateTaskQuickAction() {
                 <div className="min-h-20 w-full flex-1 overflow-y-auto">
                   <DescriptionEditor
                     key={editorResetKey}
+                    ariaLabel="Add description"
                     editorRef={descriptionInputRef}
                     disabled={isLoading}
                     placeholder="Add description..."

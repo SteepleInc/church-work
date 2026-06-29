@@ -19,6 +19,8 @@ export type DescriptionEditorProps = {
   disabled?: boolean;
   /** Render the same nodes (mentions, code, lists) without editing affordances. */
   readOnly?: boolean;
+  /** Focus the editor on mount (e.g. an inline reply/edit composer). */
+  autoFocus?: boolean;
   className?: string;
   /**
    * Extra classes for the contentEditable itself (inside the scroll/clip box).
@@ -28,6 +30,8 @@ export type DescriptionEditorProps = {
   contentClassName?: string;
   /** Forwarded to the underlying contentEditable for focus management. */
   editorRef?: React.RefObject<HTMLDivElement | null>;
+  /** Accessible name for the contentEditable (e.g. "Edit comment"). */
+  ariaLabel?: string;
   onKeyDown?: React.KeyboardEventHandler<HTMLDivElement>;
   /** Fires when the contentEditable gains focus. */
   onFocus?: React.FocusEventHandler<HTMLDivElement>;
@@ -46,9 +50,11 @@ export function DescriptionEditor({
   placeholder = "Add description...",
   disabled,
   readOnly,
+  autoFocus,
   className,
   contentClassName,
   editorRef,
+  ariaLabel,
   onKeyDown,
   onFocus,
   onBlur,
@@ -56,7 +62,13 @@ export function DescriptionEditor({
   const editor = usePlateEditor({
     plugins: DescriptionKit,
     readOnly,
-    value,
+    // Slate identifies nodes by object identity, so two editors must never be
+    // initialized from the same `value` objects (e.g. the shared empty-document
+    // constant). Mounting them with shared nodes corrupts the node→path map and
+    // crashes with "Unable to find the path for Slate node". `usePlateEditor`
+    // reads `value` only once, so a one-time deep clone on mount is safe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    value: React.useMemo(() => structuredClone(value), []),
   });
 
   // Suppress global single-key shortcuts (e.g. "/" search) while this editor is
@@ -79,6 +91,12 @@ export function DescriptionEditor({
         <Editor
           ref={editorRef}
           variant="none"
+          // Native (Slate) autofocus: focuses once the contentEditable is
+          // mounted and its node→DOM paths are ready. A manual focus() in an
+          // effect crashes ("Unable to find the path for Slate node") because it
+          // runs before that mapping exists.
+          autoFocus={autoFocus && !readOnly}
+          aria-label={ariaLabel}
           className={cn("px-0 py-0 text-sm", contentClassName)}
           placeholder={placeholder}
           disabled={disabled}

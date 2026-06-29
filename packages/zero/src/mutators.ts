@@ -71,6 +71,7 @@ import { requireActiveChurchAccess, requireSignedInSession } from "./session-con
 import { toZeroSchema } from "./effect-schema";
 import { buildNotificationPlans } from "./notification-triggers";
 import { extractDescriptionMentions } from "./description-mentions";
+import { isPlateBodyEmpty, plateValueToPlainText } from "./plate-plain-text";
 
 import type { OptionalZeroSessionContext } from "./session-context";
 import type { PlannedNotification } from "./notification-triggers";
@@ -897,11 +898,17 @@ const syncTaskMentions = async (
     readonly description: string | null | undefined;
     readonly occurred_at: Date;
     readonly source_task_id: string;
+    /**
+     * When set, mentions are scoped to a Comment on the source Task rather than
+     * the Task's own `description`, so the two mention scopes stay independent.
+     */
+    readonly source_comment_id?: string | null;
   },
 ): Promise<{
   readonly newly_mentioned_user_ids: readonly string[];
   readonly newly_mentioned_task_ids: readonly string[];
 }> => {
+  const sourceCommentId = args.source_comment_id ?? null;
   const desired = extractDescriptionMentions(args.description, args.source_task_id);
   const desiredUserIds = new Set(
     desired.filter((mention) => mention.kind === "user").map((mention) => mention.targetUserId),
@@ -921,6 +928,9 @@ const syncTaskMentions = async (
       and(
         eq(task_mentions.church_id, args.church_id),
         eq(task_mentions.source_task_id, args.source_task_id),
+        sourceCommentId === null
+          ? isNull(task_mentions.source_comment_id)
+          : eq(task_mentions.source_comment_id, sourceCommentId),
         isNull(task_mentions.deleted_at),
       ),
     )) as Array<{
@@ -972,6 +982,7 @@ const syncTaskMentions = async (
       church_id: args.church_id,
       mention,
       occurred_at: args.occurred_at,
+      source_comment_id: sourceCommentId,
       source_task_id: args.source_task_id,
     });
   }
@@ -995,8 +1006,10 @@ const insertTaskMentionEdge = async (
     readonly mention: ReturnType<typeof extractDescriptionMentions>[number];
     readonly occurred_at: Date;
     readonly source_task_id: string;
+    readonly source_comment_id?: string | null;
   },
 ) => {
+  const sourceCommentId = args.source_comment_id ?? null;
   const targetColumn =
     args.mention.kind === "user" ? task_mentions.target_user_id : task_mentions.target_task_id;
   const targetId =
@@ -1014,6 +1027,9 @@ const insertTaskMentionEdge = async (
       and(
         eq(task_mentions.church_id, args.church_id),
         eq(task_mentions.source_task_id, args.source_task_id),
+        sourceCommentId === null
+          ? isNull(task_mentions.source_comment_id)
+          : eq(task_mentions.source_comment_id, sourceCommentId),
         eq(targetColumn, targetId),
         isNotNull(task_mentions.deleted_at),
       ),
@@ -1031,6 +1047,7 @@ const insertTaskMentionEdge = async (
       deleted_by: null,
       id: getTaskMentionId(),
       mention_kind: args.mention.kind,
+      source_comment_id: sourceCommentId,
       source_task_id: args.source_task_id,
       target_task_id: args.mention.kind === "task" ? args.mention.targetTaskId : null,
       target_user_id: args.mention.kind === "user" ? args.mention.targetUserId : null,
@@ -1206,6 +1223,93 @@ const resyncTaskMentionsAfterUpdate = async (
     source_task_identifier: taskIdentifier,
     source_task_title: taskTitle,
   });
+};
+
+/**
+ * Reconciles the mention graph for a single Task Comment against the mentions in
+ * its `body`, then notifies newly-mentioned users and logs task→task backlinks.
+ * Comment mentions are scoped by `source_comment_id` so they live independently
+ * of the Task's own description edges. Notifications and backlinks still anchor
+ * to the Task the comment belongs to (so they thread into that Task's Feed and
+ * inbox), matching how description mentions behave. Shared by comment create and
+ * update.
+ */
+const resyncCommentMentions = async (
+  db: any,
+  args: {
+    readonly actor_id: string;
+    readonly body: string | null | undefined;
+    readonly church_id: string;
+    readonly comment_id: string;
+    readonly occurred_at: Date;
+    readonly task_id: string;
+  },
+) => {
+  const task = await getTaskWithTeamIdentifier(db, args.task_id, args.church_id);
+  if (!task) return;
+
+  const { newly_mentioned_task_ids, newly_mentioned_user_ids } = await syncTaskMentions(db, {
+    actor_id: args.actor_id,
+    church_id: args.church_id,
+    description: args.body,
+    occurred_at: args.occurred_at,
+    source_comment_id: args.comment_id,
+    source_task_id: args.task_id,
+  });
+  const taskIdentifier = task.team_identifier
+    ? formatTaskIdentifier(task.team_identifier, task.number)
+    : null;
+  const taskTitle = await getTaskTitle(db, args.task_id, args.church_id);
+  await notifyTaskMentions(db, {
+    actor_id: args.actor_id,
+    church_id: args.church_id,
+    cycle_id: task.cycle_id,
+    newly_mentioned_user_ids,
+    occurred_at: args.occurred_at,
+    task_id: args.task_id,
+    task_identifier: taskIdentifier,
+    task_title: taskTitle,
+  });
+  await logTaskBacklinks(db, {
+    actor_id: args.actor_id,
+    church_id: args.church_id,
+    newly_mentioned_task_ids,
+    occurred_at: args.occurred_at,
+    source_task_id: args.task_id,
+    source_task_identifier: taskIdentifier,
+    source_task_title: taskTitle,
+  });
+};
+
+/**
+ * Soft-deletes every live mention edge sourced from a Comment. Called when a
+ * comment is deleted so its mentions drop out of the graph (and stop counting
+ * as live backlinks) without disturbing other sources' edges.
+ */
+const softDeleteCommentMentions = async (
+  db: any,
+  args: {
+    readonly actor_id: string;
+    readonly church_id: string;
+    readonly comment_id: string;
+    readonly occurred_at: Date;
+  },
+) => {
+  await db
+    .update(task_mentions)
+    .set({
+      deleted_at: args.occurred_at,
+      deleted_by: args.actor_id,
+      updated_at: args.occurred_at,
+      updated_by: args.actor_id,
+    })
+    .where(
+      and(
+        eq(task_mentions.church_id, args.church_id),
+        eq(task_mentions.source_comment_id, args.comment_id),
+        isNull(task_mentions.deleted_at),
+      ),
+    );
 };
 
 /** Reads just the current Task title (for mention notification display). */
@@ -4073,8 +4177,11 @@ export const mutators = defineMutators({
       if (!db) return;
 
       const session = requireActiveChurchAccess(ctx, args.church_id);
-      const body = args.body.trimEnd();
-      if (!body.trim()) throw new Error("Comment body is required.");
+      // The body is serialized Plate JSON (rich text + mentions). Emptiness must
+      // be judged on its rendered content, not the JSON string, and the excerpt
+      // for notifications is the flattened plain text.
+      const body = args.body;
+      if (isPlateBodyEmpty(body)) throw new Error("Comment body is required.");
 
       const taskRows = (await db
         .select({
@@ -4175,7 +4282,7 @@ export const mutators = defineMutators({
             activity_id: activityId,
             actor_user_id: session.user_id,
             church_id: args.church_id,
-            comment_excerpt: body,
+            comment_excerpt: plateValueToPlainText(body),
             subscribed_user_ids: subscriptionRows.map((row) => row.user_id),
             task_comment_id: commentId,
             task_comment_thread_id: parentCommentId,
@@ -4188,7 +4295,18 @@ export const mutators = defineMutators({
           }),
         });
       }
-      // TODO(mentions): create explicit-target mention notifications when comment input carries targets.
+
+      // Reconcile this comment's mention graph: notify newly-mentioned users
+      // (threaded onto the Task) and log task→task backlinks, scoped to this
+      // comment so it stays independent of the Task description's mentions.
+      await resyncCommentMentions(db, {
+        actor_id: session.user_id,
+        body,
+        church_id: args.church_id,
+        comment_id: commentId,
+        occurred_at: now,
+        task_id: args.task_id,
+      });
     }),
     delete: defineChurchWorkMutator(DeleteTaskCommentArgs, async ({ args, ctx, tx }) => {
       const db = serverDb(tx);
@@ -4228,14 +4346,24 @@ export const mutators = defineMutators({
         metadata: { comment_id: args.comment_id, parent_comment_id: comment.parent_comment_id },
         occurred_at: now,
       });
+
+      // Drop this comment's mention edges so it stops counting as a live
+      // backlink. Existing backlink Activities stay in the Feed as history.
+      await softDeleteCommentMentions(db, {
+        actor_id: session.user_id,
+        church_id: args.church_id,
+        comment_id: args.comment_id,
+        occurred_at: now,
+      });
     }),
     update: defineChurchWorkMutator(UpdateTaskCommentArgs, async ({ args, ctx, tx }) => {
       const db = serverDb(tx);
       if (!db) return;
 
       const session = requireActiveChurchAccess(ctx, args.church_id);
-      const body = args.body.trimEnd();
-      if (!body.trim()) throw new Error("Comment body is required.");
+      // Body is serialized Plate JSON — judge emptiness on rendered content.
+      const body = args.body;
+      if (isPlateBodyEmpty(body)) throw new Error("Comment body is required.");
       const comment = await getTaskCommentForModeration(db, args);
       if (!comment) throw new Error("Task Comment not found.");
       if (comment.deleted_at) throw new Error("Deleted comments cannot be edited.");
@@ -4263,6 +4391,17 @@ export const mutators = defineMutators({
         event_type: "comment_updated",
         metadata: { comment_id: args.comment_id, parent_comment_id: comment.parent_comment_id },
         occurred_at: now,
+      });
+
+      // Reconcile the comment's mentions against the edited body: new mentions
+      // notify + backlink, removed ones soft-delete, unchanged ones stay put.
+      await resyncCommentMentions(db, {
+        actor_id: session.user_id,
+        body,
+        church_id: args.church_id,
+        comment_id: args.comment_id,
+        occurred_at: now,
+        task_id: comment.task_id,
       });
     }),
     subscribe: defineChurchWorkMutator(TaskCommentSubscriptionArgs, async ({ args, ctx, tx }) => {

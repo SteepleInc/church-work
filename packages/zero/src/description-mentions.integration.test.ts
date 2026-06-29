@@ -7,6 +7,7 @@ import {
   activities,
   member,
   notifications,
+  task_comments,
   task_mentions,
   tasks,
   teams,
@@ -322,6 +323,124 @@ describe("Task description mention graph integration", () => {
           ),
         );
       expect(backlinkActivitiesAfterResave).toHaveLength(1);
+    } finally {
+      await harness.stop();
+    }
+  }, 60_000);
+});
+
+describe("Task comment mention graph integration", () => {
+  const createTask = async (
+    db: Awaited<ReturnType<typeof startPostgresHarness>>["db"],
+    tx: never,
+  ) => {
+    await mustGetMutator(mutators, "tasks.create").fn({
+      args: {
+        church_id: churchId,
+        team_id: "team_mentions",
+        title: "Comment host task",
+        workflow_status_id: "workflowstatus_todo_mentions",
+      },
+      ctx: sessionContext,
+      tx,
+    });
+
+    return (await db.select().from(tasks).where(eq(tasks.church_id, churchId)))[0]!;
+  };
+
+  const liveCommentEdges = (
+    db: Awaited<ReturnType<typeof startPostgresHarness>>["db"],
+    commentId: string,
+  ) =>
+    db
+      .select()
+      .from(task_mentions)
+      .where(and(eq(task_mentions.source_comment_id, commentId), isNull(task_mentions.deleted_at)));
+
+  test("syncs a comment's mention graph independently of the task description", async () => {
+    const harness = await startPostgresHarness();
+    const { db } = harness;
+
+    try {
+      await seedChurch(db);
+      const tx = { dbTransaction: { wrappedTransaction: db }, location: "server" } as never;
+      const task = await createTask(db, tx);
+
+      // A comment mentioning the user creates a comment-scoped edge + notifies.
+      await mustGetMutator(mutators, "task_comments.create").fn({
+        args: {
+          body: userMentionDoc(),
+          church_id: churchId,
+          parent_comment_id: null,
+          task_id: task.id,
+        },
+        ctx: sessionContext,
+        tx,
+      });
+      const comment = (
+        await db.select().from(task_comments).where(eq(task_comments.church_id, churchId))
+      )[0]!;
+
+      const edgesAfterCreate = await liveCommentEdges(db, comment.id);
+      expect(edgesAfterCreate).toHaveLength(1);
+      expect(edgesAfterCreate[0]).toMatchObject({
+        mention_kind: "user",
+        source_comment_id: comment.id,
+        source_task_id: task.id,
+        target_user_id: mentionedId,
+      });
+
+      const mentionNotifications = await db
+        .select()
+        .from(notifications)
+        .where(
+          and(
+            eq(notifications.church_id, churchId),
+            eq(notifications.type, "mention_explicit_target"),
+          ),
+        );
+      expect(mentionNotifications).toHaveLength(1);
+      expect(mentionNotifications[0]).toMatchObject({
+        recipient_user_id: mentionedId,
+        task_id: task.id,
+      });
+
+      // The description graph stays empty — comment mentions don't bleed into it.
+      const descriptionEdges = await db
+        .select()
+        .from(task_mentions)
+        .where(
+          and(eq(task_mentions.source_task_id, task.id), isNull(task_mentions.source_comment_id)),
+        );
+      expect(descriptionEdges).toHaveLength(0);
+
+      // Editing the comment to drop the mention soft-deletes the edge.
+      await mustGetMutator(mutators, "task_comments.update").fn({
+        args: {
+          body: JSON.stringify([{ type: "p", children: [{ text: "No mentions now" }] }]),
+          church_id: churchId,
+          comment_id: comment.id,
+        },
+        ctx: sessionContext,
+        tx,
+      });
+      expect(await liveCommentEdges(db, comment.id)).toHaveLength(0);
+
+      // Re-adding the mention revives the edge.
+      await mustGetMutator(mutators, "task_comments.update").fn({
+        args: { body: userMentionDoc(), church_id: churchId, comment_id: comment.id },
+        ctx: sessionContext,
+        tx,
+      });
+      expect(await liveCommentEdges(db, comment.id)).toHaveLength(1);
+
+      // Deleting the comment soft-deletes its mention edges.
+      await mustGetMutator(mutators, "task_comments.delete").fn({
+        args: { church_id: churchId, comment_id: comment.id },
+        ctx: sessionContext,
+        tx,
+      });
+      expect(await liveCommentEdges(db, comment.id)).toHaveLength(0);
     } finally {
       await harness.stop();
     }

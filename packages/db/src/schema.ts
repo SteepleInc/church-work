@@ -599,14 +599,22 @@ export const task_comment_subscriptions = pgTable(
 );
 
 /**
- * Normalized mention graph extracted from Task `description` bodies. Each live
- * row is one edge: the `source_task_id` Task mentions either a user
+ * Normalized mention graph extracted from Task `description` and Task Comment
+ * bodies. Each live row is one edge: the source mentions either a user
  * (`mention_kind = "user"`, `target_user_id` set) or another Task
- * (`mention_kind = "task"`, `target_task_id` set). Edges are diffed against the
- * description on every Task create/update — re-adding a mention revives the
- * soft-deleted row, removing it soft-deletes. We store the graph here rather
- * than parsing prose at query time so "mentioned in" backlinks and mention
- * notifications stay cheap and indexable.
+ * (`mention_kind = "task"`, `target_task_id` set).
+ *
+ * The source is always anchored to a Task via `source_task_id` (so user mention
+ * notifications and task→task backlinks resolve against a Task even when the
+ * mention originated in a comment). `source_comment_id` is `NULL` for mentions
+ * authored in the Task `description`, and set to the Comment id for mentions
+ * authored in a Comment — this keeps the two mention scopes independent so
+ * editing a comment never disturbs the description's edges, and vice versa.
+ *
+ * Edges are diffed against their source body on every create/update — re-adding
+ * a mention revives the soft-deleted row, removing it soft-deletes. We store the
+ * graph here rather than parsing prose at query time so "mentioned in" backlinks
+ * and mention notifications stay cheap and indexable.
  */
 export const task_mentions = pgTable(
   "task_mentions",
@@ -615,19 +623,35 @@ export const task_mentions = pgTable(
     ...baseEntityFields,
     church_id: text("church_id").notNull(),
     source_task_id: text("source_task_id").notNull(),
+    source_comment_id: text("source_comment_id"),
     mention_kind: text("mention_kind").notNull(),
     target_user_id: text("target_user_id"),
     target_task_id: text("target_task_id"),
   },
   (table) => [
     index("task_mentions_source_idx").on(table.church_id, table.source_task_id),
+    index("task_mentions_source_comment_idx").on(table.church_id, table.source_comment_id),
     index("task_mentions_target_user_idx").on(table.church_id, table.target_user_id),
     index("task_mentions_target_task_idx").on(table.church_id, table.target_task_id),
+    // Live-edge uniqueness is scoped per source body. `source_comment_id` is
+    // NULL for description mentions, so it is coalesced to '' — Postgres treats
+    // NULLs as distinct in unique indexes, which would otherwise let a single
+    // description re-insert duplicate live edges.
     uniqueIndex("task_mentions_user_edge_live_idx")
-      .on(table.church_id, table.source_task_id, table.target_user_id)
+      .on(
+        table.church_id,
+        table.source_task_id,
+        sql`COALESCE(${table.source_comment_id}, '')`,
+        table.target_user_id,
+      )
       .where(sql`${table.deleted_at} IS NULL AND ${table.target_user_id} IS NOT NULL`),
     uniqueIndex("task_mentions_task_edge_live_idx")
-      .on(table.church_id, table.source_task_id, table.target_task_id)
+      .on(
+        table.church_id,
+        table.source_task_id,
+        sql`COALESCE(${table.source_comment_id}, '')`,
+        table.target_task_id,
+      )
       .where(sql`${table.deleted_at} IS NULL AND ${table.target_task_id} IS NOT NULL`),
   ],
 );

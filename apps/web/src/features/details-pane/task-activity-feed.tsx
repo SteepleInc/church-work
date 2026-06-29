@@ -21,6 +21,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
+import type { Value } from "platejs";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -71,8 +72,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Kbd } from "@/components/ui/kbd";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { DescriptionEditor } from "@/components/editor/description-editor";
+import {
+  commentValueToPlainText,
+  EMPTY_COMMENT_VALUE,
+  parseCommentValue,
+  serializeCommentValue,
+} from "@/components/editor/comment-value";
 import { cn } from "@/lib/utils";
 
 import {
@@ -165,6 +172,13 @@ export type TaskCommentTaskPrefill = {
 
 const TASK_COMMENT_PREFILL_TITLE_MAX_LENGTH = 80;
 
+/**
+ * Builds the "create Task from Comment" prefill. `body` is the comment's
+ * flattened plain text (callers pass `commentValueToPlainText(comment.body)`),
+ * so the title can be derived from the first line. The prefill `description` is
+ * serialized Plate JSON (the create-task flow renders it in the Plate editor):
+ * an attribution paragraph followed by a blockquote of the comment text.
+ */
 export function buildTaskPrefillFromComment({
   actorName,
   body,
@@ -179,24 +193,29 @@ export function buildTaskPrefillFromComment({
   const trimmedBody = body.trim();
   if (!trimmedBody) return null;
 
-  const firstLine = trimmedBody
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .find((line) => line.length > 0);
+  const lines = trimmedBody.split(/\r?\n/).map((line) => line.trim());
+  const firstLine = lines.find((line) => line.length > 0);
   if (!firstLine) return null;
 
   const title =
     firstLine.length > TASK_COMMENT_PREFILL_TITLE_MAX_LENGTH
       ? `${firstLine.slice(0, TASK_COMMENT_PREFILL_TITLE_MAX_LENGTH - 1).trimEnd()}…`
       : firstLine;
-  const quoted = trimmedBody
-    .split(/\r?\n/)
-    .map((line) => `> ${line}`)
-    .join("\n");
+
+  const descriptionValue: Value = [
+    {
+      type: "p",
+      children: [{ text: `@${actorName} said in ${sourceTask.identifier} ${sourceTask.title}:` }],
+    },
+    {
+      type: "blockquote",
+      children: [{ type: "p", children: [{ text: trimmedBody }] }],
+    },
+  ];
 
   return {
     title,
-    description: `@${actorName} said in ${sourceTask.identifier} ${sourceTask.title}:\n\n${quoted}`,
+    description: JSON.stringify(descriptionValue),
     assignTo: sourceTask.assignedUserId,
     teamId: sourceTask.teamId,
     priority: sourceTask.priority,
@@ -673,7 +692,7 @@ function TaskCommentCard({
   const createTaskFromComment = (parentTaskId: string | null) => {
     const prefill = buildTaskPrefillFromComment({
       actorName,
-      body: comment.body,
+      body: commentValueToPlainText(comment.body),
       parentTaskId,
       sourceTask,
     });
@@ -734,9 +753,14 @@ function TaskCommentCard({
             }}
           />
         ) : (
-          <p className="whitespace-pre-wrap break-words px-3 py-2.5 text-foreground/90 text-sm leading-relaxed">
-            {comment.body}
-          </p>
+          <DescriptionEditor
+            // The read-only editor reads its value only on mount, so key it on
+            // the body itself: an edit then remounts it with the new content.
+            key={`${comment.id}:${comment.updated_at ?? comment.created_at}`}
+            readOnly
+            className="px-3 py-2.5 text-foreground/90 text-sm leading-relaxed"
+            value={parseCommentValue(comment.body)}
+          />
         )}
 
         {hasReplies ? (
@@ -834,7 +858,7 @@ function TaskCommentReply({
   const createTaskFromReply = (parentTaskId: string | null) => {
     const prefill = buildTaskPrefillFromComment({
       actorName,
-      body: reply.body,
+      body: commentValueToPlainText(reply.body),
       parentTaskId,
       sourceTask,
     });
@@ -892,9 +916,14 @@ function TaskCommentReply({
             }}
           />
         ) : (
-          <p className="mt-0.5 whitespace-pre-wrap break-words text-foreground/90 text-sm leading-relaxed">
-            {reply.body}
-          </p>
+          <DescriptionEditor
+            // Key on the body so an edit remounts the read-only editor (it reads
+            // its value only on mount).
+            key={`${reply.id}:${reply.updated_at ?? reply.created_at}`}
+            readOnly
+            className="mt-0.5 text-foreground/90 text-sm leading-relaxed"
+            value={parseCommentValue(reply.body)}
+          />
         )}
       </div>
     </li>
@@ -964,7 +993,9 @@ function EditedMarker({
 
 async function copyCommentMarkdown(body: string) {
   try {
-    await navigator.clipboard.writeText(body);
+    // Bodies are serialized Plate JSON — copy the flattened, readable text
+    // (mentions render as their label) rather than the raw JSON.
+    await navigator.clipboard.writeText(commentValueToPlainText(body));
     toast.success("Copied comment as Markdown.");
   } catch (error) {
     toast.error(error instanceof Error ? error.message : "Could not copy comment.");
@@ -1214,14 +1245,21 @@ function CommentEditComposer({
   readonly onSubmit: (body: string) => Promise<void>;
 }) {
   const [focused, setFocused] = useState(false);
+  // Re-serialize the stored body through the same value pipeline so the
+  // change-detection compares like-for-like JSON (the stored row may be legacy
+  // plain text or differently-formatted JSON than the editor emits).
+  const initialValue = useMemo(() => parseCommentValue(initialBody), [initialBody]);
+  const normalizedInitialBody = useMemo(
+    () => serializeCommentValue(initialValue) ?? "",
+    [initialValue],
+  );
   const form = useAppForm({
-    defaultValues: { body: initialBody },
+    defaultValues: { body: normalizedInitialBody },
     onSubmit: async ({ value }) => {
-      const trimmed = value.body.trim();
-      if (trimmed.length === 0 || trimmed === initialBody.trim()) return;
+      if (value.body.length === 0 || value.body === normalizedInitialBody) return;
 
       try {
-        await onSubmit(trimmed);
+        await onSubmit(value.body);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Could not save changes.");
       }
@@ -1240,12 +1278,13 @@ function CommentEditComposer({
       >
         <form.Field name="body">
           {(field) => (
-            <Textarea
-              aria-label="Edit comment"
+            <DescriptionEditor
               autoFocus
-              className="min-h-16 resize-y border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
+              ariaLabel="Edit comment"
+              className="min-h-16"
+              contentClassName="text-sm"
               onBlur={() => setFocused(false)}
-              onChange={(event) => field.handleChange(event.target.value)}
+              onChange={(value) => field.handleChange(serializeCommentValue(value) ?? "")}
               onFocus={() => setFocused(true)}
               onKeyDown={(event) => {
                 if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
@@ -1258,20 +1297,19 @@ function CommentEditComposer({
                   onCancel();
                 }
               }}
-              value={field.state.value}
+              value={initialValue}
             />
           )}
         </form.Field>
         <div className="mt-1 flex items-center justify-end gap-1">
           <form.Subscribe
-            selector={(state) => {
-              const trimmed = state.values.body.trim();
-              return {
-                canSubmit:
-                  trimmed.length > 0 && trimmed !== initialBody.trim() && !state.isSubmitting,
-                isSubmitting: state.isSubmitting,
-              };
-            }}
+            selector={(state) => ({
+              canSubmit:
+                state.values.body.length > 0 &&
+                state.values.body !== normalizedInitialBody &&
+                !state.isSubmitting,
+              isSubmitting: state.isSubmitting,
+            })}
           >
             {({ canSubmit, isSubmitting }) => (
               <>
@@ -1320,11 +1358,11 @@ function TaskCommentReplyComposer({
   const form = useAppForm({
     defaultValues: { body: "" },
     onSubmit: async ({ value }) => {
-      const trimmed = value.body.trim();
-      if (!canReply || trimmed.length === 0) return;
+      // `body` holds serialized Plate JSON; an empty document serializes to "".
+      if (!canReply || value.body.length === 0) return;
 
       try {
-        await onSubmit(trimmed);
+        await onSubmit(value.body);
         form.reset();
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Could not add reply.");
@@ -1352,13 +1390,14 @@ function TaskCommentReplyComposer({
       >
         <form.Field name="body">
           {(field) => (
-            <Textarea
-              aria-label="Add a reply"
+            <DescriptionEditor
               autoFocus
-              className="min-h-9 resize-y border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
+              ariaLabel="Add a reply"
+              className="min-h-9"
+              contentClassName="text-sm"
               disabled={!canReply}
               onBlur={() => setFocused(false)}
-              onChange={(event) => field.handleChange(event.target.value)}
+              onChange={(value) => field.handleChange(serializeCommentValue(value) ?? "")}
               onFocus={() => setFocused(true)}
               onKeyDown={(event) => {
                 if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
@@ -1368,13 +1407,13 @@ function TaskCommentReplyComposer({
                 }
                 // Escape abandons the reply when the field is empty so the card
                 // collapses back to its compact "Reply" affordance.
-                if (event.key === "Escape" && field.state.value.trim().length === 0) {
+                if (event.key === "Escape" && field.state.value.length === 0) {
                   event.preventDefault();
                   onCancel();
                 }
               }}
               placeholder={canReply ? "Leave a reply..." : "Sign in to reply"}
-              value={field.state.value}
+              value={EMPTY_COMMENT_VALUE}
             />
           )}
         </form.Field>
@@ -1386,7 +1425,7 @@ function TaskCommentReplyComposer({
             </Button>
             <form.Subscribe
               selector={(state) => ({
-                canSubmit: canReply && state.values.body.trim().length > 0 && !state.isSubmitting,
+                canSubmit: canReply && state.values.body.length > 0 && !state.isSubmitting,
                 isSubmitting: state.isSubmitting,
               })}
             >
@@ -1421,16 +1460,20 @@ function ActivityCommentComposer({
   readonly onSubmit: (body: string) => Promise<void>;
 }) {
   const [focused, setFocused] = useState(false);
+  // The Plate editor is uncontrolled (it reads `value` only on mount), so we
+  // remount it on a key bump to clear it after a successful submit.
+  const [composerKey, setComposerKey] = useState(0);
   const canComment = currentUserId !== null;
   const form = useAppForm({
     defaultValues: { body: "" },
     onSubmit: async ({ value }) => {
-      const trimmed = value.body.trim();
-      if (!canComment || trimmed.length === 0) return;
+      // `body` holds serialized Plate JSON; an empty document serializes to "".
+      if (!canComment || value.body.length === 0) return;
 
       try {
-        await onSubmit(trimmed);
+        await onSubmit(value.body);
         form.reset();
+        setComposerKey((key) => key + 1);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Could not add comment.");
       }
@@ -1451,18 +1494,20 @@ function ActivityCommentComposer({
       ) : null}
       <div
         className={cn(
-          "min-w-0 flex-1 rounded-lg border bg-card p-2 transition-colors",
+          "min-w-0 flex-1 rounded-lg border bg-card px-3 py-2.5 transition-colors",
           focused && "border-ring ring-3 ring-ring/50",
         )}
       >
         <form.Field name="body">
           {(field) => (
-            <Textarea
-              aria-label="Add a comment"
-              className="min-h-20 resize-y border-0 bg-transparent p-1 shadow-none focus-visible:ring-0"
+            <DescriptionEditor
+              key={composerKey}
+              ariaLabel="Add a comment"
+              className="min-h-16"
+              contentClassName="text-sm"
               disabled={!canComment}
               onBlur={() => setFocused(false)}
-              onChange={(event) => field.handleChange(event.target.value)}
+              onChange={(value) => field.handleChange(serializeCommentValue(value) ?? "")}
               onFocus={() => setFocused(true)}
               onKeyDown={(event) => {
                 if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
@@ -1471,7 +1516,7 @@ function ActivityCommentComposer({
                 }
               }}
               placeholder={canComment ? "Leave a comment..." : "Sign in to leave a comment"}
-              value={field.state.value}
+              value={EMPTY_COMMENT_VALUE}
             />
           )}
         </form.Field>
@@ -1479,7 +1524,7 @@ function ActivityCommentComposer({
           <AttachmentStubButton ariaLabel="Attach file to comment" size="icon-sm" />
           <form.Subscribe
             selector={(state) => ({
-              canSubmit: canComment && state.values.body.trim().length > 0 && !state.isSubmitting,
+              canSubmit: canComment && state.values.body.length > 0 && !state.isSubmitting,
               isSubmitting: state.isSubmitting,
             })}
           >
