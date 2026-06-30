@@ -1,6 +1,7 @@
 "use client";
 
 import { TriangleAlert } from "lucide-react";
+import type { ReactNode } from "react";
 
 import {
   AlertDialog,
@@ -23,6 +24,10 @@ import {
  * Discard is the destructive, irreversible path (the in-progress draft is
  * thrown away), so it carries the destructive styling; "Keep editing" returns
  * the User to their work untouched.
+ *
+ * When a `onSave` path is offered the framing flips from "you're about to lose
+ * data" to "keep your work" — pass a calmer `media` glyph (and a positive
+ * title) so the prompt doesn't alarm about a recoverable choice.
  */
 export function DiscardChangesDialog({
   open,
@@ -33,7 +38,8 @@ export function DiscardChangesDialog({
   description = "You have unsaved changes. If you close now, they'll be lost.",
   discardLabel = "Discard",
   cancelLabel = "Keep editing",
-  saveLabel,
+  saveLabel = "Save",
+  media = <TriangleAlert />,
 }: {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
@@ -44,14 +50,13 @@ export function DiscardChangesDialog({
   readonly discardLabel?: string;
   readonly cancelLabel?: string;
   readonly saveLabel?: string;
+  readonly media?: ReactNode;
 }) {
   return (
     <AlertDialog onOpenChange={onOpenChange} open={open}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogMedia>
-            <TriangleAlert />
-          </AlertDialogMedia>
+          <AlertDialogMedia>{media}</AlertDialogMedia>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
@@ -75,7 +80,7 @@ export function DiscardChangesDialog({
                 onSave();
               }}
             >
-              {saveLabel ?? "Save"}
+              {saveLabel}
             </AlertDialogAction>
           ) : null}
         </AlertDialogFooter>

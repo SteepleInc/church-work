@@ -4,7 +4,15 @@ import { revalidateLogic } from "@tanstack/react-form";
 import { Schema } from "effect";
 import { atom, useAtom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
-import { CalendarDays, ChevronRight, ListTree, Maximize2, Minimize2, X } from "lucide-react";
+import {
+  BookmarkPlus,
+  CalendarDays,
+  ChevronRight,
+  ListTree,
+  Maximize2,
+  Minimize2,
+  X,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -187,6 +195,10 @@ export function CreateTaskQuickAction() {
   // Drives the "Discard changes?" confirmation. We only raise it when the form
   // is dirty; a pristine dialog closes immediately without nagging.
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
+  // True while a "Save to drafts" save is in flight (from either the header
+  // affordance or the close prompt). Drives the spinner on both Save controls
+  // and guards against a double save.
+  const [savingDraft, setSavingDraft] = useState(false);
   const navigate = useNavigate();
   const openTaskDetailsPaneUrl = useOpenTaskDetailsPaneUrl();
   const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
@@ -473,12 +485,17 @@ export function CreateTaskQuickAction() {
 
   const close = () => {
     setConfirmDiscardOpen(false);
+    setSavingDraft(false);
     setState(null);
     setError(null);
     form.reset();
   };
 
   const saveDraftAndClose = async () => {
+    // Guard against a double save (e.g. an impatient second click while the
+    // first is still in flight).
+    if (savingDraft) return;
+    setSavingDraft(true);
     const value = form.state.values;
     const result = await saveTaskDraft({
       assignedUserId: value.assignedUserId,
@@ -493,9 +510,11 @@ export function CreateTaskQuickAction() {
       workflowStatusId: value.workflowStatusId || null,
     });
     if (!result.ok) {
+      setSavingDraft(false);
       setError(result.error.message);
       return;
     }
+    setSavingDraft(false);
     close();
   };
 
@@ -645,13 +664,14 @@ export function CreateTaskQuickAction() {
                 {(isDirty) =>
                   isDirty ? (
                     <Button
-                      className="text-muted-foreground"
+                      className="text-muted-foreground hover:text-foreground"
+                      loading={savingDraft}
                       onClick={() => void saveDraftAndClose()}
                       size="sm"
                       type="button"
                       variant="ghost"
                     >
-                      Save as draft
+                      Save to drafts
                     </Button>
                   ) : null
                 }
@@ -924,11 +944,14 @@ export function CreateTaskQuickAction() {
           confirmation centers and lays its own backdrop over the quick action. */}
       <DiscardChangesDialog
         cancelLabel="Cancel"
-        description="You can finish this task later from your drafts."
+        description="Keep your work — we'll save this Task to your drafts so you can finish it later."
+        discardLabel="Discard"
+        media={<BookmarkPlus />}
         onDiscard={close}
         onSave={() => void saveDraftAndClose()}
         onOpenChange={setConfirmDiscardOpen}
         open={confirmDiscardOpen}
+        saveLabel="Save to drafts"
         title="Save to drafts?"
       />
     </>

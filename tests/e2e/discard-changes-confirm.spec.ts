@@ -34,10 +34,10 @@ test("create-Task quick action offers saving dirty work to drafts before closing
 
   // Make the form dirty.
   await dialog.getByPlaceholder("Task title").fill("A task I might abandon");
-  await expect(dialog.getByRole("button", { name: "Save as draft" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Save to drafts" })).toBeVisible();
 
   await dialog.getByPlaceholder("Task title").fill("");
-  await expect(dialog.getByRole("button", { name: "Save as draft" })).not.toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Save to drafts" })).not.toBeVisible();
   await dialog.getByPlaceholder("Task title").fill("A task I might abandon");
 
   // Escape requests a close, which prompts because the form is dirty.
@@ -45,7 +45,11 @@ test("create-Task quick action offers saving dirty work to drafts before closing
   const confirm = page.getByRole("alertdialog");
   await expect(confirm).toBeVisible();
   await expect(confirm.getByText("Save to drafts?")).toBeVisible();
-  await expect(confirm.getByText("You can finish this task later from your drafts.")).toBeVisible();
+  await expect(
+    confirm.getByText(
+      "Keep your work — we'll save this Task to your drafts so you can finish it later.",
+    ),
+  ).toBeVisible();
 
   // "Cancel" dismisses the prompt and leaves the draft intact.
   await confirm.getByRole("button", { name: "Cancel" }).click();
@@ -79,7 +83,7 @@ test("create-Task quick action saves dirty work from the close dialog", async ({
 
   const confirm = page.getByRole("alertdialog");
   await expect(confirm).toBeVisible();
-  await confirm.getByRole("button", { name: "Save" }).click();
+  await confirm.getByRole("button", { name: "Save to drafts" }).click();
   await expect(confirm).not.toBeVisible();
   await expect(dialog).not.toBeVisible();
 });
