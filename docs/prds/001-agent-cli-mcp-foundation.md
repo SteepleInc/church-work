@@ -64,4 +64,4 @@ Build the reusable CLI and MCP foundation before the user workflow PRDs. The fou
 
 ## Further Notes
 
-The reference repositories should be treated as implementation guides, not as editable dependencies. `.reference/better-auth` shows that Better Auth already has bearer, MCP OAuth/OIDC, and API-key token primitives. `.reference/effect-smol`, `.reference/drizzle`, `.reference/zero`, and the PreachX checkout should guide the CLI runtime and typed server operation layer.
+The OpenCode reference repositories should be treated as implementation guides, not as editable dependencies. The `better-auth` reference shows that Better Auth already has bearer, MCP OAuth/OIDC, and API-key token primitives. The `effect-smol`, `drizzle`, `zero`, and `preach-x` references should guide the CLI runtime and typed server operation layer.

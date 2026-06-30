@@ -53,6 +53,5 @@ test-results
 .dev
 zero.db*
 .worktree-index
-.reference/
 tmp
 temp

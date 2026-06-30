@@ -44,7 +44,6 @@
   "scripts": {
     "dev": "turbo run infra dev --continue",
     "sandcastle": "bunx tsx .sandcastle/main.ts",
-    "reference:populate": "bash scripts/populate-reference.sh",
     "build": "turbo build",
     "check-types": "turbo check-types --ui=stream",
     "test": "turbo test test:cli --ui=stream",

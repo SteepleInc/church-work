@@ -5,7 +5,6 @@
 # This script handles:
 #   - Calculating and storing worktree index
 #   - Deriving a stable worktree slug from branch name
-#   - Copying AI/reference directories
 #   - Copying all .env* files (.env, .env.e2e, backend .env.local, etc.)
 #   - Updating env files with worktree-specific ports
 #   - Running bun install
@@ -47,14 +46,6 @@ else
     echo "  Slug:   $WORKTREE_SLUG"
 fi
 
-if [ -d "$ROOT_WORKTREE_PATH/.reference" ] && [ ! -e ".reference" ]; then
-    if cp -RP "$ROOT_WORKTREE_PATH/.reference" .reference 2>/dev/null; then
-        echo "  Copied .reference directory"
-    else
-        echo "  Warning: .reference copy had errors (broken symlinks?), continuing anyway" >&2
-    fi
-fi
-
 # Copy every .env* file from the root worktree into this one. This covers
 # .env, .env.e2e, packages/backend/.env.local, and any future env files,
 # regardless of whether gtr's copy.include is configured for them. Template
@@ -62,7 +53,7 @@ fi
 copy_env_files() {
     local src_file dest_file rel_path
     find "$ROOT_WORKTREE_PATH" \
-        -type d \( -name node_modules -o -name .git -o -name .reference \) -prune \
+        -type d \( -name node_modules -o -name .git \) -prune \
         -o -type f -name '.env*' -print |
     while IFS= read -r src_file; do
         rel_path="${src_file#"$ROOT_WORKTREE_PATH"/}"

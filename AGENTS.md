@@ -23,23 +23,21 @@ The package manager is Bun (`bun@1.3.13`). Prefer Bun commands for this repo unl
 
 ## Reference Repositories
 
-`.reference/` is intentionally gitignored and contains local source checkouts for implementation reference only. Do not edit these repositories as part of normal app work unless explicitly asked. Treat them as read-only examples for patterns, APIs, and integration details.
+Implementation references are configured in `opencode.json` using OpenCode references: https://opencode.ai/docs/references/. Treat them as read-only examples for patterns, APIs, and integration details; do not edit reference repositories as part of normal app work unless explicitly asked.
 
-Current contents:
+Current references:
 
-- `.reference/drizzle` is the Drizzle source. Use it when checking Drizzle beta APIs and the Effect integration.
-- `.reference/drizzle-zero` is the drizzle-zero source. Use it when checking beta Drizzle-to-Zero schema generation and integration patterns.
-- `.reference/zero` is the Rocicorp mono source/docs/examples. Use it when checking Zero, zero-cache, sync, mutators, and query patterns.
-- `.reference/zero-docs` is the Rocicorp Zero documentation source. Use it when checking current Zero docs, guides, and deployment patterns.
-- `.reference/devcontainer-templates` is the Rocicorp devcontainer templates source. Use it when checking Rocicorp development container setup patterns.
-- `.reference/devcontainer-features` is the Rocicorp devcontainer features source. Use it when checking reusable devcontainer feature implementations.
-- `.reference/effect-smol` is the Effect v4/effect-smol source. Use it when checking new Effect APIs and migration patterns.
-- `.reference/better-auth` is the Better Auth source. Use it when checking auth APIs, plugin patterns, adapters, tests, and runtime constraints.
-- `.reference/router` is the TanStack Router source. Use it when checking routing APIs, file-route conventions, router internals, and examples.
-- `hotkeys` is the TanStack Hotkeys OpenCode reference. Use it when checking keyboard shortcut APIs, patterns, and examples.
-- `.reference/circle` is a Linear-inspired project management UI by ln-dev7, built with Next.js, TypeScript, shadcn/ui, and Tailwind CSS. Use it as a UI/UX and component-structure reference for issue/project/team tracking interfaces.
-
-Because `.reference/` is ignored, files added or changed there will not appear in this repo's git status.
+- `drizzle` is the Drizzle source. Use it when checking Drizzle beta APIs and the Effect integration.
+- `drizzle-zero` is the drizzle-zero source. Use it when checking beta Drizzle-to-Zero schema generation and integration patterns.
+- `zero` is the Rocicorp mono source/docs/examples. Use it when checking Zero, zero-cache, sync, mutators, and query patterns.
+- `zero-docs` is the Rocicorp Zero documentation source. Use it when checking current Zero docs, guides, and deployment patterns.
+- `devcontainer-templates` is the Rocicorp devcontainer templates source. Use it when checking Rocicorp development container setup patterns.
+- `devcontainer-features` is the Rocicorp devcontainer features source. Use it when checking reusable devcontainer feature implementations.
+- `effect-smol` is the Effect v4/effect-smol source. Use it when checking new Effect APIs and migration patterns.
+- `better-auth` is the Better Auth source. Use it when checking auth APIs, plugin patterns, adapters, tests, and runtime constraints.
+- `router` is the TanStack Router source. Use it when checking routing APIs, file-route conventions, router internals, and examples.
+- `hotkeys` is the TanStack Hotkeys source. Use it when checking keyboard shortcut APIs, patterns, and examples.
+- `circle` is a Linear-inspired project management UI by ln-dev7, built with Next.js, TypeScript, shadcn/ui, and Tailwind CSS. Use it as a UI/UX and component-structure reference for issue/project/team tracking interfaces.
 
 ## Working Notes
 

@@ -12,6 +12,48 @@
     "hotkeys": {
       "repository": "TanStack/hotkeys",
       "description": "Use when checking TanStack Hotkeys APIs, keyboard shortcut patterns, and examples."
+    },
+    "drizzle": {
+      "repository": "drizzle-team/drizzle-orm",
+      "branch": "beta",
+      "description": "Use when checking Drizzle ORM, Drizzle Kit, migrations, and beta integration APIs."
+    },
+    "drizzle-zero": {
+      "repository": "rocicorp/drizzle-zero",
+      "branch": "beta",
+      "description": "Use when checking drizzle-zero schema generation and beta integration patterns."
+    },
+    "zero": {
+      "repository": "rocicorp/mono",
+      "description": "Use when checking Zero, zero-cache, query helpers, mutators, and generated schema conventions."
+    },
+    "zero-docs": {
+      "repository": "rocicorp/zero-docs",
+      "description": "Use when checking current Zero docs, guides, and deployment patterns."
+    },
+    "devcontainer-templates": {
+      "repository": "rocicorp/devcontainer-templates",
+      "description": "Use when checking Rocicorp development container setup patterns."
+    },
+    "devcontainer-features": {
+      "repository": "rocicorp/devcontainer-features",
+      "description": "Use when checking reusable devcontainer feature implementations."
+    },
+    "effect-smol": {
+      "repository": "Effect-TS/effect-smol",
+      "description": "Use when checking Effect v4 / effect-smol APIs and migration patterns."
+    },
+    "better-auth": {
+      "repository": "better-auth/better-auth",
+      "description": "Use when checking Better Auth APIs, plugin patterns, adapters, tests, and runtime constraints."
+    },
+    "router": {
+      "repository": "TanStack/router",
+      "description": "Use when checking TanStack Router routing APIs, file-route conventions, router internals, and examples."
+    },
+    "circle": {
+      "repository": "ln-dev7/circle",
+      "description": "Use as a Linear-inspired UI/UX and component-structure reference for issue/project/team tracking interfaces."
     }
   }
 }
