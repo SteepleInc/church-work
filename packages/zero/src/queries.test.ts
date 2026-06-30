@@ -151,6 +151,28 @@ describe("Zero product queries", () => {
     ).not.toThrow();
   });
 
+  test("scopes Task Draft rows to the signed-in owner", () => {
+    const query = mustGetQuery(queries, "task_drafts.by_draft_id").fn({
+      args: { draft_id: "draft_123" },
+      ctx: memberContext,
+    });
+
+    const ast: unknown = Reflect.get(query, "ast");
+
+    expect(ast).toMatchObject({
+      where: {
+        conditions: expect.arrayContaining([
+          expect.objectContaining({
+            left: { name: "owner_user_id", type: "column" },
+            op: "=",
+            right: { type: "literal", value: memberContext.user_id },
+            type: "simple",
+          }),
+        ]),
+      },
+    });
+  });
+
   test("rejects cross-Church product collection queries for normal members", () => {
     for (const name of churchScopedQueryNames) {
       expect(() =>

@@ -53,6 +53,7 @@ describe("schema foundation", () => {
         created_by: userId,
         draft_id: draftId,
         id: "task_draft_schema_foundation",
+        owner_user_id: userId,
         updated_by: userId,
       });
 
@@ -119,6 +120,7 @@ describe("schema foundation", () => {
         description: null,
         draft_id: draftId,
         label_ids: "[]",
+        owner_user_id: userId,
         parent_task_id: null,
         priority: null,
         team_id: null,

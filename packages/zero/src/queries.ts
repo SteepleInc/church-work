@@ -138,6 +138,7 @@ export const queries = defineQueries({
       return zql.task_drafts
         .where("draft_id", args.draft_id)
         .where("church_id", activeChurchId)
+        .where("owner_user_id", session.user_id)
         .where("deleted_at", "IS", null)
         .one();
     }),

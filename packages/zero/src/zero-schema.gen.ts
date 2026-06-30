@@ -1193,6 +1193,11 @@ const taskDraftsTable = {
       optional: false,
       customType: null as unknown as string,
     },
+    owner_user_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
     draft_id: {
       type: "string",
       optional: false,

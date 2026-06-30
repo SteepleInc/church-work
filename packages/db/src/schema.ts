@@ -274,6 +274,7 @@ export const task_drafts = pgTable(
     id: text("id").primaryKey(),
     ...baseEntityFields,
     church_id: text("church_id").notNull(),
+    owner_user_id: text("owner_user_id").notNull(),
     draft_id: text("draft_id")
       .notNull()
       .references(() => drafts.id),

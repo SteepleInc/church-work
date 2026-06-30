@@ -23,6 +23,7 @@ CREATE TABLE "task_drafts" (
 	"deleted_at" timestamp with time zone,
 	"deleted_by" text,
 	"church_id" text NOT NULL,
+	"owner_user_id" text NOT NULL,
 	"draft_id" text NOT NULL,
 	"title" text,
 	"description" text,
