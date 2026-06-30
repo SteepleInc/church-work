@@ -4,6 +4,14 @@ Church Work is the context for coordinating recurring and project-based work in 
 
 ## Language
 
+**Draft**:
+A User-owned, not-yet-published or not-yet-created composition for product content that stores form state so the User can finish it later. Drafts are scoped to a Church and specialized by the content being composed, such as a Task Draft now or Template Draft in the future. Discarding a Draft puts it into Soft Delete state rather than permanently removing it.
+_Avoid_: Unsaved object, temporary object
+
+**Drafts**:
+The user-facing place where a User returns to their saved Drafts in the active Church. Drafts appears only when the User has at least one Draft in that Church.
+_Avoid_: Draft inbox, unsaved work list
+
 **Church Work Management**:
 The bounded context for planning and tracking church work that needs to be assigned, scheduled, and completed. It includes recurring cadence-driven work and project-based work.
 _Avoid_: Planning Center clone, Trello clone
@@ -117,7 +125,7 @@ The Church setting that controls how many upcoming Cycles have their Projected T
 _Avoid_: Materializing a whole yearly Template Schedule Occurrence at once, infinite task generation, projection window as a synonym
 
 **Soft Delete**:
-A deletion state that hides user-authored product work from normal UI and future projection without permanently removing its identity. Soft Delete allows later undo or restore; recreating similar work creates a new identity rather than reviving the old one. Hard Delete is reserved for cleanup cases where restoration is not meaningful, such as removing membership relationships.
+A deletion state that hides user-authored product work from normal UI and future projection without permanently removing its identity. Soft Delete applies to Drafts as well as created product content. Soft Delete allows later undo or restore; recreating similar work creates a new identity rather than reviving the old one. Hard Delete is reserved for cleanup cases where restoration is not meaningful, such as removing membership relationships.
 _Avoid_: Archive when the domain meaning is deletion, hard delete for normal product work, hidden only
 
 **Anchor Cycle**:
@@ -147,6 +155,10 @@ _Avoid_: Origin, parent template
 **Task**:
 A unit of church work that belongs to exactly one Team and can be assigned, scheduled, tracked, and completed. A To-do Task may or may not be attached to a Cycle; a Task in active or completed workflow must be attached to a Cycle. Tasks without a Cycle still appear in the existing Issues view. A Task may additionally be assigned to one User as the expected executor; the Team is always the accountability boundary. A Task without a Source Template is still just a Task.
 _Avoid_: Card when referring to the domain concept; one-off task, manual task, team-less task
+
+**Task Draft**:
+A User-owned, not-yet-created Task composition that stores the create-task form state so the User can finish it later. A Task Draft may be incomplete, including having no Team yet, but creating a Task from it must satisfy Task creation rules. A Task Draft is not a Task, has no Task Identifier, and is removed when the User creates the Task from it or discards it.
+_Avoid_: Draft Task, unsaved Task, temporary Task
 
 **Task Cycle Move**:
 Moving an existing Task from one Cycle to another while preserving its Task Identifier. Users may move Tasks between past, current, and future Cycles to correct planning history or re-plan work; rollover is the system-authored form of a Task Cycle Move.
