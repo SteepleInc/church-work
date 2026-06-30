@@ -14,6 +14,8 @@ export const getOrgUserId = () => getEntityId("orguser");
 export const getTeamId = () => getEntityId("team");
 export const getTeamMembershipId = () => getEntityId("teammembership");
 export const getTaskId = () => getEntityId("task");
+export const getDraftId = () => getEntityId("draft");
+export const getTaskDraftId = () => getEntityId("taskdraft");
 export const getTaskCommentId = () => getEntityId("taskcomment");
 export const getTaskCommentSubscriptionId = () => getEntityId("taskcommentsubscription");
 export const getTaskMentionId = () => getEntityId("taskmention");

@@ -954,6 +954,44 @@ export function useCreateTaskMutation() {
   };
 }
 
+export function useSaveTaskDraftMutation() {
+  const zero = useZero();
+
+  return async (params: {
+    readonly title: string;
+    readonly description?: string | null;
+    readonly teamId?: string | null;
+    readonly assignedUserId?: string | null;
+    readonly workflowStatusId?: string | null;
+    readonly dueDate?: string | null;
+    readonly parentTaskId?: string | null;
+    readonly labelIds?: readonly string[];
+    readonly estimate?: TaskEstimate | null;
+    readonly priority?: TaskPriorityValue | null;
+  }) => {
+    const result = await zeroMutationResult<void>(
+      () =>
+        zero.mutate(
+          mutators.drafts.save_task({
+            assigned_user_id: params.assignedUserId ?? null,
+            description: params.description ?? null,
+            due_date: params.dueDate ?? null,
+            estimate: params.estimate ?? null,
+            priority: params.priority ?? null,
+            label_ids: [...(params.labelIds ?? [])],
+            parent_task_id: params.parentTaskId ?? null,
+            team_id: params.teamId ?? null,
+            title: params.title,
+            workflow_status_id: params.workflowStatusId ?? null,
+          }),
+        ),
+      "Could not save draft.",
+    );
+    if (!result.ok) return result;
+    return { data: undefined, ok: true as const };
+  };
+}
+
 export function useUpdateTaskMutation() {
   const zero = useZero();
 
