@@ -496,7 +496,6 @@ function WeeklyServiceAuthoring({
   const createPeriodTemplate = useCreatePeriodTemplate();
 
   const teamsCollection = teams.teamsCollection;
-  const defaultTeamId = teamsCollection[0]?.id ?? "";
   // Remembers the Team of the most recently created/edited Template Task so the
   // next blank Task seeds with it (chain-capture convenience).
   const lastTeamIdRef = useRef("");
@@ -610,8 +609,10 @@ function WeeklyServiceAuthoring({
     setSaved(false);
     // New Template Tasks inherit the Team of the most recently edited Task so a
     // coordinator can dump several Tasks for the same ministry without
-    // re-picking the Team each time (see the chain-capture flow).
-    const seedTeamId = lastTeamIdRef.current || defaultTeamId;
+    // re-picking the Team each time (see the chain-capture flow). The first Task
+    // starts with no Team — we never auto-select one — so the coordinator picks
+    // it deliberately.
+    const seedTeamId = lastTeamIdRef.current;
     const draft = newDraftTask(placementWeekday, seedTeamId, cycleOffsetFromEnd);
     setTasks((current) => [...current, draft]);
     return draft.id;
@@ -897,7 +898,6 @@ function KeyDateAuthoring({
   const createTemplate = useCreateKeyDateTemplate();
 
   const teamsCollection = teams.teamsCollection;
-  const defaultTeamId = teamsCollection[0]?.id ?? "";
   // Remembers the Team of the most recently created/edited Template Task so the
   // next blank Task seeds with it (chain-capture convenience).
   const lastTeamIdRef = useRef("");
@@ -983,8 +983,10 @@ function KeyDateAuthoring({
     setSaved(false);
     // New Template Tasks inherit the Team of the most recently edited Task so a
     // coordinator can dump several Tasks for the same ministry without
-    // re-picking the Team each time (see the chain-capture flow).
-    const seedTeamId = lastTeamIdRef.current || defaultTeamId;
+    // re-picking the Team each time (see the chain-capture flow). The first Task
+    // starts with no Team — we never auto-select one — so the coordinator picks
+    // it deliberately.
+    const seedTeamId = lastTeamIdRef.current;
     const draft = newDraftTask(placementWeekday, seedTeamId, cycleOffsetFromEnd);
     setTasks((current) => [...current, draft]);
     return draft.id;
