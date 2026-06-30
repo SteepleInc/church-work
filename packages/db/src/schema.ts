@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   doublePrecision,
   index,
   integer,
@@ -247,6 +248,52 @@ export const tasks = pgTable(
       .where(
         sql`${table.deleted_at} IS NULL AND ${table.source_template_schedule_id} IS NOT NULL AND ${table.source_template_task_id} IS NOT NULL AND ${table.source_template_occurrence_key} IS NOT NULL`,
       ),
+  ],
+);
+
+export const drafts = pgTable(
+  "drafts",
+  {
+    id: text("id").primaryKey(),
+    ...baseEntityFields,
+    church_id: text("church_id").notNull(),
+    owner_user_id: text("owner_user_id").notNull(),
+    kind: text("kind").notNull().$type<"task">().default("task"),
+  },
+  (table) => [
+    check("drafts_kind_check", sql`${table.kind} IN ('task')`),
+    index("drafts_church_owner_updated_live_idx")
+      .on(table.church_id, table.owner_user_id, table.updated_at)
+      .where(sql`${table.deleted_at} IS NULL`),
+  ],
+);
+
+export const task_drafts = pgTable(
+  "task_drafts",
+  {
+    id: text("id").primaryKey(),
+    ...baseEntityFields,
+    church_id: text("church_id").notNull(),
+    owner_user_id: text("owner_user_id").notNull(),
+    draft_id: text("draft_id")
+      .notNull()
+      .references(() => drafts.id),
+    title: text("title"),
+    description: text("description"),
+    team_id: text("team_id"),
+    workflow_status_id: text("workflow_status_id"),
+    assigned_user_id: text("assigned_user_id"),
+    priority: text("priority"),
+    estimate: text("estimate"),
+    label_ids: text("label_ids").notNull().default("[]"),
+    due_date: text("due_date"),
+    parent_task_id: text("parent_task_id"),
+  },
+  (table) => [
+    index("task_drafts_church_id_idx").on(table.church_id),
+    uniqueIndex("task_drafts_draft_id_live_idx")
+      .on(table.draft_id)
+      .where(sql`${table.deleted_at} IS NULL`),
   ],
 );
 

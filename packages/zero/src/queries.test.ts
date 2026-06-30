@@ -121,6 +121,58 @@ describe("Zero product queries", () => {
     ).toThrow("App Administrator access required.");
   });
 
+  test("derives Draft query scope from the signed-in session", () => {
+    expect(() =>
+      mustGetQuery(queries, "drafts.my_active").fn({
+        ctx: { authenticated: false, runtime: "server" },
+      }),
+    ).toThrow("Authentication required.");
+
+    expect(() =>
+      mustGetQuery(queries, "drafts.my_active").fn({ ctx: memberContext }),
+    ).not.toThrow();
+
+    expect(() =>
+      mustGetQuery(queries, "drafts.by_id").fn({ args: { id: "draft_123" }, ctx: memberContext }),
+    ).not.toThrow();
+
+    expect(() =>
+      mustGetQuery(queries, "task_drafts.by_draft_id").fn({
+        args: { draft_id: "draft_123" },
+        ctx: { authenticated: false, runtime: "server" },
+      }),
+    ).toThrow("Authentication required.");
+
+    expect(() =>
+      mustGetQuery(queries, "task_drafts.by_draft_id").fn({
+        args: { draft_id: "draft_123" },
+        ctx: memberContext,
+      }),
+    ).not.toThrow();
+  });
+
+  test("scopes Task Draft rows to the signed-in owner", () => {
+    const query = mustGetQuery(queries, "task_drafts.by_draft_id").fn({
+      args: { draft_id: "draft_123" },
+      ctx: memberContext,
+    });
+
+    const ast: unknown = Reflect.get(query, "ast");
+
+    expect(ast).toMatchObject({
+      where: {
+        conditions: expect.arrayContaining([
+          expect.objectContaining({
+            left: { name: "owner_user_id", type: "column" },
+            op: "=",
+            right: { type: "literal", value: memberContext.user_id },
+            type: "simple",
+          }),
+        ]),
+      },
+    });
+  });
+
   test("rejects cross-Church product collection queries for normal members", () => {
     for (const name of churchScopedQueryNames) {
       expect(() =>
