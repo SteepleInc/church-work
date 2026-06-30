@@ -52,7 +52,7 @@ import { buildProjectedWeekCycles } from "@/components/weeks/team-weeks-index-da
 import { formatWeekDateRange, useCyclesCollection } from "@/data/cycles/cyclesData.app";
 import { useCreateLabelMutation, useLabelsCollection } from "@/data/labels/labelsData.app";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
-import { useCreateTaskMutation } from "@/data/tasks/tasksData.app";
+import { useCreateTaskMutation, useSaveTaskDraftMutation } from "@/data/tasks/tasksData.app";
 import { useTeamMembershipsCollection, useTeamsCollection } from "@/data/teams/teamsData.app";
 import { getUserDisplayName, useChurchUsersCollection } from "@/data/users/usersData.app";
 import {
@@ -95,6 +95,18 @@ export type CreateTaskQuickActionState = {
 } | null;
 
 export const createTaskQuickActionStateAtom = atom<CreateTaskQuickActionState>(null);
+
+export const pristineEmptyTaskComposerDefaults = {
+  assignedUserId: null as string | null,
+  description: "",
+  dueDate: null as string | null,
+  estimate: "no_estimate" as TaskEstimate,
+  labels: [] as readonly string[],
+  priority: "no_priority" as TaskPriority,
+  teamId: null as string | null,
+  title: "",
+  workflowStatusId: "",
+};
 
 // Linear-style dialog chrome preferences, remembered across opens.
 const createTaskDialogExpandedAtom = atomWithStorage<boolean>(
@@ -179,6 +191,7 @@ export function CreateTaskQuickAction() {
   const openTaskDetailsPaneUrl = useOpenTaskDetailsPaneUrl();
   const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
   const createTask = useCreateTaskMutation();
+  const saveTaskDraft = useSaveTaskDraftMutation();
 
   const churchId = activeChurch?.id ?? null;
   const currentUserId = activeChurch?.currentUserId ?? null;
@@ -301,21 +314,22 @@ export function CreateTaskQuickAction() {
 
   const form = useAppForm({
     defaultValues: {
-      title: state?.title ?? "",
-      description: state?.description ?? "",
-      assignedUserId: state?.assignTo ?? (null as string | null),
+      title: state?.title ?? pristineEmptyTaskComposerDefaults.title,
+      description: state?.description ?? pristineEmptyTaskComposerDefaults.description,
+      assignedUserId: state?.assignTo ?? pristineEmptyTaskComposerDefaults.assignedUserId,
       // Empty string means "use the effective Workflow's default status".
-      workflowStatusId: state?.workflowStatusId ?? "",
+      workflowStatusId:
+        state?.workflowStatusId ?? pristineEmptyTaskComposerDefaults.workflowStatusId,
       // Null means "use the default Team" (preset → first of your teams →
       // first team). There is no "No team" choice in the picker.
-      teamId: state?.teamId ?? (null as string | null),
-      priority: state?.priority ?? ("no_priority" as TaskPriority),
-      estimate: state?.estimate ?? ("no_estimate" as TaskEstimate),
-      labels: state?.labelIds ?? ([] as readonly string[]),
+      teamId: state?.teamId ?? pristineEmptyTaskComposerDefaults.teamId,
+      priority: state?.priority ?? pristineEmptyTaskComposerDefaults.priority,
+      estimate: state?.estimate ?? pristineEmptyTaskComposerDefaults.estimate,
+      labels: state?.labelIds ?? pristineEmptyTaskComposerDefaults.labels,
       // Due Date is never auto-set; it stays empty until picked.
       // Baseline remains `dueDate: null as string | null`; comment-derived
       // task creation may explicitly prefill it from the source Task.
-      dueDate: state?.dueDate ?? (null as string | null),
+      dueDate: state?.dueDate ?? pristineEmptyTaskComposerDefaults.dueDate,
     },
     validationLogic: revalidateLogic({
       mode: "submit",
@@ -464,6 +478,27 @@ export function CreateTaskQuickAction() {
     form.reset();
   };
 
+  const saveDraftAndClose = async () => {
+    const value = form.state.values;
+    const result = await saveTaskDraft({
+      assignedUserId: value.assignedUserId,
+      description: value.description === "" ? null : value.description,
+      dueDate: value.dueDate,
+      estimate: value.estimate === "no_estimate" ? null : value.estimate,
+      labelIds: [...value.labels],
+      parentTaskId: state?.parentTaskId ?? null,
+      priority: value.priority === "no_priority" ? null : value.priority,
+      teamId: value.teamId,
+      title: value.title,
+      workflowStatusId: value.workflowStatusId || null,
+    });
+    if (!result.ok) {
+      setError(result.error.message);
+      return;
+    }
+    close();
+  };
+
   // Closing with unsaved edits prompts before discarding; a pristine draft (or
   // one only carrying its prefilled values) closes straight away. Routes every
   // close affordance — the header X, Escape, and outside-click — through one
@@ -606,6 +641,21 @@ export function CreateTaskQuickAction() {
               </span>
             </QuickActionsTitle>
             <div className="flex items-center gap-1">
+              <form.Subscribe selector={(formState) => formState.isDirty}>
+                {(isDirty) =>
+                  isDirty ? (
+                    <Button
+                      className="text-muted-foreground"
+                      onClick={() => void saveDraftAndClose()}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      Save as draft
+                    </Button>
+                  ) : null
+                }
+              </form.Subscribe>
               <Button
                 aria-label={expanded ? "Collapse" : "Expand"}
                 className="hidden text-muted-foreground md:inline-flex"
@@ -873,14 +923,13 @@ export function CreateTaskQuickAction() {
           suppresses its own backdrop and offsets its popup; kept top-level, the
           confirmation centers and lays its own backdrop over the quick action. */}
       <DiscardChangesDialog
-        description={
-          isCreatingSubtask
-            ? "You have an unsaved Subtask. If you close now, it'll be lost."
-            : "You have an unsaved Task. If you close now, it'll be lost."
-        }
+        cancelLabel="Cancel"
+        description="You can finish this task later from your drafts."
         onDiscard={close}
+        onSave={() => void saveDraftAndClose()}
         onOpenChange={setConfirmDiscardOpen}
         open={confirmDiscardOpen}
+        title="Save to drafts?"
       />
     </>
   );

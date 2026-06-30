@@ -28,18 +28,22 @@ export function DiscardChangesDialog({
   open,
   onOpenChange,
   onDiscard,
+  onSave,
   title = "Discard changes?",
   description = "You have unsaved changes. If you close now, they'll be lost.",
   discardLabel = "Discard",
   cancelLabel = "Keep editing",
+  saveLabel,
 }: {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
   readonly onDiscard: () => void;
+  readonly onSave?: () => void;
   readonly title?: string;
   readonly description?: string;
   readonly discardLabel?: string;
   readonly cancelLabel?: string;
+  readonly saveLabel?: string;
 }) {
   return (
     <AlertDialog onOpenChange={onOpenChange} open={open}>
@@ -52,7 +56,6 @@ export function DiscardChangesDialog({
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction
             onClick={(event) => {
               event.preventDefault();
@@ -63,6 +66,18 @@ export function DiscardChangesDialog({
           >
             {discardLabel}
           </AlertDialogAction>
+          <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
+          {onSave ? (
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                onOpenChange(false);
+                onSave();
+              }}
+            >
+              {saveLabel ?? "Save"}
+            </AlertDialogAction>
+          ) : null}
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

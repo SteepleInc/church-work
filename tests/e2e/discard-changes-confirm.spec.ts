@@ -22,7 +22,7 @@ async function openCreateTaskQuickAction(page: import("@playwright/test").Page) 
   return dialog;
 }
 
-test("create-Task quick action confirms before discarding unsaved edits", async ({
+test("create-Task quick action offers saving dirty work to drafts before closing", async ({
   page,
 }, testInfo) => {
   const email = `discard-task-${Date.now()}-${testInfo.workerIndex}@example.com`;
@@ -34,15 +34,21 @@ test("create-Task quick action confirms before discarding unsaved edits", async 
 
   // Make the form dirty.
   await dialog.getByPlaceholder("Task title").fill("A task I might abandon");
+  await expect(dialog.getByRole("button", { name: "Save as draft" })).toBeVisible();
+
+  await dialog.getByPlaceholder("Task title").fill("");
+  await expect(dialog.getByRole("button", { name: "Save as draft" })).not.toBeVisible();
+  await dialog.getByPlaceholder("Task title").fill("A task I might abandon");
 
   // Escape requests a close, which prompts because the form is dirty.
   await page.keyboard.press("Escape");
   const confirm = page.getByRole("alertdialog");
   await expect(confirm).toBeVisible();
-  await expect(confirm.getByText("Discard changes?")).toBeVisible();
+  await expect(confirm.getByText("Save to drafts?")).toBeVisible();
+  await expect(confirm.getByText("You can finish this task later from your drafts.")).toBeVisible();
 
-  // "Keep editing" dismisses the prompt and leaves the draft intact.
-  await confirm.getByRole("button", { name: "Keep editing" }).click();
+  // "Cancel" dismisses the prompt and leaves the draft intact.
+  await confirm.getByRole("button", { name: "Cancel" }).click();
   await expect(confirm).not.toBeVisible();
   await expect(dialog).toBeVisible();
   await expect(dialog.getByPlaceholder("Task title")).toHaveValue("A task I might abandon");
@@ -57,6 +63,25 @@ test("create-Task quick action confirms before discarding unsaved edits", async 
   // Reopening starts clean — the discarded title is gone.
   const reopened = await openCreateTaskQuickAction(page);
   await expect(reopened.getByPlaceholder("Task title")).toHaveValue("");
+});
+
+test("create-Task quick action saves dirty work from the close dialog", async ({
+  page,
+}, testInfo) => {
+  const email = `save-task-draft-${Date.now()}-${testInfo.workerIndex}@example.com`;
+  const churchName = `E2E Save Task Draft Church ${Date.now()}`;
+
+  await signInAndCompleteOnboarding(page, { churchName, email });
+
+  const dialog = await openCreateTaskQuickAction(page);
+  await dialog.getByPlaceholder("Task title").fill("A task for later");
+  await page.keyboard.press("Escape");
+
+  const confirm = page.getByRole("alertdialog");
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole("button", { name: "Save" }).click();
+  await expect(confirm).not.toBeVisible();
+  await expect(dialog).not.toBeVisible();
 });
 
 test("create-Task quick action closes a pristine draft without prompting", async ({

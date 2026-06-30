@@ -7,11 +7,13 @@ import {
   activities,
   cycle_adjustments,
   cycles,
+  drafts,
   focus_windows,
   key_dates,
   labels,
   notifications,
   tasks,
+  task_drafts,
   task_comment_subscriptions,
   task_comments,
   team_memberships,
@@ -1016,6 +1018,47 @@ describe("Zero Task mutators", () => {
     readonly table: unknown;
     readonly values: unknown;
   };
+
+  test("saves Task Drafts from session-derived User and Church", async () => {
+    const { insertCalls, tx } = createServerTx([]);
+
+    await mustGetMutator(mutators, "drafts.save_task").fn({
+      args: {
+        assigned_user_id: "user_assignee",
+        description: "draft body",
+        due_date: "2026-07-01",
+        estimate: "m",
+        label_ids: ["label_one"],
+        priority: "high",
+        team_id: "team_production",
+        title: "Draft title",
+        workflow_status_id: "workflowstatus_todo",
+      },
+      ctx: signedInContext,
+      tx,
+    });
+
+    const draftInsert = insertCalls.find((call) => call.table === drafts)?.values as {
+      readonly church_id: string;
+      readonly id: string;
+      readonly owner_user_id: string;
+    };
+    const taskDraftInsert = insertCalls.find((call) => call.table === task_drafts)?.values as {
+      readonly church_id: string;
+      readonly draft_id: string;
+      readonly label_ids: string;
+      readonly owner_user_id: string;
+      readonly title: string | null;
+    };
+
+    expect(draftInsert.church_id).toBe("org_test");
+    expect(draftInsert.owner_user_id).toBe("user_test");
+    expect(taskDraftInsert.church_id).toBe("org_test");
+    expect(taskDraftInsert.owner_user_id).toBe("user_test");
+    expect(taskDraftInsert.draft_id).toBe(draftInsert.id);
+    expect(taskDraftInsert.title).toBe("Draft title");
+    expect(taskDraftInsert.label_ids).toBe('["label_one"]');
+  });
 
   const createServerTx = (selectResults: Array<unknown>) => {
     const insertCalls: InsertCall[] = [];

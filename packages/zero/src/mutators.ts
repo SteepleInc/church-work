@@ -19,6 +19,7 @@ import {
   getActivityId,
   getCycleAdjustmentId,
   getCycleId,
+  getDraftId,
   getDemoItemId,
   getFocusWindowId,
   getKeyDateId,
@@ -30,6 +31,7 @@ import {
   getTemplateTaskId,
   getTemplateTeamId,
   getTaskId,
+  getTaskDraftId,
   getTaskCommentId,
   getTaskCommentSubscriptionId,
   getTaskMentionId,
@@ -47,6 +49,7 @@ import {
   cycle_adjustments,
   cycles,
   demo_items,
+  drafts,
   focus_windows,
   key_date_occurrences,
   key_dates,
@@ -55,6 +58,7 @@ import {
   notifications,
   organization,
   tasks,
+  task_drafts,
   task_comment_subscriptions,
   task_comments,
   task_mentions,
@@ -213,6 +217,20 @@ const CreateTaskArgs = toZeroSchema(
     title: Schema.String,
     target_cycle: Schema.optional(TargetCycleArg),
     workflow_status_id: Schema.String,
+  }),
+);
+const SaveTaskDraftArgs = toZeroSchema(
+  Schema.Struct({
+    assigned_user_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
+    description: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
+    due_date: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
+    estimate: Schema.optional(TaskEstimateArg),
+    priority: Schema.optional(TaskPriorityArg),
+    label_ids: Schema.optional(Schema.Array(Schema.String)),
+    parent_task_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
+    team_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
+    title: Schema.optional(Schema.String),
+    workflow_status_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
   }),
 );
 const UpdateTaskArgs = toZeroSchema(
@@ -2274,6 +2292,57 @@ const taskPatchForFields = async (
 };
 
 export const mutators = defineMutators({
+  drafts: {
+    save_task: defineChurchWorkMutator(SaveTaskDraftArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+
+      const session = requireSignedInSession(ctx);
+      const churchId = session.active_church_id;
+      if (!churchId) throw new Error("Active Church access required.");
+
+      const now = new Date();
+      const draftId = getDraftId();
+
+      await db.insert(drafts).values({
+        _tag: "draft",
+        church_id: churchId,
+        created_at: now,
+        created_by: session.user_id,
+        deleted_at: null,
+        deleted_by: null,
+        id: draftId,
+        kind: "task",
+        owner_user_id: session.user_id,
+        updated_at: now,
+        updated_by: session.user_id,
+      });
+
+      await db.insert(task_drafts).values({
+        _tag: "task_draft",
+        assigned_user_id: args.assigned_user_id ?? null,
+        church_id: churchId,
+        created_at: now,
+        created_by: session.user_id,
+        deleted_at: null,
+        deleted_by: null,
+        description: args.description ?? null,
+        draft_id: draftId,
+        due_date: args.due_date ?? null,
+        estimate: args.estimate ?? null,
+        id: getTaskDraftId(),
+        label_ids: serializeStringArray(args.label_ids ?? []),
+        owner_user_id: session.user_id,
+        parent_task_id: args.parent_task_id ?? null,
+        priority: args.priority ?? null,
+        team_id: args.team_id ?? null,
+        title: args.title ?? null,
+        updated_at: now,
+        updated_by: session.user_id,
+        workflow_status_id: args.workflow_status_id ?? null,
+      });
+    }),
+  },
   demo_items: {
     create: defineChurchWorkMutator(CreateDemoItemArgs, async ({ args, ctx, tx }) => {
       if (tx.location !== "server") {
