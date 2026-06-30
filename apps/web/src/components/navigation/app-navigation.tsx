@@ -7,6 +7,7 @@ import { AdminNav } from "@/components/navigation/adminNav";
 import { DevMenu } from "@/components/navigation/dev-menu";
 import { MobileSidebarContent } from "@/components/navigation/mobile-sidebar-content";
 import { InboxSidebarItem } from "@/components/navigation/inbox-sidebar-item";
+import { DraftsSidebarItem } from "@/components/navigation/drafts-sidebar-item";
 import { SideBarItem } from "@/components/navigation/sidebar-item";
 import { TeamNavList, YourTeamsAddMenu } from "@/components/navigation/team-nav";
 import { OrgSwitcher } from "@/components/org-switcher";
@@ -100,6 +101,7 @@ function AppNavigationBody() {
         <SidebarGroup>
           <SidebarMenu>
             <InboxSidebarItem />
+            <DraftsSidebarItem />
             {workspaceNavItems.map((item) => (
               <SideBarItem key={item.to} {...item} />
             ))}

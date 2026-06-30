@@ -233,6 +233,8 @@ const SaveTaskDraftArgs = toZeroSchema(
     workflow_status_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
   }),
 );
+const DraftIdArgs = toZeroSchema(Schema.Struct({ draft_id: Schema.String }));
+const DraftIdsArgs = toZeroSchema(Schema.Struct({ draft_ids: Schema.Array(Schema.String) }));
 const UpdateTaskArgs = toZeroSchema(
   Schema.Struct({ church_id: Schema.String, fields: TaskFieldsArg, task_id: Schema.String }),
 );
@@ -2341,6 +2343,120 @@ export const mutators = defineMutators({
         updated_by: session.user_id,
         workflow_status_id: args.workflow_status_id ?? null,
       });
+    }),
+    discard: defineChurchWorkMutator(DraftIdArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+
+      const session = requireSignedInSession(ctx);
+      const churchId = session.active_church_id;
+      if (!churchId) throw new Error("Active Church access required.");
+
+      const now = new Date();
+      const scope = and(
+        eq(drafts.id, args.draft_id),
+        eq(drafts.church_id, churchId),
+        eq(drafts.owner_user_id, session.user_id),
+        isNull(drafts.deleted_at),
+      );
+
+      await db
+        .update(task_drafts)
+        .set({
+          deleted_at: now,
+          deleted_by: session.user_id,
+          updated_at: now,
+          updated_by: session.user_id,
+        })
+        .where(
+          and(
+            eq(task_drafts.draft_id, args.draft_id),
+            eq(task_drafts.church_id, churchId),
+            eq(task_drafts.owner_user_id, session.user_id),
+            isNull(task_drafts.deleted_at),
+          ),
+        );
+      await db
+        .update(drafts)
+        .set({
+          deleted_at: now,
+          deleted_by: session.user_id,
+          updated_at: now,
+          updated_by: session.user_id,
+        })
+        .where(scope);
+    }),
+    discard_all: defineChurchWorkMutator(toZeroSchema(Schema.Struct({})), async ({ ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+
+      const session = requireSignedInSession(ctx);
+      const churchId = session.active_church_id;
+      if (!churchId) throw new Error("Active Church access required.");
+
+      const now = new Date();
+      await db
+        .update(task_drafts)
+        .set({
+          deleted_at: now,
+          deleted_by: session.user_id,
+          updated_at: now,
+          updated_by: session.user_id,
+        })
+        .where(
+          and(
+            eq(task_drafts.church_id, churchId),
+            eq(task_drafts.owner_user_id, session.user_id),
+            isNull(task_drafts.deleted_at),
+          ),
+        );
+      await db
+        .update(drafts)
+        .set({
+          deleted_at: now,
+          deleted_by: session.user_id,
+          updated_at: now,
+          updated_by: session.user_id,
+        })
+        .where(
+          and(
+            eq(drafts.church_id, churchId),
+            eq(drafts.owner_user_id, session.user_id),
+            isNull(drafts.deleted_at),
+          ),
+        );
+    }),
+    restore: defineChurchWorkMutator(DraftIdsArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db || args.draft_ids.length === 0) return;
+
+      const session = requireSignedInSession(ctx);
+      const churchId = session.active_church_id;
+      if (!churchId) throw new Error("Active Church access required.");
+
+      const now = new Date();
+      await db
+        .update(drafts)
+        .set({ deleted_at: null, deleted_by: null, updated_at: now, updated_by: session.user_id })
+        .where(
+          and(
+            inArray(drafts.id, [...args.draft_ids]),
+            eq(drafts.church_id, churchId),
+            eq(drafts.owner_user_id, session.user_id),
+            isNotNull(drafts.deleted_at),
+          ),
+        );
+      await db
+        .update(task_drafts)
+        .set({ deleted_at: null, deleted_by: null, updated_at: now, updated_by: session.user_id })
+        .where(
+          and(
+            inArray(task_drafts.draft_id, [...args.draft_ids]),
+            eq(task_drafts.church_id, churchId),
+            eq(task_drafts.owner_user_id, session.user_id),
+            isNotNull(task_drafts.deleted_at),
+          ),
+        );
     }),
   },
   demo_items: {
