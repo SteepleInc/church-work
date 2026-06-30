@@ -1,3 +1,4 @@
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { revalidateLogic } from "@tanstack/react-form";
 import { Schema } from "effect";
@@ -9,6 +10,14 @@ import { toast } from "sonner";
 
 import { TeamAvatar } from "@/components/avatars/teamAvatar";
 import { useOpenTaskDetailsPaneUrl } from "@/components/details-pane/details-pane-helpers";
+import {
+  DescriptionEditor,
+  type DescriptionEditorHandle,
+} from "@/components/editor/description-editor";
+import {
+  parseDescriptionValue,
+  serializeDescriptionValue,
+} from "@/components/editor/description-value";
 import { useAppForm } from "@/components/form/ts-form";
 import { DraftTaskPropertySurface } from "@/components/tasks/draft-task-property-surface";
 import {
@@ -198,7 +207,33 @@ export function CreateTaskQuickAction() {
   const effectiveTargetCycle = state?.targetCycle ?? routeTargetCycle;
 
   const titleInputRef = useRef<HTMLInputElement>(null);
-  const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
+  const descriptionInputRef = useRef<HTMLDivElement>(null);
+  // Imperative handle for the description editor so the title can hand focus
+  // down with the caret at the top (a plain `.focus()` would restore the last
+  // caret), making the title↔description seam read as one surface (Linear).
+  const descriptionFocusRef = useRef<DescriptionEditorHandle>(null);
+  // Move focus from the title down into the description, caret at the top.
+  const focusDescriptionStart = () => {
+    const handle = descriptionFocusRef.current;
+    if (handle) {
+      handle.focusStart();
+    } else {
+      descriptionInputRef.current?.focus();
+    }
+  };
+  // Move focus from the description back up into the title, caret at the end.
+  const focusTitleEnd = () => {
+    const input = titleInputRef.current;
+    if (!input) return;
+    input.focus();
+    const end = input.value.length;
+    input.setSelectionRange(end, end);
+  };
+  // Holds the serialized description the uncontrolled editor should mount with.
+  // Set synchronously (before bumping `editorResetKey`) so a remount reads the
+  // intended value even if the form store hasn't flushed yet — e.g. a prefill
+  // from "create Task from Comment".
+  const nextDescriptionRef = useRef("");
   // "open" = save and open the created Task (Cmd+Alt+Enter).
   const submitModeRef = useRef<"default" | "open">("default");
 
@@ -307,13 +342,14 @@ export function CreateTaskQuickAction() {
         return;
       }
 
-      const trimmedDescription = value.description.trim();
+      // `description` holds serialized Plate JSON (or "" when the doc is empty).
+      const serializedDescription = value.description;
       setError(null);
       const result = await createTask({
         churchId,
         actorUserId: currentUserId,
         title: trimmedTitle,
-        description: trimmedDescription === "" ? null : trimmedDescription,
+        description: serializedDescription === "" ? null : serializedDescription,
         teamId: submitTeamId,
         assignedUserId: value.assignedUserId,
         workflowStatusId: submitStatus.id,
@@ -348,9 +384,14 @@ export function CreateTaskQuickAction() {
         // resets, ready for the next Task in the batch.
         formApi.setFieldValue("title", "");
         formApi.setFieldValue("description", "");
+        // Remount the (uncontrolled) description editor so it clears too.
+        nextDescriptionRef.current = "";
+        setEditorResetKey((key) => key + 1);
         titleInputRef.current?.focus();
       } else {
         formApi.reset();
+        nextDescriptionRef.current = "";
+        setEditorResetKey((key) => key + 1);
         setState(null);
       }
 
@@ -369,6 +410,16 @@ export function CreateTaskQuickAction() {
       }
     },
   });
+
+  // The description editor is uncontrolled (reads its `value` on mount). Bump
+  // this key to remount it after a reset so the contentEditable clears; the
+  // memo re-parses the freshly-reset field value for the new instance.
+  const [editorResetKey, setEditorResetKey] = useState(0);
+  const initialDescriptionValue = useMemo(
+    () => parseDescriptionValue(nextDescriptionRef.current),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [editorResetKey],
+  );
 
   // --- Effective Team / Workflow / Status resolution -------------------------
   // Pills hold "user-set" values; the effective value falls back through the
@@ -417,6 +468,11 @@ export function CreateTaskQuickAction() {
     form.setFieldValue("estimate", state.estimate ?? "no_estimate");
     form.setFieldValue("labels", state.labelIds ?? []);
     form.setFieldValue("dueDate", state.dueDate ?? null);
+    // The description editor is uncontrolled and reads its value only on mount.
+    // Prefills (e.g. "create Task from Comment") set the field after the editor
+    // has mounted, so stage the value and remount it to pick the prefill up.
+    nextDescriptionRef.current = state.description ?? "";
+    setEditorResetKey((key) => key + 1);
   }, [isOpen, state, form]);
 
   // Inline label creation from the picker. Always creates a Church-scoped
@@ -443,21 +499,19 @@ export function CreateTaskQuickAction() {
     void form.handleSubmit();
   };
 
-  // Cmd+Enter creates; Cmd+Alt+Enter creates and opens. Property picker keys are
-  // handled by the shared hover-armed draft Task surface below.
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-        event.preventDefault();
-        submitModeRef.current = event.altKey ? "open" : "default";
-        void form.handleSubmit();
-        return;
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, form]);
+  // Cmd+Enter creates; Cmd+Alt+Enter creates and opens. These are Meta combos,
+  // so they default to `ignoreInputs: false` and still fire while the user types
+  // in the title or description. `enabled: isOpen` scopes them to the open
+  // dialog. Property picker keys are handled by the shared hover-armed draft
+  // Task surface below.
+  useHotkey("Mod+Enter", () => submit("default"), {
+    enabled: isOpen,
+    preventDefault: true,
+  });
+  useHotkey("Mod+Alt+Enter", () => submit("open"), {
+    enabled: isOpen,
+    preventDefault: true,
+  });
 
   return (
     <QuickActionsWrapper
@@ -569,10 +623,24 @@ export function CreateTaskQuickAction() {
                   disabled={isLoading}
                   onChange={(event) => field.handleChange(event.target.value)}
                   onKeyDown={(event) => {
-                    // Enter moves on to the description (Cmd+Enter submits).
-                    if (event.key === "Enter" && !event.metaKey && !event.ctrlKey) {
+                    if (event.metaKey || event.ctrlKey || event.altKey) return;
+                    const input = event.currentTarget;
+                    const caretAtEnd =
+                      input.selectionStart === input.value.length &&
+                      input.selectionEnd === input.value.length;
+                    // Enter and ArrowDown both drop into the description; the
+                    // title and description read as one surface (Linear), so
+                    // ArrowRight also crosses the seam once the caret is at the
+                    // end of the title (Cmd+Enter still submits).
+                    if (event.key === "Enter" && !event.shiftKey) {
                       event.preventDefault();
-                      descriptionInputRef.current?.focus();
+                      focusDescriptionStart();
+                    } else if (event.key === "ArrowDown") {
+                      event.preventDefault();
+                      focusDescriptionStart();
+                    } else if (event.key === "ArrowRight" && caretAtEnd) {
+                      event.preventDefault();
+                      focusDescriptionStart();
                     }
                   }}
                   placeholder="Task title"
@@ -583,21 +651,24 @@ export function CreateTaskQuickAction() {
             </form.Field>
             <form.Field name="description">
               {(field) => (
-                <textarea
-                  aria-label="Add description"
-                  autoComplete="off"
-                  // field-sizing-content grows the textarea with what's typed;
-                  // flex-1 caps it at the available dialog height (the whole
-                  // height when expanded), after which it scrolls internally.
-                  className="field-sizing-content min-h-20 w-full flex-1 resize-none overflow-y-auto bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                  data-1p-ignore="true"
-                  disabled={isLoading}
-                  onChange={(event) => field.handleChange(event.target.value)}
-                  placeholder="Add description..."
-                  ref={descriptionInputRef}
-                  rows={4}
-                  value={field.state.value}
-                />
+                // Inset the editable content so the `@` chip's focus ring (and
+                // the mention popover anchored to it) isn't clipped by the
+                // surface's left edge, then pull the editor back by the same
+                // amount so the text still lines up with the title above.
+                <div className="-mx-4 min-h-20 w-full flex-1 overflow-y-auto">
+                  <DescriptionEditor
+                    key={editorResetKey}
+                    ariaLabel="Add description"
+                    contentClassName="px-4"
+                    editorRef={descriptionInputRef}
+                    focusHandleRef={descriptionFocusRef}
+                    disabled={isLoading}
+                    placeholder="Add description..."
+                    value={initialDescriptionValue}
+                    onChange={(value) => field.handleChange(serializeDescriptionValue(value) ?? "")}
+                    onEscapeStart={focusTitleEnd}
+                  />
+                </div>
               )}
             </form.Field>
           </DraftTaskPropertySurface>

@@ -173,4 +173,34 @@ test.describe("Task details pane pickers", () => {
     await expect(teamChip).toContainText("Production");
     await expect(pane.getByTestId("task-details-status-trigger")).toContainText("To Do");
   });
+
+  test("title and description arrow-navigate as one surface in the pane", async ({
+    page,
+  }, testInfo) => {
+    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
+    await startAuthenticatedSession(page, {
+      churchName: `E2E Details Seam Church ${suffix}`,
+      email: `details-seam-${suffix}@example.com`,
+      userName: "E2E Details Seam Owner",
+    });
+
+    const title = `Details Seam Task ${suffix}`;
+    const pane = await openTaskDetails(page, title, "Worship");
+
+    const titleEditor = pane.getByRole("textbox", { name: "Task title" });
+    const description = pane.getByRole("textbox", { name: "Task description" });
+
+    // From the title, ArrowDown crosses the seam into the description (caret at
+    // the top), so typing lands in the description without clicking it.
+    await titleEditor.click();
+    await page.keyboard.press("End");
+    await page.keyboard.press("ArrowDown");
+    await expect(description).toBeFocused();
+    await page.keyboard.type("Seam body");
+    await expect(description).toContainText("Seam body");
+
+    // ArrowUp from the first line of the description returns to the title.
+    await description.press("ArrowUp");
+    await expect(titleEditor).toBeFocused();
+  });
 });

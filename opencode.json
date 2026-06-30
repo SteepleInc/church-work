@@ -9,6 +9,10 @@
       "repository": "udecode/plate",
       "description": "Use as the source reference for Plate editor implementation patterns, APIs, and examples."
     },
+    "hotkeys": {
+      "repository": "TanStack/hotkeys",
+      "description": "Use when checking TanStack Hotkeys APIs, keyboard shortcut patterns, and examples."
+    },
     "drizzle": {
       "repository": "drizzle-team/drizzle-orm",
       "branch": "beta",

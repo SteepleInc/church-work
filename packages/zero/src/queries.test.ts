@@ -28,25 +28,33 @@ const churchScopedQueryNames = [
   "key_date_occurrences.by_church",
   "key_dates.by_church",
   "labels.by_church",
+  "labels.by_id",
   "notifications.by_recipient",
   "team_memberships.by_church",
   "teams.by_church",
+  "teams.by_id",
   "template_schedules.by_church",
   "template_tasks.by_church",
   "template_teams.by_church",
   "templates.by_church",
   "tasks.by_assignee",
   "tasks.by_church",
+  "tasks.by_id",
   "tasks.by_team",
   "tasks.filtered",
   "workflows.by_church",
   "workflow_statuses.by_church",
+  "workflow_statuses.by_id",
 ] as const;
 
 const argsByQueryName = {
   "tasks.by_assignee": { assigned_user_id: "user_member", church_id: "org_other" },
+  "tasks.by_id": { church_id: "org_other", id: "task_other" },
   "tasks.filtered": { church_id: "org_other", list_args: {} },
   "tasks.by_team": { church_id: "org_other", team_id: "team_other" },
+  "teams.by_id": { church_id: "org_other", id: "team_other" },
+  "labels.by_id": { church_id: "org_other", id: "label_other" },
+  "workflow_statuses.by_id": { church_id: "org_other", id: "status_other" },
 } as const;
 
 const getArgsForQueryName = (name: (typeof churchScopedQueryNames)[number]) =>

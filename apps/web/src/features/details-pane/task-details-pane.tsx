@@ -1,4 +1,5 @@
 import { CalendarIcon, ChevronRight, Tag, Triangle } from "lucide-react";
+import type { Value } from "platejs";
 import {
   forwardRef,
   useEffect,
@@ -29,11 +30,20 @@ import {
   useWorkflowsCollection,
   useWorkflowStatusesCollection,
 } from "@/data/workflows/workflowsData.app";
+import { MentionedInSection } from "@/features/details-pane/mentioned-in-section";
 import { SubTaskSection } from "@/features/details-pane/sub-task-section";
 import { isSubTaskRowArmed } from "@/features/details-pane/sub-task-row-shortcuts";
 import type { SubTaskCreateInput } from "@/features/details-pane/sub-task-creator";
 import { TeamAvatar } from "@/components/avatars/teamAvatar";
 import { useChangeDetailsPaneId } from "@/components/details-pane/details-pane-helpers";
+import {
+  DescriptionEditor,
+  type DescriptionEditorHandle,
+} from "@/components/editor/description-editor";
+import {
+  parseDescriptionValue,
+  serializeDescriptionValue,
+} from "@/components/editor/description-value";
 import { DetailsShell } from "@/components/details-pane/details-shell";
 import { useQuickActionOpeners } from "@/features/quick-actions/quick-actions-state";
 import {
@@ -64,7 +74,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { TaskActivityFeed } from "./task-activity-feed";
-import type { ActivityResolvers } from "./task-activity-feed-utils";
 
 /**
  * Linear-style property pill used in the Task pane's fixed property band. The
@@ -141,8 +150,26 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
 
   // Locally-buffered title, committed to the Task on blur (Linear behavior).
   const [titleDraft, setTitleDraft] = useState<string | null>(null);
+  // Locally-buffered description value. Plate is uncontrolled (it reads `value`
+  // only on mount), so we mirror the latest editor value in a ref and commit it
+  // to the Task on blur — same commit-on-blur model as the title.
+  const descriptionDraftRef = useRef<Value | null>(null);
+  // The title and description read as one surface (Linear): arrowing down past
+  // the title drops into the description at its top, and arrowing up from the
+  // top of the description returns to the end of the title.
+  const titleRef = useRef<HTMLTextAreaElement>(null);
+  const descriptionFocusRef = useRef<DescriptionEditorHandle>(null);
+  const focusDescriptionStart = () => descriptionFocusRef.current?.focusStart();
+  const focusTitleEnd = () => {
+    const input = titleRef.current;
+    if (!input) return;
+    input.focus();
+    const end = input.value.length;
+    input.setSelectionRange(end, end);
+  };
   useEffect(() => {
     setTitleDraft(null);
+    descriptionDraftRef.current = null;
   }, [canonicalIdentifier]);
 
   // Picker openers for pane-level keyboard shortcuts (S/P/A/L/⇧E/D/T). Each
@@ -480,20 +507,6 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
     return result.data.labels[0]?.id ?? null;
   };
 
-  // Name resolvers for the Activity Feed: prefer the live record's current name,
-  // letting the feed fall back to the snapshot label in metadata when an id no
-  // longer resolves (renamed/deleted records).
-  const activityResolvers: ActivityResolvers = {
-    label: (id) => labels.labelsCollection.find((entry) => entry.id === id)?.name ?? null,
-    status: (id) =>
-      workflowStatuses.workflowStatusesCollection.find((entry) => entry.id === id)?.name ?? null,
-    team: (id) => teams.teamsCollection.find((entry) => entry.id === id)?.name ?? null,
-    user: (id) => {
-      const found = users.usersCollection.find((entry) => entry.id === id);
-      return found ? getUserDisplayName(found) : null;
-    },
-  };
-
   return (
     // The app shell wraps everything in a `delay={0}` tooltip provider (for the
     // collapsed-sidebar tooltips), so re-establish the default 304ms field-tooltip
@@ -721,21 +734,62 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
                 if (event.key === "Enter") {
                   event.preventDefault();
                   event.currentTarget.blur();
+                  return;
+                }
+                if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+                const input = event.currentTarget;
+                const { selectionStart, selectionEnd, value } = input;
+                const collapsed = selectionStart === selectionEnd;
+                const caretAtEnd = collapsed && selectionEnd === value.length;
+                // The title and description read as one surface (Linear): drop
+                // into the description on ArrowDown from the last line, or on
+                // ArrowRight once the caret is at the very end of the title.
+                const onLastLine = collapsed && !value.slice(selectionStart).includes("\n");
+                if (event.key === "ArrowDown" && onLastLine) {
+                  event.preventDefault();
+                  focusDescriptionStart();
+                } else if (event.key === "ArrowRight" && caretAtEnd) {
+                  event.preventDefault();
+                  focusDescriptionStart();
                 }
               }}
               placeholder="Task title"
+              ref={titleRef}
               rows={1}
               value={titleValue}
             />
 
-            {/* Description */}
-            {task.description ? (
-              <p className="whitespace-pre-wrap break-words text-[15px] text-foreground/90 leading-relaxed">
-                {task.description}
-              </p>
-            ) : (
-              <p className="text-muted-foreground text-[15px]">Add a description...</p>
-            )}
+            {/* Description — edit-in-place (Linear behavior): click anywhere and
+              type. Plate is uncontrolled, so the latest value is buffered in a
+              ref and committed to the Task on blur. Persisting `description`
+              routes through the same mutator path that re-syncs the mention
+              graph and logs the change. Projected Tasks are read-only until
+              materialized (mirrors the title). */}
+            {/* Inset the editable content so the `@` chip's focus ring (and the
+              mention popover anchored to it) isn't clipped by the editor's left
+              edge, then pull the container back by the same amount so the text
+              still lines up with the title above. */}
+            <DescriptionEditor
+              key={task.id}
+              readOnly={task.isProjected}
+              ariaLabel="Task description"
+              className="-mx-2 text-[15px] text-foreground/90 leading-relaxed"
+              contentClassName="px-2"
+              focusHandleRef={descriptionFocusRef}
+              placeholder="Add a description..."
+              value={parseDescriptionValue(task.description)}
+              onEscapeStart={focusTitleEnd}
+              onChange={(value) => {
+                descriptionDraftRef.current = value;
+              }}
+              onBlur={() => {
+                const draft = descriptionDraftRef.current;
+                if (draft === null) return;
+                const next = serializeDescriptionValue(draft);
+                if (next !== (task.description ?? null)) persist({ description: next });
+                descriptionDraftRef.current = null;
+              }}
+            />
 
             {/* Parent context */}
             {parentTask ? (
@@ -792,6 +846,17 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
               }))}
             />
 
+            {/* Mentioned-in backlinks: other Tasks that reference this one.
+              Projected Tasks have no real id to be mentioned, so the section is
+              only shown for real Tasks. */}
+            {task.isProjected ? null : (
+              <MentionedInSection
+                churchId={churchId}
+                onOpenTask={(identifier) => changeDetailsPaneId(identifier).forceNav()}
+                taskId={task.id}
+              />
+            )}
+
             {/* Activity Feed (read-only history). Projected Tasks have no real
               Activity rows yet, so the feed is only shown for real Tasks. */}
             {task.isProjected ? null : (
@@ -799,8 +864,6 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
                 churchId={churchId}
                 currentUserId={currentUserId}
                 onCreateTaskFromComment={(prefill) => openCreateTask(prefill)}
-                resolveActorName={activityResolvers.user}
-                resolvers={activityResolvers}
                 sourceTask={{
                   id: task.id,
                   identifier: task.identifier,

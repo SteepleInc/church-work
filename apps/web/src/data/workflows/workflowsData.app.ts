@@ -123,6 +123,29 @@ export function useWorkflowStatusesCollection(params: { readonly churchId: strin
   };
 }
 
+/**
+ * Resolves a single Workflow Status's current name by id through its own
+ * `workflow_statuses.by_id` subscription, for per-row lookups (e.g. naming the
+ * from/to status of an Activity Feed status-change line). Returns `null` while
+ * loading or when the status is gone, so callers can fall back to a snapshot
+ * label. Zero dedupes identical subscriptions, so many rows naming the same
+ * status share one query.
+ */
+export function useWorkflowStatusName(params: {
+  readonly churchId: string | null;
+  readonly statusId: string | null;
+}): string | null {
+  const [row] = useQuery(
+    queries.workflow_statuses.by_id({
+      church_id: params.churchId ?? "__no_church__",
+      id: params.statusId ?? "__no_status__",
+    }),
+    { enabled: params.churchId !== null && params.statusId !== null },
+  );
+
+  return row?.name ?? null;
+}
+
 export function useRenameWorkflowMutation() {
   const zero = useZero();
 

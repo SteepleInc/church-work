@@ -1,4 +1,6 @@
 import {
+  ArrowUp,
+  AtSign,
   Ban,
   Bell,
   BellOff,
@@ -20,6 +22,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
+import type { Value } from "platejs";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -42,6 +45,10 @@ import {
   canModerateTaskComment,
   type TaskCommentModerationViewer,
 } from "@/data/task-comments/taskCommentModeration-utils";
+import { useLabelName } from "@/data/labels/labelsData.app";
+import { useTeamName } from "@/data/teams/teamData.app";
+import { useChurchUserName } from "@/data/users/usersData.app";
+import { useWorkflowStatusName } from "@/data/workflows/workflowsData.app";
 import { UserAvatar } from "@/components/avatars/userAvatar";
 import { useAppForm } from "@/components/form/ts-form";
 import type { TaskEstimate, TaskPriority } from "@/components/tasks/task-card-fields";
@@ -66,15 +73,27 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Kbd } from "@/components/ui/kbd";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { DescriptionEditor } from "@/components/editor/description-editor";
+import {
+  commentValueToPlainText,
+  EMPTY_COMMENT_VALUE,
+  parseCommentValue,
+  serializeCommentValue,
+} from "@/components/editor/comment-value";
 import { cn } from "@/lib/utils";
 
 import {
   describeActivity,
   formatActivityTime,
+  parseActivityMetadata,
+  readRef,
+  readRefList,
   type ActivityGlyph,
+  type ActivityLine,
+  type ActivityRef,
   type ActivityResolvers,
+  type NameResolver,
 } from "./task-activity-feed-utils";
 
 const GLYPH_ICON: Record<ActivityGlyph, LucideIcon> = {
@@ -87,6 +106,8 @@ const GLYPH_ICON: Record<ActivityGlyph, LucideIcon> = {
   estimate: Triangle,
   generic: CircleDot,
   labels: Tag,
+  mention: AtSign,
+  mentioned_in: LinkIcon,
   priority: CircleDot,
   reopened: RotateCcw,
   status: CircleDot,
@@ -118,11 +139,8 @@ type ActivityFeedProps = {
   readonly churchId: string | null;
   readonly currentUserId: string | null;
   readonly taskEntityId: string;
-  readonly resolvers: ActivityResolvers;
   readonly sourceTask: TaskCommentSourceTask;
   readonly onCreateTaskFromComment: (prefill: TaskCommentTaskPrefill) => void;
-  /** Resolves an actor user id to a display name; null when the user is gone. */
-  readonly resolveActorName: (userId: string) => string | null;
 };
 
 type TaskCommentSourceTask = {
@@ -155,6 +173,13 @@ export type TaskCommentTaskPrefill = {
 
 const TASK_COMMENT_PREFILL_TITLE_MAX_LENGTH = 80;
 
+/**
+ * Builds the "create Task from Comment" prefill. `body` is the comment's
+ * flattened plain text (callers pass `commentValueToPlainText(comment.body)`),
+ * so the title can be derived from the first line. The prefill `description` is
+ * serialized Plate JSON (the create-task flow renders it in the Plate editor):
+ * an attribution paragraph followed by a blockquote of the comment text.
+ */
 export function buildTaskPrefillFromComment({
   actorName,
   body,
@@ -169,24 +194,29 @@ export function buildTaskPrefillFromComment({
   const trimmedBody = body.trim();
   if (!trimmedBody) return null;
 
-  const firstLine = trimmedBody
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .find((line) => line.length > 0);
+  const lines = trimmedBody.split(/\r?\n/).map((line) => line.trim());
+  const firstLine = lines.find((line) => line.length > 0);
   if (!firstLine) return null;
 
   const title =
     firstLine.length > TASK_COMMENT_PREFILL_TITLE_MAX_LENGTH
       ? `${firstLine.slice(0, TASK_COMMENT_PREFILL_TITLE_MAX_LENGTH - 1).trimEnd()}…`
       : firstLine;
-  const quoted = trimmedBody
-    .split(/\r?\n/)
-    .map((line) => `> ${line}`)
-    .join("\n");
+
+  const descriptionValue: Value = [
+    {
+      type: "p",
+      children: [{ text: `@${actorName} said in ${sourceTask.identifier} ${sourceTask.title}:` }],
+    },
+    {
+      type: "blockquote",
+      children: [{ type: "p", children: [{ text: trimmedBody }] }],
+    },
+  ];
 
   return {
     title,
-    description: `@${actorName} said in ${sourceTask.identifier} ${sourceTask.title}:\n\n${quoted}`,
+    description: JSON.stringify(descriptionValue),
     assignTo: sourceTask.assignedUserId,
     teamId: sourceTask.teamId,
     priority: sourceTask.priority,
@@ -232,6 +262,10 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
   const unsubscribeThread = useUnsubscribeTaskCommentThreadMutation({ churchId: props.churchId });
   const moderationViewer = useTaskCommentModerationViewer({
     currentUserId: props.currentUserId,
+  });
+  const currentUserName = useChurchUserName({
+    churchId: props.churchId,
+    userId: props.currentUserId,
   });
   const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null);
   const clearHighlightTimeoutRef = useRef<number | null>(null);
@@ -332,16 +366,16 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
               activity={activity}
               key={activity.id}
               now={now}
+              churchId={props.churchId}
               commentsById={commentsById}
               createComment={createComment}
               currentUserId={props.currentUserId}
+              currentUserName={currentUserName}
               deleteComment={deleteComment}
               highlightedCommentId={highlightedCommentId}
               moderationViewer={moderationViewer}
               onCreateTaskFromComment={props.onCreateTaskFromComment}
-              resolveActorName={props.resolveActorName}
               repliesByParentCommentId={repliesByParentCommentId}
-              resolvers={props.resolvers}
               sourceTask={props.sourceTask}
               subscribedRootCommentIds={subscribedRootCommentIds}
               subscribeThread={subscribeThread}
@@ -352,13 +386,7 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
         </ol>
       )}
 
-      <ActivityCommentComposer
-        currentUserId={props.currentUserId}
-        currentUserName={
-          props.currentUserId ? (props.resolveActorName(props.currentUserId) ?? null) : null
-        }
-        onSubmit={createComment}
-      />
+      <ActivityCommentComposer currentUserId={props.currentUserId} onSubmit={createComment} />
     </section>
   );
 }
@@ -375,18 +403,128 @@ function ActivityFeedEmpty() {
   );
 }
 
+/**
+ * Resolves the per-row Activity line by looking up exactly the records this row
+ * references through their own single-entity subscriptions, then feeding those
+ * live names into the pure `describeActivity`. A fixed set of reference slots is
+ * resolved every render (unused slots pass a null id, so their query is
+ * disabled), keeping hook order stable. The `labels_changed` event is handled by
+ * `ActivityLabelsLine` instead, since its references are a variable-length list.
+ */
+function useActivityLine(
+  churchId: string | null,
+  eventType: string,
+  metadata: ReturnType<typeof parseActivityMetadata>,
+): ActivityLine | null {
+  const from = readRef(metadata.from);
+  const to = readRef(metadata.to);
+  const mentionedUserId = (metadata.mentioned_user_id ?? null) as string | null;
+
+  // Resolve every bounded reference slot up front (stable hook order). Each
+  // resolver is fed only the names relevant to the event it serves.
+  const fromUserName = useChurchUserName({ churchId, userId: from?.id ?? null });
+  const toUserName = useChurchUserName({ churchId, userId: to?.id ?? null });
+  const mentionedUserName = useChurchUserName({ churchId, userId: mentionedUserId });
+  const fromStatusName = useWorkflowStatusName({ churchId, statusId: from?.id ?? null });
+  const toStatusName = useWorkflowStatusName({ churchId, statusId: to?.id ?? null });
+  const toTeamName = useTeamName({ churchId, teamId: to?.id ?? null });
+
+  const userResolver: NameResolver = (id) =>
+    id === from?.id ? fromUserName : id === to?.id ? toUserName : null;
+  const statusResolver: NameResolver = (id) =>
+    id === from?.id ? fromStatusName : id === to?.id ? toStatusName : null;
+  const teamResolver: NameResolver = (id) => (id === to?.id ? toTeamName : null);
+
+  // The labels resolver is intentionally inert here; label lines never reach
+  // `describeActivity` in the component (see `ActivityLabelsLine`).
+  const resolvers: ActivityResolvers = {
+    label: () => null,
+    status: statusResolver,
+    team: teamResolver,
+    user: (id) => {
+      if (id === mentionedUserId) return mentionedUserName;
+      return userResolver(id);
+    },
+  };
+
+  return describeActivity(eventType, metadata, resolvers);
+}
+
+/**
+ * Renders the `task.labels_changed` line, resolving each referenced Label's
+ * current name through its own subscription (via `LabelName`). The added/removed
+ * counts come straight from the metadata ref lists, so the summary is correct
+ * even when a Label was later deleted; a single changed Label is named inline.
+ */
+function ActivityLabelsLine({
+  churchId,
+  metadata,
+}: {
+  readonly churchId: string | null;
+  readonly metadata: ReturnType<typeof parseActivityMetadata>;
+}) {
+  const added = readRefList(metadata.added);
+  const removed = readRefList(metadata.removed);
+
+  if (added.length > 0 && removed.length === 0) {
+    return (
+      <span>
+        added <LabelSummary churchId={churchId} refs={added} />
+      </span>
+    );
+  }
+  if (removed.length > 0 && added.length === 0) {
+    return (
+      <span>
+        removed <LabelSummary churchId={churchId} refs={removed} />
+      </span>
+    );
+  }
+  return <span>changed the labels</span>;
+}
+
+/** "the <Name> label" for a single Label, or "N labels" for several. */
+function LabelSummary({
+  churchId,
+  refs,
+}: {
+  readonly churchId: string | null;
+  readonly refs: readonly ActivityRef[];
+}) {
+  if (refs.length === 1) {
+    return (
+      <>
+        the <LabelName churchId={churchId} labelRef={refs[0]!} /> label
+      </>
+    );
+  }
+  return <>{refs.length} labels</>;
+}
+
+/** A single Label's current name, resolved per-row, falling back to its snapshot. */
+function LabelName({
+  churchId,
+  labelRef,
+}: {
+  readonly churchId: string | null;
+  readonly labelRef: ActivityRef;
+}) {
+  const liveName = useLabelName({ churchId, labelId: labelRef.id ?? null });
+  return <>{liveName ?? labelRef.label ?? "a label"}</>;
+}
+
 function ActivityRow({
   activity,
   now,
+  churchId,
   commentsById,
   createComment,
   currentUserId,
+  currentUserName,
   deleteComment,
   highlightedCommentId,
   moderationViewer,
   onCreateTaskFromComment,
-  resolvers,
-  resolveActorName,
   repliesByParentCommentId,
   subscribedRootCommentIds,
   sourceTask,
@@ -395,16 +533,16 @@ function ActivityRow({
   updateComment,
 }: {
   readonly activity: ActivityCollectionItem;
+  readonly churchId: string | null;
   readonly commentsById: ReadonlyMap<string, TaskCommentCollectionItem>;
   readonly createComment: (body: string, parentCommentId?: string | null) => Promise<void>;
   readonly currentUserId: string | null;
+  readonly currentUserName: string | null;
   readonly deleteComment: (commentId: string) => Promise<void>;
   readonly highlightedCommentId: string | null;
   readonly moderationViewer: TaskCommentModerationViewer;
   readonly onCreateTaskFromComment: (prefill: TaskCommentTaskPrefill) => void;
   readonly now: number;
-  readonly resolvers: ActivityResolvers;
-  readonly resolveActorName: (userId: string) => string | null;
   readonly repliesByParentCommentId: ReadonlyMap<string, readonly TaskCommentCollectionItem[]>;
   readonly updateComment: (commentId: string, body: string) => Promise<void>;
   readonly subscribedRootCommentIds: ReadonlySet<string>;
@@ -412,7 +550,14 @@ function ActivityRow({
   readonly subscribeThread: (rootCommentId: string) => Promise<void>;
   readonly unsubscribeThread: (rootCommentId: string) => Promise<void>;
 }) {
-  const metadata = parseMetadata(activity.metadata);
+  const metadata = parseActivityMetadata(activity.metadata);
+  // Resolve the (non-comment) line via per-row single-entity lookups. Called
+  // unconditionally to keep hook order stable; ignored for comment rows.
+  const line = useActivityLine(churchId, activity.event_type, metadata);
+  const actorId = activity.actor_id ?? null;
+  const isUserActor = activity.actor_type === "user" && actorId !== null;
+  const resolvedActorName = useChurchUserName({ churchId, userId: actorId });
+
   if (activity.event_type === "comment_created") {
     const commentId = getCommentId(metadata);
     const comment = commentId ? commentsById.get(commentId) : undefined;
@@ -421,8 +566,10 @@ function ActivityRow({
 
     return (
       <TaskCommentCard
+        churchId={churchId}
         comment={comment}
         currentUserId={currentUserId}
+        currentUserName={currentUserName}
         highlighted={highlightedCommentId === comment.id}
         highlightedCommentId={highlightedCommentId}
         moderationViewer={moderationViewer}
@@ -434,20 +581,21 @@ function ActivityRow({
         onDelete={deleteComment}
         onUpdate={updateComment}
         replies={repliesByParentCommentId.get(comment.id) ?? []}
-        resolveActorName={resolveActorName}
         sourceTask={sourceTask}
         subscribed={subscribedRootCommentIds.has(comment.id)}
         title={new Date(activity.occurred_at).toLocaleString()}
       />
     );
   }
-  const line = describeActivity(activity.event_type, metadata, resolvers);
-  if (!line) return null;
 
-  const Icon = GLYPH_ICON[line.glyph];
-  const actorId = activity.actor_id ?? null;
-  const isUserActor = activity.actor_type === "user" && actorId !== null;
-  const actorName = isUserActor ? (resolveActorName(actorId) ?? "Unknown user") : "Church Work";
+  // `labels_changed` resolves its variable-length label references through child
+  // components; every other event uses the pre-resolved `line`.
+  const isLabelsLine = activity.event_type === "task.labels_changed";
+  if (!isLabelsLine && !line) return null;
+
+  const glyph: ActivityGlyph = isLabelsLine ? "labels" : (line?.glyph ?? "generic");
+  const Icon = GLYPH_ICON[glyph];
+  const actorName = isUserActor ? (resolvedActorName ?? "Unknown user") : "Church Work";
   const occurredAt = activity.occurred_at;
   const absolute = new Date(occurredAt).toLocaleString();
 
@@ -461,7 +609,12 @@ function ActivityRow({
         </span>
       )}
       <p className="min-w-0 text-foreground/90 leading-5">
-        <span className="font-medium text-foreground">{actorName}</span> <span>{line.text}</span>
+        <span className="font-medium text-foreground">{actorName}</span>{" "}
+        {isLabelsLine ? (
+          <ActivityLabelsLine churchId={churchId} metadata={metadata} />
+        ) : (
+          <span>{line?.text}</span>
+        )}
         <span className="text-muted-foreground"> · {formatActivityTime(occurredAt, now)}</span>
       </p>
     </li>
@@ -476,8 +629,10 @@ function getCommentId(metadata: unknown): string | null {
 }
 
 function TaskCommentCard({
+  churchId,
   comment,
   currentUserId,
+  currentUserName,
   highlighted,
   highlightedCommentId,
   moderationViewer,
@@ -489,13 +644,14 @@ function TaskCommentCard({
   onUnsubscribeThread,
   onUpdate,
   replies,
-  resolveActorName,
   sourceTask,
   subscribed,
   title,
 }: {
+  readonly churchId: string | null;
   readonly comment: TaskCommentCollectionItem;
   readonly currentUserId: string | null;
+  readonly currentUserName: string | null;
   readonly highlighted: boolean;
   readonly highlightedCommentId: string | null;
   readonly moderationViewer: TaskCommentModerationViewer;
@@ -507,12 +663,15 @@ function TaskCommentCard({
   readonly onSubscribeThread: () => Promise<void>;
   readonly onUnsubscribeThread: () => Promise<void>;
   readonly replies: readonly TaskCommentCollectionItem[];
-  readonly resolveActorName: (userId: string) => string | null;
   readonly sourceTask: TaskCommentSourceTask;
   readonly subscribed: boolean;
   readonly title: string;
 }) {
-  const actorName = resolveActorName(comment.authored_by_user_id) ?? "Unknown user";
+  const resolvedActorName = useChurchUserName({
+    churchId,
+    userId: comment.authored_by_user_id,
+  });
+  const actorName = resolvedActorName ?? "Unknown user";
   const createdAt = comment.created_at ?? now;
   const [composing, setComposing] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -530,7 +689,7 @@ function TaskCommentCard({
   const createTaskFromComment = (parentTaskId: string | null) => {
     const prefill = buildTaskPrefillFromComment({
       actorName,
-      body: comment.body,
+      body: commentValueToPlainText(comment.body),
       parentTaskId,
       sourceTask,
     });
@@ -591,9 +750,14 @@ function TaskCommentCard({
             }}
           />
         ) : (
-          <p className="whitespace-pre-wrap break-words px-3 py-2.5 text-foreground/90 text-sm leading-relaxed">
-            {comment.body}
-          </p>
+          <DescriptionEditor
+            // The read-only editor reads its value only on mount, so key it on
+            // the body itself: an edit then remounts it with the new content.
+            key={`${comment.id}:${comment.updated_at ?? comment.created_at}`}
+            readOnly
+            className="px-3 py-2.5 text-foreground/90 text-sm leading-relaxed"
+            value={parseCommentValue(comment.body)}
+          />
         )}
 
         {hasReplies ? (
@@ -601,6 +765,7 @@ function TaskCommentCard({
             {replies.map((reply) => (
               <TaskCommentReply
                 key={reply.id}
+                churchId={churchId}
                 moderationViewer={moderationViewer}
                 now={now}
                 reply={reply}
@@ -609,7 +774,6 @@ function TaskCommentCard({
                 onCopyMarkdown={() => copyCommentMarkdown(reply.body)}
                 onCopyLink={() => copyTaskCommentLink(reply.id, "reply")}
                 onCreateTaskFromComment={onCreateTaskFromComment}
-                resolveActorName={resolveActorName}
                 sourceTask={sourceTask}
                 highlighted={highlightedCommentId === reply.id}
               />
@@ -621,9 +785,7 @@ function TaskCommentCard({
           {composing ? (
             <TaskCommentReplyComposer
               currentUserId={currentUserId}
-              currentUserName={
-                currentUserId ? (resolveActorName(currentUserId) ?? "Unknown user") : null
-              }
+              currentUserName={currentUserName}
               onCancel={() => setComposing(false)}
               onSubmit={async (reply) => {
                 await onReply(reply);
@@ -651,6 +813,7 @@ function TaskCommentCard({
 }
 
 function TaskCommentReply({
+  churchId,
   highlighted,
   moderationViewer,
   now,
@@ -660,9 +823,9 @@ function TaskCommentReply({
   onDelete,
   onUpdate,
   reply,
-  resolveActorName,
   sourceTask,
 }: {
+  readonly churchId: string | null;
   readonly now: number;
   readonly reply: TaskCommentCollectionItem;
   readonly moderationViewer: TaskCommentModerationViewer;
@@ -671,11 +834,14 @@ function TaskCommentReply({
   readonly onCopyMarkdown: () => Promise<void>;
   readonly onCopyLink: () => Promise<void>;
   readonly onCreateTaskFromComment: (prefill: TaskCommentTaskPrefill) => void;
-  readonly resolveActorName: (userId: string) => string | null;
   readonly sourceTask: TaskCommentSourceTask;
   readonly highlighted: boolean;
 }) {
-  const actorName = resolveActorName(reply.authored_by_user_id) ?? "Unknown user";
+  const resolvedActorName = useChurchUserName({
+    churchId,
+    userId: reply.authored_by_user_id,
+  });
+  const actorName = resolvedActorName ?? "Unknown user";
   const createdAt = reply.created_at ?? now;
   const [editing, setEditing] = useState(false);
   const isDeleted = reply.deleted_at !== null;
@@ -689,7 +855,7 @@ function TaskCommentReply({
   const createTaskFromReply = (parentTaskId: string | null) => {
     const prefill = buildTaskPrefillFromComment({
       actorName,
-      body: reply.body,
+      body: commentValueToPlainText(reply.body),
       parentTaskId,
       sourceTask,
     });
@@ -747,9 +913,14 @@ function TaskCommentReply({
             }}
           />
         ) : (
-          <p className="mt-0.5 whitespace-pre-wrap break-words text-foreground/90 text-sm leading-relaxed">
-            {reply.body}
-          </p>
+          <DescriptionEditor
+            // Key on the body so an edit remounts the read-only editor (it reads
+            // its value only on mount).
+            key={`${reply.id}:${reply.updated_at ?? reply.created_at}`}
+            readOnly
+            className="mt-0.5 text-foreground/90 text-sm leading-relaxed"
+            value={parseCommentValue(reply.body)}
+          />
         )}
       </div>
     </li>
@@ -819,7 +990,9 @@ function EditedMarker({
 
 async function copyCommentMarkdown(body: string) {
   try {
-    await navigator.clipboard.writeText(body);
+    // Bodies are serialized Plate JSON — copy the flattened, readable text
+    // (mentions render as their label) rather than the raw JSON.
+    await navigator.clipboard.writeText(commentValueToPlainText(body));
     toast.success("Copied comment as Markdown.");
   } catch (error) {
     toast.error(error instanceof Error ? error.message : "Could not copy comment.");
@@ -1069,14 +1242,21 @@ function CommentEditComposer({
   readonly onSubmit: (body: string) => Promise<void>;
 }) {
   const [focused, setFocused] = useState(false);
+  // Re-serialize the stored body through the same value pipeline so the
+  // change-detection compares like-for-like JSON (the stored row may be legacy
+  // plain text or differently-formatted JSON than the editor emits).
+  const initialValue = useMemo(() => parseCommentValue(initialBody), [initialBody]);
+  const normalizedInitialBody = useMemo(
+    () => serializeCommentValue(initialValue) ?? "",
+    [initialValue],
+  );
   const form = useAppForm({
-    defaultValues: { body: initialBody },
+    defaultValues: { body: normalizedInitialBody },
     onSubmit: async ({ value }) => {
-      const trimmed = value.body.trim();
-      if (trimmed.length === 0 || trimmed === initialBody.trim()) return;
+      if (value.body.length === 0 || value.body === normalizedInitialBody) return;
 
       try {
-        await onSubmit(trimmed);
+        await onSubmit(value.body);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Could not save changes.");
       }
@@ -1095,12 +1275,13 @@ function CommentEditComposer({
       >
         <form.Field name="body">
           {(field) => (
-            <Textarea
-              aria-label="Edit comment"
+            <DescriptionEditor
               autoFocus
-              className="min-h-16 resize-y border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
+              ariaLabel="Edit comment"
+              className="min-h-16"
+              contentClassName="text-sm"
               onBlur={() => setFocused(false)}
-              onChange={(event) => field.handleChange(event.target.value)}
+              onChange={(value) => field.handleChange(serializeCommentValue(value) ?? "")}
               onFocus={() => setFocused(true)}
               onKeyDown={(event) => {
                 if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
@@ -1113,20 +1294,19 @@ function CommentEditComposer({
                   onCancel();
                 }
               }}
-              value={field.state.value}
+              value={initialValue}
             />
           )}
         </form.Field>
         <div className="mt-1 flex items-center justify-end gap-1">
           <form.Subscribe
-            selector={(state) => {
-              const trimmed = state.values.body.trim();
-              return {
-                canSubmit:
-                  trimmed.length > 0 && trimmed !== initialBody.trim() && !state.isSubmitting,
-                isSubmitting: state.isSubmitting,
-              };
-            }}
+            selector={(state) => ({
+              canSubmit:
+                state.values.body.length > 0 &&
+                state.values.body !== normalizedInitialBody &&
+                !state.isSubmitting,
+              isSubmitting: state.isSubmitting,
+            })}
           >
             {({ canSubmit, isSubmitting }) => (
               <>
@@ -1175,11 +1355,11 @@ function TaskCommentReplyComposer({
   const form = useAppForm({
     defaultValues: { body: "" },
     onSubmit: async ({ value }) => {
-      const trimmed = value.body.trim();
-      if (!canReply || trimmed.length === 0) return;
+      // `body` holds serialized Plate JSON; an empty document serializes to "".
+      if (!canReply || value.body.length === 0) return;
 
       try {
-        await onSubmit(trimmed);
+        await onSubmit(value.body);
         form.reset();
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Could not add reply.");
@@ -1207,13 +1387,14 @@ function TaskCommentReplyComposer({
       >
         <form.Field name="body">
           {(field) => (
-            <Textarea
-              aria-label="Add a reply"
+            <DescriptionEditor
               autoFocus
-              className="min-h-9 resize-y border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
+              ariaLabel="Add a reply"
+              className="min-h-9"
+              contentClassName="text-sm"
               disabled={!canReply}
               onBlur={() => setFocused(false)}
-              onChange={(event) => field.handleChange(event.target.value)}
+              onChange={(value) => field.handleChange(serializeCommentValue(value) ?? "")}
               onFocus={() => setFocused(true)}
               onKeyDown={(event) => {
                 if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
@@ -1223,13 +1404,13 @@ function TaskCommentReplyComposer({
                 }
                 // Escape abandons the reply when the field is empty so the card
                 // collapses back to its compact "Reply" affordance.
-                if (event.key === "Escape" && field.state.value.trim().length === 0) {
+                if (event.key === "Escape" && field.state.value.length === 0) {
                   event.preventDefault();
                   onCancel();
                 }
               }}
               placeholder={canReply ? "Leave a reply..." : "Sign in to reply"}
-              value={field.state.value}
+              value={EMPTY_COMMENT_VALUE}
             />
           )}
         </form.Field>
@@ -1241,7 +1422,7 @@ function TaskCommentReplyComposer({
             </Button>
             <form.Subscribe
               selector={(state) => ({
-                canSubmit: canReply && state.values.body.trim().length > 0 && !state.isSubmitting,
+                canSubmit: canReply && state.values.body.length > 0 && !state.isSubmitting,
                 isSubmitting: state.isSubmitting,
               })}
             >
@@ -1268,24 +1449,26 @@ function TaskCommentReplyComposer({
 
 function ActivityCommentComposer({
   currentUserId,
-  currentUserName,
   onSubmit,
 }: {
   readonly currentUserId: string | null;
-  readonly currentUserName: string | null;
   readonly onSubmit: (body: string) => Promise<void>;
 }) {
   const [focused, setFocused] = useState(false);
+  // The Plate editor is uncontrolled (it reads `value` only on mount), so we
+  // remount it on a key bump to clear it after a successful submit.
+  const [composerKey, setComposerKey] = useState(0);
   const canComment = currentUserId !== null;
   const form = useAppForm({
     defaultValues: { body: "" },
     onSubmit: async ({ value }) => {
-      const trimmed = value.body.trim();
-      if (!canComment || trimmed.length === 0) return;
+      // `body` holds serialized Plate JSON; an empty document serializes to "".
+      if (!canComment || value.body.length === 0) return;
 
       try {
-        await onSubmit(trimmed);
+        await onSubmit(value.body);
         form.reset();
+        setComposerKey((key) => key + 1);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Could not add comment.");
       }
@@ -1295,29 +1478,27 @@ function ActivityCommentComposer({
   const submit = () => form.handleSubmit();
 
   return (
-    <div className="flex items-start gap-2.5">
-      {currentUserId ? (
-        <UserAvatar
-          className="mt-0.5 hidden shrink-0 sm:block"
-          name={currentUserName}
-          size={28}
-          userId={currentUserId}
-        />
-      ) : null}
+    <div className="flex items-start">
       <div
         className={cn(
-          "min-w-0 flex-1 rounded-lg border bg-card p-2 transition-colors",
+          "min-w-0 flex-1 rounded-lg border bg-card px-3 py-2.5 transition-colors",
           focused && "border-ring ring-3 ring-ring/50",
         )}
       >
+        {/* Inset the editable content so the `@` chip's focus ring (and the
+          mention popover anchored to it) isn't clipped by the editor's left
+          edge, then pull the editor back by the same amount so the text still
+          lines up with the composer's footer below. */}
         <form.Field name="body">
           {(field) => (
-            <Textarea
-              aria-label="Add a comment"
-              className="min-h-20 resize-y border-0 bg-transparent p-1 shadow-none focus-visible:ring-0"
+            <DescriptionEditor
+              key={composerKey}
+              ariaLabel="Add a comment"
+              className="-mx-3 min-h-16"
+              contentClassName="px-3 text-sm"
               disabled={!canComment}
               onBlur={() => setFocused(false)}
-              onChange={(event) => field.handleChange(event.target.value)}
+              onChange={(value) => field.handleChange(serializeCommentValue(value) ?? "")}
               onFocus={() => setFocused(true)}
               onKeyDown={(event) => {
                 if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
@@ -1326,7 +1507,7 @@ function ActivityCommentComposer({
                 }
               }}
               placeholder={canComment ? "Leave a comment..." : "Sign in to leave a comment"}
-              value={field.state.value}
+              value={EMPTY_COMMENT_VALUE}
             />
           )}
         </form.Field>
@@ -1334,21 +1515,21 @@ function ActivityCommentComposer({
           <AttachmentStubButton ariaLabel="Attach file to comment" size="icon-sm" />
           <form.Subscribe
             selector={(state) => ({
-              canSubmit: canComment && state.values.body.trim().length > 0 && !state.isSubmitting,
+              canSubmit: canComment && state.values.body.length > 0 && !state.isSubmitting,
               isSubmitting: state.isSubmitting,
             })}
           >
             {({ canSubmit, isSubmitting }) => (
               <Button
                 aria-label="Comment"
+                className="rounded-full"
                 disabled={!canSubmit}
                 loading={isSubmitting}
                 onClick={() => void submit()}
-                size="sm"
+                size="icon-sm"
                 type="button"
               >
-                Comment
-                <Kbd className="ml-1.5">mod enter</Kbd>
+                <ArrowUp />
               </Button>
             )}
           </form.Subscribe>
@@ -1370,12 +1551,3 @@ function ActivityFeedSkeleton() {
     </div>
   );
 }
-
-const parseMetadata = (raw: string | null | undefined): unknown => {
-  if (!raw) return {};
-  try {
-    return JSON.parse(raw) as unknown;
-  } catch {
-    return {};
-  }
-};

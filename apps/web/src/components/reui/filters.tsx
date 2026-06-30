@@ -47,6 +47,7 @@ import {
 import { Kbd } from "@/components/ui/kbd";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { AlertCircleIcon, Cancel01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
 
@@ -1276,26 +1277,21 @@ export function Filters<T = unknown>({
   const rootInputRef = useRef<HTMLInputElement>(null);
   const rootId = useId();
 
-  useEffect(() => {
-    if (!enableShortcut) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.key.toLowerCase() === shortcutKey.toLowerCase() &&
-        !addFilterOpen &&
-        !(
-          document.activeElement instanceof HTMLInputElement ||
-          document.activeElement instanceof HTMLTextAreaElement
-        )
-      ) {
-        e.preventDefault();
-        setAddFilterOpen(true);
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [enableShortcut, shortcutKey, addFilterOpen]);
+  // Register through the shared @tanstack/hotkeys manager so this shortcut
+  // behaves like every other one in the app. `ignoreInputs` defaults to true
+  // for single keys, so the manager skips firing while focus is in an
+  // <input>, <textarea>, <select>, or contentEditable (e.g. the Plate
+  // description editor in the create dialog) — no manual target guard needed.
+  useHotkey(
+    // `shortcutKey` is a free-form string prop, so pass it via RawHotkey (whose
+    // `key` accepts any string) rather than the type-safe Hotkey union.
+    { key: shortcutKey },
+    () => {
+      if (addFilterOpen) return;
+      setAddFilterOpen(true);
+    },
+    { enabled: enableShortcut, preventDefault: true },
+  );
 
   useEffect(() => {
     if (addFilterOpen && activeMenu === "root") {

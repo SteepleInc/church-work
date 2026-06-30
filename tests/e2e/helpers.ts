@@ -256,6 +256,19 @@ export async function stepperNext(page: Page) {
   await page.getByRole("button", { exact: true, name: "Next" }).click();
 }
 
+/**
+ * Adds a Template Task on the Tasks step of the create-Template flow. A Template
+ * Task only counts as "placed" once it carries both a title and a Team (the
+ * first Task no longer auto-selects a Team), so this fills the title and picks
+ * the seeded Team before closing the inline editor.
+ */
+export async function addTemplateTask(page: Page, title: string, team = "Worship") {
+  await page.getByRole("button", { name: "Add Template Task" }).first().click();
+  await page.getByPlaceholder("Add task title").fill(title);
+  await page.getByRole("combobox", { name: "Change team" }).click();
+  await page.getByRole("option", { name: team }).click();
+}
+
 export async function dragTaskCardToStatus(page: Page, taskTitle: string, statusName: string) {
   const taskCard = page.getByLabel(`Task card ${taskTitle}`);
   const destination = page.getByLabel(`${statusName} Tasks`);

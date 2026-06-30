@@ -1013,6 +1013,77 @@ const taskCommentSubscriptionsTable = {
   },
   primaryKey: ["id"],
 } as const;
+const taskMentionsTable = {
+  name: "task_mentions",
+  columns: {
+    id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    _tag: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    created_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    created_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    updated_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    updated_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    deleted_at: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+    },
+    deleted_by: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    church_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    source_task_id: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    mention_kind: {
+      type: "string",
+      optional: false,
+      customType: null as unknown as string,
+    },
+    target_user_id: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+    target_task_id: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+    },
+  },
+  primaryKey: ["id"],
+} as const;
 const taskCommentsTable = {
   name: "task_comments",
   columns: {
@@ -1964,6 +2035,7 @@ export const schema = {
     organization: organizationTable,
     task_comment_subscriptions: taskCommentSubscriptionsTable,
     task_comments: taskCommentsTable,
+    task_mentions: taskMentionsTable,
     tasks: tasksTable,
     team_memberships: teamMembershipsTable,
     teams: teamsTable,
@@ -2055,6 +2127,11 @@ export type TaskCommentSubscription = Row<(typeof schema)["tables"]["task_commen
  * This type is auto-generated from your Drizzle schema definition.
  */
 export type TaskComment = Row<(typeof schema)["tables"]["task_comments"]>;
+/**
+ * Represents a row from the "task_mentions" table.
+ * This type is auto-generated from your Drizzle schema definition.
+ */
+export type TaskMention = Row<(typeof schema)["tables"]["task_mentions"]>;
 /**
  * Represents a row from the "tasks" table.
  * This type is auto-generated from your Drizzle schema definition.

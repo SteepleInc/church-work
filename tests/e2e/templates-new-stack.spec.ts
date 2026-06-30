@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import {
+  addTemplateTask,
   openTemplateCreate,
   selectTemplateShape,
   signInAndCompleteOnboarding,
@@ -43,8 +44,7 @@ test("authors and schedules a weekly service Template", async ({ page }, testInf
   await stepperNext(page);
 
   // Step 2: Tasks.
-  await page.getByRole("button", { name: "Add Template Task" }).first().click();
-  await page.getByPlaceholder("Add task title").fill("Plan worship set");
+  await addTemplateTask(page, "Plan worship set");
   await expect(page.getByText("1 Template Task")).toBeVisible();
   await stepperNext(page);
 
@@ -115,8 +115,7 @@ test("soft-deletes and restores a scheduled Template from the Library", async ({
   await page.getByLabel("Template name").fill("Template To Restore");
   await page.getByRole("button", { exact: true, name: "Sun" }).click();
   await stepperNext(page);
-  await page.getByRole("button", { name: "Add Template Task" }).first().click();
-  await page.getByPlaceholder("Add task title").fill("Prepare restoration plan");
+  await addTemplateTask(page, "Prepare restoration plan");
   await stepperNext(page);
   await page.getByRole("button", { name: "Save and schedule" }).click();
   await expect(page.getByText(/Template saved/)).toBeVisible({ timeout: 20_000 });
@@ -164,8 +163,7 @@ test("duplicates a scheduled Template from the Library", async ({ page }, testIn
   await page.getByLabel("Template name").fill("Template To Duplicate");
   await page.getByRole("button", { exact: true, name: "Sun" }).click();
   await stepperNext(page);
-  await page.getByRole("button", { name: "Add Template Task" }).first().click();
-  await page.getByPlaceholder("Add task title").fill("Prepare duplicate plan");
+  await addTemplateTask(page, "Prepare duplicate plan");
   await stepperNext(page);
   await page.getByRole("button", { name: "Save and schedule" }).click();
   await expect(page.getByText(/Template saved/)).toBeVisible({ timeout: 20_000 });
@@ -214,8 +212,7 @@ test("authors and schedules a Key Date Template", async ({ page }, testInfo) => 
   await stepperNext(page);
 
   // Step 2: Tasks.
-  await page.getByRole("button", { name: "Add Template Task" }).first().click();
-  await page.getByPlaceholder("Add task title").fill("Prepare Easter volunteers");
+  await addTemplateTask(page, "Prepare Easter volunteers");
   await expect(page.getByText("1 Template Task")).toBeVisible();
   await stepperNext(page);
 
@@ -249,8 +246,7 @@ test("authors a monthly period Template shape", async ({ page }, testInfo) => {
   await stepperNext(page);
 
   // Step 2: Tasks.
-  await page.getByRole("button", { name: "Add Template Task" }).first().click();
-  await page.getByPlaceholder("Add task title").fill("Prepare monthly report");
+  await addTemplateTask(page, "Prepare monthly report");
   await expect(page.getByText("1 Template Task")).toBeVisible();
   await stepperNext(page);
 

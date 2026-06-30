@@ -38,7 +38,7 @@ const parsePreviousIdentifiers = (value: string): readonly string[] => {
   }
 };
 
-const mapTeam = (team: Team): TeamCollectionItem => ({
+export const mapTeam = (team: Team): TeamCollectionItem => ({
   color: team.color,
   id: team.id,
   identifier: team.identifier,

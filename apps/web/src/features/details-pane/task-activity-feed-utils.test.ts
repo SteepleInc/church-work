@@ -127,6 +127,46 @@ describe("describeActivity", () => {
     ).toBe("removed the Worship label");
   });
 
+  test("renders user mentions with the live name", () => {
+    const line = describeActivity(
+      "task.mentioned",
+      { mention_kind: "user", mentioned_user_id: "user_ankit" },
+      resolvers,
+    );
+    expect(line?.glyph).toBe("mention");
+    expect(line?.text).toBe("mentioned Ankit Varshney");
+  });
+
+  test("falls back when the mentioned user no longer resolves", () => {
+    expect(
+      describeActivity(
+        "task.mentioned",
+        { mention_kind: "user", mentioned_user_id: "user_gone" },
+        resolvers,
+      )?.text,
+    ).toBe("mentioned someone");
+  });
+
+  test("renders task backlinks preferring the source identifier", () => {
+    const line = describeActivity(
+      "task.mentioned_in",
+      { source: { id: "task_1", identifier: "KIDS-12", label: "Plan Sunday" } },
+      resolvers,
+    );
+    expect(line?.glyph).toBe("mentioned_in");
+    expect(line?.text).toBe("was mentioned in KIDS-12");
+  });
+
+  test("falls back to the source title when a backlink has no identifier", () => {
+    expect(
+      describeActivity(
+        "task.mentioned_in",
+        { source: { id: "task_1", identifier: null, label: "Plan Sunday" } },
+        resolvers,
+      )?.text,
+    ).toBe("was mentioned in Plan Sunday");
+  });
+
   test("does not surface internal or unknown events", () => {
     expect(describeActivity("task.updated", { updated_fields: ["board_order"] }, resolvers)).toBe(
       null,

@@ -62,6 +62,24 @@ export function useChurchUsersCollection(params: { readonly churchId: string | n
 }
 
 /**
+ * Resolves a single Church member's display name by user id. Reads the active
+ * org's member identities (loaded app-wide via Better Auth, not a Zero
+ * collection), so this is a cheap per-row lookup for naming the actor/subject of
+ * an Activity Feed line. Returns `null` for an unknown user so callers can fall
+ * back to a snapshot label.
+ */
+export function useChurchUserName(params: {
+  readonly churchId: string | null;
+  readonly userId: string | null;
+}): string | null {
+  const { usersCollection } = useChurchUsersCollection({ churchId: params.churchId });
+
+  if (params.userId === null) return null;
+  const user = usersCollection.find((candidate) => candidate.id === params.userId);
+  return user ? getUserDisplayName(user) : null;
+}
+
+/**
  * The rich Member identity the assignee hover card renders: avatar, name, an
  * email/username subtitle, the org Role, and the Member's Teams. Mirrors
  * Linear's profile popover with the fields we actually track (presence + local

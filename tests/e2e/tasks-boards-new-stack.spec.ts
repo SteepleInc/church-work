@@ -103,7 +103,16 @@ test("creates, assigns, moves, and preserves Task board state on the local Postg
   // shortcuts render directly beneath it once the Team is expanded.
   await worshipTeamItem.getByRole("link", { name: "Weeks" }).click();
   await expect(page).toHaveURL(new RegExp(`${escapeRegExp(teamPath)}/weeks(?:\\?|$)`));
-  await expect(page.getByRole("heading", { name: "Weeks" })).toBeVisible({ timeout: 20_000 });
+  // The Weeks index keeps its title in the header breadcrumb (Linear-style),
+  // not an in-page heading: confirm the page rendered via the "Team › Weeks"
+  // breadcrumb's current-page segment, scoped to the main content's breadcrumb
+  // nav so it doesn't match the sidebar's "Weeks" link.
+  await expect(
+    page
+      .getByRole("main")
+      .getByRole("navigation", { name: "Breadcrumb" })
+      .getByText("Weeks", { exact: true }),
+  ).toBeVisible({ timeout: 20_000 });
   await worshipTeamItem.getByRole("link", { name: "Current" }).click();
   await expect(page).toHaveURL(teamPathPattern);
   await expectSearchParam(page, "week", "current");
@@ -353,4 +362,75 @@ test("creates, assigns, moves, and preserves Task board state on the local Postg
   await expectSearchParam(page, "week", "current");
   await expect(page.getByRole("navigation", { name: "Week" })).toBeVisible({ timeout: 20_000 });
   await expect(taskCard(page, sharedTaskTitle)).toBeVisible({ timeout: 20_000 });
+});
+
+// The title and description in the create dialog read as one surface (Linear):
+// arrowing down past the title drops into the description, and arrowing up from
+// the top of the description returns to the title — no clicking between fields.
+test("title and description arrow-navigate as one surface in the create dialog", async ({
+  page,
+}, testInfo) => {
+  const suffix = `${Date.now()}-${testInfo.workerIndex}`;
+  await startAuthenticatedSession(page, {
+    churchName: `E2E Seam Church ${suffix}`,
+    email: `tasks-seam-${suffix}@example.com`,
+    userName: "E2E Seam Owner",
+  });
+
+  await page.getByRole("main").getByRole("button", { name: "Create Task" }).click();
+  const dialog = page.getByRole("dialog", { name: /New Task/ });
+  await expect(dialog).toBeVisible();
+
+  const title = dialog.getByRole("textbox", { name: "Task title" });
+  const description = dialog.getByRole("textbox", { name: "Add description" });
+  // The title autofocuses; type into it, then ArrowDown should cross the seam
+  // into the description without ever touching the description directly.
+  await expect(title).toBeFocused();
+  await title.pressSequentially("Seam title");
+  await title.press("ArrowDown");
+  await expect(description).toBeFocused();
+
+  // Typing lands in the description, proving focus actually crossed the seam.
+  await page.keyboard.type("Body line");
+  await expect(description).toContainText("Body line");
+
+  // ArrowUp from the first (here, only) line of the description returns to the
+  // title with the caret at its end — the seam works in both directions.
+  await description.press("ArrowUp");
+  await expect(title).toBeFocused();
+  // Caret sits at the end of the title, so typing appends.
+  await page.keyboard.type("!");
+  await expect(title).toHaveValue("Seam title!");
+});
+
+test("single-key board shortcuts stay out of the description editor", async ({
+  page,
+}, testInfo) => {
+  const suffix = `${Date.now()}-${testInfo.workerIndex}`;
+  await startAuthenticatedSession(page, {
+    churchName: `E2E Shortcut Church ${suffix}`,
+    email: `tasks-shortcut-${suffix}@example.com`,
+    userName: "E2E Shortcut Owner",
+  });
+
+  await page.getByRole("main").getByRole("button", { name: "Create Task" }).click();
+  const dialog = page.getByRole("dialog", { name: /New Task/ });
+  await expect(dialog).toBeVisible();
+
+  const description = dialog.getByRole("textbox", { name: "Add description" });
+  await description.click();
+  await expect(description).toBeFocused();
+
+  // "f" (board filter) and "c" (create task) are global single-key shortcuts.
+  // While the contentEditable description is focused they must type literally,
+  // not trigger their actions — the @tanstack/hotkeys manager skips them in
+  // editable targets. Without that, "f" opened the filter menu mid-typing.
+  await page.keyboard.type("fancy code");
+
+  // No filter menu opened (its search field carries the "Add filter..." copy).
+  await expect(page.getByPlaceholder("Add filter...")).toHaveCount(0);
+  // No second create dialog stacked on top from the "c" shortcut.
+  await expect(dialog).toHaveCount(1);
+  // The characters landed in the description instead.
+  await expect(description).toContainText("fancy code");
 });

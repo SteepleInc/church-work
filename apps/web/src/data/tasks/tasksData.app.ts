@@ -414,7 +414,7 @@ const buildMaterializedTaskSourceBadge = (
     : null;
 };
 
-const mapTask = (
+export const mapTask = (
   task: Task,
   teamsById: ReadonlyMap<string, Team>,
   schedulesById: ReadonlyMap<string, TemplateSchedule> = new Map(),

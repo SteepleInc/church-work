@@ -1,7 +1,7 @@
-import { createHotkeyHandler } from "@tanstack/hotkeys";
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtom, useAtomValue } from "jotai";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 
 import {
   CommandDialog,
@@ -32,14 +32,6 @@ import {
 } from "@/features/quick-actions/quick-actions-utils";
 import type { QuickActionDefinition } from "@/features/quick-actions/quick-actions-types";
 
-// Avoid hijacking the shortcut while the user is typing in a field.
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  if (target.isContentEditable) return true;
-  const tag = target.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
-}
-
 export function QuickActions() {
   const [quickActionsIsOpen, setQuickActionsIsOpen] = useAtom(quickActionsIsOpenAtom);
   const disableQuickActions = useAtomValue(disableQuickActionsAtom);
@@ -53,38 +45,22 @@ export function QuickActions() {
     openInviteMember,
   } = useQuickActionOpeners();
 
-  useEffect(() => {
-    if (disableQuickActions) return;
+  // Mod+K toggles the command palette. As a Meta/Ctrl shortcut it defaults to
+  // `ignoreInputs: false`, so it still fires while the user is typing in a field.
+  useHotkey("Mod+K", () => setQuickActionsIsOpen((isOpen) => !isOpen), {
+    enabled: !disableQuickActions,
+    preventDefault: true,
+    requireReset: true,
+  });
 
-    const handler = createHotkeyHandler(
-      "Mod+K",
-      (event) => {
-        if (event.repeat) return;
-        setQuickActionsIsOpen((isOpen) => !isOpen);
-      },
-      { preventDefault: true },
-    );
-
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [disableQuickActions, setQuickActionsIsOpen]);
-
-  // Linear-style "C" opens Create Task from anywhere, unless the user is
-  // typing in a field (inputs, textareas, content-editable).
-  useEffect(() => {
-    if (disableQuickActions) return;
-
-    const handler = (event: KeyboardEvent) => {
-      if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
-      if (event.key.toLowerCase() !== "c") return;
-      if (isEditableTarget(event.target)) return;
-      event.preventDefault();
-      openCreateTask();
-    };
-
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [disableQuickActions, openCreateTask]);
+  // Linear-style "C" opens Create Task from anywhere. As a single key it
+  // defaults to `ignoreInputs: true`, so the manager skips it while the user is
+  // typing in an input, textarea, or contentEditable.
+  useHotkey("C", () => openCreateTask(), {
+    enabled: !disableQuickActions,
+    preventDefault: true,
+    requireReset: true,
+  });
 
   const activeChurchId = activeChurch?.id ?? null;
   const actions = useMemo(

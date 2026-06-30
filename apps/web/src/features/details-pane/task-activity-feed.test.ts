@@ -34,11 +34,23 @@ describe("TaskActivityFeed task comments", () => {
     expect(source).toContain("mod enter");
   });
 
-  test("renders top-level comments as cards that preserve plain-text formatting", () => {
+  test("composes comments with the shared rich-text editor", () => {
+    // All three composers exchange serialized Plate JSON via the shared editor
+    // (rich text, "/" slash menu, "@" mentions) instead of a plain textarea.
+    expect(source).toContain("<DescriptionEditor");
+    expect(source).toContain("serializeCommentValue(value)");
+    expect(source).not.toContain("<Textarea");
+  });
+
+  test("renders top-level comments as cards using the read-only rich-text editor", () => {
     expect(source).toContain('activity.event_type === "comment_created"');
     expect(source).toContain("comment_id");
     expect(source).toContain("rounded-lg border bg-card shadow-xs");
-    expect(source).toContain("whitespace-pre-wrap break-words");
+    // Bodies are serialized Plate JSON, rendered through the shared editor in
+    // read-only mode (handles mentions + legacy plain text) rather than a raw
+    // <p> with whitespace-pre-wrap.
+    expect(source).toContain("<DescriptionEditor");
+    expect(source).toContain("value={parseCommentValue(comment.body)}");
   });
 
   test("renders one-level replies inside the parent comment card", () => {
@@ -89,9 +101,10 @@ describe("TaskActivityFeed task comments", () => {
   test("edits comments inline instead of using a native prompt", () => {
     expect(source).not.toContain("window.prompt");
     expect(source).toContain("function CommentEditComposer");
-    expect(source).toContain('aria-label="Edit comment"');
-    // The inline editor only saves a genuinely changed body.
-    expect(source).toContain("trimmed === initialBody.trim()");
+    expect(source).toContain('ariaLabel="Edit comment"');
+    // The inline editor only saves a genuinely changed body, comparing
+    // re-serialized JSON so legacy/format differences don't read as edits.
+    expect(source).toContain("state.values.body !== normalizedInitialBody");
   });
 
   test("drives comment, reply, and edit body state through TanStack Form", () => {
@@ -227,9 +240,23 @@ describe("TaskActivityFeed task comments", () => {
       sourceTask,
     });
     expect(prefill?.title).toBe("Fix the projector");
-    expect(prefill?.description).toContain("@Pastor Sam said in CT-42 Plan the welcome service");
-    expect(prefill?.description).toContain("> Fix the projector");
-    expect(prefill?.description).toContain("> It flickers during worship");
+
+    // The prefill description is serialized Plate JSON: an attribution
+    // paragraph plus a blockquote of the (trimmed) comment text.
+    const description = JSON.parse(prefill?.description ?? "null") as Array<{
+      type: string;
+      children: unknown[];
+    }>;
+    expect(description[0]).toEqual({
+      type: "p",
+      children: [{ text: "@Pastor Sam said in CT-42 Plan the welcome service:" }],
+    });
+    expect(description[1]).toEqual({
+      type: "blockquote",
+      children: [
+        { type: "p", children: [{ text: "Fix the projector  \nIt flickers during worship" }] },
+      ],
+    });
     expect(prefill?.assignTo).toBe(sourceTask.assignedUserId);
   });
 

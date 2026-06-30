@@ -1,9 +1,9 @@
 import { Settings01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { createSequenceMatcher } from "@tanstack/hotkeys";
+import { useHotkey, useHotkeySequence } from "@tanstack/react-hotkeys";
 import { useNavigate } from "@tanstack/react-router";
 import { LogOutIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { CheckCircleIcon } from "@/components/icons/checkCircleIcon";
 import { ChevronDownIcon } from "@/components/icons/chevronDownIcon";
@@ -39,7 +39,6 @@ import { type OrgCollectionItem, useUserOrgsCollection } from "@/data/orgs/orgsD
 import { useOrgId } from "@/data/useOrgId";
 import { clearIntentionalSignOut, markIntentionalSignOut } from "@/features/auth/sign-out-routing";
 import { authClient } from "@/lib/auth-client";
-import { isEditableShortcutTarget } from "@/lib/keyboard-shortcuts";
 
 export function OrgSwitcher() {
   const navigate = useNavigate();
@@ -70,56 +69,20 @@ export function OrgSwitcher() {
   };
 
   // Linear-style sequence shortcuts: "G then S" opens Settings, "O then W"
-  // opens the Switch workspace submenu. Skipped while typing in a field.
-  useEffect(() => {
-    const settingsMatcher = createSequenceMatcher(["G", "S"], { timeout: 1000 });
-    const switchMatcher = createSequenceMatcher(["O", "W"], { timeout: 1000 });
+  // opens the Switch workspace submenu. As sequences they default to
+  // `ignoreInputs: true`, so they're skipped while typing in a field.
+  useHotkeySequence(["G", "S"], () => {
+    setOpen(false);
+    goToSettings();
+  });
+  useHotkeySequence(["O", "W"], () => {
+    setOpen(true);
+    setSwitchOpen(true);
+  });
 
-    const handler = (event: KeyboardEvent) => {
-      if (event.repeat || isEditableShortcutTarget(event.target)) {
-        return;
-      }
-      if (event.metaKey || event.ctrlKey || event.altKey) {
-        return;
-      }
-
-      if (settingsMatcher.match(event)) {
-        event.preventDefault();
-        setOpen(false);
-        goToSettings();
-        return;
-      }
-
-      if (switchMatcher.match(event)) {
-        event.preventDefault();
-        setOpen(true);
-        setSwitchOpen(true);
-      }
-    };
-
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, []);
-
-  // Linear-style "Option+Shift+Q" logs out from anywhere.
-  useEffect(() => {
-    const handler = (event: KeyboardEvent) => {
-      if (event.repeat || isEditableShortcutTarget(event.target)) {
-        return;
-      }
-      if (!(event.altKey && event.shiftKey)) {
-        return;
-      }
-      if (event.key.toLowerCase() !== "q") {
-        return;
-      }
-      event.preventDefault();
-      void signOut();
-    };
-
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, []);
+  // Linear-style "Option+Shift+Q" logs out from anywhere. event.code matching in
+  // the manager makes this fire regardless of the Option-remapped character.
+  useHotkey("Alt+Shift+Q", () => void signOut(), { preventDefault: true });
 
   if (currentOrgLoading && !currentOrgOpt) {
     return (

@@ -1,4 +1,4 @@
-import { createHotkeyHandler } from "@tanstack/hotkeys";
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtom, useSetAtom } from "jotai";
 import { Building2Icon, ListTodoIcon, SettingsIcon, UserIcon, UsersIcon } from "lucide-react";
@@ -21,11 +21,14 @@ import {
   QuickActionsWrapper,
 } from "@/features/quick-actions/quick-actions-components";
 import { disableQuickActionsAtom } from "@/features/quick-actions/quick-actions-state";
+import { useIsEditorFocused } from "@/lib/editor-focus";
 
 export function GlobalSearch() {
   const [globalSearchIsOpen, setGlobalSearchIsOpen] = useAtom(globalSearchIsOpenAtom);
   const setDisableQuickActions = useSetAtom(disableQuickActionsAtom);
   const navigate = useNavigate();
+
+  const isEditorFocused = useIsEditorFocused();
   const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
   const teams = useTeamsCollection({ churchId: activeChurch?.id ?? null });
   const users = useChurchUsersCollection({ churchId: activeChurch?.id ?? null });
@@ -34,19 +37,23 @@ export function GlobalSearch() {
     currentUserId: activeChurch?.currentUserId ?? null,
   });
 
-  useEffect(() => {
-    const handler = createHotkeyHandler(
-      GLOBAL_SEARCH_SHORTCUT,
-      (event) => {
-        if (event.repeat || isEditableKeyboardTarget(event.target)) return;
-        setGlobalSearchIsOpen((isOpen) => !isOpen);
-      },
-      { preventDefault: true },
-    );
-
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [setGlobalSearchIsOpen]);
+  // A bare "/" toggles global search. We can't let the manager preventDefault
+  // up front: if "/" were swallowed while a rich-text editor was focused, no
+  // character would be typed. So we keep `preventDefault`/`stopPropagation` off
+  // and `ignoreInputs` off, then decide ourselves — skip entirely while an
+  // editor is focused (or any editable target), otherwise open search and
+  // prevent the default. `useHotkey` re-syncs this callback every render, so
+  // `isEditorFocused` is always current without a ref.
+  useHotkey(
+    GLOBAL_SEARCH_SHORTCUT,
+    (event) => {
+      if (event.repeat) return;
+      if (isEditorFocused || isEditableKeyboardTarget(event.target)) return;
+      event.preventDefault();
+      setGlobalSearchIsOpen((isOpen) => !isOpen);
+    },
+    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+  );
 
   useEffect(() => {
     setDisableQuickActions(globalSearchIsOpen);
