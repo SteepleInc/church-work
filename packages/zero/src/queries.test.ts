@@ -121,6 +121,22 @@ describe("Zero product queries", () => {
     ).toThrow("App Administrator access required.");
   });
 
+  test("derives Draft query scope from the signed-in session", () => {
+    expect(() =>
+      mustGetQuery(queries, "drafts.my_active").fn({
+        ctx: { authenticated: false, runtime: "server" },
+      }),
+    ).toThrow("Authentication required.");
+
+    expect(() =>
+      mustGetQuery(queries, "drafts.my_active").fn({ ctx: memberContext }),
+    ).not.toThrow();
+
+    expect(() =>
+      mustGetQuery(queries, "drafts.by_id").fn({ args: { id: "draft_123" }, ctx: memberContext }),
+    ).not.toThrow();
+  });
+
   test("rejects cross-Church product collection queries for normal members", () => {
     for (const name of churchScopedQueryNames) {
       expect(() =>
