@@ -421,12 +421,20 @@ export function TemplateAuthoringFlow({
   onShapeChange,
   onStepChange,
   onClose,
+  onDirtyChange,
 }: {
   readonly shape: TemplateShape;
   readonly step: number;
   readonly onShapeChange: (shape: TemplateShape) => void;
   readonly onStepChange: (step: number) => void;
   readonly onClose: () => void;
+  /**
+   * Reports whether the in-progress Template carries unsaved edits (a name,
+   * description, or any placed Template Task) so the big action can confirm
+   * before discarding on close. Pristine flows report `false` and close
+   * without a prompt.
+   */
+  readonly onDirtyChange?: (dirty: boolean) => void;
 }) {
   const goBack = () => onStepChange(Math.max(step - 1, 0));
   const goForward = () => onStepChange(step + 1);
@@ -436,6 +444,7 @@ export function TemplateAuthoringFlow({
       goBack={goBack}
       goForward={goForward}
       onClose={onClose}
+      onDirtyChange={onDirtyChange}
       onShapeChange={onShapeChange}
       step={step}
     />
@@ -445,6 +454,7 @@ export function TemplateAuthoringFlow({
       goForward={goForward}
       initialShape={shape}
       onClose={onClose}
+      onDirtyChange={onDirtyChange}
       onShapeChange={onShapeChange}
       step={step}
     />
@@ -466,6 +476,7 @@ function WeeklyServiceAuthoring({
   goBack,
   goForward,
   onClose,
+  onDirtyChange,
 }: {
   readonly initialShape: TemplateAuthoringShape;
   /**
@@ -482,6 +493,8 @@ function WeeklyServiceAuthoring({
   readonly goBack?: () => void;
   readonly goForward?: () => void;
   readonly onClose?: () => void;
+  /** Reports unsaved-edit state up to the big action's close guard. */
+  readonly onDirtyChange?: (dirty: boolean) => void;
 }) {
   const stepped = step !== undefined;
   const { currentOrgOpt: activeChurch, loading: churchLoading } = useCurrentOrgOpt();
@@ -515,9 +528,18 @@ function WeeklyServiceAuthoring({
 
   // Reactive read of the Template name for step gating and the Save preview.
   const name = useStore(form.store, (state) => state.values.name);
+  const description = useStore(form.store, (state) => state.values.description);
 
   // Any edit invalidates a prior "saved" confirmation so the Save step re-arms.
   const resetSaved = () => setSaved(false);
+
+  // A flow is "dirty" once it carries a name, description, or a Template Task —
+  // anything a close would throw away. A freshly saved Template is no longer
+  // dirty, so the "Done" affordance closes without a prompt.
+  const isDirty = !saved && (name.trim() !== "" || description.trim() !== "" || tasks.length > 0);
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
 
   const startDate = useMemo(() => nextWeekdayDate(serviceWeekday), [serviceWeekday]);
 
@@ -873,6 +895,7 @@ function KeyDateAuthoring({
   goForward,
   onClose,
   onShapeChange,
+  onDirtyChange,
 }: {
   readonly step?: number;
   readonly goBack?: () => void;
@@ -883,6 +906,8 @@ function KeyDateAuthoring({
    * orchestrator (handled by the parent flow).
    */
   readonly onShapeChange?: (shape: TemplateShape) => void;
+  /** Reports unsaved-edit state up to the big action's close guard. */
+  readonly onDirtyChange?: (dirty: boolean) => void;
 } = {}) {
   const stepped = step !== undefined;
   const { currentOrgOpt: activeChurch, loading: churchLoading } = useCurrentOrgOpt();
@@ -916,7 +941,21 @@ function KeyDateAuthoring({
   const form = useTemplateDetailsForm((value) => save(value));
 
   const name = useStore(form.store, (state) => state.values.name);
+  const description = useStore(form.store, (state) => state.values.description);
   const resetSaved = () => setSaved(false);
+
+  // A flow is "dirty" once it carries a name, description, an anchoring Key
+  // Date, or a Template Task — anything a close would throw away. A freshly
+  // saved Template is no longer dirty, so "Done" closes without a prompt.
+  const isDirty =
+    !saved &&
+    (name.trim() !== "" ||
+      description.trim() !== "" ||
+      selectedKeyDateId !== null ||
+      tasks.length > 0);
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
 
   // Auto-select a freshly created Key Date once it streams in from Zero.
   useEffect(() => {

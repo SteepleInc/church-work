@@ -66,8 +66,12 @@ function DialogContent({
       {hideOverlay ? null : <DialogOverlay />}
       <DialogPrimitive.Popup
         data-slot="dialog-content"
+        // Anchored in the upper quadrant (like Quick Actions) rather than dead
+        // center. Top-anchoring with `translate-y-0` also avoids the
+        // vertical-centering transform that mispositions a `fixed` popup when it
+        // opens above another transformed dialog.
         className={cn(
-          "fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border bg-background p-6 text-sm text-foreground shadow-lg duration-200 outline-none sm:max-w-lg data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed top-[calc(clamp(16px,18vh,200px)+56px)] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-0 gap-4 rounded-lg border bg-background p-6 text-sm text-foreground shadow-lg duration-200 outline-none sm:max-w-lg data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className,
         )}
         {...props}

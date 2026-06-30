@@ -45,6 +45,7 @@ import {
 } from "@/components/tasks/task-execution-surface-utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { DiscardChangesDialog } from "@/components/ui/discard-changes-dialog";
 import { Kbd } from "@/components/ui/kbd";
 import { Switch } from "@/components/ui/switch";
 import { buildProjectedWeekCycles } from "@/components/weeks/team-weeks-index-data";
@@ -171,6 +172,9 @@ export function CreateTaskQuickAction() {
   const [expanded, setExpanded] = useAtom(createTaskDialogExpandedAtom);
   const [createMore, setCreateMore] = useAtom(createTaskCreateMoreAtom);
   const [error, setError] = useState<string | null>(null);
+  // Drives the "Discard changes?" confirmation. We only raise it when the form
+  // is dirty; a pristine dialog closes immediately without nagging.
+  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
   const navigate = useNavigate();
   const openTaskDetailsPaneUrl = useOpenTaskDetailsPaneUrl();
   const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
@@ -381,9 +385,11 @@ export function CreateTaskQuickAction() {
 
       if (createMore) {
         // Keep the dialog open with every property as-is; only the text
-        // resets, ready for the next Task in the batch.
-        formApi.setFieldValue("title", "");
-        formApi.setFieldValue("description", "");
+        // resets, ready for the next Task in the batch. Clearing the text is a
+        // programmatic reset, not a User edit, so it stays pristine and won't
+        // trip the "Discard changes?" guard if the User then closes.
+        formApi.setFieldValue("title", "", { dontUpdateMeta: true });
+        formApi.setFieldValue("description", "", { dontUpdateMeta: true });
         // Remount the (uncontrolled) description editor so it clears too.
         nextDescriptionRef.current = "";
         setEditorResetKey((key) => key + 1);
@@ -452,22 +458,40 @@ export function CreateTaskQuickAction() {
   };
 
   const close = () => {
+    setConfirmDiscardOpen(false);
     setState(null);
     setError(null);
     form.reset();
   };
 
+  // Closing with unsaved edits prompts before discarding; a pristine draft (or
+  // one only carrying its prefilled values) closes straight away. Routes every
+  // close affordance — the header X, Escape, and outside-click — through one
+  // guard.
+  const requestClose = () => {
+    if (form.state.isDirty) {
+      setConfirmDiscardOpen(true);
+      return;
+    }
+    close();
+  };
+
   useEffect(() => {
     if (!isOpen || !state) return;
-    form.setFieldValue("title", state.title ?? "");
-    form.setFieldValue("description", state.description ?? "");
-    form.setFieldValue("assignedUserId", state.assignTo ?? null);
-    form.setFieldValue("workflowStatusId", state.workflowStatusId ?? "");
-    form.setFieldValue("teamId", state.teamId ?? null);
-    form.setFieldValue("priority", state.priority ?? "no_priority");
-    form.setFieldValue("estimate", state.estimate ?? "no_estimate");
-    form.setFieldValue("labels", state.labelIds ?? []);
-    form.setFieldValue("dueDate", state.dueDate ?? null);
+    // Programmatic prefill on open, not a User edit: `dontUpdateMeta` keeps the
+    // form pristine so a freshly-opened (or comment-prefilled) dialog closes
+    // without falsely tripping the "Discard changes?" guard. Only the User's own
+    // typing/picking marks the form dirty.
+    const sync = { dontUpdateMeta: true } as const;
+    form.setFieldValue("title", state.title ?? "", sync);
+    form.setFieldValue("description", state.description ?? "", sync);
+    form.setFieldValue("assignedUserId", state.assignTo ?? null, sync);
+    form.setFieldValue("workflowStatusId", state.workflowStatusId ?? "", sync);
+    form.setFieldValue("teamId", state.teamId ?? null, sync);
+    form.setFieldValue("priority", state.priority ?? "no_priority", sync);
+    form.setFieldValue("estimate", state.estimate ?? "no_estimate", sync);
+    form.setFieldValue("labels", state.labelIds ?? [], sync);
+    form.setFieldValue("dueDate", state.dueDate ?? null, sync);
     // The description editor is uncontrolled and reads its value only on mount.
     // Prefills (e.g. "create Task from Comment") set the field after the editor
     // has mounted, so stage the value and remount it to pick the prefill up.
@@ -514,328 +538,350 @@ export function CreateTaskQuickAction() {
   });
 
   return (
-    <QuickActionsWrapper
-      // Expand grows the dialog to its full available height (same width):
-      // the wrapper already caps height via the viewport clamp, so expanding
-      // just fills that cap instead of sizing to content.
-      dialogContentClassName={
-        expanded ? "h-[calc(100vh-clamp(16px,calc((100vh-512px)/2),192px)*2)]" : undefined
-      }
-      open={isOpen}
-      onOpenChange={(open) => (open ? undefined : close())}
-    >
-      <QuickActionsHeader className="p-4">
-        <div className="flex items-center justify-between gap-2">
-          <QuickActionsTitle>
-            <span className="flex items-center gap-1.5 font-normal text-sm">
-              <form.Subscribe selector={(formState) => formState.values.teamId}>
-                {(teamId) => {
-                  const effectiveTeamId = resolveTeamId(teamId);
-                  const effectiveTeam = teams.find((team) => team.id === effectiveTeamId);
-                  return effectiveTeam ? (
-                    <TeamComboboxSelector
-                      disabled={isLoading}
-                      memberTeamIds={memberTeamIds}
-                      openRef={teamOpenRef}
-                      onValueChange={(next) => {
-                        form.setFieldValue("teamId", next);
-                        // The new Team's Workflow takes over: the status pill
-                        // resets to that Workflow's default.
-                        form.setFieldValue("workflowStatusId", "");
-                        // Team Labels foreign to the destination Team drop out
-                        // of the selection (see CONTEXT.md "Team Label").
-                        const applicable = new Set(
-                          labelsCollection.labelsCollection
-                            .filter((label) => label.teamId === null || label.teamId === next)
-                            .map((label) => label.id),
-                        );
-                        form.setFieldValue(
-                          "labels",
-                          form.state.values.labels.filter((labelId) => applicable.has(labelId)),
-                        );
-                      }}
-                      options={teamPickerOptions}
-                      trigger={
-                        <TaskPropertyPill className="gap-2">
-                          <TeamAvatar
-                            color={effectiveTeam.color}
-                            name={effectiveTeam.name}
-                            size={18}
-                          />
-                          <span className="max-w-32 truncate">{effectiveTeam.name}</span>
-                        </TaskPropertyPill>
-                      }
-                      value={effectiveTeamId}
-                    />
-                  ) : null;
-                }}
-              </form.Subscribe>
-              <ChevronRight className="size-3.5 text-muted-foreground" />
-              <span>{isCreatingSubtask ? "New Subtask" : "New Task"}</span>
-              {state?.parentTaskLabel ? (
-                <ParentTaskPill parentTaskLabel={state.parentTaskLabel} />
-              ) : null}
-              {effectiveTargetCycle ? <TargetWeekPill targetCycle={effectiveTargetCycle} /> : null}
-            </span>
-          </QuickActionsTitle>
-          <div className="flex items-center gap-1">
-            <Button
-              aria-label={expanded ? "Collapse" : "Expand"}
-              className="hidden text-muted-foreground md:inline-flex"
-              onClick={() => setExpanded(!expanded)}
-              size="icon-sm"
-              type="button"
-              variant="ghost"
-            >
-              {expanded ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
-            </Button>
-            <Button
-              aria-label="Close"
-              className="text-muted-foreground"
-              onClick={close}
-              size="icon-sm"
-              type="button"
-              variant="ghost"
-            >
-              <X className="size-4" />
-            </Button>
-          </div>
-        </div>
-      </QuickActionsHeader>
-      <QuickActionForm
-        form={form}
-        Body={
-          // The body never scrolls: the title is always visible and the
-          // description textarea grows with its content, then scrolls
-          // internally once it runs out of room.
-          <DraftTaskPropertySurface
-            className="relative flex min-h-0 flex-col gap-2 overflow-hidden p-4"
-            pickerRefs={pickerRefs}
-          >
-            <form.Field name="title">
-              {(field) => (
-                <input
-                  aria-label="Task title"
-                  autoComplete="off"
-                  autoFocus
-                  className="w-full shrink-0 bg-transparent font-medium text-lg outline-none placeholder:text-muted-foreground"
-                  data-1p-ignore="true"
-                  disabled={isLoading}
-                  onChange={(event) => field.handleChange(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.metaKey || event.ctrlKey || event.altKey) return;
-                    const input = event.currentTarget;
-                    const caretAtEnd =
-                      input.selectionStart === input.value.length &&
-                      input.selectionEnd === input.value.length;
-                    // Enter and ArrowDown both drop into the description; the
-                    // title and description read as one surface (Linear), so
-                    // ArrowRight also crosses the seam once the caret is at the
-                    // end of the title (Cmd+Enter still submits).
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      focusDescriptionStart();
-                    } else if (event.key === "ArrowDown") {
-                      event.preventDefault();
-                      focusDescriptionStart();
-                    } else if (event.key === "ArrowRight" && caretAtEnd) {
-                      event.preventDefault();
-                      focusDescriptionStart();
-                    }
-                  }}
-                  placeholder="Task title"
-                  ref={titleInputRef}
-                  value={field.state.value}
-                />
-              )}
-            </form.Field>
-            <form.Field name="description">
-              {(field) => (
-                // Inset the editable content so the `@` chip's focus ring (and
-                // the mention popover anchored to it) isn't clipped by the
-                // surface's left edge, then pull the editor back by the same
-                // amount so the text still lines up with the title above.
-                <div className="-mx-4 min-h-20 w-full flex-1 overflow-y-auto">
-                  <DescriptionEditor
-                    key={editorResetKey}
-                    ariaLabel="Add description"
-                    contentClassName="px-4"
-                    editorRef={descriptionInputRef}
-                    focusHandleRef={descriptionFocusRef}
-                    disabled={isLoading}
-                    placeholder="Add description..."
-                    value={initialDescriptionValue}
-                    onChange={(value) => field.handleChange(serializeDescriptionValue(value) ?? "")}
-                    onEscapeStart={focusTitleEnd}
-                  />
-                </div>
-              )}
-            </form.Field>
-          </DraftTaskPropertySurface>
+    <>
+      <QuickActionsWrapper
+        // Expand grows the dialog to its full available height (same width):
+        // the wrapper already caps height via the viewport clamp, so expanding
+        // just fills that cap instead of sizing to content.
+        dialogContentClassName={
+          expanded ? "h-[calc(100vh-clamp(16px,calc((100vh-512px)/2),192px)*2)]" : undefined
         }
-        Pinned={
-          // The property pill row stays visible above the footer while the
-          // title/description body scrolls (Linear behavior).
-          <div className="flex flex-col gap-3 px-4 pb-3">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <form.Subscribe
-                selector={(formState) =>
-                  [formState.values.teamId, formState.values.workflowStatusId] as const
-                }
+        open={isOpen}
+        onOpenChange={(open) => (open ? undefined : requestClose())}
+      >
+        <QuickActionsHeader className="p-4">
+          <div className="flex items-center justify-between gap-2">
+            <QuickActionsTitle>
+              <span className="flex items-center gap-1.5 font-normal text-sm">
+                <form.Subscribe selector={(formState) => formState.values.teamId}>
+                  {(teamId) => {
+                    const effectiveTeamId = resolveTeamId(teamId);
+                    const effectiveTeam = teams.find((team) => team.id === effectiveTeamId);
+                    return effectiveTeam ? (
+                      <TeamComboboxSelector
+                        disabled={isLoading}
+                        memberTeamIds={memberTeamIds}
+                        openRef={teamOpenRef}
+                        onValueChange={(next) => {
+                          form.setFieldValue("teamId", next);
+                          // The new Team's Workflow takes over: the status pill
+                          // resets to that Workflow's default.
+                          form.setFieldValue("workflowStatusId", "");
+                          // Team Labels foreign to the destination Team drop out
+                          // of the selection (see CONTEXT.md "Team Label").
+                          const applicable = new Set(
+                            labelsCollection.labelsCollection
+                              .filter((label) => label.teamId === null || label.teamId === next)
+                              .map((label) => label.id),
+                          );
+                          form.setFieldValue(
+                            "labels",
+                            form.state.values.labels.filter((labelId) => applicable.has(labelId)),
+                          );
+                        }}
+                        options={teamPickerOptions}
+                        trigger={
+                          <TaskPropertyPill className="gap-2">
+                            <TeamAvatar
+                              color={effectiveTeam.color}
+                              name={effectiveTeam.name}
+                              size={18}
+                            />
+                            <span className="max-w-32 truncate">{effectiveTeam.name}</span>
+                          </TaskPropertyPill>
+                        }
+                        value={effectiveTeamId}
+                      />
+                    ) : null;
+                  }}
+                </form.Subscribe>
+                <ChevronRight className="size-3.5 text-muted-foreground" />
+                <span>{isCreatingSubtask ? "New Subtask" : "New Task"}</span>
+                {state?.parentTaskLabel ? (
+                  <ParentTaskPill parentTaskLabel={state.parentTaskLabel} />
+                ) : null}
+                {effectiveTargetCycle ? (
+                  <TargetWeekPill targetCycle={effectiveTargetCycle} />
+                ) : null}
+              </span>
+            </QuickActionsTitle>
+            <div className="flex items-center gap-1">
+              <Button
+                aria-label={expanded ? "Collapse" : "Expand"}
+                className="hidden text-muted-foreground md:inline-flex"
+                onClick={() => setExpanded(!expanded)}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
               >
-                {([teamId, workflowStatusId]) => {
-                  const effectiveWorkflowId = resolveWorkflowId(resolveTeamId(teamId));
-                  const options = statusOptions(
-                    workflowStatuses.filter((status) => status.workflowId === effectiveWorkflowId),
-                  );
-                  const effectiveStatus = resolveStatus(workflowStatusId, effectiveWorkflowId);
-                  return (
-                    <StatusComboboxSelector
-                      disabled={isLoading || options.length === 0}
-                      emptyText="No statuses."
-                      onValueChange={(next) => {
-                        if (next) form.setFieldValue("workflowStatusId", next);
-                      }}
-                      openRef={statusOpenRef}
-                      options={options}
-                      trigger={<TaskStatusPillTrigger status={effectiveStatus} />}
-                      value={effectiveStatus?.id ?? null}
-                    />
-                  );
-                }}
-              </form.Subscribe>
-              <form.Field name="priority">
-                {(field) => {
-                  return (
-                    <PriorityComboboxSelector
-                      disabled={isLoading}
-                      onValueChange={(next) => field.handleChange(next)}
-                      openRef={priorityOpenRef}
-                      trigger={<TaskPriorityPillTrigger value={field.state.value} />}
-                      value={field.state.value}
-                    />
-                  );
-                }}
-              </form.Field>
-              <form.Subscribe
-                selector={(formState) =>
-                  [formState.values.teamId, formState.values.assignedUserId] as const
-                }
+                {expanded ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+              </Button>
+              <Button
+                aria-label="Close"
+                className="text-muted-foreground"
+                onClick={requestClose}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
               >
-                {([teamId, assignedUserId]) => {
-                  const selectedAssignee =
-                    assigneeOptions.find((option) => option.id === assignedUserId) ?? null;
-                  const effectiveTeamId = resolveTeamId(teamId);
-                  // Members of the effective Team feed the picker's
-                  // "Team members" section.
-                  const teamMemberUserIds = new Set(
-                    teamMemberships.teamMembershipsCollection
-                      .filter((membership) => membership.teamId === effectiveTeamId)
-                      .map((membership) => membership.userId),
-                  );
-                  return (
-                    <AssigneeComboboxSelector
-                      align="start"
-                      currentUserId={currentUserId}
-                      disabled={isLoading || areUsersLoading}
-                      onValueChange={(next) => form.setFieldValue("assignedUserId", next)}
-                      openRef={assigneeOpenRef}
-                      options={assigneeOptions}
-                      teamMemberIds={teamMemberUserIds}
-                      trigger={<TaskAssigneePillTrigger assignee={selectedAssignee} />}
-                      value={assignedUserId}
-                    />
-                  );
-                }}
-              </form.Subscribe>
-              <form.Field name="estimate">
-                {(field) => {
-                  return (
-                    <EstimateComboboxSelector
-                      disabled={isLoading}
-                      onValueChange={(next) => field.handleChange(next)}
-                      openRef={estimateOpenRef}
-                      trigger={<TaskEstimatePillTrigger value={field.state.value} />}
-                      value={field.state.value}
-                    />
-                  );
-                }}
-              </form.Field>
-              <form.Subscribe
-                selector={(formState) =>
-                  [formState.values.teamId, formState.values.labels] as const
-                }
-              >
-                {([teamId, labels]) => {
-                  const effectiveTeamId = resolveTeamId(teamId);
-                  // Church Labels plus the effective Team's Labels are
-                  // applicable (see CONTEXT.md "Team Label").
-                  const labelOptions = labelsCollection.labelsCollection.filter(
-                    (label) => label.teamId === null || label.teamId === effectiveTeamId,
-                  );
-                  const selected = labels
-                    .map((labelId) => labelOptions.find((option) => option.id === labelId))
-                    .filter((option) => option !== undefined);
-                  return (
-                    <LabelsComboboxSelector
-                      disabled={isLoading || areLabelsLoading}
-                      onCreateLabel={(name) => void handleCreateLabel(name)}
-                      onValueChange={(next) => form.setFieldValue("labels", next)}
-                      openRef={labelsOpenRef}
-                      options={labelOptions}
-                      trigger={<TaskLabelsPillTrigger labels={selected} />}
-                      value={labels}
-                    />
-                  );
-                }}
-              </form.Subscribe>
-              <form.Field name="dueDate">
-                {(field) => {
-                  return (
-                    <DueDateSelector
-                      disabled={isLoading}
-                      onValueChange={(next) => field.handleChange(next)}
-                      openRef={dueDateOpenRef}
-                      trigger={<TaskDueDatePillTrigger value={field.state.value} />}
-                      value={field.state.value}
-                    />
-                  );
-                }}
-              </form.Field>
+                <X className="size-4" />
+              </Button>
             </div>
-            {error ? (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            ) : null}
           </div>
-        }
-        Actions={
-          <>
-            <label className="flex cursor-pointer items-center gap-2 ps-2 text-muted-foreground text-sm">
-              <Switch checked={createMore} onCheckedChange={setCreateMore} size="sm" />
-              Create more
-            </label>
-            <form.Subscribe selector={(formState) => formState.isSubmitting}>
-              {(isSubmitting) => (
-                <Button
-                  className="ml-auto"
-                  disabled={isLoading}
-                  loading={isSubmitting}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    submit("default");
-                  }}
-                  type="submit"
+        </QuickActionsHeader>
+        <QuickActionForm
+          form={form}
+          Body={
+            // The body never scrolls: the title is always visible and the
+            // description textarea grows with its content, then scrolls
+            // internally once it runs out of room.
+            <DraftTaskPropertySurface
+              className="relative flex min-h-0 flex-col gap-2 overflow-hidden p-4"
+              pickerRefs={pickerRefs}
+            >
+              <form.Field name="title">
+                {(field) => (
+                  <input
+                    aria-label="Task title"
+                    autoComplete="off"
+                    autoFocus
+                    className="w-full shrink-0 bg-transparent font-medium text-lg outline-none placeholder:text-muted-foreground"
+                    data-1p-ignore="true"
+                    disabled={isLoading}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.metaKey || event.ctrlKey || event.altKey) return;
+                      const input = event.currentTarget;
+                      const caretAtEnd =
+                        input.selectionStart === input.value.length &&
+                        input.selectionEnd === input.value.length;
+                      // Enter and ArrowDown both drop into the description; the
+                      // title and description read as one surface (Linear), so
+                      // ArrowRight also crosses the seam once the caret is at the
+                      // end of the title (Cmd+Enter still submits).
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault();
+                        focusDescriptionStart();
+                      } else if (event.key === "ArrowDown") {
+                        event.preventDefault();
+                        focusDescriptionStart();
+                      } else if (event.key === "ArrowRight" && caretAtEnd) {
+                        event.preventDefault();
+                        focusDescriptionStart();
+                      }
+                    }}
+                    placeholder="Task title"
+                    ref={titleInputRef}
+                    value={field.state.value}
+                  />
+                )}
+              </form.Field>
+              <form.Field name="description">
+                {(field) => (
+                  // Inset the editable content so the `@` chip's focus ring (and
+                  // the mention popover anchored to it) isn't clipped by the
+                  // surface's left edge, then pull the editor back by the same
+                  // amount so the text still lines up with the title above.
+                  <div className="-mx-4 min-h-20 w-full flex-1 overflow-y-auto">
+                    <DescriptionEditor
+                      key={editorResetKey}
+                      ariaLabel="Add description"
+                      contentClassName="px-4"
+                      editorRef={descriptionInputRef}
+                      focusHandleRef={descriptionFocusRef}
+                      disabled={isLoading}
+                      placeholder="Add description..."
+                      value={initialDescriptionValue}
+                      onChange={(value) =>
+                        field.handleChange(serializeDescriptionValue(value) ?? "")
+                      }
+                      onEscapeStart={focusTitleEnd}
+                    />
+                  </div>
+                )}
+              </form.Field>
+            </DraftTaskPropertySurface>
+          }
+          Pinned={
+            // The property pill row stays visible above the footer while the
+            // title/description body scrolls (Linear behavior).
+            <div className="flex flex-col gap-3 px-4 pb-3">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <form.Subscribe
+                  selector={(formState) =>
+                    [formState.values.teamId, formState.values.workflowStatusId] as const
+                  }
                 >
-                  {isCreatingSubtask ? "Create Subtask" : "Create Task"}
-                  <Kbd>mod enter</Kbd>
-                </Button>
-              )}
-            </form.Subscribe>
-          </>
+                  {([teamId, workflowStatusId]) => {
+                    const effectiveWorkflowId = resolveWorkflowId(resolveTeamId(teamId));
+                    const options = statusOptions(
+                      workflowStatuses.filter(
+                        (status) => status.workflowId === effectiveWorkflowId,
+                      ),
+                    );
+                    const effectiveStatus = resolveStatus(workflowStatusId, effectiveWorkflowId);
+                    return (
+                      <StatusComboboxSelector
+                        disabled={isLoading || options.length === 0}
+                        emptyText="No statuses."
+                        onValueChange={(next) => {
+                          if (next) form.setFieldValue("workflowStatusId", next);
+                        }}
+                        openRef={statusOpenRef}
+                        options={options}
+                        trigger={<TaskStatusPillTrigger status={effectiveStatus} />}
+                        value={effectiveStatus?.id ?? null}
+                      />
+                    );
+                  }}
+                </form.Subscribe>
+                <form.Field name="priority">
+                  {(field) => {
+                    return (
+                      <PriorityComboboxSelector
+                        disabled={isLoading}
+                        onValueChange={(next) => field.handleChange(next)}
+                        openRef={priorityOpenRef}
+                        trigger={<TaskPriorityPillTrigger value={field.state.value} />}
+                        value={field.state.value}
+                      />
+                    );
+                  }}
+                </form.Field>
+                <form.Subscribe
+                  selector={(formState) =>
+                    [formState.values.teamId, formState.values.assignedUserId] as const
+                  }
+                >
+                  {([teamId, assignedUserId]) => {
+                    const selectedAssignee =
+                      assigneeOptions.find((option) => option.id === assignedUserId) ?? null;
+                    const effectiveTeamId = resolveTeamId(teamId);
+                    // Members of the effective Team feed the picker's
+                    // "Team members" section.
+                    const teamMemberUserIds = new Set(
+                      teamMemberships.teamMembershipsCollection
+                        .filter((membership) => membership.teamId === effectiveTeamId)
+                        .map((membership) => membership.userId),
+                    );
+                    return (
+                      <AssigneeComboboxSelector
+                        align="start"
+                        currentUserId={currentUserId}
+                        disabled={isLoading || areUsersLoading}
+                        onValueChange={(next) => form.setFieldValue("assignedUserId", next)}
+                        openRef={assigneeOpenRef}
+                        options={assigneeOptions}
+                        teamMemberIds={teamMemberUserIds}
+                        trigger={<TaskAssigneePillTrigger assignee={selectedAssignee} />}
+                        value={assignedUserId}
+                      />
+                    );
+                  }}
+                </form.Subscribe>
+                <form.Field name="estimate">
+                  {(field) => {
+                    return (
+                      <EstimateComboboxSelector
+                        disabled={isLoading}
+                        onValueChange={(next) => field.handleChange(next)}
+                        openRef={estimateOpenRef}
+                        trigger={<TaskEstimatePillTrigger value={field.state.value} />}
+                        value={field.state.value}
+                      />
+                    );
+                  }}
+                </form.Field>
+                <form.Subscribe
+                  selector={(formState) =>
+                    [formState.values.teamId, formState.values.labels] as const
+                  }
+                >
+                  {([teamId, labels]) => {
+                    const effectiveTeamId = resolveTeamId(teamId);
+                    // Church Labels plus the effective Team's Labels are
+                    // applicable (see CONTEXT.md "Team Label").
+                    const labelOptions = labelsCollection.labelsCollection.filter(
+                      (label) => label.teamId === null || label.teamId === effectiveTeamId,
+                    );
+                    const selected = labels
+                      .map((labelId) => labelOptions.find((option) => option.id === labelId))
+                      .filter((option) => option !== undefined);
+                    return (
+                      <LabelsComboboxSelector
+                        disabled={isLoading || areLabelsLoading}
+                        onCreateLabel={(name) => void handleCreateLabel(name)}
+                        onValueChange={(next) => form.setFieldValue("labels", next)}
+                        openRef={labelsOpenRef}
+                        options={labelOptions}
+                        trigger={<TaskLabelsPillTrigger labels={selected} />}
+                        value={labels}
+                      />
+                    );
+                  }}
+                </form.Subscribe>
+                <form.Field name="dueDate">
+                  {(field) => {
+                    return (
+                      <DueDateSelector
+                        disabled={isLoading}
+                        onValueChange={(next) => field.handleChange(next)}
+                        openRef={dueDateOpenRef}
+                        trigger={<TaskDueDatePillTrigger value={field.state.value} />}
+                        value={field.state.value}
+                      />
+                    );
+                  }}
+                </form.Field>
+              </div>
+              {error ? (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              ) : null}
+            </div>
+          }
+          Actions={
+            <>
+              <label className="flex cursor-pointer items-center gap-2 ps-2 text-muted-foreground text-sm">
+                <Switch checked={createMore} onCheckedChange={setCreateMore} size="sm" />
+                Create more
+              </label>
+              <form.Subscribe selector={(formState) => formState.isSubmitting}>
+                {(isSubmitting) => (
+                  <Button
+                    className="ml-auto"
+                    disabled={isLoading}
+                    loading={isSubmitting}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      submit("default");
+                    }}
+                    type="submit"
+                  >
+                    {isCreatingSubtask ? "Create Subtask" : "Create Task"}
+                    <Kbd>mod enter</Kbd>
+                  </Button>
+                )}
+              </form.Subscribe>
+            </>
+          }
+        />
+      </QuickActionsWrapper>
+      {/* Rendered as a sibling of the quick action Dialog — not a child — so
+          base-ui does not treat it as a nested dialog. A nested dialog
+          suppresses its own backdrop and offsets its popup; kept top-level, the
+          confirmation centers and lays its own backdrop over the quick action. */}
+      <DiscardChangesDialog
+        description={
+          isCreatingSubtask
+            ? "You have an unsaved Subtask. If you close now, it'll be lost."
+            : "You have an unsaved Task. If you close now, it'll be lost."
         }
+        onDiscard={close}
+        onOpenChange={setConfirmDiscardOpen}
+        open={confirmDiscardOpen}
       />
-    </QuickActionsWrapper>
+    </>
   );
 }
