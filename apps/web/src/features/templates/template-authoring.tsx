@@ -23,6 +23,14 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  DescriptionEditor,
+  type DescriptionEditorHandle,
+} from "@/components/editor/description-editor";
+import {
+  parseDescriptionValue,
+  serializeDescriptionValue,
+} from "@/components/editor/description-value";
 import { useAppForm } from "@/components/form/ts-form";
 import {
   AssigneeComboboxSelector,
@@ -45,7 +53,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollSections, type SectionRenderArgs } from "@/components/ui/scroll-sections";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { type LabelItem, useLabelsCollection } from "@/data/labels/labelsData.app";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
@@ -2783,6 +2790,31 @@ function TemplateTaskEditor({
   const selectedTeam = teams.find((team) => team.id === task.teamId) ?? null;
   const selectedAssignee = assigneeOptions.find((option) => option.id === task.assigneeId) ?? null;
   const titleRef = useRef<HTMLInputElement | null>(null);
+  // Imperative handle for the Plate description editor so the title can hand
+  // focus down with the caret at the top (a plain `.focus()` restores the last
+  // caret), making the title↔description seam read as one surface (Linear).
+  const descriptionFocusRef = useRef<DescriptionEditorHandle>(null);
+
+  // The title and description read as one surface (Linear), matching the create
+  // Task modal: arrowing down (or right past the end of the title) drops into
+  // the description, and arrowing up (or Escape) from the start of the
+  // description climbs back into the title with the caret at the end.
+  const focusDescriptionStart = () => {
+    descriptionFocusRef.current?.focusStart();
+  };
+  const focusTitleEnd = () => {
+    const input = titleRef.current;
+    if (!input) return;
+    input.focus();
+    const end = input.value.length;
+    input.setSelectionRange(end, end);
+  };
+
+  // The stored description is serialized Plate JSON; the uncontrolled editor
+  // reads its initial value once on mount. The editor is remounted per Task via
+  // the `task.id` key (below), so this only needs to track the current Task.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const initialDescriptionValue = useMemo(() => parseDescriptionValue(task.description), [task.id]);
 
   // Keep the cursor in the title as the editor chains to a fresh Task, so the
   // capture loop stays keyboard-ready without a manual click. (The initial open
@@ -2839,17 +2871,33 @@ function TemplateTaskEditor({
         side="inline-end"
         sideOffset={8}
       >
-        <div className="flex items-start gap-1 border-b px-3 pt-3 pb-2">
+        <div className="flex items-start gap-1 px-3 pt-3 pb-1">
           <Input
             autoComplete="off"
             className="h-9 flex-1 border-transparent bg-transparent px-0 font-medium text-base shadow-none focus-visible:border-transparent focus-visible:ring-0"
             data-1p-ignore="true"
             onChange={(event) => onChange({ title: event.currentTarget.value })}
             onKeyDown={(event) => {
-              if (event.key !== "Enter") return;
-              event.preventDefault();
-              if (!task.title.trim()) return;
-              onCommitAndChain();
+              if (event.metaKey || event.ctrlKey || event.altKey) return;
+              const input = event.currentTarget;
+              const caretAtEnd =
+                input.selectionStart === input.value.length &&
+                input.selectionEnd === input.value.length;
+              // Enter commits and chains a fresh Task (the template capture
+              // loop). ArrowDown — and ArrowRight once the caret sits at the end
+              // of the title — cross the seam into the description, so the two
+              // fields read as one surface (Linear).
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                if (!task.title.trim()) return;
+                onCommitAndChain();
+              } else if (event.key === "ArrowDown") {
+                event.preventDefault();
+                focusDescriptionStart();
+              } else if (event.key === "ArrowRight" && caretAtEnd) {
+                event.preventDefault();
+                focusDescriptionStart();
+              }
             }}
             placeholder="Add task title"
             ref={titleRef}
@@ -2867,15 +2915,26 @@ function TemplateTaskEditor({
           </Button>
         </div>
 
-        <Textarea
-          className="min-h-0 resize-none rounded-none border-x-0 border-t-0 border-b bg-transparent px-3 py-2 text-sm shadow-none focus-visible:ring-0"
-          onChange={(event) => onChange({ description: event.currentTarget.value })}
-          placeholder="Add a description…"
-          rows={2}
-          value={task.description}
-        />
+        {/* Keep the scroll container flush with the popover edges (no horizontal
+          padding here) and move the inset onto the editable content via
+          `contentClassName`, so the `@` chip's focus ring isn't clipped while
+          the text still lines up with the title above. */}
+        <div className="max-h-40 min-h-0 overflow-y-auto pb-2">
+          <DescriptionEditor
+            key={task.id}
+            ariaLabel="Add description"
+            contentClassName="px-3"
+            focusHandleRef={descriptionFocusRef}
+            // Climb back into the title from the start of the description, so
+            // the two fields read as one surface (Linear).
+            onEscapeStart={focusTitleEnd}
+            onChange={(value) => onChange({ description: serializeDescriptionValue(value) ?? "" })}
+            placeholder="Add a description…"
+            value={initialDescriptionValue}
+          />
+        </div>
 
-        <div className="flex flex-wrap items-center gap-1.5 px-3 py-2.5">
+        <div className="flex flex-wrap items-center gap-1.5 border-t px-3 py-2.5">
           <TeamComboboxSelector
             memberTeamIds={memberTeamIds}
             onValueChange={changeTeam}

@@ -1,4 +1,5 @@
 import {
+  ArrowUp,
   AtSign,
   Ban,
   Bell,
@@ -385,11 +386,7 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
         </ol>
       )}
 
-      <ActivityCommentComposer
-        currentUserId={props.currentUserId}
-        currentUserName={currentUserName}
-        onSubmit={createComment}
-      />
+      <ActivityCommentComposer currentUserId={props.currentUserId} onSubmit={createComment} />
     </section>
   );
 }
@@ -1452,11 +1449,9 @@ function TaskCommentReplyComposer({
 
 function ActivityCommentComposer({
   currentUserId,
-  currentUserName,
   onSubmit,
 }: {
   readonly currentUserId: string | null;
-  readonly currentUserName: string | null;
   readonly onSubmit: (body: string) => Promise<void>;
 }) {
   const [focused, setFocused] = useState(false);
@@ -1483,28 +1478,24 @@ function ActivityCommentComposer({
   const submit = () => form.handleSubmit();
 
   return (
-    <div className="flex items-start gap-2.5">
-      {currentUserId ? (
-        <UserAvatar
-          className="mt-0.5 hidden shrink-0 sm:block"
-          name={currentUserName}
-          size={28}
-          userId={currentUserId}
-        />
-      ) : null}
+    <div className="flex items-start">
       <div
         className={cn(
           "min-w-0 flex-1 rounded-lg border bg-card px-3 py-2.5 transition-colors",
           focused && "border-ring ring-3 ring-ring/50",
         )}
       >
+        {/* Inset the editable content so the `@` chip's focus ring (and the
+          mention popover anchored to it) isn't clipped by the editor's left
+          edge, then pull the editor back by the same amount so the text still
+          lines up with the composer's footer below. */}
         <form.Field name="body">
           {(field) => (
             <DescriptionEditor
               key={composerKey}
               ariaLabel="Add a comment"
-              className="min-h-16"
-              contentClassName="text-sm"
+              className="-mx-3 min-h-16"
+              contentClassName="px-3 text-sm"
               disabled={!canComment}
               onBlur={() => setFocused(false)}
               onChange={(value) => field.handleChange(serializeCommentValue(value) ?? "")}
@@ -1531,14 +1522,14 @@ function ActivityCommentComposer({
             {({ canSubmit, isSubmitting }) => (
               <Button
                 aria-label="Comment"
+                className="rounded-full"
                 disabled={!canSubmit}
                 loading={isSubmitting}
                 onClick={() => void submit()}
-                size="sm"
+                size="icon-sm"
                 type="button"
               >
-                Comment
-                <Kbd className="ml-1.5">mod enter</Kbd>
+                <ArrowUp />
               </Button>
             )}
           </form.Subscribe>

@@ -651,10 +651,15 @@ export function CreateTaskQuickAction() {
             </form.Field>
             <form.Field name="description">
               {(field) => (
-                <div className="min-h-20 w-full flex-1 overflow-y-auto">
+                // Inset the editable content so the `@` chip's focus ring (and
+                // the mention popover anchored to it) isn't clipped by the
+                // surface's left edge, then pull the editor back by the same
+                // amount so the text still lines up with the title above.
+                <div className="-mx-4 min-h-20 w-full flex-1 overflow-y-auto">
                   <DescriptionEditor
                     key={editorResetKey}
                     ariaLabel="Add description"
+                    contentClassName="px-4"
                     editorRef={descriptionInputRef}
                     focusHandleRef={descriptionFocusRef}
                     disabled={isLoading}
