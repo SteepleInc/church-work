@@ -5,8 +5,9 @@ import { useLocation } from "@tanstack/react-router";
 import { Boolean, pipe } from "effect";
 import { useAtom, useAtomValue } from "jotai";
 import type { FC } from "react";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
+import { DiscardChangesDialog } from "@/components/ui/discard-changes-dialog";
 import { Step, Steps } from "@/components/ui/stepper";
 import {
   BigActionHeader,
@@ -36,21 +37,53 @@ export const TemplateBigAction: FC = () => {
   const quickActionsIsOpen = useAtomValue(quickActionsIsOpenAtom);
   const globalSearchIsOpen = useAtomValue(globalSearchIsOpenAtom);
   const previousPathname = useRef(pathname);
+  // The authoring flow reports its unsaved-edit state here; the close guard
+  // reads the latest value to decide whether to prompt before discarding.
+  const isDirtyRef = useRef(false);
+  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
 
-  const close = () => setState(TemplateBigActionStateEnum.closed());
+  const close = () => {
+    isDirtyRef.current = false;
+    setConfirmDiscardOpen(false);
+    setState(TemplateBigActionStateEnum.closed());
+  };
+
+  // Closing with unsaved edits prompts before discarding; a pristine flow closes
+  // immediately. The header X, Escape, and outside-click all dismiss the modal
+  // via `onOpenChange(false)`, so this one guard covers every close affordance.
+  const requestClose = () => {
+    if (isDirtyRef.current) {
+      setConfirmDiscardOpen(true);
+      return;
+    }
+    close();
+  };
+
+  const handleDirtyChange = useCallback((dirty: boolean) => {
+    isDirtyRef.current = dirty;
+  }, []);
+
+  // Navigations and other overlays force the big action shut without a discard
+  // prompt (the User's intent is elsewhere); clear the guard so a stale dirty
+  // flag never trips the next open.
+  const forceClose = useCallback(() => {
+    isDirtyRef.current = false;
+    setConfirmDiscardOpen(false);
+    setState(TemplateBigActionStateEnum.closed());
+  }, [setState]);
 
   useEffect(() => {
     if (previousPathname.current === pathname) return;
 
     previousPathname.current = pathname;
-    setState(TemplateBigActionStateEnum.closed());
-  }, [pathname, setState]);
+    forceClose();
+  }, [forceClose, pathname]);
 
   useEffect(() => {
     if (!quickActionsIsOpen && !globalSearchIsOpen) return;
 
-    setState(TemplateBigActionStateEnum.closed());
-  }, [globalSearchIsOpen, quickActionsIsOpen, setState]);
+    forceClose();
+  }, [forceClose, globalSearchIsOpen, quickActionsIsOpen]);
 
   const setStep = (step: number) =>
     setState((current) =>
@@ -69,50 +102,63 @@ export const TemplateBigAction: FC = () => {
   };
 
   return (
-    <BigActionWrapper
-      onOpenChange={(open) =>
-        pipe(
-          open,
-          Boolean.match({
-            onFalse: close,
-            onTrue: noOp,
-          }),
-        )
-      }
-      open={state._tag !== "closed"}
-    >
-      {state._tag === "closed" ? null : (
-        <div className="flex h-full flex-col overflow-hidden bg-background">
-          <BigActionHeader>
-            <BigActionTitle>{TEMPLATE_BIG_ACTION_TITLE}</BigActionTitle>
-          </BigActionHeader>
+    <>
+      <BigActionWrapper
+        onOpenChange={(open) =>
+          pipe(
+            open,
+            Boolean.match({
+              onFalse: requestClose,
+              onTrue: noOp,
+            }),
+          )
+        }
+        open={state._tag !== "closed"}
+      >
+        {state._tag === "closed" ? null : (
+          <div className="flex h-full flex-col overflow-hidden bg-background">
+            <BigActionHeader>
+              <BigActionTitle>{TEMPLATE_BIG_ACTION_TITLE}</BigActionTitle>
+            </BigActionHeader>
 
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <div className="border-b px-6 py-4 pb-5">
-              <Steps
-                activeStep={Math.min(state.step, templateFlowStepCount() - 1)}
-                onClickStep={handleStepClick}
-                orientation="horizontal"
-                responsive
-              >
-                {TEMPLATE_FLOW_STEPS.map((entry) => (
-                  <Step description={entry.description} key={entry.label} label={entry.label} />
-                ))}
-              </Steps>
-            </div>
+            <div className="flex flex-1 flex-col overflow-hidden">
+              <div className="border-b px-6 py-4 pb-5">
+                <Steps
+                  activeStep={Math.min(state.step, templateFlowStepCount() - 1)}
+                  onClickStep={handleStepClick}
+                  orientation="horizontal"
+                  responsive
+                >
+                  {TEMPLATE_FLOW_STEPS.map((entry) => (
+                    <Step description={entry.description} key={entry.label} label={entry.label} />
+                  ))}
+                </Steps>
+              </div>
 
-            <div className="flex-1 overflow-y-auto p-6">
-              <TemplateAuthoringFlow
-                onClose={close}
-                onShapeChange={(shape) => setShape(shape as TemplateBigActionShape)}
-                onStepChange={setStep}
-                shape={state.shape}
-                step={state.step}
-              />
+              <div className="flex-1 overflow-y-auto p-6">
+                <TemplateAuthoringFlow
+                  onClose={close}
+                  onDirtyChange={handleDirtyChange}
+                  onShapeChange={(shape) => setShape(shape as TemplateBigActionShape)}
+                  onStepChange={setStep}
+                  shape={state.shape}
+                  step={state.step}
+                />
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </BigActionWrapper>
+        )}
+      </BigActionWrapper>
+      {/* Rendered as a sibling of the big action modal — not a child — so
+          base-ui does not treat it as a nested dialog. A nested dialog
+          suppresses its own backdrop and offsets its popup; kept top-level, the
+          confirmation centers and lays its own backdrop over the big action. */}
+      <DiscardChangesDialog
+        description="You have an unsaved Template. If you close now, it'll be lost."
+        onDiscard={close}
+        onOpenChange={setConfirmDiscardOpen}
+        open={confirmDiscardOpen}
+      />
+    </>
   );
 };
