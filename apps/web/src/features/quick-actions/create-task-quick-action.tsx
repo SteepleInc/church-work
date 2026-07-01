@@ -5,6 +5,7 @@ import { Schema } from "effect";
 import { atom, useAtom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 import {
+  Bookmark,
   BookmarkPlus,
   CalendarDays,
   ChevronRight,
@@ -205,7 +206,7 @@ function DraftModeBadge() {
             aria-label="This Task Draft saves automatically."
             className="inline-flex h-7 items-center gap-1.5 rounded-md bg-muted px-2 font-medium text-muted-foreground text-xs"
           >
-            <BookmarkPlus aria-hidden className="size-3.5" />
+            <Bookmark aria-hidden className="size-3.5" />
             Draft
           </span>
         }

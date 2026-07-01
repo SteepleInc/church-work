@@ -102,6 +102,7 @@ export function DraftCard({
               className="absolute top-3 right-3 text-muted-foreground opacity-0 transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
               onClick={handleDiscard}
               size="icon-sm"
+              type="button"
               variant="ghost"
             />
           }
