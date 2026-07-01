@@ -34,10 +34,12 @@ export function DraftCard({
   taskDraft,
   churchId,
   onDiscard,
+  onOpen,
 }: {
   readonly taskDraft: TaskDraft;
   readonly churchId: string | null;
   readonly onDiscard: (draftId: string) => void;
+  readonly onOpen: (draftId: string) => void;
 }) {
   const title = taskDraft.title?.trim() || "Untitled draft";
   const description = taskDraft.description?.trim();
@@ -80,7 +82,18 @@ export function DraftCard({
   }
 
   return (
-    <article className="group relative rounded-xl border bg-card p-4 shadow-xs ring-foreground/5 transition-colors hover:bg-accent/30 hover:ring-1">
+    <article
+      className="group relative cursor-pointer rounded-xl border bg-card p-4 shadow-xs ring-foreground/5 transition-colors hover:bg-accent/30 hover:ring-1"
+      onClick={() => onOpen(taskDraft.draft_id)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen(taskDraft.draft_id);
+        }
+      }}
+      role="button"
+      tabIndex={0}
+    >
       <Tooltip>
         <TooltipTrigger
           render={

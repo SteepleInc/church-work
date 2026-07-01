@@ -11,6 +11,7 @@ import {
   ListTree,
   Maximize2,
   Minimize2,
+  Trash2,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -60,7 +61,12 @@ import { buildProjectedWeekCycles } from "@/components/weeks/team-weeks-index-da
 import { formatWeekDateRange, useCyclesCollection } from "@/data/cycles/cyclesData.app";
 import { useCreateLabelMutation, useLabelsCollection } from "@/data/labels/labelsData.app";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
-import { useCreateTaskMutation, useSaveTaskDraftMutation } from "@/data/tasks/tasksData.app";
+import { useDiscardDraftMutation, useTaskDraft } from "@/data/drafts/draftsData.app";
+import {
+  useCreateTaskMutation,
+  useSaveTaskDraftMutation,
+  useUpdateTaskDraftMutation,
+} from "@/data/tasks/tasksData.app";
 import { useTeamMembershipsCollection, useTeamsCollection } from "@/data/teams/teamsData.app";
 import { getUserDisplayName, useChurchUsersCollection } from "@/data/users/usersData.app";
 import {
@@ -100,6 +106,7 @@ export type CreateTaskQuickActionState = {
     readonly startsAt: string;
     readonly endsAt: string;
   };
+  readonly draftId?: string;
 } | null;
 
 export const createTaskQuickActionStateAtom = atom<CreateTaskQuickActionState>(null);
@@ -215,6 +222,10 @@ export function CreateTaskQuickAction() {
   const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
   const createTask = useCreateTaskMutation();
   const saveTaskDraft = useSaveTaskDraftMutation();
+  const updateTaskDraft = useUpdateTaskDraftMutation();
+  const discardDraft = useDiscardDraftMutation();
+  const editingDraftId = state?.draftId ?? null;
+  const editingTaskDraft = useTaskDraft(editingDraftId ?? "__no_draft__");
 
   const churchId = activeChurch?.id ?? null;
   const currentUserId = activeChurch?.currentUserId ?? null;
@@ -276,6 +287,8 @@ export function CreateTaskQuickAction() {
   const nextDescriptionRef = useRef("");
   // "open" = save and open the created Task (Cmd+Alt+Enter).
   const submitModeRef = useRef<"default" | "open">("default");
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastAutosavedRef = useRef<string | null>(null);
 
   // Picker openers for dialog-level keyboard shortcuts (T/S/A/P/⇧E/L/D).
   const teamOpenRef = useRef<(() => void) | null>(null);
@@ -386,9 +399,11 @@ export function CreateTaskQuickAction() {
       // `description` holds serialized Plate JSON (or "" when the doc is empty).
       const serializedDescription = value.description;
       setError(null);
+      await flushDraftAutosave();
       const result = await createTask({
         churchId,
         actorUserId: currentUserId,
+        draftId: editingDraftId,
         title: trimmedTitle,
         description: serializedDescription === "" ? null : serializedDescription,
         teamId: submitTeamId,
@@ -495,11 +510,41 @@ export function CreateTaskQuickAction() {
   };
 
   const close = () => {
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
     setConfirmDiscardOpen(false);
     setSavingDraft(false);
     setState(null);
     setError(null);
     form.reset();
+  };
+
+  const draftPayloadFromValue = (value: typeof form.state.values) => ({
+    assignedUserId: value.assignedUserId,
+    description: value.description === "" ? null : value.description,
+    dueDate: value.dueDate,
+    estimate: value.estimate === "no_estimate" ? null : value.estimate,
+    labelIds: [...value.labels],
+    parentTaskId: state?.parentTaskId ?? null,
+    priority: value.priority === "no_priority" ? null : value.priority,
+    teamId: value.teamId,
+    title: value.title.trim(),
+    workflowStatusId: value.workflowStatusId || null,
+  });
+
+  const flushDraftAutosave = async () => {
+    if (!editingDraftId || !form.state.isDirty) return;
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+    const payload = draftPayloadFromValue(form.state.values);
+    const key = JSON.stringify(payload);
+    if (key === lastAutosavedRef.current) return;
+    lastAutosavedRef.current = key;
+    await updateTaskDraft({ draftId: editingDraftId, ...payload }).catch(() => undefined);
   };
 
   const saveDraftAndClose = async () => {
@@ -534,11 +579,22 @@ export function CreateTaskQuickAction() {
     close();
   };
 
+  const discardOpenedDraftAndClose = async () => {
+    if (!editingDraftId) return;
+    await discardDraft(editingDraftId).catch(() => undefined);
+    close();
+  };
+
   // Closing with unsaved edits prompts before discarding; a pristine draft (or
   // one only carrying its prefilled values) closes straight away. Routes every
   // close affordance — the header X, Escape, and outside-click — through one
   // guard.
   const requestClose = () => {
+    if (editingDraftId) {
+      void flushDraftAutosave();
+      close();
+      return;
+    }
     if (form.state.isDirty) {
       setConfirmDiscardOpen(true);
       return;
@@ -568,6 +624,54 @@ export function CreateTaskQuickAction() {
     nextDescriptionRef.current = state.description ?? "";
     setEditorResetKey((key) => key + 1);
   }, [isOpen, state, form]);
+
+  useEffect(() => {
+    if (!editingDraftId || !editingTaskDraft) return;
+    const sync = { dontUpdateMeta: true } as const;
+    const labels = parseDraftLabelIds(editingTaskDraft.label_ids);
+    form.setFieldValue("title", editingTaskDraft.title ?? "", sync);
+    form.setFieldValue("description", editingTaskDraft.description ?? "", sync);
+    form.setFieldValue("assignedUserId", editingTaskDraft.assigned_user_id ?? null, sync);
+    form.setFieldValue("workflowStatusId", editingTaskDraft.workflow_status_id ?? "", sync);
+    form.setFieldValue("teamId", editingTaskDraft.team_id ?? null, sync);
+    form.setFieldValue(
+      "priority",
+      (editingTaskDraft.priority as TaskPriority | null) ?? "no_priority",
+      sync,
+    );
+    form.setFieldValue(
+      "estimate",
+      (editingTaskDraft.estimate as TaskEstimate | null) ?? "no_estimate",
+      sync,
+    );
+    form.setFieldValue("labels", labels, sync);
+    form.setFieldValue("dueDate", editingTaskDraft.due_date ?? null, sync);
+    nextDescriptionRef.current = editingTaskDraft.description ?? "";
+    lastAutosavedRef.current = JSON.stringify(
+      draftPayloadFromValue({
+        ...form.state.values,
+        assignedUserId: editingTaskDraft.assigned_user_id ?? null,
+        description: editingTaskDraft.description ?? "",
+        dueDate: editingTaskDraft.due_date ?? null,
+        estimate: (editingTaskDraft.estimate as TaskEstimate | null) ?? "no_estimate",
+        labels,
+        priority: (editingTaskDraft.priority as TaskPriority | null) ?? "no_priority",
+        teamId: editingTaskDraft.team_id ?? null,
+        title: editingTaskDraft.title ?? "",
+        workflowStatusId: editingTaskDraft.workflow_status_id ?? "",
+      }),
+    );
+    setEditorResetKey((key) => key + 1);
+  }, [editingDraftId, editingTaskDraft, form]);
+
+  useEffect(() => {
+    if (!editingDraftId || !form.state.isDirty) return;
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(() => void flushDraftAutosave(), 700);
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    };
+  }, [editingDraftId, form.state.values, form.state.isDirty]);
 
   // Inline label creation from the picker. Always creates a Church-scoped
   // Label (see CONTEXT.md "Label"); on success the new Label joins the
@@ -676,24 +780,39 @@ export function CreateTaskQuickAction() {
               </span>
             </QuickActionsTitle>
             <div className="flex items-center gap-1">
-              <form.Subscribe
-                selector={(formState) => formState.isDirty && hasTaskDraftContent(formState.values)}
-              >
-                {(canSaveDraft) =>
-                  canSaveDraft ? (
-                    <Button
-                      className="text-muted-foreground hover:text-foreground"
-                      loading={savingDraft}
-                      onClick={() => void saveDraftAndClose()}
-                      size="sm"
-                      type="button"
-                      variant="ghost"
-                    >
-                      Save as draft
-                    </Button>
-                  ) : null
-                }
-              </form.Subscribe>
+              {editingDraftId ? (
+                <Button
+                  aria-label="Discard draft"
+                  className="text-muted-foreground hover:text-destructive"
+                  onClick={() => void discardOpenedDraftAndClose()}
+                  size="icon-sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              ) : (
+                <form.Subscribe
+                  selector={(formState) =>
+                    formState.isDirty && hasTaskDraftContent(formState.values)
+                  }
+                >
+                  {(canSaveDraft) =>
+                    canSaveDraft ? (
+                      <Button
+                        className="text-muted-foreground hover:text-foreground"
+                        loading={savingDraft}
+                        onClick={() => void saveDraftAndClose()}
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        Save as draft
+                      </Button>
+                    ) : null
+                  }
+                </form.Subscribe>
+              )}
               <Button
                 aria-label={expanded ? "Collapse" : "Expand"}
                 className="hidden text-muted-foreground md:inline-flex"
@@ -740,6 +859,12 @@ export function CreateTaskQuickAction() {
                     onKeyDown={(event) => {
                       if (event.metaKey || event.ctrlKey || event.altKey) return;
                       const input = event.currentTarget;
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        input.blur();
+                        return;
+                      }
                       const caretAtEnd =
                         input.selectionStart === input.value.length &&
                         input.selectionEnd === input.value.length;
@@ -783,6 +908,13 @@ export function CreateTaskQuickAction() {
                       onChange={(value) =>
                         field.handleChange(serializeDescriptionValue(value) ?? "")
                       }
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          event.currentTarget.blur();
+                        }
+                      }}
                       onEscapeStart={focusTitleEnd}
                     />
                   </div>
@@ -975,4 +1107,15 @@ export function CreateTaskQuickAction() {
       />
     </>
   );
+}
+
+function parseDraftLabelIds(raw: string | null | undefined): readonly string[] {
+  try {
+    const parsed = JSON.parse(raw ?? "[]");
+    return Array.isArray(parsed)
+      ? parsed.filter((value): value is string => typeof value === "string")
+      : [];
+  } catch {
+    return [];
+  }
 }
