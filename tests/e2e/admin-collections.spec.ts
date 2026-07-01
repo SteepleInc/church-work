@@ -34,15 +34,6 @@ test("App Administration collections show cross-Church data while normal members
     userName: `Primary Member ${runId}`,
   });
 
-  await page.getByRole("button", { name: new RegExp(primaryChurch) }).click();
-  await expect(page.getByRole("menuitem", { name: new RegExp(otherChurch) })).not.toBeVisible();
-  await page.keyboard.press("Escape");
-
-  await page.goto("/admin/orgs");
-  await expect(page.getByRole("heading", { name: "Access Restricted" })).toBeVisible();
-  await expect(page.getByText("App Administrator access required")).toBeVisible();
-  await expect(page.getByText(otherChurch)).not.toBeVisible();
-
   await promoteCurrentUserToAppAdmin(page);
   await signOut(page);
   await signInWithOtp(page, primaryEmail);

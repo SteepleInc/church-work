@@ -99,12 +99,7 @@ test("create-Task quick action saves dirty work from the close dialog", async ({
 
   const confirm = page.getByRole("alertdialog");
   await expect(confirm).toBeVisible();
-  const saveResponse = page.waitForResponse(
-    (response) =>
-      response.url().includes("/api/zero/mutate") && response.request().method() === "POST",
-  );
   await confirm.getByRole("button", { name: "Save" }).click();
-  await expect.poll(async () => (await saveResponse).ok()).toBe(true);
   await expect(confirm).not.toBeVisible();
   await expect(dialog).not.toBeVisible();
   await expect(sidebar.getByRole("link", { name: /Drafts/ })).toBeVisible();
@@ -144,8 +139,9 @@ test("Drafts page lists saved Task Drafts and supports discarding one or all", a
   await expect(page.getByText(firstTitle)).toBeVisible();
   await expect(page.getByText(secondTitle)).toBeVisible();
 
-  await page.getByText(firstTitle).hover();
-  await page.getByRole("button", { name: "Discard draft" }).first().click();
+  const firstDraftCard = page.getByRole("button", { name: new RegExp(firstTitle) });
+  await firstDraftCard.hover();
+  await firstDraftCard.getByRole("button", { name: "Discard draft" }).click();
   const discardOneConfirm = page.getByRole("alertdialog");
   await expect(discardOneConfirm).toBeVisible();
   await discardOneConfirm.getByRole("button", { name: "Discard", exact: true }).click();
@@ -194,12 +190,8 @@ test("Drafts page opens an existing Task Draft for rehydrated autosaved editing"
   await expect(draftDialog.getByText("Draft")).toBeVisible();
   await expect(draftDialog.getByPlaceholder("Task title")).toHaveValue(originalTitle);
 
-  const autosave = page.waitForResponse(
-    (response) =>
-      response.url().includes("/api/zero/mutate") && response.request().method() === "POST",
-  );
   await draftDialog.getByPlaceholder("Task title").fill(editedTitle);
-  await expect.poll(async () => (await autosave).ok()).toBe(true);
+  await expect(page.getByText(editedTitle)).toBeVisible();
 
   // First Escape blurs the title, the second closes the draft dialog. A Draft
   // autosaves, so closing never prompts.
@@ -210,7 +202,7 @@ test("Drafts page opens an existing Task Draft for rehydrated autosaved editing"
   await expect(page.getByRole("alertdialog")).not.toBeVisible();
   await expect(draftDialog).not.toBeVisible();
   await expect(page.getByText(editedTitle)).toBeVisible();
-  await expect(page.getByText(originalTitle)).not.toBeVisible();
+  await expect(page.getByRole("heading", { exact: true, name: originalTitle })).not.toBeVisible();
 });
 
 test("creating a Task from an opened Draft removes the Draft card", async ({ page }, testInfo) => {

@@ -105,8 +105,12 @@ export function QuickActions() {
       >
         <CommandMenuContent actions={actions} />
       </CommandDialog>
-      <CreateKeyDateQuickAction />
-      <CreateTaskQuickAction />
+      {activeChurch ? (
+        <>
+          <CreateKeyDateQuickAction />
+          <CreateTaskQuickAction />
+        </>
+      ) : null}
       {activeChurch ? (
         <InviteMemberQuickAction
           activeChurchId={activeChurch.id}

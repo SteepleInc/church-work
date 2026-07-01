@@ -99,6 +99,7 @@ export async function signOut(page: Page) {
     const { authClient } = await import("/src/lib/auth-client.ts");
     await authClient.signOut();
   });
+  await page.goto("/");
 }
 
 export async function startAuthenticatedSession(

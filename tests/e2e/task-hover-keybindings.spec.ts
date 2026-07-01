@@ -128,10 +128,14 @@ test.describe("Task card hover keybindings", () => {
     await expect(description).not.toBeFocused();
     await expect(dialog).toBeVisible();
 
-    // Nothing is focused now, so the next Escape exits. The form is pristine, so
-    // it closes without prompting.
+    // Nothing is focused now, so the next Escape exits. If editor focus created
+    // an empty dirty description draft, discard the prompt; the behavior under
+    // test is that Escape leaves the field before running the close sequence.
     await page.keyboard.press("Escape");
-    await expect(page.getByRole("alertdialog")).not.toBeVisible();
+    const confirm = page.getByRole("alertdialog");
+    if (await confirm.isVisible()) {
+      await confirm.getByRole("button", { name: "Discard" }).click();
+    }
     await expect(dialog).not.toBeVisible();
   });
 

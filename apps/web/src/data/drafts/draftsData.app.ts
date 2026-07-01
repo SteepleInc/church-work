@@ -8,7 +8,9 @@ export function useMyDraftsCollection() {
 }
 
 export function useTaskDraft(draftId: string) {
-  const [row] = useQuery(queries.task_drafts.by_draft_id({ draft_id: draftId }));
+  const [row] = useQuery(queries.task_drafts.by_draft_id({ draft_id: draftId }), {
+    enabled: draftId !== "__no_draft__",
+  });
   return row as TaskDraft | undefined;
 }
 

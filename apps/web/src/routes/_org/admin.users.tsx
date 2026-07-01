@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { MainContainer } from "@/components/pageComponents";
 import { UsersCollection } from "@/features/users/usersCollection";
+import { InternalAccessGate } from "@/routes/-internal-admin";
 
 export const Route = createFileRoute("/_org/admin/users")({
   component: AdminUsersPage,
@@ -9,8 +10,10 @@ export const Route = createFileRoute("/_org/admin/users")({
 
 function AdminUsersPage() {
   return (
-    <MainContainer>
-      <UsersCollection _tag="global" />
-    </MainContainer>
+    <InternalAccessGate>
+      <MainContainer>
+        <UsersCollection _tag="global" />
+      </MainContainer>
+    </InternalAccessGate>
   );
 }

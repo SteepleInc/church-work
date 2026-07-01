@@ -10,7 +10,10 @@ import { useAllOrgsCollectionWithFilters } from "@/data/orgs/orgsData.app";
 import { useTeamsCollection } from "@/data/teams/teamsData.app";
 import { useIsAppAdmin } from "@/data/users/adminData.app";
 import { useSession } from "@/hooks/use-session";
-import { useChurchUsersCollection } from "@/data/users/usersData.app";
+import {
+  useAllUsersCollectionWithFilters,
+  useChurchUsersCollection,
+} from "@/data/users/usersData.app";
 
 export function InternalPageFrame({
   eyebrow,
@@ -185,8 +188,7 @@ export function AppAdminUsersPanel() {
 }
 
 function AppAdminUsersContent() {
-  const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
-  const users = useChurchUsersCollection({ churchId: activeChurch?.id ?? null });
+  const users = useAllUsersCollectionWithFilters();
 
   return (
     <InternalPageFrame
@@ -222,6 +224,11 @@ function AppAdminUsersContent() {
                 <div className="font-medium">{user.name ?? user.email}</div>
                 <div className="text-muted-foreground text-xs">{user.email}</div>
                 <div className="text-muted-foreground text-xs">Role: {user.role}</div>
+                {user.churches.length > 0 ? (
+                  <div className="text-muted-foreground text-xs">
+                    Churches: {user.churches.map((church) => church.name).join(", ")}
+                  </div>
+                ) : null}
               </div>
             ))
           ) : (
@@ -238,8 +245,10 @@ export function InternalAccessGate({ children }: { readonly children: ReactNode 
   const isAppAdministrator = useIsAppAdmin();
   const zero = useZero();
   const zeroSessionReady = zero.context?.authenticated === true;
+  const zeroAppAdminReady =
+    zero.context?.authenticated === true && zero.context.is_app_admin === true;
 
-  if (session.isPending || !zeroSessionReady) {
+  if (session.isPending || !zeroSessionReady || (isAppAdministrator && !zeroAppAdminReady)) {
     return (
       <ScrollArea className="min-h-0 flex-1" viewportClassName="p-6">
         <main className="mx-auto flex w-full max-w-5xl flex-col gap-6">

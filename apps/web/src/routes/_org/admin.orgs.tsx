@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { MainContainer } from "@/components/pageComponents";
 import { OrgsCollection } from "@/features/orgs/orgsCollection";
+import { InternalAccessGate } from "@/routes/-internal-admin";
 
 export const Route = createFileRoute("/_org/admin/orgs")({
   component: AdminOrgsPage,
@@ -9,8 +10,10 @@ export const Route = createFileRoute("/_org/admin/orgs")({
 
 function AdminOrgsPage() {
   return (
-    <MainContainer>
-      <OrgsCollection _tag="global" />
-    </MainContainer>
+    <InternalAccessGate>
+      <MainContainer>
+        <OrgsCollection _tag="global" />
+      </MainContainer>
+    </InternalAccessGate>
   );
 }

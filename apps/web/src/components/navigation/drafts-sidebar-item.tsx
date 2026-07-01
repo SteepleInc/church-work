@@ -1,8 +1,10 @@
 import { FileTextIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useZero } from "@rocicorp/zero/react";
 
 import { SideBarItem } from "@/components/navigation/sidebar-item";
 import { useMyDraftsCollection } from "@/data/drafts/draftsData.app";
+import { useSession } from "@/hooks/use-session";
 
 const DRAFTS_SIDEBAR_EXIT_MS = 200;
 const DRAFTS_SIDEBAR_ANIMATION_CLASSNAME =
@@ -17,6 +19,15 @@ function prefersReducedMotion() {
 }
 
 export function DraftsSidebarItem() {
+  const { isPending, session } = useSession();
+  const zero = useZero();
+
+  if (isPending || !session || zero.context?.authenticated !== true) return null;
+
+  return <AuthenticatedDraftsSidebarItem />;
+}
+
+function AuthenticatedDraftsSidebarItem() {
   const { collection } = useMyDraftsCollection();
   const draftCount = collection.length;
   const [isMounted, setIsMounted] = useState(draftCount > 0);

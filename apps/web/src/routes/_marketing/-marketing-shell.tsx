@@ -42,7 +42,7 @@ const HEADER_TIMING = {
   // wordmark.delay + (paths - 1) * wordmark.stagger.
   wordmark: { delay: 0.5, stagger: 0.06, duration: 0.6 },
   nav: { delay: 1.0, stagger: 0.08, duration: 0.5 },
-  button: { delay: 1.3, duration: 0.5 },
+  button: { delay: 1.15, duration: 0.5 },
 } as const;
 
 type NavKey = "home" | "how" | "product" | "pricing";
@@ -54,8 +54,8 @@ const NAV_LINKS: ReadonlyArray<{
   chevron?: boolean;
 }> = [
   { key: "home", label: "Home", to: "/" },
-  { key: "how", label: "How it works", to: "/" },
-  { key: "product", label: "Product", to: "/", chevron: true },
+  // { key: "how", label: "How it works", to: "/" },
+  // { key: "product", label: "Product", to: "/", chevron: true },
   { key: "pricing", label: "Pricing", to: "/pricing" },
 ];
 
