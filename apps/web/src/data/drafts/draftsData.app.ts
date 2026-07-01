@@ -14,17 +14,17 @@ export function useTaskDraft(draftId: string) {
 
 export function useDiscardDraftMutation() {
   const zero = useZero();
-  return (draftId: string) => zero.mutate(mutators.drafts.discard({ draft_id: draftId }));
+  return (draftId: string) => zero.mutate(mutators.drafts.discard({ draft_id: draftId })).server;
 }
 
 export function useDiscardAllDraftsMutation() {
   const zero = useZero();
   return (draftIds: readonly string[]) =>
-    zero.mutate(mutators.drafts.discard_all({ draft_ids: [...draftIds] }));
+    zero.mutate(mutators.drafts.discard_all({ draft_ids: [...draftIds] })).server;
 }
 
 export function useRestoreDraftsMutation() {
   const zero = useZero();
   return (draftIds: readonly string[]) =>
-    zero.mutate(mutators.drafts.restore({ draft_ids: [...draftIds] }));
+    zero.mutate(mutators.drafts.restore({ draft_ids: [...draftIds] })).server;
 }

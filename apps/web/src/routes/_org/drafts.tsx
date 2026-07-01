@@ -50,16 +50,24 @@ function DraftsPage() {
   const count = collection.length;
 
   async function onDiscardOne(draftId: string) {
-    await discardDraft(draftId);
+    const result = await discardDraft(draftId);
+    if (result.type === "error") {
+      toast.error(result.error?.message ?? "Could not discard draft.");
+      return;
+    }
     toast.success("Draft discarded.", {
       action: { label: "Undo", onClick: () => void restoreDrafts([draftId]) },
     });
   }
 
-  function onDiscardAll() {
+  async function onDiscardAll() {
     const ids = collection.map((draft) => draft.draft_id);
     setConfirmOpen(false);
-    void discardAll(ids);
+    const result = await discardAll(ids);
+    if (result.type === "error") {
+      toast.error(result.error?.message ?? "Could not discard drafts.");
+      return;
+    }
     toast.success(ids.length === 1 ? "Draft discarded." : `${ids.length} drafts discarded.`, {
       action: { label: "Undo", onClick: () => void restoreDrafts(ids) },
     });
