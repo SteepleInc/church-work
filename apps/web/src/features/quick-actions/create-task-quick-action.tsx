@@ -818,8 +818,8 @@ export function CreateTaskQuickAction() {
                   }}
                 </form.Subscribe>
                 <ChevronRight className="size-3.5 text-muted-foreground" />
-                <span>
-                  {editingDraftId ? "Task Draft" : isCreatingSubtask ? "New Subtask" : "New Task"}
+                <span aria-label={editingDraftId ? "Task Draft" : undefined}>
+                  {editingDraftId ? "Task" : isCreatingSubtask ? "New Subtask" : "New Task"}
                 </span>
                 {editingDraftId ? <DraftModeBadge /> : null}
                 {state?.parentTaskLabel ? (
