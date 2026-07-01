@@ -32,10 +32,12 @@ import {
   activities,
   cycle_adjustments,
   cycles,
+  drafts,
   key_dates,
   member,
   organization,
   tasks,
+  task_drafts,
   template_schedules,
   template_tasks,
   template_teams,
@@ -751,9 +753,34 @@ const runTaskTool = (
       case "create-task": {
         const teamId = typeof body.teamId === "string" ? body.teamId : null;
         const statusId = typeof body.workflowStatusId === "string" ? body.workflowStatusId : null;
+        let draftId: string | null = null;
+        if (typeof body.draftId === "string") {
+          draftId = body.draftId;
+        } else if (typeof body.draft_id === "string") {
+          draftId = body.draft_id;
+        }
         const title = typeof body.title === "string" ? body.title.trim() : "";
         if (!teamId || !statusId || !title)
           throw new Error("teamId, workflowStatusId, and title are required.");
+
+        if (draftId) {
+          const [draft] = yield* Effect.promise(() =>
+            services.db
+              .select({ id: drafts.id })
+              .from(drafts)
+              .where(
+                and(
+                  eq(drafts.id, draftId),
+                  eq(drafts.kind, "task"),
+                  eq(drafts.church_id, churchId),
+                  eq(drafts.owner_user_id, session.user.id),
+                  isNull(drafts.deleted_at),
+                ),
+              )
+              .limit(1),
+          );
+          if (!draft) throw new Error("Draft not found.");
+        }
 
         const [team] = yield* Effect.promise(() =>
           services.db
@@ -803,24 +830,70 @@ const runTaskTool = (
           workflow_status_id: status.id,
         } satisfies typeof tasks.$inferInsert;
 
-        const [inserted] = yield* Effect.promise(() =>
-          services.db.insert(tasks).values(task).returning(),
+        const inserted = yield* Effect.promise(() =>
+          services.db.transaction(async (tx) => {
+            const [insertedTask] = await tx.insert(tasks).values(task).returning();
+            if (!insertedTask) throw new Error("Task was not created.");
+
+            await tx
+              .update(teams)
+              .set({ next_task_number: team.next_task_number + 1 })
+              .where(eq(teams.id, team.id));
+
+            if (draftId) {
+              const deletedAt = new Date();
+              await tx
+                .update(task_drafts)
+                .set({
+                  deleted_at: deletedAt,
+                  deleted_by: session.user.id,
+                  updated_by: session.user.id,
+                })
+                .where(
+                  and(
+                    eq(task_drafts.draft_id, draftId),
+                    eq(task_drafts.church_id, churchId),
+                    eq(task_drafts.owner_user_id, session.user.id),
+                    isNull(task_drafts.deleted_at),
+                  ),
+                );
+              await tx
+                .update(drafts)
+                .set({
+                  deleted_at: deletedAt,
+                  deleted_by: session.user.id,
+                  updated_by: session.user.id,
+                })
+                .where(
+                  and(
+                    eq(drafts.id, draftId),
+                    eq(drafts.kind, "task"),
+                    eq(drafts.church_id, churchId),
+                    eq(drafts.owner_user_id, session.user.id),
+                    isNull(drafts.deleted_at),
+                  ),
+                );
+            }
+
+            await tx.insert(activities).values({
+              _tag: "activity",
+              actor_id: session.user.id,
+              actor_type: "user",
+              church_id: churchId,
+              created_by: session.user.id,
+              entity_id: task.id,
+              entity_type: "task",
+              event_type: "task.created",
+              id: getActivityId(),
+              occurred_at: new Date(),
+              updated_by: session.user.id,
+            });
+            return insertedTask;
+          }),
         );
-        yield* Effect.promise(() =>
-          services.db
-            .update(teams)
-            .set({ next_task_number: team.next_task_number + 1 })
-            .where(eq(teams.id, team.id)),
-        );
-        yield* recordTaskActivity(services.db, {
-          actorId: session.user.id,
-          churchId,
-          entityId: task.id,
-          eventType: "task.created",
-        });
         return json({
           ok: true,
-          task: toTaskDto(inserted!, team),
+          task: toTaskDto(inserted, team),
           tool,
         });
       }

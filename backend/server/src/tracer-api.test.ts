@@ -3,7 +3,9 @@ import {
   activities,
   cycle_adjustments,
   cycles,
+  drafts,
   invitation,
+  task_drafts,
   tasks,
   template_schedules,
   template_tasks,
@@ -294,6 +296,7 @@ describe("tracer API", () => {
         },
       });
       const cookie = getCookieHeader(signUp);
+      const session = await authRuntime.auth.api.getSession({ headers: new Headers({ cookie }) });
 
       const org = await authRuntime.auth.api.createOrganization({
         body: {
@@ -455,6 +458,131 @@ describe("tracer API", () => {
       expect(createTaskResponse.ok).toBe(true);
       const created = (await createTaskResponse.json()) as { task?: { id?: string } };
       expect(created.task?.id).toMatch(/^task_/);
+
+      await authRuntime.db.insert(drafts).values({
+        _tag: "draft",
+        church_id: org!.id,
+        created_by: session!.user.id,
+        id: "draft_mcp_consumed",
+        kind: "task",
+        owner_user_id: session!.user.id,
+        updated_by: session!.user.id,
+      });
+      await authRuntime.db.insert(task_drafts).values({
+        _tag: "taskdraft",
+        church_id: org!.id,
+        created_by: session!.user.id,
+        draft_id: "draft_mcp_consumed",
+        id: "taskdraft_mcp_consumed",
+        owner_user_id: session!.user.id,
+        title: "Draft title should not win",
+        updated_by: session!.user.id,
+      });
+
+      const createFromDraftResponse = await api.fetch(
+        new Request("http://127.0.0.1/api/mcp/tools/create-task", {
+          body: JSON.stringify({
+            churchId: org?.id,
+            draftId: "draft_mcp_consumed",
+            teamId: team!.id,
+            title: "Create from consumed MCP Draft",
+            workflowStatusId: todoStatus!.id,
+          }),
+          headers: { "content-type": "application/json", cookie },
+          method: "POST",
+        }),
+      );
+      expect(createFromDraftResponse.ok).toBe(true);
+      const createdFromDraft = (await createFromDraftResponse.json()) as {
+        task?: { id?: string; title?: string };
+      };
+      expect(createdFromDraft).toMatchObject({
+        ok: true,
+        task: { title: "Create from consumed MCP Draft" },
+        tool: "create-task",
+      });
+      const [consumedDraft] = await authRuntime.db
+        .select({ deleted_at: drafts.deleted_at, deleted_by: drafts.deleted_by })
+        .from(drafts)
+        .where(eq(drafts.id, "draft_mcp_consumed"))
+        .limit(1);
+      const [consumedTaskDraft] = await authRuntime.db
+        .select({ deleted_at: task_drafts.deleted_at, deleted_by: task_drafts.deleted_by })
+        .from(task_drafts)
+        .where(eq(task_drafts.draft_id, "draft_mcp_consumed"))
+        .limit(1);
+      expect(consumedDraft?.deleted_by).toBe(session!.user.id);
+      expect(consumedDraft?.deleted_at).toBeInstanceOf(Date);
+      expect(consumedTaskDraft?.deleted_by).toBe(session!.user.id);
+      expect(consumedTaskDraft?.deleted_at).toBeInstanceOf(Date);
+
+      await authRuntime.db.insert(drafts).values({
+        _tag: "draft",
+        church_id: org!.id,
+        created_by: "user_other",
+        id: "draft_mcp_other_owner",
+        kind: "task",
+        owner_user_id: "user_other",
+        updated_by: "user_other",
+      });
+      await authRuntime.db.insert(task_drafts).values({
+        _tag: "taskdraft",
+        church_id: org!.id,
+        created_by: "user_other",
+        draft_id: "draft_mcp_other_owner",
+        id: "taskdraft_mcp_other_owner",
+        owner_user_id: "user_other",
+        title: "Other owner draft",
+        updated_by: "user_other",
+      });
+
+      const otherOwnerDraftResponse = await api.fetch(
+        new Request("http://127.0.0.1/api/mcp/tools/create-task", {
+          body: JSON.stringify({
+            churchId: org?.id,
+            draftId: "draft_mcp_other_owner",
+            teamId: team!.id,
+            title: "Should not be created from another user's draft",
+            workflowStatusId: todoStatus!.id,
+          }),
+          headers: { "content-type": "application/json", cookie },
+          method: "POST",
+        }),
+      );
+      expect(otherOwnerDraftResponse.ok).toBe(false);
+      await expect(otherOwnerDraftResponse.json()).resolves.toEqual({ error: "Draft not found." });
+      const [otherOwnerDraft] = await authRuntime.db
+        .select({ deleted_at: drafts.deleted_at })
+        .from(drafts)
+        .where(eq(drafts.id, "draft_mcp_other_owner"))
+        .limit(1);
+      expect(otherOwnerDraft?.deleted_at).toBeNull();
+
+      await authRuntime.db.insert(drafts).values({
+        _tag: "draft",
+        church_id: "org_other_church",
+        created_by: session!.user.id,
+        id: "draft_mcp_other_church",
+        kind: "task",
+        owner_user_id: session!.user.id,
+        updated_by: session!.user.id,
+      });
+      const otherChurchDraftResponse = await api.fetch(
+        new Request("http://127.0.0.1/api/mcp/tools/create-task", {
+          body: JSON.stringify({
+            churchId: org?.id,
+            draftId: "draft_mcp_other_church",
+            teamId: team!.id,
+            title: "Should not be created from another Church draft",
+            workflowStatusId: todoStatus!.id,
+          }),
+          headers: { "content-type": "application/json", cookie },
+          method: "POST",
+        }),
+      );
+      expect(otherChurchDraftResponse.ok).toBe(false);
+      await expect(otherChurchDraftResponse.json()).resolves.toEqual({ error: "Draft not found." });
+
       const activityEntityId = "task_activity_feed_test";
 
       await authRuntime.db.insert(activities).values([
@@ -948,7 +1076,16 @@ describe("tracer API", () => {
         },
       });
 
-      await expect(authRuntime.db.select().from(tasks)).resolves.toHaveLength(3);
+      const taskRows = await authRuntime.db.select().from(tasks);
+      expect(taskRows).toHaveLength(4);
+      expect(taskRows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: created.task?.id }),
+          expect.objectContaining({ id: createdFromDraft.task?.id }),
+          expect.objectContaining({ id: createdSubtask.task?.id }),
+          expect.objectContaining({ id: materializedTask?.id }),
+        ]),
+      );
       await expect(authRuntime.db.select().from(templates)).resolves.toHaveLength(1);
       await expect(authRuntime.db.select().from(template_schedules)).resolves.toHaveLength(1);
       await expect(authRuntime.db.select().from(template_tasks)).resolves.toHaveLength(1);
