@@ -469,7 +469,11 @@ export function CreateTaskQuickAction() {
         return;
       }
 
-      if (createMore) {
+      // A Draft is consumed exactly once when it becomes a Task. Even if the
+      // sticky "Create more" preference is enabled from normal Task creation,
+      // close the Draft composer after creation so a second submission cannot
+      // reuse the now-deleted draft id.
+      if (createMore && !editingDraftId) {
         // Keep the dialog open with every property as-is; only the text
         // resets, ready for the next Task in the batch. Clearing the text is a
         // programmatic reset, not a User edit, so it stays pristine and won't
