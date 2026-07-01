@@ -144,6 +144,10 @@ describe("Zero product queries", () => {
     ).toThrow("Authentication required.");
 
     expect(() =>
+      mustGetQuery(queries, "task_drafts.my_active").fn({ ctx: memberContext }),
+    ).not.toThrow();
+
+    expect(() =>
       mustGetQuery(queries, "task_drafts.by_draft_id").fn({
         args: { draft_id: "draft_123" },
         ctx: memberContext,

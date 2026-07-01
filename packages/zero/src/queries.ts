@@ -124,6 +124,22 @@ export const queries = defineQueries({
     }),
   },
   task_drafts: {
+    my_active: defineChurchWorkQuery(({ ctx }) => {
+      const session = requireSignedInSession(ctx);
+      const activeChurchId = session.active_church_id;
+
+      if (activeChurchId === null) {
+        return zql.task_drafts
+          .where("id", "__missing_active_church__")
+          .where("deleted_at", "IS", null);
+      }
+
+      return zql.task_drafts
+        .where("church_id", activeChurchId)
+        .where("owner_user_id", session.user_id)
+        .where("deleted_at", "IS", null)
+        .orderBy("updated_at", "desc");
+    }),
     by_draft_id: defineChurchWorkQuery(TaskDraftByDraftIdArgs, ({ args, ctx }) => {
       const session = requireSignedInSession(ctx);
       const activeChurchId = session.active_church_id;

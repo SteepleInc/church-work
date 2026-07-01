@@ -146,6 +146,27 @@ export function useWorkflowStatusName(params: {
   return row?.name ?? null;
 }
 
+/**
+ * Resolves a single Workflow Status's current name *and* its `taskState` by id,
+ * for per-row lookups that need the matching Workflow Status glyph (e.g. a Task
+ * Draft card showing the status the draft would land in). Returns `null` while
+ * loading or when the status is gone, so callers can omit the chip entirely.
+ */
+export function useWorkflowStatusMeta(params: {
+  readonly churchId: string | null;
+  readonly statusId: string | null;
+}): { readonly name: string; readonly taskState: TaskStatus } | null {
+  const [row] = useQuery(
+    queries.workflow_statuses.by_id({
+      church_id: params.churchId ?? "__no_church__",
+      id: params.statusId ?? "__no_status__",
+    }),
+    { enabled: params.churchId !== null && params.statusId !== null },
+  );
+
+  return row ? { name: row.name, taskState: taskStatus(row.task_state) } : null;
+}
+
 export function useRenameWorkflowMutation() {
   const zero = useZero();
 

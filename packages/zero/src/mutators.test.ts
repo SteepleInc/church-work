@@ -1060,6 +1060,45 @@ describe("Zero Task mutators", () => {
     expect(taskDraftInsert.label_ids).toBe('["label_one"]');
   });
 
+  test("discards and restores Task Drafts from session-derived User and Church", async () => {
+    const { tx, updateCalls } = createServerTx([]);
+
+    await mustGetMutator(mutators, "drafts.discard").fn({
+      args: { draft_id: "draft_test" },
+      ctx: signedInContext,
+      tx,
+    });
+
+    expect(updateCalls.map((call) => call.table)).toEqual([task_drafts, drafts]);
+    expect(updateCalls[0]?.set).toMatchObject({ deleted_by: "user_test" });
+    expect(updateCalls[1]?.set).toMatchObject({ deleted_by: "user_test" });
+
+    updateCalls.length = 0;
+    await mustGetMutator(mutators, "drafts.restore").fn({
+      args: { draft_ids: ["draft_test"] },
+      ctx: signedInContext,
+      tx,
+    });
+
+    expect(updateCalls.map((call) => call.table)).toEqual([drafts, task_drafts]);
+    expect(updateCalls[0]?.set).toMatchObject({ deleted_at: null, deleted_by: null });
+    expect(updateCalls[1]?.set).toMatchObject({ deleted_at: null, deleted_by: null });
+  });
+
+  test("discards all active Task Drafts from session-derived User and Church", async () => {
+    const { tx, updateCalls } = createServerTx([]);
+
+    await mustGetMutator(mutators, "drafts.discard_all").fn({
+      args: { draft_ids: ["draft_test"] },
+      ctx: signedInContext,
+      tx,
+    });
+
+    expect(updateCalls.map((call) => call.table)).toEqual([task_drafts, drafts]);
+    expect(updateCalls[0]?.set).toMatchObject({ deleted_by: "user_test" });
+    expect(updateCalls[1]?.set).toMatchObject({ deleted_by: "user_test" });
+  });
+
   const createServerTx = (selectResults: Array<unknown>) => {
     const insertCalls: InsertCall[] = [];
     const updateCalls: Array<{

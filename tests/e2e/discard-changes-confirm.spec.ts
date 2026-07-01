@@ -89,6 +89,50 @@ test("create-Task quick action saves dirty work from the close dialog", async ({
   await expect(dialog).not.toBeVisible();
 });
 
+test("Drafts page lists saved Task Drafts and supports discarding one or all", async ({
+  page,
+}, testInfo) => {
+  const email = `drafts-page-${Date.now()}-${testInfo.workerIndex}@example.com`;
+  const churchName = `E2E Drafts Page Church ${Date.now()}`;
+  const firstTitle = `Draft one ${Date.now()}`;
+  const secondTitle = `Draft two ${Date.now()}`;
+
+  await signInAndCompleteOnboarding(page, { churchName, email });
+
+  for (const title of [firstTitle, secondTitle]) {
+    const dialog = await openCreateTaskQuickAction(page);
+    await dialog.getByPlaceholder("Task title").fill(title);
+    await page.keyboard.press("Escape");
+    const confirm = page.getByRole("alertdialog");
+    await expect(confirm).toBeVisible();
+    await confirm.getByRole("button", { name: "Save" }).click();
+    await expect(confirm).not.toBeVisible();
+    await expect(dialog).not.toBeVisible();
+  }
+
+  await page
+    .locator('[data-sidebar="sidebar"]')
+    .getByRole("link", { name: /Drafts/ })
+    .click();
+  await expect(page).toHaveURL(/\/drafts$/);
+  await expect(page.getByRole("heading", { name: "Drafts" })).toBeVisible();
+  await expect(page.getByText(firstTitle)).toBeVisible();
+  await expect(page.getByText(secondTitle)).toBeVisible();
+
+  await page.getByText(firstTitle).hover();
+  await page.getByRole("button", { name: "Discard draft" }).first().click();
+  await expect(page.getByText("Draft discarded.")).toBeVisible();
+  await expect(page.getByText(firstTitle)).not.toBeVisible();
+  await expect(page.getByText(secondTitle)).toBeVisible();
+
+  await page.getByRole("button", { name: "Discard all drafts" }).click();
+  const discardAllConfirm = page.getByRole("alertdialog");
+  await expect(discardAllConfirm).toBeVisible();
+  await discardAllConfirm.getByRole("button", { name: "Discard draft" }).click();
+  await expect(page.getByText(secondTitle)).not.toBeVisible();
+  await expect(page.getByText("No active drafts")).toBeVisible();
+});
+
 test("create-Task quick action closes a pristine draft without prompting", async ({
   page,
 }, testInfo) => {
