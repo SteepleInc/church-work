@@ -49,30 +49,64 @@ function DraftsPage() {
   const restoreDrafts = useRestoreDraftsMutation();
   const openCreateTask = useSetAtom(createTaskQuickActionStateAtom);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [discardingDraftIds, setDiscardingDraftIds] = useState(() => new Set<string>());
 
-  const count = collection.length;
+  const visibleDrafts = collection.filter((draft) => !discardingDraftIds.has(draft.draft_id));
+  const count = visibleDrafts.length;
 
   async function onDiscardOne(draftId: string) {
+    setDiscardingDraftIds((ids) => new Set(ids).add(draftId));
     const result = await discardDraft(draftId);
     if (result.type === "error") {
+      setDiscardingDraftIds((ids) => {
+        const next = new Set(ids);
+        next.delete(draftId);
+        return next;
+      });
       toast.error(result.error?.message ?? "Could not discard draft.");
       return;
     }
     toast.success("Draft discarded.", {
-      action: { label: "Undo", onClick: () => void restoreDrafts([draftId]) },
+      action: {
+        label: "Undo",
+        onClick: () => {
+          setDiscardingDraftIds((ids) => {
+            const next = new Set(ids);
+            next.delete(draftId);
+            return next;
+          });
+          void restoreDrafts([draftId]);
+        },
+      },
     });
   }
 
   async function onDiscardAll() {
-    const ids = collection.map((draft) => draft.draft_id);
+    const ids = visibleDrafts.map((draft) => draft.draft_id);
     setConfirmOpen(false);
+    setDiscardingDraftIds((discardingIds) => new Set([...discardingIds, ...ids]));
     const result = await discardAll(ids);
     if (result.type === "error") {
+      setDiscardingDraftIds((discardingIds) => {
+        const next = new Set(discardingIds);
+        for (const id of ids) next.delete(id);
+        return next;
+      });
       toast.error(result.error?.message ?? "Could not discard drafts.");
       return;
     }
     toast.success(ids.length === 1 ? "Draft discarded." : `${ids.length} drafts discarded.`, {
-      action: { label: "Undo", onClick: () => void restoreDrafts(ids) },
+      action: {
+        label: "Undo",
+        onClick: () => {
+          setDiscardingDraftIds((discardingIds) => {
+            const next = new Set(discardingIds);
+            for (const id of ids) next.delete(id);
+            return next;
+          });
+          void restoreDrafts(ids);
+        },
+      },
     });
   }
 
@@ -129,7 +163,7 @@ function DraftsPage() {
           </Empty>
         ) : (
           <div className="mx-auto grid w-full max-w-3xl gap-3">
-            {collection.map((draft) => (
+            {visibleDrafts.map((draft) => (
               <DraftCard
                 churchId={churchId}
                 key={draft.draft_id}

@@ -34,7 +34,26 @@ describe("Inbox navigation plumbing", () => {
     });
     expect(getBreadcrumbLabel("/inbox")).toBe("Inbox");
     expect(navSource).toContain("<InboxSidebarItem />");
+    expect(navSource).toContain("<DraftsSidebarItem />");
     expect(routeTreeSource).toContain("/_org/inbox");
+  });
+
+  test("wires Drafts as an owned sidebar subscription with animated visibility", async () => {
+    const sidebarSource = await Bun.file(
+      new URL("../../components/navigation/drafts-sidebar-item.tsx", import.meta.url),
+    ).text();
+    const dataSource = await Bun.file(
+      new URL("../../data/drafts/draftsData.app.ts", import.meta.url),
+    ).text();
+
+    expect(sidebarSource).toContain("useMyDraftsCollection");
+    expect(sidebarSource).toContain("draftCount > 0");
+    expect(sidebarSource).toContain("setIsMounted(false)");
+    expect(sidebarSource).toContain("requestAnimationFrame");
+    expect(sidebarSource).toContain("badge={displayCount}");
+    expect(sidebarSource).toContain('state={isVisible ? "open" : "closed"}');
+    expect(sidebarSource).toContain("data-[state=closed]");
+    expect(dataSource).toContain("queries.task_drafts.my_active()");
   });
 
   test("wires the sidebar badge to unread active-Church notifications", async () => {
@@ -155,7 +174,10 @@ describe("Inbox navigation plumbing", () => {
     const mention = notificationFixture("mention", {
       actor_user_id: "user-2",
       display_body: "Parking update",
-      display_metadata: JSON.stringify({ task_identifier: "CT-99", task_title: "Parking team" }),
+      display_metadata: JSON.stringify({
+        task_identifier: "CT-99",
+        task_title: "Parking team",
+      }),
       display_title: "Mentioned you",
       read_at: new Date("2026-06-22T11:00:00.000Z").getTime(),
       type: "mention_explicit_target",

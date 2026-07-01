@@ -29,6 +29,8 @@ test("create-Task quick action offers saving dirty work to drafts before closing
   const churchName = `E2E Discard Task Church ${Date.now()}`;
 
   await signInAndCompleteOnboarding(page, { churchName, email });
+  const sidebar = page.locator('[data-sidebar="sidebar"]');
+  await expect(sidebar.getByRole("link", { name: /Drafts/ })).not.toBeVisible();
 
   const dialog = await openCreateTaskQuickAction(page);
 
@@ -72,6 +74,8 @@ test("create-Task quick action saves dirty work from the close dialog", async ({
   const churchName = `E2E Save Task Draft Church ${Date.now()}`;
 
   await signInAndCompleteOnboarding(page, { churchName, email });
+  const sidebar = page.locator('[data-sidebar="sidebar"]');
+  await expect(sidebar.getByRole("link", { name: /Drafts/ })).not.toBeVisible();
 
   const dialog = await openCreateTaskQuickAction(page);
   await dialog.getByPlaceholder("Task title").fill("A task for later");
@@ -87,6 +91,8 @@ test("create-Task quick action saves dirty work from the close dialog", async ({
   await expect.poll(async () => (await saveResponse).ok()).toBe(true);
   await expect(confirm).not.toBeVisible();
   await expect(dialog).not.toBeVisible();
+  await expect(sidebar.getByRole("link", { name: /Drafts/ })).toBeVisible();
+  await expect(sidebar.getByText("1", { exact: true })).toBeVisible();
 });
 
 test("Drafts page lists saved Task Drafts and supports discarding one or all", async ({
@@ -114,6 +120,9 @@ test("Drafts page lists saved Task Drafts and supports discarding one or all", a
     .locator('[data-sidebar="sidebar"]')
     .getByRole("link", { name: /Drafts/ })
     .click();
+  await expect(
+    page.locator('[data-sidebar="sidebar"]').getByText("2", { exact: true }),
+  ).toBeVisible();
   await expect(page).toHaveURL(/\/drafts$/);
   await expect(page.getByRole("heading", { name: "Drafts" })).toBeVisible();
   await expect(page.getByText(firstTitle)).toBeVisible();
@@ -131,6 +140,9 @@ test("Drafts page lists saved Task Drafts and supports discarding one or all", a
   await discardAllConfirm.getByRole("button", { name: "Discard draft" }).click();
   await expect(page.getByText(secondTitle)).not.toBeVisible();
   await expect(page.getByText("No active drafts")).toBeVisible();
+  await expect(
+    page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: /Drafts/ }),
+  ).not.toBeVisible();
 });
 
 test("Drafts page opens an existing Task Draft for rehydrated autosaved editing", async ({

@@ -8,6 +8,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { cn } from "@/lib/utils";
 
 type SideBarItemProps = {
   readonly to: string;
@@ -18,6 +19,8 @@ type SideBarItemProps = {
   readonly onlyExact?: boolean;
   readonly matchPath?: string;
   readonly badge?: ReactNode;
+  readonly className?: string;
+  readonly state?: "open" | "closed";
 };
 
 export function SideBarItem({
@@ -29,6 +32,8 @@ export function SideBarItem({
   onlyExact = false,
   matchPath = to,
   badge,
+  className,
+  state,
 }: SideBarItemProps) {
   const pathname = useLocation({ select: (location) => location.pathname });
   const { setOpenMobile } = useSidebar();
@@ -50,7 +55,7 @@ export function SideBarItem({
   }, [dontMatchFor, matchFor, matchPath, onlyExact, pathname]);
 
   return (
-    <SidebarMenuItem>
+    <SidebarMenuItem className={cn(className)} data-state={state}>
       <SidebarMenuButton
         isActive={isActive}
         render={
