@@ -493,7 +493,10 @@ describe("tracer API", () => {
         }),
       );
       expect(createFromDraftResponse.ok).toBe(true);
-      await expect(createFromDraftResponse.json()).resolves.toMatchObject({
+      const createdFromDraft = (await createFromDraftResponse.json()) as {
+        task?: { id?: string; title?: string };
+      };
+      expect(createdFromDraft).toMatchObject({
         ok: true,
         task: { title: "Create from consumed MCP Draft" },
         tool: "create-task",
@@ -1073,7 +1076,16 @@ describe("tracer API", () => {
         },
       });
 
-      await expect(authRuntime.db.select().from(tasks)).resolves.toHaveLength(3);
+      const taskRows = await authRuntime.db.select().from(tasks);
+      expect(taskRows).toHaveLength(4);
+      expect(taskRows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: created.task?.id }),
+          expect.objectContaining({ id: createdFromDraft.task?.id }),
+          expect.objectContaining({ id: createdSubtask.task?.id }),
+          expect.objectContaining({ id: materializedTask?.id }),
+        ]),
+      );
       await expect(authRuntime.db.select().from(templates)).resolves.toHaveLength(1);
       await expect(authRuntime.db.select().from(template_schedules)).resolves.toHaveLength(1);
       await expect(authRuntime.db.select().from(template_tasks)).resolves.toHaveLength(1);
