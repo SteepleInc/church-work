@@ -1085,6 +1085,37 @@ describe("Zero Task mutators", () => {
     expect(updateCalls[1]?.set).toMatchObject({ deleted_at: null, deleted_by: null });
   });
 
+  test("updates Task Drafts and parent ordering from session-derived User and Church", async () => {
+    const { tx, updateCalls } = createServerTx([]);
+
+    await mustGetMutator(mutators, "drafts.update_task").fn({
+      args: {
+        draft_id: "draft_test",
+        fields: {
+          assigned_user_id: "user_assignee",
+          description: "autosaved body",
+          due_date: "2026-07-02",
+          estimate: "s",
+          label_ids: ["label_one", "label_two"],
+          priority: "medium",
+          team_id: "team_production",
+          title: "Autosaved title",
+          workflow_status_id: "workflowstatus_todo",
+        },
+      },
+      ctx: signedInContext,
+      tx,
+    });
+
+    expect(updateCalls.map((call) => call.table)).toEqual([task_drafts, drafts]);
+    expect(updateCalls[0]?.set).toMatchObject({
+      label_ids: '["label_one","label_two"]',
+      title: "Autosaved title",
+      updated_by: "user_test",
+    });
+    expect(updateCalls[1]?.set).toMatchObject({ updated_by: "user_test" });
+  });
+
   test("discards all active Task Drafts from session-derived User and Church", async () => {
     const { tx, updateCalls } = createServerTx([]);
 

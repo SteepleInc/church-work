@@ -133,6 +133,50 @@ test("Drafts page lists saved Task Drafts and supports discarding one or all", a
   await expect(page.getByText("No active drafts")).toBeVisible();
 });
 
+test("Drafts page opens an existing Task Draft for rehydrated autosaved editing", async ({
+  page,
+}, testInfo) => {
+  const email = `open-task-draft-${Date.now()}-${testInfo.workerIndex}@example.com`;
+  const churchName = `E2E Open Task Draft Church ${Date.now()}`;
+  const originalTitle = `Openable draft ${Date.now()}`;
+  const editedTitle = `${originalTitle} edited`;
+
+  await signInAndCompleteOnboarding(page, { churchName, email });
+
+  const dialog = await openCreateTaskQuickAction(page);
+  await dialog.getByPlaceholder("Task title").fill(originalTitle);
+  await page.keyboard.press("Escape");
+  const confirm = page.getByRole("alertdialog");
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole("button", { name: "Save" }).click();
+  await expect(dialog).not.toBeVisible();
+
+  await page
+    .locator('[data-sidebar="sidebar"]')
+    .getByRole("link", { name: /Drafts/ })
+    .click();
+  await expect(page).toHaveURL(/\/drafts$/);
+  await page.getByText(originalTitle).click();
+
+  const draftDialog = page.getByRole("dialog", { name: /Task Draft/ });
+  await expect(draftDialog).toBeVisible();
+  await expect(draftDialog.getByText("Draft")).toBeVisible();
+  await expect(draftDialog.getByPlaceholder("Task title")).toHaveValue(originalTitle);
+
+  const autosave = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/zero/mutate") && response.request().method() === "POST",
+  );
+  await draftDialog.getByPlaceholder("Task title").fill(editedTitle);
+  await expect.poll(async () => (await autosave).ok()).toBe(true);
+
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("alertdialog")).not.toBeVisible();
+  await expect(draftDialog).not.toBeVisible();
+  await expect(page.getByText(editedTitle)).toBeVisible();
+  await expect(page.getByText(originalTitle)).not.toBeVisible();
+});
+
 test("create-Task quick action closes a pristine draft without prompting", async ({
   page,
 }, testInfo) => {

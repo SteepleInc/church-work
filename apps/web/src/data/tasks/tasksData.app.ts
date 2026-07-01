@@ -922,6 +922,7 @@ export function useCreateTaskMutation() {
     readonly estimate?: TaskEstimate | null;
     readonly priority?: TaskPriorityValue | null;
     readonly targetCycle?: TargetCycleFields;
+    readonly draftId?: string | null;
   }) => {
     const result = await zeroMutationResult<{
       readonly tasks: readonly { readonly id: string; readonly identifier: string }[];
@@ -931,6 +932,7 @@ export function useCreateTaskMutation() {
           mutators.tasks.create({
             assigned_user_id: params.assignedUserId ?? null,
             church_id: params.churchId,
+            ...(params.draftId ? { draft_id: params.draftId } : {}),
             description: params.description ?? null,
             due_date: params.dueDate ?? null,
             estimate: params.estimate ?? null,
@@ -990,6 +992,45 @@ export function useSaveTaskDraftMutation() {
     if (!result.ok) return result;
     return { data: undefined, ok: true as const };
   };
+}
+
+export function useUpdateTaskDraftMutation() {
+  const zero = useZero();
+
+  return async (params: {
+    readonly draftId: string;
+    readonly title: string;
+    readonly description?: string | null;
+    readonly teamId?: string | null;
+    readonly assignedUserId?: string | null;
+    readonly workflowStatusId?: string | null;
+    readonly dueDate?: string | null;
+    readonly parentTaskId?: string | null;
+    readonly labelIds?: readonly string[];
+    readonly estimate?: TaskEstimate | null;
+    readonly priority?: TaskPriorityValue | null;
+  }) =>
+    zeroMutationResult<void>(
+      () =>
+        zero.mutate(
+          mutators.drafts.update_task({
+            draft_id: params.draftId,
+            fields: {
+              assigned_user_id: params.assignedUserId ?? null,
+              description: params.description ?? null,
+              due_date: params.dueDate ?? null,
+              estimate: params.estimate ?? null,
+              priority: params.priority ?? null,
+              label_ids: [...(params.labelIds ?? [])],
+              parent_task_id: params.parentTaskId ?? null,
+              team_id: params.teamId ?? null,
+              title: params.title,
+              workflow_status_id: params.workflowStatusId ?? null,
+            },
+          }),
+        ),
+      "Could not update draft.",
+    );
 }
 
 export function useUpdateTaskMutation() {

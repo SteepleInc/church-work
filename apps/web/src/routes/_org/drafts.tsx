@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useSetAtom } from "jotai";
 import { FileTextIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -34,6 +35,7 @@ import {
 } from "@/data/drafts/draftsData.app";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { DraftCard } from "@/features/drafts/draft-card";
+import { createTaskQuickActionStateAtom } from "@/features/quick-actions/create-task-quick-action";
 
 export const Route = createFileRoute("/_org/drafts")({ component: DraftsPage });
 
@@ -45,6 +47,7 @@ function DraftsPage() {
   const discardDraft = useDiscardDraftMutation();
   const discardAll = useDiscardAllDraftsMutation();
   const restoreDrafts = useRestoreDraftsMutation();
+  const openCreateTask = useSetAtom(createTaskQuickActionStateAtom);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const count = collection.length;
@@ -71,6 +74,10 @@ function DraftsPage() {
     toast.success(ids.length === 1 ? "Draft discarded." : `${ids.length} drafts discarded.`, {
       action: { label: "Undo", onClick: () => void restoreDrafts(ids) },
     });
+  }
+
+  function onOpenDraft(draftId: string) {
+    openCreateTask({ assignTo: null, draftId });
   }
 
   return (
@@ -127,6 +134,7 @@ function DraftsPage() {
                 churchId={churchId}
                 key={draft.draft_id}
                 onDiscard={onDiscardOne}
+                onOpen={onOpenDraft}
                 taskDraft={draft}
               />
             ))}

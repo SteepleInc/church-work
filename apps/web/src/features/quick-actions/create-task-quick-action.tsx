@@ -5,12 +5,14 @@ import { Schema } from "effect";
 import { atom, useAtom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 import {
+  Bookmark,
   BookmarkPlus,
   CalendarDays,
   ChevronRight,
   ListTree,
   Maximize2,
   Minimize2,
+  Trash2,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -56,11 +58,21 @@ import { Button } from "@/components/ui/button";
 import { DiscardChangesDialog } from "@/components/ui/discard-changes-dialog";
 import { Kbd } from "@/components/ui/kbd";
 import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { buildProjectedWeekCycles } from "@/components/weeks/team-weeks-index-data";
 import { formatWeekDateRange, useCyclesCollection } from "@/data/cycles/cyclesData.app";
 import { useCreateLabelMutation, useLabelsCollection } from "@/data/labels/labelsData.app";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
-import { useCreateTaskMutation, useSaveTaskDraftMutation } from "@/data/tasks/tasksData.app";
+import {
+  useDiscardDraftMutation,
+  useRestoreDraftsMutation,
+  useTaskDraft,
+} from "@/data/drafts/draftsData.app";
+import {
+  useCreateTaskMutation,
+  useSaveTaskDraftMutation,
+  useUpdateTaskDraftMutation,
+} from "@/data/tasks/tasksData.app";
 import { useTeamMembershipsCollection, useTeamsCollection } from "@/data/teams/teamsData.app";
 import { getUserDisplayName, useChurchUsersCollection } from "@/data/users/usersData.app";
 import {
@@ -100,6 +112,7 @@ export type CreateTaskQuickActionState = {
     readonly startsAt: string;
     readonly endsAt: string;
   };
+  readonly draftId?: string;
 } | null;
 
 export const createTaskQuickActionStateAtom = atom<CreateTaskQuickActionState>(null);
@@ -177,6 +190,32 @@ function TargetWeekPill({
   );
 }
 
+/**
+ * A quiet cue, shown only while editing a saved Task Draft, that this dialog is
+ * a draft whose edits are kept automatically. It pairs with the silent
+ * autosave: no toasts fire on each keystroke, so this badge is the standing
+ * reassurance that closing won't lose the work (ADR 0010 — no chatty status
+ * text).
+ */
+function DraftModeBadge() {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span
+            aria-label="This Task Draft saves automatically."
+            className="inline-flex h-7 items-center gap-1.5 rounded-md bg-muted px-2 font-medium text-muted-foreground text-xs"
+          >
+            <Bookmark aria-hidden className="size-3.5" />
+            Draft
+          </span>
+        }
+      />
+      <TooltipContent>Saved automatically as you edit</TooltipContent>
+    </Tooltip>
+  );
+}
+
 function ParentTaskPill({
   parentTaskLabel,
 }: {
@@ -215,6 +254,11 @@ export function CreateTaskQuickAction() {
   const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
   const createTask = useCreateTaskMutation();
   const saveTaskDraft = useSaveTaskDraftMutation();
+  const updateTaskDraft = useUpdateTaskDraftMutation();
+  const discardDraft = useDiscardDraftMutation();
+  const restoreDrafts = useRestoreDraftsMutation();
+  const editingDraftId = state?.draftId ?? null;
+  const editingTaskDraft = useTaskDraft(editingDraftId ?? "__no_draft__");
 
   const churchId = activeChurch?.id ?? null;
   const currentUserId = activeChurch?.currentUserId ?? null;
@@ -276,6 +320,9 @@ export function CreateTaskQuickAction() {
   const nextDescriptionRef = useRef("");
   // "open" = save and open the created Task (Cmd+Alt+Enter).
   const submitModeRef = useRef<"default" | "open">("default");
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastAutosavedRef = useRef<string | null>(null);
+  const hydratedDraftIdRef = useRef<string | null>(null);
 
   // Picker openers for dialog-level keyboard shortcuts (T/S/A/P/⇧E/L/D).
   const teamOpenRef = useRef<(() => void) | null>(null);
@@ -386,9 +433,11 @@ export function CreateTaskQuickAction() {
       // `description` holds serialized Plate JSON (or "" when the doc is empty).
       const serializedDescription = value.description;
       setError(null);
+      await flushDraftAutosave();
       const result = await createTask({
         churchId,
         actorUserId: currentUserId,
+        draftId: editingDraftId,
         title: trimmedTitle,
         description: serializedDescription === "" ? null : serializedDescription,
         teamId: submitTeamId,
@@ -495,11 +544,45 @@ export function CreateTaskQuickAction() {
   };
 
   const close = () => {
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
     setConfirmDiscardOpen(false);
     setSavingDraft(false);
+    hydratedDraftIdRef.current = null;
+    lastAutosavedRef.current = null;
     setState(null);
     setError(null);
     form.reset();
+  };
+
+  const draftPayloadFromValue = (value: typeof form.state.values) => ({
+    assignedUserId: value.assignedUserId,
+    description: value.description === "" ? null : value.description,
+    dueDate: value.dueDate,
+    estimate: value.estimate === "no_estimate" ? null : value.estimate,
+    labelIds: [...value.labels],
+    parentTaskId: state?.parentTaskId ?? null,
+    priority: value.priority === "no_priority" ? null : value.priority,
+    teamId: value.teamId,
+    title: value.title.trim(),
+    workflowStatusId: value.workflowStatusId || null,
+  });
+
+  const flushDraftAutosave = async () => {
+    if (!editingDraftId || !form.state.isDirty) return;
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+    const payload = draftPayloadFromValue(form.state.values);
+    const key = JSON.stringify(payload);
+    if (key === lastAutosavedRef.current) return;
+    const result = await updateTaskDraft({ draftId: editingDraftId, ...payload }).catch(
+      () => undefined,
+    );
+    if (result?.ok) lastAutosavedRef.current = key;
   };
 
   const saveDraftAndClose = async () => {
@@ -534,11 +617,35 @@ export function CreateTaskQuickAction() {
     close();
   };
 
+  const discardOpenedDraftAndClose = async () => {
+    if (!editingDraftId) return;
+    const draftId = editingDraftId;
+    // Cancel any pending autosave so a debounced write can't resurrect the
+    // draft the moment after we discard it.
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+    close();
+    await discardDraft(draftId).catch(() => undefined);
+    // Discarding is a Soft Delete (CONTEXT.md), so offer the same undo the
+    // Drafts page does — closing the dialog shouldn't make the action feel
+    // more final than discarding from the list.
+    toast.success("Draft discarded.", {
+      action: { label: "Undo", onClick: () => void restoreDrafts([draftId]) },
+    });
+  };
+
   // Closing with unsaved edits prompts before discarding; a pristine draft (or
   // one only carrying its prefilled values) closes straight away. Routes every
   // close affordance — the header X, Escape, and outside-click — through one
   // guard.
   const requestClose = () => {
+    if (editingDraftId) {
+      void flushDraftAutosave();
+      close();
+      return;
+    }
     if (form.state.isDirty) {
       setConfirmDiscardOpen(true);
       return;
@@ -568,6 +675,51 @@ export function CreateTaskQuickAction() {
     nextDescriptionRef.current = state.description ?? "";
     setEditorResetKey((key) => key + 1);
   }, [isOpen, state, form]);
+
+  useEffect(() => {
+    if (!editingDraftId || !editingTaskDraft) return;
+    if (hydratedDraftIdRef.current === editingDraftId) return;
+
+    hydratedDraftIdRef.current = editingDraftId;
+    const sync = { dontUpdateMeta: true } as const;
+    const labels = parseDraftLabelIds(editingTaskDraft.label_ids);
+    const priority = normalizeDraftPriority(editingTaskDraft.priority);
+    const estimate = normalizeDraftEstimate(editingTaskDraft.estimate);
+    form.setFieldValue("title", editingTaskDraft.title ?? "", sync);
+    form.setFieldValue("description", editingTaskDraft.description ?? "", sync);
+    form.setFieldValue("assignedUserId", editingTaskDraft.assigned_user_id ?? null, sync);
+    form.setFieldValue("workflowStatusId", editingTaskDraft.workflow_status_id ?? "", sync);
+    form.setFieldValue("teamId", editingTaskDraft.team_id ?? null, sync);
+    form.setFieldValue("priority", priority, sync);
+    form.setFieldValue("estimate", estimate, sync);
+    form.setFieldValue("labels", labels, sync);
+    form.setFieldValue("dueDate", editingTaskDraft.due_date ?? null, sync);
+    nextDescriptionRef.current = editingTaskDraft.description ?? "";
+    lastAutosavedRef.current = JSON.stringify(
+      draftPayloadFromValue({
+        ...form.state.values,
+        assignedUserId: editingTaskDraft.assigned_user_id ?? null,
+        description: editingTaskDraft.description ?? "",
+        dueDate: editingTaskDraft.due_date ?? null,
+        estimate,
+        labels,
+        priority,
+        teamId: editingTaskDraft.team_id ?? null,
+        title: editingTaskDraft.title ?? "",
+        workflowStatusId: editingTaskDraft.workflow_status_id ?? "",
+      }),
+    );
+    setEditorResetKey((key) => key + 1);
+  }, [editingDraftId, editingTaskDraft, form]);
+
+  useEffect(() => {
+    if (!editingDraftId || !form.state.isDirty) return;
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(() => void flushDraftAutosave(), 700);
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    };
+  }, [editingDraftId, form.state.values, form.state.isDirty]);
 
   // Inline label creation from the picker. Always creates a Church-scoped
   // Label (see CONTEXT.md "Label"); on success the new Label joins the
@@ -666,7 +818,10 @@ export function CreateTaskQuickAction() {
                   }}
                 </form.Subscribe>
                 <ChevronRight className="size-3.5 text-muted-foreground" />
-                <span>{isCreatingSubtask ? "New Subtask" : "New Task"}</span>
+                <span aria-label={editingDraftId ? "Task Draft" : undefined}>
+                  {editingDraftId ? "Task" : isCreatingSubtask ? "New Subtask" : "New Task"}
+                </span>
+                {editingDraftId ? <DraftModeBadge /> : null}
                 {state?.parentTaskLabel ? (
                   <ParentTaskPill parentTaskLabel={state.parentTaskLabel} />
                 ) : null}
@@ -676,24 +831,46 @@ export function CreateTaskQuickAction() {
               </span>
             </QuickActionsTitle>
             <div className="flex items-center gap-1">
-              <form.Subscribe
-                selector={(formState) => formState.isDirty && hasTaskDraftContent(formState.values)}
-              >
-                {(canSaveDraft) =>
-                  canSaveDraft ? (
-                    <Button
-                      className="text-muted-foreground hover:text-foreground"
-                      loading={savingDraft}
-                      onClick={() => void saveDraftAndClose()}
-                      size="sm"
-                      type="button"
-                      variant="ghost"
-                    >
-                      Save as draft
-                    </Button>
-                  ) : null
-                }
-              </form.Subscribe>
+              {editingDraftId ? (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        aria-label="Discard draft"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => void discardOpenedDraftAndClose()}
+                        size="icon-sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    }
+                  />
+                  <TooltipContent>Discard draft</TooltipContent>
+                </Tooltip>
+              ) : (
+                <form.Subscribe
+                  selector={(formState) =>
+                    formState.isDirty && hasTaskDraftContent(formState.values)
+                  }
+                >
+                  {(canSaveDraft) =>
+                    canSaveDraft ? (
+                      <Button
+                        className="text-muted-foreground hover:text-foreground"
+                        loading={savingDraft}
+                        onClick={() => void saveDraftAndClose()}
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        Save as draft
+                      </Button>
+                    ) : null
+                  }
+                </form.Subscribe>
+              )}
               <Button
                 aria-label={expanded ? "Collapse" : "Expand"}
                 className="hidden text-muted-foreground md:inline-flex"
@@ -975,4 +1152,40 @@ export function CreateTaskQuickAction() {
       />
     </>
   );
+}
+
+function parseDraftLabelIds(raw: string | null | undefined): readonly string[] {
+  try {
+    const parsed = JSON.parse(raw ?? "[]");
+    return Array.isArray(parsed)
+      ? parsed.filter((value): value is string => typeof value === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeDraftPriority(value: string | null | undefined): TaskPriority {
+  switch (value) {
+    case "urgent":
+    case "high":
+    case "medium":
+    case "low":
+      return value;
+    default:
+      return "no_priority";
+  }
+}
+
+function normalizeDraftEstimate(value: string | null | undefined): TaskEstimate {
+  switch (value) {
+    case "xs":
+    case "s":
+    case "m":
+    case "l":
+    case "xl":
+      return value;
+    default:
+      return "no_estimate";
+  }
 }

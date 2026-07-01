@@ -207,6 +207,7 @@ const CreateTaskArgs = toZeroSchema(
   Schema.Struct({
     assigned_user_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
     church_id: Schema.String,
+    draft_id: Schema.optional(Schema.String),
     description: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
     due_date: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
     estimate: Schema.optional(TaskEstimateArg),
@@ -219,22 +220,24 @@ const CreateTaskArgs = toZeroSchema(
     workflow_status_id: Schema.String,
   }),
 );
-const SaveTaskDraftArgs = toZeroSchema(
-  Schema.Struct({
-    assigned_user_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
-    description: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
-    due_date: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
-    estimate: Schema.optional(TaskEstimateArg),
-    priority: Schema.optional(TaskPriorityArg),
-    label_ids: Schema.optional(Schema.Array(Schema.String)),
-    parent_task_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
-    team_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
-    title: Schema.optional(Schema.String),
-    workflow_status_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
-  }),
-);
+const TaskDraftFieldsArg = Schema.Struct({
+  assigned_user_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
+  description: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
+  due_date: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
+  estimate: Schema.optional(TaskEstimateArg),
+  priority: Schema.optional(TaskPriorityArg),
+  label_ids: Schema.optional(Schema.Array(Schema.String)),
+  parent_task_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
+  team_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
+  title: Schema.optional(Schema.String),
+  workflow_status_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
+});
+const SaveTaskDraftArgs = toZeroSchema(TaskDraftFieldsArg);
 const DraftIdArgs = toZeroSchema(Schema.Struct({ draft_id: Schema.String }));
 const DraftIdsArgs = toZeroSchema(Schema.Struct({ draft_ids: Schema.Array(Schema.String) }));
+const UpdateTaskDraftArgs = toZeroSchema(
+  Schema.Struct({ draft_id: Schema.String, fields: TaskDraftFieldsArg }),
+);
 const UpdateTaskArgs = toZeroSchema(
   Schema.Struct({ church_id: Schema.String, fields: TaskFieldsArg, task_id: Schema.String }),
 );
@@ -2343,6 +2346,51 @@ export const mutators = defineMutators({
         updated_by: session.user_id,
         workflow_status_id: args.workflow_status_id ?? null,
       });
+    }),
+    update_task: defineChurchWorkMutator(UpdateTaskDraftArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+
+      const session = requireSignedInSession(ctx);
+      const churchId = session.active_church_id;
+      if (!churchId) throw new Error("Active Church access required.");
+
+      const now = new Date();
+      await db
+        .update(task_drafts)
+        .set({
+          assigned_user_id: args.fields.assigned_user_id ?? null,
+          description: args.fields.description ?? null,
+          due_date: args.fields.due_date ?? null,
+          estimate: args.fields.estimate ?? null,
+          label_ids: serializeStringArray(args.fields.label_ids ?? []),
+          parent_task_id: args.fields.parent_task_id ?? null,
+          priority: args.fields.priority ?? null,
+          team_id: args.fields.team_id ?? null,
+          title: args.fields.title ?? null,
+          updated_at: now,
+          updated_by: session.user_id,
+          workflow_status_id: args.fields.workflow_status_id ?? null,
+        })
+        .where(
+          and(
+            eq(task_drafts.draft_id, args.draft_id),
+            eq(task_drafts.church_id, churchId),
+            eq(task_drafts.owner_user_id, session.user_id),
+            isNull(task_drafts.deleted_at),
+          ),
+        );
+      await db
+        .update(drafts)
+        .set({ updated_at: now, updated_by: session.user_id })
+        .where(
+          and(
+            eq(drafts.id, args.draft_id),
+            eq(drafts.church_id, churchId),
+            eq(drafts.owner_user_id, session.user_id),
+            isNull(drafts.deleted_at),
+          ),
+        );
     }),
     discard: defineChurchWorkMutator(DraftIdArgs, async ({ args, ctx, tx }) => {
       const db = serverDb(tx);
@@ -4669,6 +4717,21 @@ export const mutators = defineMutators({
       const title = args.title.trim();
       if (!title) throw new Error("Task title is required.");
 
+      if (args.draft_id) {
+        const ownedDrafts = (await db
+          .select({ id: drafts.id })
+          .from(drafts)
+          .where(
+            and(
+              eq(drafts.id, args.draft_id),
+              eq(drafts.church_id, args.church_id),
+              eq(drafts.owner_user_id, session.user_id),
+              isNull(drafts.deleted_at),
+            ),
+          )) as Array<{ readonly id: string }>;
+        if (ownedDrafts.length === 0) throw new Error("Draft not found.");
+      }
+
       const statusRows = (await db
         .select({
           id: workflow_statuses.id,
@@ -4835,6 +4898,41 @@ export const mutators = defineMutators({
         source_task_identifier: taskIdentifier,
         source_task_title: title,
       });
+
+      if (args.draft_id) {
+        await db
+          .update(task_drafts)
+          .set({
+            deleted_at: now,
+            deleted_by: session.user_id,
+            updated_at: now,
+            updated_by: session.user_id,
+          })
+          .where(
+            and(
+              eq(task_drafts.draft_id, args.draft_id),
+              eq(task_drafts.church_id, args.church_id),
+              eq(task_drafts.owner_user_id, session.user_id),
+              isNull(task_drafts.deleted_at),
+            ),
+          );
+        await db
+          .update(drafts)
+          .set({
+            deleted_at: now,
+            deleted_by: session.user_id,
+            updated_at: now,
+            updated_by: session.user_id,
+          })
+          .where(
+            and(
+              eq(drafts.id, args.draft_id),
+              eq(drafts.church_id, args.church_id),
+              eq(drafts.owner_user_id, session.user_id),
+              isNull(drafts.deleted_at),
+            ),
+          );
+      }
     }),
     update: defineChurchWorkMutator(UpdateTaskArgs, async ({ args, ctx, tx }) => {
       const db = serverDb(tx);
