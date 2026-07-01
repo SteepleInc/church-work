@@ -57,11 +57,16 @@ import { Button } from "@/components/ui/button";
 import { DiscardChangesDialog } from "@/components/ui/discard-changes-dialog";
 import { Kbd } from "@/components/ui/kbd";
 import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { buildProjectedWeekCycles } from "@/components/weeks/team-weeks-index-data";
 import { formatWeekDateRange, useCyclesCollection } from "@/data/cycles/cyclesData.app";
 import { useCreateLabelMutation, useLabelsCollection } from "@/data/labels/labelsData.app";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
-import { useDiscardDraftMutation, useTaskDraft } from "@/data/drafts/draftsData.app";
+import {
+  useDiscardDraftMutation,
+  useRestoreDraftsMutation,
+  useTaskDraft,
+} from "@/data/drafts/draftsData.app";
 import {
   useCreateTaskMutation,
   useSaveTaskDraftMutation,
@@ -184,6 +189,32 @@ function TargetWeekPill({
   );
 }
 
+/**
+ * A quiet cue, shown only while editing a saved Task Draft, that this dialog is
+ * a draft whose edits are kept automatically. It pairs with the silent
+ * autosave: no toasts fire on each keystroke, so this badge is the standing
+ * reassurance that closing won't lose the work (ADR 0010 — no chatty status
+ * text).
+ */
+function DraftModeBadge() {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span
+            aria-label="This Task Draft saves automatically."
+            className="inline-flex h-7 items-center gap-1.5 rounded-md bg-muted px-2 font-medium text-muted-foreground text-xs"
+          >
+            <BookmarkPlus aria-hidden className="size-3.5" />
+            Draft
+          </span>
+        }
+      />
+      <TooltipContent>Saved automatically as you edit</TooltipContent>
+    </Tooltip>
+  );
+}
+
 function ParentTaskPill({
   parentTaskLabel,
 }: {
@@ -224,6 +255,7 @@ export function CreateTaskQuickAction() {
   const saveTaskDraft = useSaveTaskDraftMutation();
   const updateTaskDraft = useUpdateTaskDraftMutation();
   const discardDraft = useDiscardDraftMutation();
+  const restoreDrafts = useRestoreDraftsMutation();
   const editingDraftId = state?.draftId ?? null;
   const editingTaskDraft = useTaskDraft(editingDraftId ?? "__no_draft__");
 
@@ -581,8 +613,21 @@ export function CreateTaskQuickAction() {
 
   const discardOpenedDraftAndClose = async () => {
     if (!editingDraftId) return;
-    await discardDraft(editingDraftId).catch(() => undefined);
+    const draftId = editingDraftId;
+    // Cancel any pending autosave so a debounced write can't resurrect the
+    // draft the moment after we discard it.
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
     close();
+    await discardDraft(draftId).catch(() => undefined);
+    // Discarding is a Soft Delete (CONTEXT.md), so offer the same undo the
+    // Drafts page does — closing the dialog shouldn't make the action feel
+    // more final than discarding from the list.
+    toast.success("Draft discarded.", {
+      action: { label: "Undo", onClick: () => void restoreDrafts([draftId]) },
+    });
   };
 
   // Closing with unsaved edits prompts before discarding; a pristine draft (or
@@ -770,7 +815,10 @@ export function CreateTaskQuickAction() {
                   }}
                 </form.Subscribe>
                 <ChevronRight className="size-3.5 text-muted-foreground" />
-                <span>{isCreatingSubtask ? "New Subtask" : "New Task"}</span>
+                <span>
+                  {editingDraftId ? "Task Draft" : isCreatingSubtask ? "New Subtask" : "New Task"}
+                </span>
+                {editingDraftId ? <DraftModeBadge /> : null}
                 {state?.parentTaskLabel ? (
                   <ParentTaskPill parentTaskLabel={state.parentTaskLabel} />
                 ) : null}
@@ -781,16 +829,23 @@ export function CreateTaskQuickAction() {
             </QuickActionsTitle>
             <div className="flex items-center gap-1">
               {editingDraftId ? (
-                <Button
-                  aria-label="Discard draft"
-                  className="text-muted-foreground hover:text-destructive"
-                  onClick={() => void discardOpenedDraftAndClose()}
-                  size="icon-sm"
-                  type="button"
-                  variant="ghost"
-                >
-                  <Trash2 className="size-4" />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        aria-label="Discard draft"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => void discardOpenedDraftAndClose()}
+                        size="icon-sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    }
+                  />
+                  <TooltipContent>Discard draft</TooltipContent>
+                </Tooltip>
               ) : (
                 <form.Subscribe
                   selector={(formState) =>
