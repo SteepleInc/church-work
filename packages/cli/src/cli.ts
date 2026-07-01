@@ -549,6 +549,7 @@ const runTaskCreate = (args: ReadonlyArray<string>) =>
     };
 
     addOptionalValue(body, "assignedUserId", nullableIdFromArgs(args, "--assigned-user-id"));
+    addOptionalValue(body, "draftId", optionValueFromArgs(args, "--draft-id"));
     addOptionalValue(body, "parentTaskId", nullableIdFromArgs(args, "--parent-task-id"));
     addOptionalValue(body, "priority", nullableIdFromArgs(args, "--priority"));
 
