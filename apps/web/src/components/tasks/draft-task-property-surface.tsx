@@ -58,13 +58,33 @@ export function DraftTaskPropertySurface({
    * surface leaves it off because the dialog already frames the content.
    */
   showArmedRing = false,
+  /**
+   * How the field shortcuts (S/A/P/⇧E/L/D/T) become live:
+   * - `"hover"` (default): armed only while the pointer is over the surface,
+   *   matching the Board card / sub-task row cursor model where many card-shaped
+   *   surfaces coexist and the mouse picks which one answers a keystroke.
+   * - `"always"`: armed the whole time the surface is mounted. The create-Task
+   *   dialog opts in because it is a single focused modal — the entire dialog is
+   *   the cursor, so a bare "A" should open Assignee without first hovering the
+   *   body (editable targets are still exempt, so typing in the title is never
+   *   hijacked).
+   */
+  armMode = "hover",
 }: {
   readonly children: ReactNode;
   readonly pickerRefs: DraftTaskPickerRefs;
   readonly className?: string;
   readonly showArmedRing?: boolean;
+  readonly armMode?: "hover" | "always";
 }) {
-  const armedRef = useRef(false);
+  const armedRef = useRef(armMode === "always");
+
+  // Keep the ref in sync if the mode flips between renders (e.g. a surface that
+  // toggles its arming): "always" is armed from mount; "hover" starts disarmed
+  // and waits for the pointer.
+  useEffect(() => {
+    armedRef.current = armMode === "always";
+  }, [armMode]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -88,10 +108,13 @@ export function DraftTaskPropertySurface({
         onPointerEnter={() => {
           armedRef.current = true;
         }}
-        // Disarm when the pointer leaves so the hover-armed keys only fire while
-        // the surface is actually hovered (matches the per-row arming on the
-        // view surfaces and avoids a stale-armed surface stealing keystrokes).
+        // In hover mode, disarm when the pointer leaves so the hover-armed keys
+        // only fire while the surface is actually hovered (matches the per-row
+        // arming on the view surfaces and avoids a stale-armed surface stealing
+        // keystrokes). In "always" mode the surface stays armed regardless of
+        // the pointer, so leaving is a no-op.
         onPointerLeave={() => {
+          if (armMode === "always") return;
           armedRef.current = false;
         }}
         render={

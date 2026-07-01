@@ -771,6 +771,39 @@ export function CreateTaskQuickAction() {
     preventDefault: true,
   });
 
+  // Escape is a two-step exit while a text field inside the dialog holds focus:
+  // the first press blurs the field (so the dialog's own property shortcuts
+  // become live and the caret is out of the way), and only a second press runs
+  // the close/"Save to drafts?" sequence. With nothing focused, Escape closes
+  // straight away.
+  //
+  // base-ui's Dialog listens for Escape on `document` in the bubble phase, so we
+  // intercept in the *capture* phase (which fires first) and stop the event when
+  // we only mean to blur — that keeps base-ui from closing the dialog on the
+  // same keystroke. Picker search inputs are portaled outside the dialog popup,
+  // so `closest('[data-slot="dialog-content"]')` is null for them and their own
+  // Escape-to-close is never disturbed.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDownCapture = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (event.defaultPrevented) return;
+      const active = document.activeElement as HTMLElement | null;
+      if (!active) return;
+      const isEditable =
+        active.isContentEditable || active.tagName === "INPUT" || active.tagName === "TEXTAREA";
+      if (!isEditable) return;
+      // Only intercept fields that live inside this dialog's popup, not a
+      // portaled picker input sitting above it.
+      if (!active.closest('[data-slot="dialog-content"]')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      active.blur();
+    };
+    document.addEventListener("keydown", onKeyDownCapture, true);
+    return () => document.removeEventListener("keydown", onKeyDownCapture, true);
+  }, [isOpen]);
+
   return (
     <>
       <QuickActionsWrapper
@@ -913,6 +946,12 @@ export function CreateTaskQuickAction() {
             // description textarea grows with its content, then scrolls
             // internally once it runs out of room.
             <DraftTaskPropertySurface
+              // The create-Task dialog is a single focused modal, so its field
+              // shortcuts stay live the whole time it is open (like the details
+              // pane) rather than waiting for the body to be hovered. Editable
+              // targets are still exempt, so typing in the title/description is
+              // never hijacked.
+              armMode="always"
               className="relative flex min-h-0 flex-col gap-2 overflow-hidden p-4"
               pickerRefs={pickerRefs}
             >

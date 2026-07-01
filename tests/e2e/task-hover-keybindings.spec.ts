@@ -43,7 +43,7 @@ async function bootBoardWithTask(page: Page, title: string): Promise<Locator> {
 }
 
 test.describe("Task card hover keybindings", () => {
-  test("create-task draft surface uses hover keys without hijacking typing", async ({
+  test("create-task draft surface keeps field shortcuts live without hijacking typing", async ({
     page,
   }, testInfo) => {
     const suffix = `${Date.now()}-${testInfo.workerIndex}`;
@@ -57,28 +57,82 @@ test.describe("Task card hover keybindings", () => {
     const dialog = page.getByRole("dialog", { name: /New Task/ });
     await expect(dialog).toBeVisible();
 
-    const surface = dialog.locator('[data-task-draft-property-surface="true"]');
-    await surface.hover();
-
-    // The draft surface is hover-armed, but normal typing in editable fields must
-    // not be stolen by property shortcuts ("P" would otherwise open Priority).
+    // The create-Task dialog is a single focused modal, so its field shortcuts
+    // are live the whole time it is open (armMode="always") — no hover needed.
+    // But typing in editable fields must never be stolen by property shortcuts
+    // ("P" would otherwise open Priority).
     const title = dialog.getByPlaceholder("Task title");
     await title.pressSequentially("Plan practice");
     await expect(title).toHaveValue("Plan practice");
     await expect(page.getByPlaceholder("Change priority to...")).toHaveCount(0);
 
-    // Once focus leaves the input, the same hovered surface answers shared Task
-    // field shortcuts.
+    // Once focus leaves the input, the dialog answers shared Task field
+    // shortcuts even though nothing is hovered — the whole modal is the cursor.
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-    await surface.hover();
     await page.keyboard.press("KeyP");
     await expect(page.getByPlaceholder("Change priority to...")).toBeVisible();
     await page.keyboard.press("Escape");
+    await expect(page.getByPlaceholder("Change priority to...")).toHaveCount(0);
+
+    // A different field key opens a different picker, still with nothing hovered.
+    await page.keyboard.press("KeyA");
+    await expect(page.getByPlaceholder("Assign to...")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByPlaceholder("Assign to...")).toHaveCount(0);
 
     // The same surface owns the shared context menu.
+    const surface = dialog.locator('[data-task-draft-property-surface="true"]');
     await surface.click({ button: "right" });
     await expect(page.getByRole("menuitem", { name: /Status/ })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: /Priority/ })).toBeVisible();
+    await page.keyboard.press("Escape");
+  });
+
+  test("Escape blurs a focused field before it exits the create-Task dialog", async ({
+    page,
+  }, testInfo) => {
+    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
+    await startAuthenticatedSession(page, {
+      churchName: `E2E Draft Escape Church ${suffix}`,
+      email: `draft-escape-${suffix}@example.com`,
+      userName: "E2E Draft Escape Owner",
+    });
+
+    await page.getByRole("main").getByRole("button", { name: "Create Task" }).click();
+    const dialog = page.getByRole("dialog", { name: /New Task/ });
+    await expect(dialog).toBeVisible();
+
+    // The title autofocuses on open. The first Escape only blurs it — the dialog
+    // stays open — so that the field shortcuts become live with the caret out of
+    // the way.
+    const title = dialog.getByPlaceholder("Task title");
+    await expect(title).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(title).not.toBeFocused();
+    await expect(dialog).toBeVisible();
+
+    // With nothing focused, a bare field key now opens its picker (proving the
+    // blur handed control to the always-live dialog shortcuts, not a close).
+    await page.keyboard.press("KeyP");
+    await expect(page.getByPlaceholder("Change priority to...")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByPlaceholder("Change priority to...")).toHaveCount(0);
+    await expect(dialog).toBeVisible();
+
+    // Re-focusing the description and pressing Escape blurs it the same way — one
+    // press to leave the field, the dialog still open.
+    const description = dialog.getByRole("textbox", { name: "Add description" });
+    await description.click();
+    await expect(description).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(description).not.toBeFocused();
+    await expect(dialog).toBeVisible();
+
+    // Nothing is focused now, so the next Escape exits. The form is pristine, so
+    // it closes without prompting.
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("alertdialog")).not.toBeVisible();
+    await expect(dialog).not.toBeVisible();
   });
 
   test("hovering a card arms its status (S) and priority (P) shortcuts", async ({

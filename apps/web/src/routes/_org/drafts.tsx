@@ -15,7 +15,6 @@ import {
   AlertDialogMedia,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -49,6 +48,7 @@ function DraftsPage() {
   const restoreDrafts = useRestoreDraftsMutation();
   const openCreateTask = useSetAtom(createTaskQuickActionStateAtom);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingDiscardId, setPendingDiscardId] = useState<string | null>(null);
   const [discardingDraftIds, setDiscardingDraftIds] = useState(() => new Set<string>());
 
   const visibleDrafts = collection.filter((draft) => !discardingDraftIds.has(draft.draft_id));
@@ -118,31 +118,27 @@ function DraftsPage() {
 
   return (
     <MainContainer>
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 pt-0 pb-3 md:pt-1">
-        <div className="flex items-center gap-2.5">
-          <h1 className="font-semibold text-2xl tracking-tight">Drafts</h1>
-          {!loading && count > 0 ? (
-            <Badge className="tabular-nums" variant="secondary">
-              {count}
-            </Badge>
-          ) : null}
-        </div>
+      {/* Linear keeps the page title in the top breadcrumb bar rather than a
+          separate in-page header. The shell already renders the "Drafts" crumb;
+          here we only surface the discard-all affordance, right-aligned in a
+          thin header row, matching Linear's Drafts panel. */}
+      <div className="flex h-9 shrink-0 items-center justify-end px-4">
         {!loading && count > 0 ? (
           <Tooltip>
             <TooltipTrigger
               render={
                 <Button
                   aria-label="Discard all drafts"
+                  className="text-muted-foreground hover:text-destructive"
                   onClick={() => setConfirmOpen(true)}
-                  size="sm"
-                  variant="outline"
+                  size="icon-sm"
+                  variant="ghost"
                 >
                   <Trash2Icon />
-                  Discard all
                 </Button>
               }
             />
-            <TooltipContent>Discard every draft</TooltipContent>
+            <TooltipContent>Discard all drafts</TooltipContent>
           </Tooltip>
         ) : null}
       </div>
@@ -164,17 +160,22 @@ function DraftsPage() {
             </EmptyHeader>
           </Empty>
         ) : (
-          <div className="mx-auto grid w-full max-w-3xl gap-3">
-            {visibleDrafts.map((draft) => (
-              <DraftCard
-                churchId={churchId}
-                key={draft.draft_id}
-                onDiscard={onDiscardOne}
-                onOpen={onOpenDraft}
-                taskDraft={draft}
-              />
-            ))}
-          </div>
+          <section className="flex flex-col gap-2">
+            <h2 className="font-medium text-muted-foreground text-sm">Issues</h2>
+            {/* A responsive column grid: each column caps at 540px, and the
+                grid packs as many 540px columns as fit, Linear-style. */}
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(0,540px))] gap-3">
+              {visibleDrafts.map((draft) => (
+                <DraftCard
+                  churchId={churchId}
+                  key={draft.draft_id}
+                  onDiscard={setPendingDiscardId}
+                  onOpen={onOpenDraft}
+                  taskDraft={draft}
+                />
+              ))}
+            </div>
+          </section>
         )}
       </PageContainer>
 
@@ -207,24 +208,56 @@ function DraftsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog
+        onOpenChange={(open) => {
+          if (!open) setPendingDiscardId(null);
+        }}
+        open={pendingDiscardId !== null}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogMedia>
+              <Trash2Icon />
+            </AlertDialogMedia>
+            <AlertDialogTitle>Discard this draft?</AlertDialogTitle>
+            <AlertDialogDescription>Your draft will be deleted.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                const draftId = pendingDiscardId;
+                setPendingDiscardId(null);
+                if (draftId) void onDiscardOne(draftId);
+              }}
+              variant="destructive"
+            >
+              Discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainContainer>
   );
 }
 
 function DraftsSkeleton() {
   return (
-    <div className="mx-auto grid w-full max-w-3xl gap-3" aria-hidden>
-      {[0, 1, 2].map((row) => (
-        <div className="rounded-xl border bg-card p-4 shadow-xs" key={row}>
-          <Skeleton className="h-4 w-1/2" />
-          <Skeleton className="mt-2.5 h-3 w-4/5" />
-          <div className="mt-4 flex gap-1.5">
-            <Skeleton className="h-6 w-20 rounded-md" />
-            <Skeleton className="h-6 w-16 rounded-md" />
-            <Skeleton className="h-6 w-24 rounded-md" />
+    <section className="flex flex-col gap-2" aria-hidden>
+      <Skeleton className="h-4 w-12" />
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(0,540px))] gap-3">
+        {[0, 1, 2].map((row) => (
+          <div className="rounded-xl border bg-card p-4 shadow-xs" key={row}>
+            <div className="flex items-center gap-2">
+              <Skeleton className="size-4 rounded-full" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
+            <Skeleton className="mt-2.5 h-3 w-4/5" />
           </div>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+    </section>
   );
 }

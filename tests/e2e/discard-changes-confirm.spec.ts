@@ -22,6 +22,17 @@ async function openCreateTaskQuickAction(page: import("@playwright/test").Page) 
   return dialog;
 }
 
+/**
+ * Escape is a two-step exit whenever a text field inside the dialog holds focus:
+ * the first press blurs the field, the second runs the close / "Save to drafts?"
+ * sequence. Helper for the flows that just need to reach the close sequence
+ * after typing (the two-Escape behaviour itself is asserted on its own below).
+ */
+async function pressEscapeToExit(page: import("@playwright/test").Page) {
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
+}
+
 test("create-Task quick action offers saving dirty work to drafts before closing", async ({
   page,
 }, testInfo) => {
@@ -42,9 +53,14 @@ test("create-Task quick action offers saving dirty work to drafts before closing
   await expect(dialog.getByRole("button", { name: "Save as draft" })).not.toBeVisible();
   await dialog.getByPlaceholder("Task title").fill("A task I might abandon");
 
-  // Escape requests a close, which prompts because the form is dirty.
+  // Escape is a two-step exit while a text field holds focus: the first press
+  // just blurs the title (no prompt yet), and only the second runs the close
+  // sequence — which prompts here because the form is dirty.
   await page.keyboard.press("Escape");
   const confirm = page.getByRole("alertdialog");
+  await expect(confirm).not.toBeVisible();
+  await expect(dialog.getByPlaceholder("Task title")).not.toBeFocused();
+  await page.keyboard.press("Escape");
   await expect(confirm).toBeVisible();
   await expect(confirm.getByText("Save to drafts?")).toBeVisible();
   await expect(confirm.getByText("You can finish this task later from your drafts.")).toBeVisible();
@@ -79,7 +95,7 @@ test("create-Task quick action saves dirty work from the close dialog", async ({
 
   const dialog = await openCreateTaskQuickAction(page);
   await dialog.getByPlaceholder("Task title").fill("A task for later");
-  await page.keyboard.press("Escape");
+  await pressEscapeToExit(page);
 
   const confirm = page.getByRole("alertdialog");
   await expect(confirm).toBeVisible();
@@ -108,7 +124,7 @@ test("Drafts page lists saved Task Drafts and supports discarding one or all", a
   for (const title of [firstTitle, secondTitle]) {
     const dialog = await openCreateTaskQuickAction(page);
     await dialog.getByPlaceholder("Task title").fill(title);
-    await page.keyboard.press("Escape");
+    await pressEscapeToExit(page);
     const confirm = page.getByRole("alertdialog");
     await expect(confirm).toBeVisible();
     await confirm.getByRole("button", { name: "Save" }).click();
@@ -124,12 +140,15 @@ test("Drafts page lists saved Task Drafts and supports discarding one or all", a
     page.locator('[data-sidebar="sidebar"]').getByText("2", { exact: true }),
   ).toBeVisible();
   await expect(page).toHaveURL(/\/drafts$/);
-  await expect(page.getByRole("heading", { name: "Drafts" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
   await expect(page.getByText(firstTitle)).toBeVisible();
   await expect(page.getByText(secondTitle)).toBeVisible();
 
   await page.getByText(firstTitle).hover();
   await page.getByRole("button", { name: "Discard draft" }).first().click();
+  const discardOneConfirm = page.getByRole("alertdialog");
+  await expect(discardOneConfirm).toBeVisible();
+  await discardOneConfirm.getByRole("button", { name: "Discard", exact: true }).click();
   await expect(page.getByText("Draft discarded.")).toBeVisible();
   await expect(page.getByText(firstTitle)).not.toBeVisible();
   await expect(page.getByText(secondTitle)).toBeVisible();
@@ -157,7 +176,7 @@ test("Drafts page opens an existing Task Draft for rehydrated autosaved editing"
 
   const dialog = await openCreateTaskQuickAction(page);
   await dialog.getByPlaceholder("Task title").fill(originalTitle);
-  await page.keyboard.press("Escape");
+  await pressEscapeToExit(page);
   const confirm = page.getByRole("alertdialog");
   await expect(confirm).toBeVisible();
   await confirm.getByRole("button", { name: "Save" }).click();
@@ -182,6 +201,11 @@ test("Drafts page opens an existing Task Draft for rehydrated autosaved editing"
   await draftDialog.getByPlaceholder("Task title").fill(editedTitle);
   await expect.poll(async () => (await autosave).ok()).toBe(true);
 
+  // First Escape blurs the title, the second closes the draft dialog. A Draft
+  // autosaves, so closing never prompts.
+  await page.keyboard.press("Escape");
+  await expect(draftDialog.getByPlaceholder("Task title")).not.toBeFocused();
+  await expect(draftDialog).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("alertdialog")).not.toBeVisible();
   await expect(draftDialog).not.toBeVisible();
@@ -198,7 +222,7 @@ test("creating a Task from an opened Draft removes the Draft card", async ({ pag
 
   const dialog = await openCreateTaskQuickAction(page);
   await dialog.getByPlaceholder("Task title").fill(draftTitle);
-  await page.keyboard.press("Escape");
+  await pressEscapeToExit(page);
   const confirm = page.getByRole("alertdialog");
   await expect(confirm).toBeVisible();
   await confirm.getByRole("button", { name: "Save" }).click();
@@ -232,7 +256,16 @@ test("create-Task quick action closes a pristine draft without prompting", async
 
   const dialog = await openCreateTaskQuickAction(page);
 
-  // No edits: Escape closes immediately, no confirmation.
+  // The title autofocuses on open, so the first Escape only blurs it — the
+  // dialog stays open and never prompts (the form is pristine).
+  const title = dialog.getByPlaceholder("Task title");
+  await expect(title).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(title).not.toBeFocused();
+  await expect(dialog).toBeVisible();
+
+  // With nothing focused, the second Escape closes immediately — no
+  // confirmation, since there are no unsaved edits.
   await page.keyboard.press("Escape");
   await expect(page.getByRole("alertdialog")).not.toBeVisible();
   await expect(dialog).not.toBeVisible();
