@@ -8,8 +8,8 @@
     "build": "vite build",
     "serve": "vite preview",
     "preview": "vite preview",
-    "deploy": "bun run build && wrangler deploy",
-    "cf-typegen": "wrangler types",
+    "deploy": "bun run build && bun run wrangler deploy",
+    "cf-typegen": "bun run wrangler types",
     "start": "vite",
     "check-types": "vite build && tsc --noEmit"
   },
