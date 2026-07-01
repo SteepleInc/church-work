@@ -753,12 +753,12 @@ const runTaskTool = (
       case "create-task": {
         const teamId = typeof body.teamId === "string" ? body.teamId : null;
         const statusId = typeof body.workflowStatusId === "string" ? body.workflowStatusId : null;
-        const draftId =
-          typeof body.draftId === "string"
-            ? body.draftId
-            : typeof body.draft_id === "string"
-              ? body.draft_id
-              : null;
+        let draftId: string | null = null;
+        if (typeof body.draftId === "string") {
+          draftId = body.draftId;
+        } else if (typeof body.draft_id === "string") {
+          draftId = body.draft_id;
+        }
         const title = typeof body.title === "string" ? body.title.trim() : "";
         if (!teamId || !statusId || !title)
           throw new Error("teamId, workflowStatusId, and title are required.");
@@ -830,13 +830,16 @@ const runTaskTool = (
           workflow_status_id: status.id,
         } satisfies typeof tasks.$inferInsert;
 
-        const [inserted] = yield* Effect.promise(() =>
+        const inserted = yield* Effect.promise(() =>
           services.db.transaction(async (tx) => {
-            const insertedTasks = await tx.insert(tasks).values(task).returning();
+            const [insertedTask] = await tx.insert(tasks).values(task).returning();
+            if (!insertedTask) throw new Error("Task was not created.");
+
             await tx
               .update(teams)
               .set({ next_task_number: team.next_task_number + 1 })
               .where(eq(teams.id, team.id));
+
             if (draftId) {
               const deletedAt = new Date();
               await tx
@@ -864,12 +867,14 @@ const runTaskTool = (
                 .where(
                   and(
                     eq(drafts.id, draftId),
+                    eq(drafts.kind, "task"),
                     eq(drafts.church_id, churchId),
                     eq(drafts.owner_user_id, session.user.id),
                     isNull(drafts.deleted_at),
                   ),
                 );
             }
+
             await tx.insert(activities).values({
               _tag: "activity",
               actor_id: session.user.id,
@@ -883,12 +888,12 @@ const runTaskTool = (
               occurred_at: new Date(),
               updated_by: session.user.id,
             });
-            return insertedTasks;
+            return insertedTask;
           }),
         );
         return json({
           ok: true,
-          task: toTaskDto(inserted!, team),
+          task: toTaskDto(inserted, team),
           tool,
         });
       }
