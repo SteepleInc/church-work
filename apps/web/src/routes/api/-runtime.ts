@@ -1,8 +1,18 @@
-import { serverEnv } from "@church-work/env/server";
 import { createTracerApi } from "@church-work/server";
 
-export const tracerApi = createTracerApi(serverEnv.DATABASE_URL);
+let tracerApi: ReturnType<typeof createTracerApi> | undefined;
 
-export const handleApiRequest = (request: Request) => {
-  return tracerApi.fetch(request);
+const getTracerApi = async () => {
+  if (tracerApi) {
+    return tracerApi;
+  }
+
+  const { serverEnv } = await import("@church-work/env/server");
+  tracerApi = createTracerApi(serverEnv.DATABASE_URL);
+  return tracerApi;
+};
+
+export const handleApiRequest = async (request: Request) => {
+  const api = await getTracerApi();
+  return api.fetch(request);
 };
