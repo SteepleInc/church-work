@@ -22,6 +22,7 @@ type AuthSessionData = {
 const getZeroCacheUrl = () => {
   const configuredUrl = env.VITE_ZERO_CACHE_URL;
   const sameOriginZeroUrl = () => `${globalThis.location?.origin ?? "http://localhost:2001"}/zero`;
+  const isLocalWebHost = ["127.0.0.1", "localhost"].includes(globalThis.location?.hostname ?? "");
 
   if (!configuredUrl) return sameOriginZeroUrl();
 
@@ -33,8 +34,12 @@ const getZeroCacheUrl = () => {
     // sending that cookie, so zero-cache validates the connection as anonymous while
     // the client declares the signed-in userID. Use the Vite same-origin websocket
     // proxy in local dev so forwarded query/mutate requests receive the auth cookie.
-    if (url.hostname === "127.0.0.1" || url.hostname === "localhost") {
+    if ((url.hostname === "127.0.0.1" || url.hostname === "localhost") && isLocalWebHost) {
       return sameOriginZeroUrl();
+    }
+
+    if (url.hostname === "127.0.0.1" || url.hostname === "localhost") {
+      return "https://zero.churchwork.ai";
     }
   } catch {
     return configuredUrl;
