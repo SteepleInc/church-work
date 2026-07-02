@@ -3,7 +3,7 @@
 import { env } from "@church-work/env/web";
 import { mutators, schema, type OptionalZeroSessionContext } from "@church-work/zero";
 import { ZeroProvider } from "@rocicorp/zero/react";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import { useSession } from "@/hooks/use-session";
 
@@ -78,6 +78,13 @@ export function ZeroRuntimeProvider(props: { readonly children: React.ReactNode 
   const context = sessionPending ? lastAuthenticatedContext.current : nextContext;
 
   const cacheURL = useMemo(() => getZeroCacheUrl(), []);
+
+  useEffect(() => {
+    console.info("[church-work] Zero cache URL", {
+      cacheURL,
+      configuredUrl: env.VITE_ZERO_CACHE_URL,
+    });
+  }, [cacheURL]);
 
   return (
     <ZeroProvider
