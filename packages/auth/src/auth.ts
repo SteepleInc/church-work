@@ -29,9 +29,36 @@ import {
   user,
   verification,
 } from "@church-work/db/schema";
+import { reactInvitationEmail, reactOTPEmail } from "@church-work/email";
 import type { ChurchWorkDb } from "@church-work/db";
+import { Resend } from "resend";
 
 import { clearOrgForOnboarding, completeOnboarding } from "./plugins";
+
+const appName = "Church Work";
+const defaultEmailFrom = "Church Work <auth@churchwork.ai>";
+
+const getEmailFrom = () => {
+  const configuredFrom = process.env.CHURCH_INVITATION_EMAIL_FROM;
+
+  if (!configuredFrom) {
+    return defaultEmailFrom;
+  }
+
+  return configuredFrom.includes("<") ? configuredFrom : `Church Work <${configuredFrom}>`;
+};
+
+const getSiteUrl = () =>
+  process.env.SITE_URL ??
+  process.env.BETTER_AUTH_URL ??
+  process.env.E2E_SITE_URL ??
+  (process.env.NODE_ENV === "production" ? "https://churchwork.ai" : "http://localhost:2001");
+
+const createResendClient = () => {
+  const apiKey = process.env.RESEND_API_KEY;
+
+  return apiKey ? new Resend(apiKey) : null;
+};
 
 export type CapturedOtp = {
   readonly email: string;
@@ -166,7 +193,7 @@ export const createAuthOptions = (
         generateId: ({ model }) => modelIds[model as keyof typeof modelIds]?.() ?? false,
       },
     },
-    appName: "Church Work",
+    appName,
     database: drizzleAdapter(db, {
       provider: "pg",
       schema: {
@@ -204,7 +231,30 @@ export const createAuthOptions = (
       clearOrgForOnboarding(),
       emailOTP({
         expiresIn: 15 * 60,
-        sendVerificationOTP: otpStore.sendVerificationOTP,
+        sendVerificationOTP: async (data) => {
+          await otpStore.sendVerificationOTP(data);
+
+          if (process.env.NODE_ENV !== "production") {
+            return;
+          }
+
+          const resend = createResendClient();
+
+          if (!resend) {
+            throw new Error("RESEND_API_KEY is required to send Church Work OTP emails.");
+          }
+
+          await resend.emails.send({
+            from: getEmailFrom(),
+            react: reactOTPEmail({
+              _tag: "sign-in",
+              appName,
+              otp: data.otp,
+            }),
+            subject: `Sign in to ${appName}`,
+            to: data.email,
+          });
+        },
       }),
       organization({
         organizationHooks: {
@@ -261,7 +311,34 @@ export const createAuthOptions = (
             modelName: "organization",
           },
         },
-        sendInvitationEmail: async () => {},
+        sendInvitationEmail: async (data) => {
+          const resend = createResendClient();
+
+          if (!resend) {
+            if (process.env.NODE_ENV !== "production") {
+              console.info(
+                `[local-email] invitation for ${data.email}: ${getSiteUrl()}/accept-invitation/${data.id}`,
+              );
+              return;
+            }
+
+            throw new Error("RESEND_API_KEY is required to send Church Work invitation emails.");
+          }
+
+          await resend.emails.send({
+            from: getEmailFrom(),
+            react: reactInvitationEmail({
+              appName,
+              churchName: data.organization.name,
+              invitedByEmail: data.inviter.user.email,
+              invitedByUsername: data.inviter.user.name,
+              inviteLink: `${getSiteUrl()}/accept-invitation/${data.id}`,
+              username: data.email,
+            }),
+            subject: `You've been invited to join ${data.organization.name} on ${appName}`,
+            to: data.email,
+          });
+        },
       }),
       admin(),
       apiKey({

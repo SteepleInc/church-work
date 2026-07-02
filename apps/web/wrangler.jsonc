@@ -18,6 +18,9 @@
     },
   ],
   "vars": {
+    "BETTER_AUTH_URL": "https://churchwork.ai",
+    "CHURCH_INVITATION_EMAIL_FROM": "auth@churchwork.ai",
+    "SITE_URL": "https://churchwork.ai",
     "VITE_ZERO_CACHE_URL": "https://zero.churchwork.ai",
   },
 }
