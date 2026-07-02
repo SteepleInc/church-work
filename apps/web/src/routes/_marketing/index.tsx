@@ -1203,7 +1203,7 @@ function WhatYouGet() {
       <div className="mt-12 grid gap-4 md:grid-cols-6">
         {SURFACES.map((s, i) => (
           <Reveal
-            className={`flex flex-col rounded-2xl border border-mkt-border bg-mkt-bg p-6 ${s.span}`}
+            className={`flex min-w-0 flex-col rounded-2xl border border-mkt-border bg-mkt-bg p-6 ${s.span}`}
             delay={i * 70}
             key={s.title}
           >
@@ -1215,7 +1215,7 @@ function WhatYouGet() {
               {s.body}
             </p>
             {s.mock ? (
-              <div className="mt-5 flex flex-1 flex-col">
+              <div className="mt-5 flex min-w-0 flex-1 flex-col">
                 <SurfaceMock mock={s.mock} />
               </div>
             ) : null}
@@ -1360,6 +1360,7 @@ function GradientBand() {
             </p>
           </div>
           <motion.div
+            className="min-w-0"
             initial={{ opacity: 0, y: 24, scale: 0.98 }}
             transition={{ delay: 0.15, duration: 0.8, ease: RISE_EASE }}
             viewport={{ margin: "-15%", once: true }}

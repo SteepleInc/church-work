@@ -252,7 +252,10 @@ export function LivingWeekSection() {
     >
       <Reveal className="mt-12" delay={80}>
         <div className="grid items-center gap-8 rounded-[24px] border border-mkt-border bg-mkt-card p-5 md:grid-cols-[1fr_360px] md:gap-10 md:p-8">
-          <div style={{ filter: "drop-shadow(0 20px 40px oklch(0 0 0 / 0.08))" }}>
+          <div
+            className="min-w-0"
+            style={{ filter: "drop-shadow(0 20px 40px oklch(0 0 0 / 0.08))" }}
+          >
             <ProductFrame
               title="This Week · Our Work"
               trailing={
