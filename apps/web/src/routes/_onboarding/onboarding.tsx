@@ -215,19 +215,13 @@ function ChurchProfileStepCard() {
       return;
     }
 
-    console.info("[church-work] onboarding church created", { organizationId });
-
     const activeResult = await authClient.organization.setActive({ organizationId });
     if (activeResult.error) {
       setError(activeResult.error.message ?? "Could not select the active Church.");
       return;
     }
 
-    console.info("[church-work] onboarding active church set", { organizationId });
-
     await refetchSession();
-
-    console.info("[church-work] onboarding session refetched", { organizationId });
     // No explicit step navigation: resolveOnboardingStep advances to the
     // teams step as soon as the Active Church query reflects the new Church.
     // Navigating here would race that auto-advance and clobber later steps.

@@ -31,12 +31,6 @@ const getSessionContext = async (
   const authSession = await auth.api.getSession({ headers: request.headers });
 
   if (!authSession) {
-    // Surface why Zero requests resolve as anonymous: the usual culprit is a
-    // missing forwarded cookie (zero-cache config or cookie domain scope).
-    console.info("zero session context resolved anonymous", {
-      hasCookieHeader: request.headers.has("cookie"),
-      path: new URL(request.url).pathname,
-    });
     return anonymousServerContext();
   }
 
@@ -56,7 +50,7 @@ const getSessionContext = async (
         .limit(1)
     : [];
 
-  const context: OptionalZeroSessionContext = {
+  return {
     authenticated: true,
     active_church_id: activeChurchId,
     church_role: session.orgRole ?? membership?.role ?? null,
@@ -65,20 +59,6 @@ const getSessionContext = async (
     session_id: authSession.session.id,
     user_id: authSession.user.id,
   };
-
-  // Debug logging for the onboarding session-context race: shows what each
-  // forwarded Zero query/mutate request resolved, so an empty-but-authorized
-  // result can be traced to a stale active_church_id or missing membership.
-  console.info("zero session context resolved", {
-    active_church_id: context.active_church_id,
-    church_role: context.church_role,
-    membership_role: membership?.role ?? null,
-    path: new URL(request.url).pathname,
-    session_id: context.session_id,
-    user_id: context.user_id,
-  });
-
-  return context;
 };
 
 const toResponse = (result: unknown) =>
@@ -139,17 +119,6 @@ export const createTracerApi = (databaseUrl: string) => {
 
         return handleQueryRequest({
           handler: (name, args): any => {
-            // Debug logging for the onboarding session-context race: pairs
-            // each transformed query with the context it was authorized
-            // against, so an args.church_id vs active_church_id mismatch at
-            // transform time is visible in Workers Logs.
-            console.info("zero query transform", {
-              active_church_id: ctx?.authenticated ? ctx.active_church_id : null,
-              args,
-              authenticated: Boolean(ctx?.authenticated),
-              name,
-            });
-
             return getQuery(name).fn({
               args,
               ctx,
