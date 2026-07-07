@@ -11,6 +11,13 @@
       "head_sampling_rate": 1,
     },
   },
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "019654be5cba4589b6c859318f97d71a",
+      "localConnectionString": "postgres://postgres:postgres@127.0.0.1:5434/church_work",
+    },
+  ],
   "routes": [
     {
       "pattern": "churchwork.ai",

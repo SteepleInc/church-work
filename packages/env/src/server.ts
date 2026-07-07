@@ -4,8 +4,6 @@ import { createEnv } from "@t3-oss/env-core";
 import { config } from "dotenv";
 import { z } from "zod";
 
-const runtimeEnv = { ...process.env };
-
 const isCloudflareWorkerRuntime = () => {
   const navigatorUserAgent = globalThis.navigator?.userAgent ?? "";
   const processVersions = process.versions as NodeJS.ProcessVersions & {
@@ -19,11 +17,30 @@ const isCloudflareWorkerRuntime = () => {
   );
 };
 
-if (!isCloudflareWorkerRuntime()) {
+const loadCloudflareWorkerEnv = async () => {
+  // `cloudflare:workers` is a workerd built-in. Import it through a variable
+  // specifier so Node TypeScript programs and non-worker bundles neither
+  // resolve nor include it.
+  const specifier = "cloudflare:workers";
+  const { env } = await import(/* @vite-ignore */ specifier);
+
+  return {
+    ...env,
+    // Prefer pooled Hyperdrive connections over the direct DATABASE_URL when
+    // the binding is configured.
+    DATABASE_URL: env.HYPERDRIVE?.connectionString ?? env.DATABASE_URL,
+  };
+};
+
+const loadNodeEnv = () => {
+  const preloadedEnv = { ...process.env };
+
   config({ path: fileURLToPath(new URL("../../../.env", import.meta.url)) });
   config({ override: true, path: fileURLToPath(new URL("../../../.env.local", import.meta.url)) });
-  Object.assign(process.env, runtimeEnv);
-}
+  Object.assign(process.env, preloadedEnv);
+
+  return process.env;
+};
 
 export const serverEnv = createEnv({
   clientPrefix: "VITE_",
@@ -40,7 +57,7 @@ export const serverEnv = createEnv({
     RESEND_API_KEY: z.string().optional(),
     SITE_URL: z.url().optional(),
   },
-  runtimeEnv: process.env,
+  runtimeEnv: isCloudflareWorkerRuntime() ? await loadCloudflareWorkerEnv() : loadNodeEnv(),
   emptyStringAsUndefined: true,
   skipValidation: process.env.NODE_ENV === "test",
 });
