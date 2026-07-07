@@ -13,6 +13,7 @@ import {
 } from "@church-work/db/schema";
 import { formatTaskIdentifier } from "@church-work/domain";
 import { getChurchInvitationId, getNotificationId } from "@church-work/shared/get-ids";
+import { loggerLayer, traceSpan } from "@church-work/tracing";
 import { anonymousServerContext, mutators, queries, schema } from "@church-work/zero";
 import { handleMutateRequest, handleQueryRequest } from "@rocicorp/zero/server";
 import { zeroDrizzle } from "@rocicorp/zero/server/adapters/drizzle";
@@ -501,55 +502,79 @@ export const createTracerApi = (databaseUrl: string) => {
       },
     });
 
+  const isAgentPath = (pathname: string) =>
+    pathname.startsWith("/api/agent/") || pathname.startsWith("/api/mcp/tools/");
+
   const fetch = async (request: Request) => {
     const url = new URL(request.url);
-    const agentResponse = await handleAgentRequest({ auth: authRuntime.auth, db }, request);
-    if (agentResponse) return agentResponse;
 
-    const effect = (() => {
+    if (isAgentPath(url.pathname)) {
+      const agentResponse = await traceSpan("agent.request", (span) => {
+        span.setAttribute("http.request.method", request.method);
+        span.setAttribute("url.path", url.pathname);
+        return handleAgentRequest({ auth: authRuntime.auth, db }, request);
+      });
+      if (agentResponse) return agentResponse;
+    }
+
+    const route = (() => {
       if (url.pathname.startsWith("/api/auth/")) {
-        return Effect.promise(() => authRuntime.auth.handler(request));
+        return {
+          effect: Effect.promise(() => authRuntime.auth.handler(request)),
+          name: "auth.handler",
+        };
       }
-      if (url.pathname === "/api/test/otp" && request.method === "GET")
-        return handleTestOtp(request);
+      if (url.pathname === "/api/test/otp" && request.method === "GET") {
+        return { effect: handleTestOtp(request), name: "test.otp" };
+      }
       if (url.pathname === "/api/test/app-admin" && request.method === "POST") {
-        return handlePromoteCurrentUserToAppAdmin(request);
+        return { effect: handlePromoteCurrentUserToAppAdmin(request), name: "test.app-admin" };
       }
       if (url.pathname === "/api/test/session" && request.method === "POST") {
-        return handleCreateTestSession(request);
+        return { effect: handleCreateTestSession(request), name: "test.session" };
       }
       if (url.pathname === "/api/test/notifications" && request.method === "POST") {
-        return handleCreateTestNotification(request);
+        return { effect: handleCreateTestNotification(request), name: "test.notifications" };
       }
       if (url.pathname === "/api/test/invitations" && request.method === "POST") {
-        return handleCreateTestInvitation(request);
+        return { effect: handleCreateTestInvitation(request), name: "test.invitations" };
       }
-      if (url.pathname === "/api/tracer" && request.method === "GET") return handleHealth();
+      if (url.pathname === "/api/tracer" && request.method === "GET") {
+        return { effect: handleHealth(), name: "tracer.health" };
+      }
       if (url.pathname === "/api/tracer/demo-items" && request.method === "POST") {
-        return handleCreateDemoItem(request);
+        return { effect: handleCreateDemoItem(request), name: "tracer.demo-items" };
       }
       if (url.pathname === "/api/admin/users/update" && request.method === "POST") {
-        return handleUpdateAdminUser(request);
+        return { effect: handleUpdateAdminUser(request), name: "admin.users.update" };
       }
       if (url.pathname === "/api/admin/orgs/update" && request.method === "POST") {
-        return handleUpdateAdminOrg(request);
+        return { effect: handleUpdateAdminOrg(request), name: "admin.orgs.update" };
       }
       if (url.pathname === "/api/zero/query" && request.method === "POST") {
-        return handleZeroQuery(request);
+        return { effect: handleZeroQuery(request), name: "zero.query" };
       }
       if (url.pathname === "/api/zero/mutate" && request.method === "POST") {
-        return handleZeroMutate(request);
+        return { effect: handleZeroMutate(request), name: "zero.mutate" };
       }
 
-      return Effect.succeed(Response.json({ error: "Not found" }, { status: 404 }));
+      return {
+        effect: Effect.succeed(Response.json({ error: "Not found" }, { status: 404 })),
+        name: "api.not-found",
+      };
     })();
 
-    return Effect.runPromise(effect).catch((cause) =>
-      Response.json(
-        { error: cause instanceof Error ? cause.message : String(cause) },
-        { status: 500 },
-      ),
-    );
+    return traceSpan(route.name, (span) => {
+      span.setAttribute("http.request.method", request.method);
+      span.setAttribute("url.path", url.pathname);
+
+      return Effect.runPromise(Effect.provide(route.effect, loggerLayer)).catch((cause) =>
+        Response.json(
+          { error: cause instanceof Error ? cause.message : String(cause) },
+          { status: 500 },
+        ),
+      );
+    });
   };
 
   return {
