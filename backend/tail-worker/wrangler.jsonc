@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "church-work-tail-worker",
+  "compatibility_date": "2026-07-01",
+  "main": "src/index.ts",
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+    },
+  },
+}
