@@ -31,6 +31,12 @@ const getSessionContext = async (
   const authSession = await auth.api.getSession({ headers: request.headers });
 
   if (!authSession) {
+    // Surface why Zero requests resolve as anonymous: the usual culprit is a
+    // missing forwarded cookie (zero-cache config or cookie domain scope).
+    console.info("zero session context resolved anonymous", {
+      hasCookieHeader: request.headers.has("cookie"),
+      path: new URL(request.url).pathname,
+    });
     return anonymousServerContext();
   }
 

@@ -54,6 +54,17 @@ const getSiteUrl = () =>
   process.env.E2E_SITE_URL ??
   (process.env.NODE_ENV === "production" ? "https://churchwork.ai" : "http://localhost:2001");
 
+// Zero connects to zero.<site host>, and zero-cache forwards the auth cookie
+// to the Zero query/mutate endpoints. Host-only cookies never reach that
+// subdomain, so production cookies must be scoped to the parent domain.
+// Local dev keeps host-only cookies and uses the same-origin /zero proxy.
+const getCrossSubDomainCookies = () => {
+  const hostname = new URL(getSiteUrl()).hostname;
+  const isLocalHostname = ["127.0.0.1", "localhost"].includes(hostname);
+
+  return isLocalHostname ? {} : { crossSubDomainCookies: { domain: hostname, enabled: true } };
+};
+
 const createResendClient = () => {
   const apiKey = process.env.RESEND_API_KEY;
 
@@ -189,6 +200,7 @@ export const createAuthOptions = (
 ) => {
   const options = {
     advanced: {
+      ...getCrossSubDomainCookies(),
       database: {
         generateId: ({ model }) => modelIds[model as keyof typeof modelIds]?.() ?? false,
       },
