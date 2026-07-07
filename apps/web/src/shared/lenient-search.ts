@@ -6,7 +6,7 @@ import { Effect, Option, Schema } from "effect";
  * params must never error a page (ADR 0010 — chrome always renders); they just
  * fall back to defaults.
  */
-export function lenientSearchField<A>(schema: Schema.Decoder<A, never>) {
+export function lenientSearchField<A>(schema: Schema.ConstraintDecoder<A, never>) {
   return Schema.optional(
     Schema.UndefinedOr(schema).pipe(
       Schema.catchDecoding(() => Effect.succeed(Option.some(undefined))),

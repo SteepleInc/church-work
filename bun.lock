@@ -54,6 +54,7 @@
         "@church-work/domain": "workspace:*",
         "@church-work/env": "workspace:*",
         "@church-work/server": "workspace:*",
+        "@church-work/tracing": "workspace:*",
         "@church-work/zero": "workspace:*",
         "@dnd-kit/core": "^6.3.1",
         "@dnd-kit/sortable": "^10.0.0",
@@ -149,6 +150,7 @@
         "@church-work/db": "workspace:*",
         "@church-work/domain": "workspace:*",
         "@church-work/shared": "workspace:*",
+        "@church-work/tracing": "workspace:*",
         "@church-work/zero": "workspace:*",
         "@rocicorp/zero": "catalog:",
         "dotenv": "catalog:",
@@ -294,6 +296,18 @@
         "vitest": "catalog:",
       },
     },
+    "packages/tracing": {
+      "name": "@church-work/tracing",
+      "version": "0.0.0",
+      "dependencies": {
+        "effect": "catalog:",
+      },
+      "devDependencies": {
+        "@church-work/config": "workspace:*",
+        "@types/node": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
     "packages/zero": {
       "name": "@church-work/zero",
       "version": "0.0.0",
@@ -338,7 +352,7 @@
     "drizzle-kit": "1.0.0-rc.3",
     "drizzle-orm": "1.0.0-rc.3",
     "drizzle-zero": "1.0.0-beta.0",
-    "effect": "4.0.0-beta.84",
+    "effect": "4.0.0-beta.93",
     "next-themes": "^0.4.6",
     "pg": "8.21.0",
     "react": "^19.2.7",
@@ -478,6 +492,8 @@
     "@church-work/tail-worker": ["@church-work/tail-worker@workspace:backend/tail-worker"],
 
     "@church-work/test-harness": ["@church-work/test-harness@workspace:packages/test-harness"],
+
+    "@church-work/tracing": ["@church-work/tracing@workspace:packages/tracing"],
 
     "@church-work/web": ["@church-work/web@workspace:apps/web"],
 
@@ -1697,7 +1713,7 @@
 
     "ee-first": ["ee-first@1.1.1", "", {}, "sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow=="],
 
-    "effect": ["effect@4.0.0-beta.84", "", { "dependencies": { "@standard-schema/spec": "^1.1.0", "fast-check": "^4.8.0", "find-my-way-ts": "^0.1.6", "ini": "^7.0.0", "kubernetes-types": "^1.30.0", "msgpackr": "^2.0.1", "multipasta": "^0.2.7", "toml": "^4.1.1", "uuid": "^14.0.0", "yaml": "^2.9.0" } }, "sha512-zWwFI9WZ4TsddBmtcuuAO2IXGR0Dp56xIUt8cX29ZeyOEtErXqP6muDaVpro08lGiMSOGMqSpuH/C1TUxHsRAA=="],
+    "effect": ["effect@4.0.0-beta.93", "", { "dependencies": { "@standard-schema/spec": "^1.1.0", "fast-check": "^4.8.0", "find-my-way-ts": "^0.1.6", "ini": "^7.0.0", "kubernetes-types": "^1.30.0", "msgpackr": "^2.0.1", "multipasta": "^0.2.7", "toml": "^4.1.1", "uuid": "^14.0.0", "yaml": "^2.9.0" } }, "sha512-wNS5MKFa3C42uBfIDik2oJ78lhpoYz2hN4oBR0229BeeDCIrkg/FiOvoiPGdCVlWa7MEKxEL5I0f8AILVHSD9A=="],
 
     "electron-to-chromium": ["electron-to-chromium@1.5.363", "", {}, "sha512-VjUKPyWzGnT1fujlkEGC/BvN70Hh70KXtAqcmniXviYlJC/ivcT+BWGPyxWVbJZLfvtKR6dqg1L7T7pgAMBtWA=="],
 

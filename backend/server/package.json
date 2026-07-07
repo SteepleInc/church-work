@@ -17,6 +17,7 @@
     "@church-work/db": "workspace:*",
     "@church-work/domain": "workspace:*",
     "@church-work/shared": "workspace:*",
+    "@church-work/tracing": "workspace:*",
     "@church-work/zero": "workspace:*",
     "@rocicorp/zero": "catalog:",
     "dotenv": "catalog:",
