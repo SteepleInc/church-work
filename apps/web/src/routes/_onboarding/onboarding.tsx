@@ -15,6 +15,7 @@ import {
 import { TeamAvatar } from "@/components/avatars/teamAvatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   useDeleteOnboardingTeamMutation,
   useOnboardingTeamsCollection,
@@ -363,12 +364,16 @@ function InitialTeamsStepCard(props: {
   readonly churchId: string;
   readonly onComplete: () => Promise<void>;
 }) {
-  const { teamsCollection } = useOnboardingTeamsCollection({ churchId: props.churchId });
+  const { loading, teamsCollection } = useOnboardingTeamsCollection({ churchId: props.churchId });
   const deleteTeam = useDeleteOnboardingTeamMutation();
   const { openCreateTeam, openEditTeam } = useQuickActionOpeners();
 
   const teams = [...teamsCollection].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   const hasTeams = teams.length > 0;
+  // The starter Teams are created server-side during Church creation and
+  // arrive through Zero sync; show a pending list instead of the empty state
+  // until the query has fully synced.
+  const showLoadingTeams = loading && !hasTeams;
 
   const removeTeam = (team: OnboardingTeamCollectionItem) => {
     void deleteTeam({ churchId: props.churchId, teamId: team.id }).catch((error: unknown) => {
@@ -439,6 +444,21 @@ function InitialTeamsStepCard(props: {
               ))}
             </div>
           </ScrollArea>
+        ) : showLoadingTeams ? (
+          <div className="flex flex-col gap-2 px-4 pb-4" aria-label="Loading initial Teams">
+            {[0, 1, 2].map((row) => (
+              <div
+                className="flex flex-row items-center gap-3 rounded-lg border px-4 py-3 shadow-sm"
+                key={row}
+              >
+                <Skeleton className="size-11 rounded-full" />
+                <div className="flex min-w-0 flex-1 flex-col items-start gap-1.5">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-3.5 w-12" />
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
           <div className="px-4 pb-4 text-sm text-muted-foreground">
             Add at least one Team to continue onboarding.

@@ -33,7 +33,9 @@ export function useOnboardingTeamsCollection(params: { readonly churchId: string
 
   return {
     collection: teamsCollection,
-    loading: false,
+    // Zero reports "unknown" until the server result has fully synced; an
+    // empty list before that is "still loading", not "no teams".
+    loading: result.type !== "complete",
     teamsCollection,
   };
 }
