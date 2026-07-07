@@ -39,7 +39,9 @@ import { revalidateLogic } from "@tanstack/react-form";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Schema } from "effect";
 import { ArrowRight, Church, PartyPopper, Pencil, Plus, Search, UsersRound, X } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { queries } from "@church-work/zero";
+import { useZero } from "@rocicorp/zero/react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_onboarding/onboarding")({
@@ -427,6 +429,16 @@ function InitialTeamsStepCard(props: {
   const { loading, teamsCollection } = useOnboardingTeamsCollection({ churchId: props.churchId });
   const deleteTeam = useDeleteOnboardingTeamMutation();
   const { openCreateTeam, openEditTeam } = useQuickActionOpeners();
+  const zero = useZero();
+  const hasPreloadedKeyDates = useRef(false);
+
+  // Warm the Key Dates query (used by the Finished step review) as soon as
+  // the user shows intent to continue, so the next step renders instantly.
+  const preloadKeyDates = () => {
+    if (hasPreloadedKeyDates.current) return;
+    hasPreloadedKeyDates.current = true;
+    zero.preload(queries.key_dates.by_church({ church_id: props.churchId }), { ttl: "5m" });
+  };
 
   const teams = [...teamsCollection].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   const hasTeams = teams.length > 0;
@@ -518,6 +530,8 @@ function InitialTeamsStepCard(props: {
           className="ml-auto"
           disabled={!hasTeams}
           onClick={() => void props.onComplete()}
+          onFocus={preloadKeyDates}
+          onMouseEnter={preloadKeyDates}
           type="button"
           variant="default"
         >
