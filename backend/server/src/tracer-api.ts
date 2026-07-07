@@ -139,6 +139,17 @@ export const createTracerApi = (databaseUrl: string) => {
 
         return handleQueryRequest({
           handler: (name, args): any => {
+            // Debug logging for the onboarding session-context race: pairs
+            // each transformed query with the context it was authorized
+            // against, so an args.church_id vs active_church_id mismatch at
+            // transform time is visible in Workers Logs.
+            console.info("zero query transform", {
+              active_church_id: ctx?.authenticated ? ctx.active_church_id : null,
+              args,
+              authenticated: Boolean(ctx?.authenticated),
+              name,
+            });
+
             return getQuery(name).fn({
               args,
               ctx,
