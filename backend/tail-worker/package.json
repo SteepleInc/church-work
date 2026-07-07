@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "check-types": "tsc --noEmit",
+    "wrangler": "wrangler",
     "deploy": "bun run wrangler deploy",
     "cf-typegen": "bun run wrangler types"
   },
@@ -12,6 +13,6 @@
     "@church-work/config": "workspace:*",
     "@cloudflare/workers-types": "^4.20260701.0",
     "typescript": "catalog:",
-    "wrangler": "^4.74.0"
+    "wrangler": "catalog:"
   }
 }
