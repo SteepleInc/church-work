@@ -1,0 +1,17 @@
+{
+  "name": "@church-work/tail-worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "deploy": "bun run wrangler deploy",
+    "cf-typegen": "bun run wrangler types"
+  },
+  "devDependencies": {
+    "@church-work/config": "workspace:*",
+    "@cloudflare/workers-types": "^4.20260701.0",
+    "typescript": "catalog:",
+    "wrangler": "^4.74.0"
+  }
+}

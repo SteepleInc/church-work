@@ -11,6 +11,11 @@
       "head_sampling_rate": 1,
     },
   },
+  "tail_consumers": [
+    {
+      "service": "church-work-tail-worker",
+    },
+  ],
   "hyperdrive": [
     {
       "binding": "HYPERDRIVE",
