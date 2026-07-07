@@ -1,1 +1,1 @@
-export { serverEnv } from "./server";
+export { getServerEnv } from "./server";

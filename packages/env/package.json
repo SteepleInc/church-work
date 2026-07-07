@@ -5,7 +5,10 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./server": "./src/server.ts",
+    "./server": {
+      "workerd": "./src/server.worker.ts",
+      "default": "./src/server.ts"
+    },
     "./web": "./src/web.ts"
   },
   "scripts": {

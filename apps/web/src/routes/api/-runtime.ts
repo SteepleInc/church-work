@@ -1,4 +1,4 @@
-import { serverEnv } from "@church-work/env/server";
+import { getServerEnv } from "@church-work/env/server";
 import { createTracerApi } from "@church-work/server";
 
 // Cloudflare Workers cannot reuse TCP sockets (pg pool connections) across
@@ -15,7 +15,7 @@ const getTracerApi = async () => {
     return tracerApi;
   }
 
-  tracerApi = createTracerApi(serverEnv.DATABASE_URL);
+  tracerApi = createTracerApi(getServerEnv().DATABASE_URL);
   return tracerApi;
 };
 
@@ -25,7 +25,7 @@ export const handleApiRequest = async (request: Request) => {
     return api.fetch(request);
   }
 
-  const api = createTracerApi(serverEnv.DATABASE_URL);
+  const api = createTracerApi(getServerEnv().DATABASE_URL);
   try {
     return await api.fetch(request);
   } finally {
