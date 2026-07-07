@@ -135,11 +135,19 @@ function OnboardingRoute() {
 
         {step._tag === "churchProfile" ? (
           <ChurchProfileStepCard />
-        ) : step._tag === "initialTeams" && activeChurch ? (
-          <InitialTeamsStepCard
-            churchId={activeChurch!.id}
-            onComplete={() => setStep({ _tag: "finished" })}
-          />
+        ) : step._tag === "initialTeams" ? (
+          // The step advances from the session's active church id before the
+          // full Active Church query resolves; keep the card chrome and
+          // skeleton rows up during that gap instead of flashing an empty
+          // shell.
+          activeChurch ? (
+            <InitialTeamsStepCard
+              churchId={activeChurch.id}
+              onComplete={() => setStep({ _tag: "finished" })}
+            />
+          ) : (
+            <InitialTeamsStepCardLoading />
+          )
         ) : step._tag === "finished" && activeChurch ? (
           <FinishedStepCard churchId={activeChurch!.id} />
         ) : null}
@@ -360,6 +368,58 @@ function ChurchProfileStepCard() {
   );
 }
 
+function TeamRowSkeletons() {
+  return (
+    <div className="flex flex-col gap-2 px-4 pb-4" aria-label="Loading initial Teams">
+      {[0, 1, 2].map((row) => (
+        <div
+          className="flex flex-row items-center gap-3 rounded-lg border px-4 py-3 shadow-sm"
+          key={row}
+        >
+          <Skeleton className="size-11 rounded-full" />
+          <div className="flex min-w-0 flex-1 flex-col items-start gap-1.5">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-3.5 w-12" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function InitialTeamsStepCardLoading() {
+  return (
+    <div className="flex flex-col gap-4 overflow-hidden p-4">
+      <Card className="w-full overflow-hidden pb-0">
+        <CardHeader className="items-center sm:items-start">
+          <CardAdornment className="row-span-1 mr-2 self-center sm:row-span-2 sm:self-start">
+            <UsersRound className="size-5" />
+          </CardAdornment>
+          <CardTitle className="self-center sm:self-start">Teams</CardTitle>
+          <CardAction className="row-span-1 self-center sm:row-span-2 sm:self-start">
+            <Button disabled type="button" variant="outline">
+              <Plus />
+              Add Team
+            </Button>
+          </CardAction>
+          <CardDescription className="col-span-2 col-start-2 sm:col-span-1">
+            Review the starting Teams Church Work created for your Church.
+          </CardDescription>
+        </CardHeader>
+
+        <TeamRowSkeletons />
+      </Card>
+
+      <ActionRow className="-mx-4 -mb-4 w-[calc(100%+2rem)]">
+        <Button className="ml-auto" disabled type="button" variant="default">
+          Next
+          <ArrowRight />
+        </Button>
+      </ActionRow>
+    </div>
+  );
+}
+
 function InitialTeamsStepCard(props: {
   readonly churchId: string;
   readonly onComplete: () => Promise<void>;
@@ -445,20 +505,7 @@ function InitialTeamsStepCard(props: {
             </div>
           </ScrollArea>
         ) : showLoadingTeams ? (
-          <div className="flex flex-col gap-2 px-4 pb-4" aria-label="Loading initial Teams">
-            {[0, 1, 2].map((row) => (
-              <div
-                className="flex flex-row items-center gap-3 rounded-lg border px-4 py-3 shadow-sm"
-                key={row}
-              >
-                <Skeleton className="size-11 rounded-full" />
-                <div className="flex min-w-0 flex-1 flex-col items-start gap-1.5">
-                  <Skeleton className="h-4 w-40" />
-                  <Skeleton className="h-3.5 w-12" />
-                </div>
-              </div>
-            ))}
-          </div>
+          <TeamRowSkeletons />
         ) : (
           <div className="px-4 pb-4 text-sm text-muted-foreground">
             Add at least one Team to continue onboarding.
