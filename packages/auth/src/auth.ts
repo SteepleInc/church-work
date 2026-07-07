@@ -58,11 +58,21 @@ const getSiteUrl = () =>
 // to the Zero query/mutate endpoints. Host-only cookies never reach that
 // subdomain, so production cookies must be scoped to the parent domain.
 // Local dev keeps host-only cookies and uses the same-origin /zero proxy.
-const getCrossSubDomainCookies = () => {
+//
+// The production cookie prefix differs from the default so domain-scoped
+// cookies get a fresh name: browsers keep pre-existing host-only cookies with
+// the default name as separate cookies, send both, and the stale one shadows
+// the new session on the server.
+const getProductionCookieConfig = () => {
   const hostname = new URL(getSiteUrl()).hostname;
   const isLocalHostname = ["127.0.0.1", "localhost"].includes(hostname);
 
-  return isLocalHostname ? {} : { crossSubDomainCookies: { domain: hostname, enabled: true } };
+  return isLocalHostname
+    ? {}
+    : {
+        cookiePrefix: "church-work",
+        crossSubDomainCookies: { domain: hostname, enabled: true },
+      };
 };
 
 const createResendClient = () => {
@@ -200,7 +210,7 @@ export const createAuthOptions = (
 ) => {
   const options = {
     advanced: {
-      ...getCrossSubDomainCookies(),
+      ...getProductionCookieConfig(),
       database: {
         generateId: ({ model }) => modelIds[model as keyof typeof modelIds]?.() ?? false,
       },
