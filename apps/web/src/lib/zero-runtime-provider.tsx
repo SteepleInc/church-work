@@ -91,6 +91,21 @@ export function ZeroRuntimeProvider(props: { readonly children: React.ReactNode 
     });
   }, [cacheURL]);
 
+  // Debug logging for the onboarding session-context race: shows exactly when
+  // the client-side Zero context picks up the new active church after
+  // organization.create/setActive/refetchSession.
+  useEffect(() => {
+    const authenticatedContext = context?.authenticated ? context : null;
+
+    console.info("[church-work] Zero session context", {
+      activeChurchId: authenticatedContext?.active_church_id ?? null,
+      authenticated: Boolean(authenticatedContext),
+      sessionId: authenticatedContext?.session_id ?? null,
+      sessionPending,
+      userId: authenticatedContext?.user_id ?? null,
+    });
+  }, [context, sessionPending]);
+
   return (
     <ZeroProvider
       cacheURL={cacheURL}

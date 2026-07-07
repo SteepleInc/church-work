@@ -56,7 +56,7 @@ const getSessionContext = async (
         .limit(1)
     : [];
 
-  return {
+  const context: OptionalZeroSessionContext = {
     authenticated: true,
     active_church_id: activeChurchId,
     church_role: session.orgRole ?? membership?.role ?? null,
@@ -65,6 +65,20 @@ const getSessionContext = async (
     session_id: authSession.session.id,
     user_id: authSession.user.id,
   };
+
+  // Debug logging for the onboarding session-context race: shows what each
+  // forwarded Zero query/mutate request resolved, so an empty-but-authorized
+  // result can be traced to a stale active_church_id or missing membership.
+  console.info("zero session context resolved", {
+    active_church_id: context.active_church_id,
+    church_role: context.church_role,
+    membership_role: membership?.role ?? null,
+    path: new URL(request.url).pathname,
+    session_id: context.session_id,
+    user_id: context.user_id,
+  });
+
+  return context;
 };
 
 const toResponse = (result: unknown) =>
