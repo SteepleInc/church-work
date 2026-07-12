@@ -1,6 +1,7 @@
 import { Outlet } from "@tanstack/react-router";
 
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { PastDueBanner } from "@/features/billing/past-due-banner";
 import { SettingsSidebar } from "@/features/settings/settings-sidebar";
 
 /**
@@ -17,6 +18,7 @@ export function SettingsShell() {
       <SettingsSidebar />
       <main className="flex flex-1 flex-col overflow-hidden p-2 pl-0">
         <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-border bg-background shadow-sm">
+          <PastDueBanner />
           <Outlet />
         </div>
       </main>

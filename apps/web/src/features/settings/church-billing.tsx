@@ -1,6 +1,6 @@
 import {
+  Alert02Icon,
   CheckmarkCircle02Icon,
-  CreditCardIcon,
   InformationCircleIcon,
   Tick02Icon,
   Time04Icon,
@@ -17,24 +17,17 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useChurchSubscription } from "@/data/subscriptions/subscriptionData.app";
 import { useCurrentOrgOpt, type CurrentOrg } from "@/data/orgs/orgData.app";
+import {
+  canManageSubscription,
+  formatBillingDate,
+  graceDaysLeft,
+} from "@/features/billing/billing-helpers";
 import { SettingsSection } from "@/features/settings/settings-page";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
 const PAID_PRICE = "$19.99";
 const PAID_PRICE_NOTE = "USD per Church per week, tax inclusive";
-
-function canManageSubscription(role: string): boolean {
-  return role === "owner" || role === "admin";
-}
-
-function formatDate(epochMs: number): string {
-  return new Date(epochMs).toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 function getRenewalLine({
   cancelAtPeriodEnd,
@@ -50,10 +43,10 @@ function getRenewalLine({
   }
 
   if (cancelAtPeriodEnd) {
-    return `Paid access ends ${formatDate(periodEnd)}, then this Church returns to the Free Plan.`;
+    return `Paid access ends ${formatBillingDate(periodEnd)}, then this Church returns to the Free Plan.`;
   }
 
-  return `Renews ${formatDate(periodEnd)}.`;
+  return `Renews ${formatBillingDate(periodEnd)}.`;
 }
 
 export function ChurchBilling({
@@ -93,6 +86,13 @@ function BillingPanel({
   const isPastDue = subscriptionOpt?.status === "past_due";
   const graceEndsAt = subscriptionOpt ? paymentGraceEndsAt(subscriptionOpt) : null;
   const hasStripeCustomer = Boolean(subscriptionOpt?.stripeCustomerId);
+  const cancelScheduledFor =
+    isPaid && !isPastDue && subscriptionOpt?.cancelAtPeriodEnd && subscriptionOpt.periodEnd
+      ? subscriptionOpt.periodEnd
+      : null;
+  // A past-due Church Subscription recovers through the Customer Portal, not a
+  // fresh Checkout — never offer Upgrade while payment recovery is pending.
+  const canUpgrade = canManage && !isPaid && !isPastDue;
   const billingUrl = `${window.location.origin}/settings/workspace/billing`;
 
   const startCheckout = async () => {
@@ -181,26 +181,47 @@ function BillingPanel({
       ) : null}
 
       {isPastDue ? (
-        <Alert variant="destructive">
-          <HugeiconsIcon icon={CreditCardIcon} strokeWidth={2} />
-          <AlertTitle>Payment past due</AlertTitle>
+        <PastDueAlert
+          canManage={canManage}
+          fixPayment={
+            canManage && hasStripeCustomer ? (
+              <div className="col-start-2 mt-2 flex">
+                <Button
+                  disabled={redirecting === "checkout"}
+                  loading={redirecting === "portal"}
+                  onClick={() => void openPortal()}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  Fix payment
+                </Button>
+              </div>
+            ) : null
+          }
+          graceActive={isPaid}
+          graceEndsAt={graceEndsAt}
+        />
+      ) : null}
+
+      {cancelScheduledFor !== null ? (
+        <Alert>
+          <HugeiconsIcon
+            className="text-amber-600 dark:text-amber-500"
+            icon={Time04Icon}
+            strokeWidth={2}
+          />
+          <AlertTitle>
+            Cancellation scheduled — Paid access ends {formatBillingDate(cancelScheduledFor)}
+          </AlertTitle>
           <AlertDescription>
-            The latest payment for the Paid Plan didn't go through. Unlimited access
-            {graceEndsAt ? ` ends ${formatDate(graceEndsAt)}` : " is paused until payment recovers"}
+            This Church keeps Paid access through the purchased period, then returns to the Free
+            Plan. Nothing is deleted or hidden — Free Plan limits apply based on Task Usage at that
+            point.
             {canManage
-              ? " — fix payment in the Customer Portal to keep it."
-              : ". A Church owner or admin can fix payment; no payment details are shown to members."}
+              ? " Changed your mind? Resume the subscription in the Customer Portal through Manage billing."
+              : ""}
           </AlertDescription>
-          {canManage && hasStripeCustomer ? (
-            <Button
-              className="mt-3"
-              onClick={() => void openPortal()}
-              type="button"
-              variant="outline"
-            >
-              Fix payment
-            </Button>
-          ) : null}
         </Alert>
       ) : null}
 
@@ -214,7 +235,7 @@ function BillingPanel({
             canManage ? (
               <>
                 {hasStripeCustomer ? portalButton : null}
-                {!isPaid ? upgradeButton : null}
+                {canUpgrade ? upgradeButton : null}
               </>
             ) : null
           }
@@ -240,7 +261,7 @@ function BillingPanel({
             priceNote="forever"
           />
           <PlanCard
-            action={canManage && !isPaid ? upgradeButton : null}
+            action={canUpgrade ? upgradeButton : null}
             current={isPaid}
             features={[
               "Unlimited Users and Teams",
@@ -274,6 +295,66 @@ function BillingPanel({
         </Alert>
       )}
     </>
+  );
+}
+
+/**
+ * Role-aware Payment Grace Period panel. During grace the tone is a warning —
+ * Paid access continues and the deadline is the headline. After grace expires
+ * it turns destructive: Free Plan limits apply, but nothing is lost. Members
+ * see the same dates without any payment action or billing details.
+ */
+function PastDueAlert({
+  canManage,
+  fixPayment,
+  graceActive,
+  graceEndsAt,
+}: {
+  readonly canManage: boolean;
+  readonly fixPayment: ReactNode;
+  readonly graceActive: boolean;
+  readonly graceEndsAt: number | null;
+}) {
+  if (graceActive && graceEndsAt !== null) {
+    const daysLeft = graceDaysLeft(graceEndsAt);
+
+    return (
+      <Alert className="border-amber-500/30 dark:border-amber-500/25">
+        <HugeiconsIcon
+          className="text-amber-600 dark:text-amber-500"
+          icon={Alert02Icon}
+          strokeWidth={2}
+        />
+        <AlertTitle>
+          Payment past due — unlimited access ends {formatBillingDate(graceEndsAt)}
+        </AlertTitle>
+        <AlertDescription>
+          The latest Paid Plan payment didn't go through, so the two-week Payment Grace Period is
+          running{daysLeft > 0 ? ` (${daysLeft} ${daysLeft === 1 ? "day" : "days"} left)` : ""}.
+          Paid access continues until then.{" "}
+          {canManage
+            ? "Fix payment in the Customer Portal — unlimited access is restored the moment Stripe confirms recovery."
+            : "A Church owner or admin can fix payment; members never see payment details."}
+        </AlertDescription>
+        {fixPayment}
+      </Alert>
+    );
+  }
+
+  return (
+    <Alert variant="destructive">
+      <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />
+      <AlertTitle>Payment Grace Period ended — Free Plan limits apply</AlertTitle>
+      <AlertDescription>
+        Payment wasn't recovered during the two-week Payment Grace Period, so this Church now
+        follows Free Plan limits. Nothing was deleted or hidden — every Task stays right where it
+        is.{" "}
+        {canManage
+          ? "Fix payment to restore unlimited access immediately."
+          : "A Church owner or admin can fix payment to restore the Paid Plan."}
+      </AlertDescription>
+      {fixPayment}
+    </Alert>
   );
 }
 
