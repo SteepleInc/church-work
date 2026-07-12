@@ -147,7 +147,7 @@ function PlanCard({
 function PriceHero({ base }: { readonly base: number }) {
   const reduceMotion = useReducedMotion();
   return (
-    <section className="mx-auto max-w-[1200px] px-6 pt-16 md:px-10 md:pt-24">
+    <section className="mx-auto max-w-[1400px] px-6 pt-16 md:px-10 md:pt-24">
       <motion.div
         animate={{ opacity: 1, y: 0 }}
         initial={reduceMotion ? false : { opacity: 0, y: 24 }}
@@ -155,7 +155,10 @@ function PriceHero({ base }: { readonly base: number }) {
           reduceMotion ? { duration: 0 } : { delay: Math.max(0, base - 0.3), duration: 0.8 }
         }
       >
-        <p className="cw-eyebrow text-center">Free to start. One clear upgrade.</p>
+        {/* cw-eyebrow is inline-flex, so it centers via a flex parent, not text-align. */}
+        <div className="flex justify-center">
+          <p className="cw-eyebrow">Free to start. One clear upgrade.</p>
+        </div>
         <h1 className="mx-auto mt-7 max-w-[900px] text-center font-medium text-[48px] tracking-[-0.035em] leading-[1.04] md:text-[76px]">
           Plan the work now. Upgrade when you need more room.
         </h1>
@@ -166,7 +169,7 @@ function PriceHero({ base }: { readonly base: number }) {
       </motion.div>
       <motion.div
         animate={{ opacity: 1, y: 0 }}
-        className="mt-12 grid gap-5 md:mt-14 md:grid-cols-2"
+        className="mx-auto mt-12 grid w-full max-w-[1100px] gap-5 md:mt-14 md:grid-cols-2"
         initial={reduceMotion ? false : { opacity: 0, y: 40 }}
         transition={
           reduceMotion
@@ -238,7 +241,7 @@ function ComparePlans({ heroSettleMs }: { readonly heroSettleMs: number }) {
   return (
     <section
       aria-labelledby="compare-heading"
-      className="mx-auto max-w-[1200px] px-6 pt-28 md:px-10 md:pt-36"
+      className="mx-auto max-w-[1400px] px-6 pt-28 md:px-10 md:pt-36"
     >
       <Reveal holdUntil={heroSettleMs}>
         <p className="cw-eyebrow">Side by side</p>
@@ -250,7 +253,14 @@ function ComparePlans({ heroSettleMs }: { readonly heroSettleMs: number }) {
         </h2>
       </Reveal>
       <Reveal className="mt-10" delay={80}>
-        <div className="overflow-x-auto rounded-2xl border border-mkt-border">
+        {/* Focusable so keyboard users can scroll the table when it overflows
+            on narrow viewports. */}
+        <div
+          aria-labelledby="compare-heading"
+          className="overflow-x-auto rounded-2xl border border-mkt-border focus-visible:outline-2 focus-visible:outline-mkt-fg focus-visible:outline-offset-2"
+          role="region"
+          tabIndex={0}
+        >
           <table className="w-full min-w-[560px] border-collapse text-left text-[15px]">
             <caption className="sr-only">Free Plan and Paid Plan comparison</caption>
             <thead>
@@ -313,7 +323,7 @@ function UpgradePath() {
   return (
     <section
       aria-labelledby="upgrade-heading"
-      className="mx-auto max-w-[1200px] px-6 pt-28 md:px-10 md:pt-36"
+      className="mx-auto max-w-[1400px] px-6 pt-28 md:px-10 md:pt-36"
     >
       <Reveal>
         <p className="cw-eyebrow">Signup to upgrade</p>
@@ -375,7 +385,7 @@ function Details() {
   return (
     <section
       aria-labelledby="details-heading"
-      className="mx-auto max-w-[1200px] px-6 pt-28 md:px-10 md:pt-36"
+      className="mx-auto max-w-[1400px] px-6 pt-28 md:px-10 md:pt-36"
     >
       <Reveal>
         <p className="cw-eyebrow">Good to know</p>
@@ -400,7 +410,7 @@ function Details() {
 
 function ClosingCTA() {
   return (
-    <section className="mx-auto max-w-[1200px] px-6 pt-28 pb-8 text-center md:px-10 md:pt-40">
+    <section className="mx-auto max-w-[1400px] px-6 pt-28 pb-8 text-center md:px-10 md:pt-40">
       <Reveal>
         <h2 className="mx-auto max-w-[820px] font-medium text-[44px] tracking-[-0.035em] leading-[1.04] md:text-[68px]">
           Start planning for free.
