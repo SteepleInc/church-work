@@ -28,7 +28,7 @@ describe("App Administration Church billing", () => {
         cancelAt: graceStartedAt + 2_000,
         canceledAt: null,
         endedAt: null,
-      } as never,
+      },
       301,
     );
 

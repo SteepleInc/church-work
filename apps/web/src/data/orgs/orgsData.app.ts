@@ -51,8 +51,19 @@ export type AdminChurchBilling = {
   readonly taskUsage?: number;
 };
 
+type AdminChurchSubscription = Pick<
+  Subscription,
+  | "cancelAt"
+  | "cancelAtPeriodEnd"
+  | "canceledAt"
+  | "endedAt"
+  | "graceStartedAt"
+  | "periodEnd"
+  | "status"
+>;
+
 export const toAdminChurchBilling = (
-  subscription: Subscription | null,
+  subscription: AdminChurchSubscription | null,
   taskUsage?: number,
 ): AdminChurchBilling => ({
   plan: hasPaidEntitlements(subscription) ? "Paid" : "Free",
@@ -145,7 +156,9 @@ export function useAllOrgsCollectionWithFilters() {
   const [subscriptionRows = []] = useZeroQuery(queries.subscription.admin_all(), {
     enabled: isAppAdmin,
   });
-  const orgsCollection = orgRows.map((org) => mapOrg(org, memberRows, teamRows, subscriptionRows));
+  const orgsCollection = isAppAdmin
+    ? orgRows.map((org) => mapOrg(org, memberRows, teamRows, subscriptionRows))
+    : [];
 
   return {
     canLoadMore: orgRows.length >= limit,
@@ -190,14 +203,16 @@ export function useAdminOrgData(params: { readonly orgId: string | null }) {
       taskState: task.task_state,
     });
   }).length;
-  const org = orgRows[0]
+  const orgRow = isAppAdmin ? orgRows[0] : undefined;
+  const org = orgRow
     ? {
-        ...mapOrg(orgRows[0], memberRows, teamRows),
+        ...mapOrg(orgRow, memberRows, teamRows),
         billing: toAdminChurchBilling(subscription ?? null, taskUsage),
       }
     : null;
 
   return {
+    isAppAdmin,
     loading: false,
     orgOpt: org,
   };

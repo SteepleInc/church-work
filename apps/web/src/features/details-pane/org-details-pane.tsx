@@ -30,8 +30,8 @@ export function OrgDetailsPane({
 }) {
   const userOrgData = useOrgData({ orgId });
   const adminOrgData = useAdminOrgData({ orgId });
-  const org = adminOrgData.orgOpt ?? userOrgData.orgOpt;
-  const loading = adminOrgData.orgOpt ? adminOrgData.loading : userOrgData.loading;
+  const org = adminOrgData.isAppAdmin ? adminOrgData.orgOpt : userOrgData.orgOpt;
+  const loading = adminOrgData.isAppAdmin ? adminOrgData.loading : userOrgData.loading;
 
   return (
     <DetailsShell
@@ -338,7 +338,7 @@ function BillingDateItem({
 function formatGraceDaysLeft(graceEndsAt: number): string | null {
   const daysLeft = graceDaysLeft(graceEndsAt);
 
-  return daysLeft > 0 ? `${daysLeft} ${daysLeft === 1 ? "day" : "days"} left` : "ends today";
+  return daysLeft > 0 ? `${daysLeft} ${daysLeft === 1 ? "day" : "days"} left` : "ended";
 }
 
 function formatAddress(org: {
