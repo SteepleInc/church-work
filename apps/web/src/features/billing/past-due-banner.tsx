@@ -62,7 +62,7 @@ export function PastDueBanner() {
         strokeWidth={2}
       />
       <p className="min-w-0 flex-1 leading-snug">
-        {graceActive && graceEndsAt !== null ? (
+        {graceActive ? (
           <>
             <span className="font-medium">Payment past due.</span>{" "}
             <span className="text-muted-foreground">

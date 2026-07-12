@@ -334,7 +334,7 @@ function PastDueAlert({
           Paid access continues until then.{" "}
           {canManage
             ? "Fix payment in the Customer Portal — unlimited access is restored the moment Stripe confirms recovery."
-            : "A Church owner or admin can fix payment; members never see payment details."}
+            : "A Church owner or admin can fix payment to keep unlimited access."}
         </AlertDescription>
         {fixPayment}
       </Alert>
