@@ -17,15 +17,18 @@ describe("org details pane", () => {
     expect(orgDetailsPaneSource).toContain('title="Onboarding"');
     expect(orgDetailsPaneSource).toContain('title="Members"');
     expect(orgDetailsPaneSource).toContain('title="Created"');
-    expect(orgDetailsPaneSource).toContain('title="Billing (read-only)"');
+    expect(orgDetailsPaneSource).toContain('title="Billing"');
     expect(orgDetailsPaneSource).toContain('label="Task Usage"');
-    expect(orgDetailsPaneSource).toContain('label="Payment Grace Period Expiry"');
+    expect(orgDetailsPaneSource).toContain('label="Payment Grace Period Ends"');
+    expect(orgDetailsPaneSource).toContain('label="Scheduled Cancellation"');
     expect(orgDetailsPaneSource).toContain(
       "{org.billing ? <BillingSection billing={org.billing} /> : null}",
     );
     expect(orgDetailsPaneSource).toContain("<ChurchPlanBadge");
     expect(orgDetailsPaneSource).toContain("<SubscriptionStatusBadge");
-    expect(orgDetailsPaneSource).toContain('<span className="sr-only">Not present</span>');
+    // Absent lifecycle dates render no row at all — no dash walls for the
+    // common Free-with-no-subscription case.
+    expect(orgDetailsPaneSource).toContain("if (value == null) return null;");
     expect(orgDetailsPaneSource).toContain(
       "aria-valuetext={`${taskUsage} of ${FREE_PLAN_TASK_LIMIT} Tasks`}",
     );

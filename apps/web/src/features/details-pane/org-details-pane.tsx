@@ -169,7 +169,7 @@ function BillingSection({ billing }: { readonly billing: AdminChurchBilling }) {
   const summary = getBillingLifecycleSummary(billing);
 
   return (
-    <DetailSection title="Billing (read-only)">
+    <DetailSection title="Billing">
       <DetailItem
         label="Plan"
         value={
@@ -191,31 +191,21 @@ function BillingSection({ billing }: { readonly billing: AdminChurchBilling }) {
           <TaskUsageValue isPaid={billing.plan === "Paid"} taskUsage={billing.taskUsage ?? 0} />
         }
       />
-      <DetailItem
-        label="Renewal / Period End"
-        value={<OptionalBillingDate value={billing.periodEnd} />}
-      />
-      <DetailItem
-        label="Cancellation Date"
-        value={<OptionalBillingDate value={billing.cancelAt} />}
-      />
-      <DetailItem
-        label="Payment Grace Period Expiry"
-        value={
-          <OptionalBillingDate
-            suffix={
-              billing.status === "past_due" && billing.graceEndsAt != null
-                ? formatGraceDaysLeft(billing.graceEndsAt)
-                : null
-            }
-            value={billing.graceEndsAt}
-          />
+      <BillingDateItem label="Renewal / Period End" value={billing.periodEnd} />
+      <BillingDateItem label="Scheduled Cancellation" value={billing.cancelAt} />
+      <BillingDateItem
+        label="Payment Grace Period Ends"
+        suffix={
+          billing.status === "past_due" && billing.graceEndsAt != null
+            ? formatGraceDaysLeft(billing.graceEndsAt)
+            : null
         }
+        value={billing.graceEndsAt}
       />
-      <DetailItem label="Canceled At" value={<OptionalBillingDate value={billing.canceledAt} />} />
-      <DetailItem label="Ended At" value={<OptionalBillingDate value={billing.endedAt} />} />
+      <BillingDateItem label="Canceled At" value={billing.canceledAt} />
+      <BillingDateItem label="Ended At" value={billing.endedAt} />
       <p className="text-muted-foreground text-xs">
-        Subscription changes and payment recovery are handled in Stripe.
+        Read-only — subscription changes and payment recovery are handled in Stripe.
       </p>
     </DetailSection>
   );
@@ -316,28 +306,32 @@ function TaskUsageValue({
   );
 }
 
-/** Absent lifecycle dates render as a quiet dash — absence is the usual case. */
-function OptionalBillingDate({
+/**
+ * A lifecycle date row that only exists when the date does. Most Churches are
+ * Free with no subscription, so absent dates render nothing rather than a
+ * wall of dashes — the lifecycle summary sentence already narrates the state.
+ */
+function BillingDateItem({
+  label,
   value,
   suffix,
 }: {
+  readonly label: string;
   readonly value: number | null | undefined;
   readonly suffix?: string | null;
 }) {
-  if (value == null) {
-    return (
-      <span className="text-muted-foreground">
-        <span aria-hidden="true">—</span>
-        <span className="sr-only">Not present</span>
-      </span>
-    );
-  }
+  if (value == null) return null;
 
   return (
-    <span>
-      {formatBillingDate(value)}
-      {suffix ? <span className="text-muted-foreground"> · {suffix}</span> : null}
-    </span>
+    <DetailItem
+      label={label}
+      value={
+        <span>
+          {formatBillingDate(value)}
+          {suffix ? <span className="text-muted-foreground"> · {suffix}</span> : null}
+        </span>
+      }
+    />
   );
 }
 
