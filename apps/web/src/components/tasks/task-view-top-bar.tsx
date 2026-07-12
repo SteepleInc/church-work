@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useWeekTaskCount } from "@/data/cycles/cyclesData.app";
+import { useTaskCreationGate } from "@/features/billing/task-creation-gate";
 import {
   Select,
   SelectContent,
@@ -138,11 +139,7 @@ export function TaskViewTopBar({
         </div>
 
         <div className="flex items-center gap-1">
-          {onCreateTask ? (
-            <Button onClick={onCreateTask} size="sm" type="button">
-              Create Task
-            </Button>
-          ) : null}
+          {onCreateTask ? <CreateTaskButton onCreateTask={onCreateTask} /> : null}
           {canFilter ? (
             <TaskFilterAddMenu
               fields={filterFields!}
@@ -181,6 +178,43 @@ export function TaskViewTopBar({
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * The top bar's Create Task action. At the Free Plan Task Limit the button
+ * reads as disabled (aria-disabled, dimmed) but stays hoverable so its
+ * role-aware tooltip can explain why; clicking raises the shared Sonner
+ * notification instead of opening the creation dialog.
+ */
+function CreateTaskButton({ onCreateTask }: { readonly onCreateTask: () => void }) {
+  const taskCreationGate = useTaskCreationGate();
+
+  if (!taskCreationGate.blocked) {
+    return (
+      <Button onClick={onCreateTask} size="sm" type="button">
+        Create Task
+      </Button>
+    );
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            aria-disabled="true"
+            className="cursor-not-allowed opacity-50"
+            onClick={taskCreationGate.notify}
+            size="sm"
+            type="button"
+          />
+        }
+      >
+        Create Task
+      </TooltipTrigger>
+      <TooltipContent className="max-w-64">{taskCreationGate.message}</TooltipContent>
+    </Tooltip>
   );
 }
 

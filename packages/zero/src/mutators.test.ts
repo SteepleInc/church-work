@@ -1204,6 +1204,7 @@ describe("Zero Task mutators", () => {
 
   test("creates Tasks with per-Team numbers, board order, and URL-facing identifiers", async () => {
     const { insertCalls, tx, updateCalls } = createServerTx([
+      [{ status: "active" }],
       [{ id: "workflowstatus_todo", task_state: "todo", workflow_id: "workflow_production" }],
       [{ id: "team_production", identifier: "PRO", next_task_number: 7 }],
       [{ id: "workflow_production" }],
@@ -1263,6 +1264,7 @@ describe("Zero Task mutators", () => {
 
   test("creates a Task from a Draft and soft-deletes both Draft rows", async () => {
     const { insertCalls, tx, updateCalls } = createServerTx([
+      [{ status: "active" }],
       [{ id: "draft_test" }],
       [{ id: "workflowstatus_todo", task_state: "todo", workflow_id: "workflow_production" }],
       [{ id: "team_production", identifier: "PRO", next_task_number: 7 }],
@@ -1648,6 +1650,7 @@ describe("Zero Task mutators", () => {
 
   test("creates Week-context Tasks in an existing Cycle", async () => {
     const { insertCalls, tx } = createServerTx([
+      [{ status: "active" }],
       [{ id: "workflowstatus_todo", task_state: "todo", workflow_id: "workflow_production" }],
       [{ id: "team_production", identifier: "PRO", next_task_number: 7 }],
       [{ id: "workflow_production" }],
@@ -1683,6 +1686,7 @@ describe("Zero Task mutators", () => {
 
   test("materializes projected Week Cycles before creating Tasks", async () => {
     const { insertCalls, tx } = createServerTx([
+      [{ status: "active" }],
       [{ id: "workflowstatus_todo", task_state: "todo", workflow_id: "workflow_production" }],
       [{ id: "team_production", identifier: "PRO", next_task_number: 7 }],
       [{ id: "workflow_production" }],

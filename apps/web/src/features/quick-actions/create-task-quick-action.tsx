@@ -85,6 +85,7 @@ import {
   QuickActionsTitle,
   QuickActionsWrapper,
 } from "@/features/quick-actions/quick-actions-components";
+import { useTaskCreationGate } from "@/features/billing/task-creation-gate";
 
 export type CreateTaskQuickActionState = {
   readonly assignTo: string | null;
@@ -252,6 +253,11 @@ export function CreateTaskQuickAction() {
   const navigate = useNavigate();
   const openTaskDetailsPaneUrl = useOpenTaskDetailsPaneUrl();
   const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
+  // Free Plan Task Limit: converting a Task Draft (or finishing a dialog that
+  // was open when the limit was crossed) still creates a new Task identity,
+  // so the Create action is gated here too. Draft editing and "Save to
+  // drafts" stay available — only the conversion is paused.
+  const taskCreationGate = useTaskCreationGate();
   const createTask = useCreateTaskMutation();
   const saveTaskDraft = useSaveTaskDraftMutation();
   const updateTaskDraft = useUpdateTaskDraftMutation();
@@ -753,6 +759,12 @@ export function CreateTaskQuickAction() {
   };
 
   const submit = (mode: "default" | "open") => {
+    // Covers Cmd+Enter / Cmd+Alt+Enter as well as the button: at the limit
+    // the shared Sonner notification fires instead of creating a Task.
+    if (taskCreationGate.blocked) {
+      taskCreationGate.notify();
+      return;
+    }
     submitModeRef.current = mode;
     void form.handleSubmit();
   };
@@ -1164,21 +1176,45 @@ export function CreateTaskQuickAction() {
                 Create more
               </label>
               <form.Subscribe selector={(formState) => formState.isSubmitting}>
-                {(isSubmitting) => (
-                  <Button
-                    className="ml-auto"
-                    disabled={isLoading}
-                    loading={isSubmitting}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      submit("default");
-                    }}
-                    type="submit"
-                  >
-                    {isCreatingSubtask ? "Create Subtask" : "Create Task"}
-                    <Kbd>mod enter</Kbd>
-                  </Button>
-                )}
+                {(isSubmitting) =>
+                  taskCreationGate.blocked ? (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            aria-disabled="true"
+                            className="ml-auto cursor-not-allowed opacity-50"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              submit("default");
+                            }}
+                            type="submit"
+                          />
+                        }
+                      >
+                        {isCreatingSubtask ? "Create Subtask" : "Create Task"}
+                        <Kbd>mod enter</Kbd>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-64">
+                        {taskCreationGate.message}
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <Button
+                      className="ml-auto"
+                      disabled={isLoading}
+                      loading={isSubmitting}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        submit("default");
+                      }}
+                      type="submit"
+                    >
+                      {isCreatingSubtask ? "Create Subtask" : "Create Task"}
+                      <Kbd>mod enter</Kbd>
+                    </Button>
+                  )
+                }
               </form.Subscribe>
             </>
           }

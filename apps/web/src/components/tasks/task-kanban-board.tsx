@@ -18,13 +18,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Kbd } from "@/components/ui/kbd";
+import { AddTaskColumnButton } from "@/components/tasks/add-task-column-button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useHotkey } from "@tanstack/react-hotkeys";
-import { CalendarIcon, EllipsisIcon, PlusIcon, Tag, Triangle } from "lucide-react";
+import { CalendarIcon, EllipsisIcon, Tag, Triangle } from "lucide-react";
 import {
   type ComponentProps,
   type MouseEvent as ReactMouseEvent,
@@ -676,23 +676,10 @@ function TaskKanbanColumn({
               </DropdownMenuContent>
             </DropdownMenu>
             {onAddTask ? (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      size="icon-xs"
-                      variant="ghost"
-                      aria-label={`Add Task to ${column.title}`}
-                      onClick={() => onAddTask(column.id)}
-                    >
-                      <PlusIcon />
-                    </Button>
-                  }
-                />
-                <TooltipContent>
-                  Add Task... <Kbd>C</Kbd>
-                </TooltipContent>
-              </Tooltip>
+              <AddTaskColumnButton
+                columnTitle={column.title}
+                onAddTask={() => onAddTask(column.id)}
+              />
             ) : null}
           </div>
         </div>

@@ -4,6 +4,9 @@ import {
   churchNotFoundResponse,
   currentUserResponse,
   formatTaskIdentifier,
+  FREE_PLAN_TASK_LIMIT_ERROR,
+  isTaskCountedForUsage,
+  isUserTaskCreationBlocked,
   noActiveChurchResponse,
   notChurchMemberResponse,
   parseTaskIdentifier,
@@ -36,6 +39,7 @@ import {
   key_dates,
   member,
   organization,
+  subscription,
   tasks,
   task_drafts,
   template_schedules,
@@ -57,6 +61,38 @@ type AuthenticatedSession = NonNullable<AuthSession>;
 type AgentServices = {
   readonly auth: ChurchWorkAuth;
   readonly db: ChurchWorkDb;
+};
+
+const assertUserTaskCreationAllowed = async (db: ChurchWorkDb, churchId: string) => {
+  const now = new Date();
+  const [subscriptionRow] = await db
+    .select({
+      graceStartedAt: subscription.graceStartedAt,
+      periodEnd: subscription.periodEnd,
+      status: subscription.status,
+    })
+    .from(subscription)
+    .where(eq(subscription.referenceId, churchId))
+    .limit(1);
+  if (
+    subscriptionRow &&
+    !isUserTaskCreationBlocked({ usage: 300, subscription: subscriptionRow, now })
+  )
+    return;
+
+  const candidates = await db
+    .select({
+      cycleDeletedAt: cycles.deleted_at,
+      cycleEndsAt: cycles.ends_at,
+      deletedAt: tasks.deleted_at,
+      taskState: tasks.task_state,
+    })
+    .from(tasks)
+    .leftJoin(cycles, and(eq(tasks.cycle_id, cycles.id), eq(cycles.church_id, churchId)))
+    .where(and(eq(tasks.church_id, churchId), isNull(tasks.deleted_at)));
+  const usage = candidates.filter((task) => isTaskCountedForUsage(task, now)).length;
+  if (isUserTaskCreationBlocked({ usage, subscription: subscriptionRow ?? null, now }))
+    throw new Error(FREE_PLAN_TASK_LIMIT_ERROR);
 };
 
 const json = (body: unknown, init?: ResponseInit) => Response.json(body, init);
@@ -751,6 +787,7 @@ const runTaskTool = (
         return json({ ok: true, task: toTaskDto(task, team), tool });
       }
       case "create-task": {
+        yield* Effect.promise(() => assertUserTaskCreationAllowed(services.db, churchId));
         const teamId = typeof body.teamId === "string" ? body.teamId : null;
         const statusId = typeof body.workflowStatusId === "string" ? body.workflowStatusId : null;
         let draftId: string | null = null;
@@ -1606,6 +1643,7 @@ const runTaskTool = (
             .limit(1),
         );
         if (existing) return json({ ok: true, tool, deduped: true, task: toTaskDto(existing) });
+        yield* Effect.promise(() => assertUserTaskCreationAllowed(services.db, churchId));
         const teamId = requireString(body, "teamId");
         const statusId = requireString(body, "workflowStatusId");
         const [team] = yield* Effect.promise(() =>

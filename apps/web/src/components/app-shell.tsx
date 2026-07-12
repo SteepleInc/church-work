@@ -16,6 +16,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/s
 import UserMenu from "@/components/user-menu";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { PastDueBanner } from "@/features/billing/past-due-banner";
+import { TaskUsageCard } from "@/features/billing/task-usage-card";
 import { GlobalSearch } from "@/features/global-search/global-search";
 import { QuickActions } from "@/features/quick-actions/quick-actions";
 import { DetailsPane } from "@/components/details-pane/details-pane";
@@ -54,6 +55,7 @@ export function AppShell() {
               <UserMenu />
             </div>
           </header>
+          <TaskUsageCard />
           <Outlet />
         </SidebarInset>
         <DetailsPane />
