@@ -56,7 +56,7 @@ describe("scheduled work", () => {
     expect(normalizeMaterializationWindowCycles(Number.NaN)).toBe(3);
   });
 
-  test("maintains cycles, rolls unfinished tasks, and projects Template work", async () => {
+  test("maintains cycles for a Church before onboarding, rolls unfinished tasks, and projects Template work", async () => {
     const harness = await startPostgresHarness();
     const { db } = harness;
 
