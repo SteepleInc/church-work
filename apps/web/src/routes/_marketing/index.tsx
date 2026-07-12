@@ -5,7 +5,6 @@ import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
 import browserMockup from "@/assets/browser-mockup.png";
-import farmerImage from "@/assets/farmer.png";
 import frame207 from "@/assets/frame-207.svg";
 import programmingArrow from "@/assets/programming-arrow.svg";
 
@@ -277,20 +276,8 @@ function Hero({ base }: { readonly base: number }) {
         </span>
         <span className="block">
           <AnimatedWords delayStart={at(HERO_OFFSET.h1Line2)} stagger={0.05} text="not" />{" "}
-          <motion.img
-            alt="Farmer"
-            animate={{ scale: 1 }}
-            className="inline-block h-[56px] w-[56px] -translate-y-[0.2em] object-contain align-middle md:h-[64px] md:w-[64px]"
-            initial={{ scale: 0 }}
-            src={farmerImage}
-            transition={{
-              delay: at(HERO_OFFSET.video),
-              duration: 0.6,
-              ease: BACK_OUT,
-            }}
-          />{" "}
           <AnimatedWords
-            className="text-mkt-fg/25"
+            className="text-mkt-fg/25 dark:text-mkt-fg/60"
             delayStart={at(HERO_OFFSET.h1Tail)}
             stagger={0.05}
             text="projects"
