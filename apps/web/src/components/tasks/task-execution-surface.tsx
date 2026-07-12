@@ -39,6 +39,7 @@ import {
   useWorkflowStatusesCollection,
   useWorkflowsCollection,
 } from "@/data/workflows/workflowsData.app";
+import { useTaskCreationGate } from "@/features/billing/task-creation-gate";
 import { useQuickActionOpeners } from "@/features/quick-actions/quick-actions-state";
 import {
   getHiddenBoardColumns,
@@ -361,10 +362,19 @@ export function TaskExecutionSurface({
   } | null>(null);
   const [materializing, setMaterializing] = useState(false);
 
+  // User-initiated materialization creates a new Task identity, so the Free
+  // Plan Task Limit gates it like every other creation control: the shared
+  // Sonner notification fires instead of the confirmation dialog. Scheduled
+  // Template materialization stays exempt server-side.
+  const taskCreationGate = useTaskCreationGate();
   const requestMaterialize = (params: {
     readonly task: TaskCollectionItem;
     readonly workflowStatusId: string;
   }) => {
+    if (taskCreationGate.blocked) {
+      taskCreationGate.notify();
+      return;
+    }
     setPendingMaterialization(params);
   };
 

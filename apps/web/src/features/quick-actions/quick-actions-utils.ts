@@ -19,6 +19,11 @@ export function canManageChurchTeams(currentRole: CurrentMemberRole) {
 }
 
 type BuildChurchWorkQuickActionsInput = {
+  // Free Plan Task Limit: at 300 or more counted Tasks the Create Task action
+  // is disabled with a role-aware explanation (defaults keep tests and callers
+  // without billing context working).
+  readonly canCreateTasks?: boolean;
+  readonly createTasksDisabledReason?: string;
   readonly canInviteMembers: boolean;
   readonly canManageKeyDates: boolean;
   readonly canManageTemplates: boolean;
@@ -33,6 +38,8 @@ type BuildChurchWorkQuickActionsInput = {
 };
 
 export function buildChurchWorkQuickActions({
+  canCreateTasks = true,
+  createTasksDisabledReason,
   canInviteMembers,
   canManageKeyDates,
   canManageTemplates,
@@ -57,7 +64,8 @@ export function buildChurchWorkQuickActions({
       name: "Create Task",
       description: "Open the task creation dialog.",
       keywords: ["task", "create", "todo", "my work", "church"],
-      enabled: true,
+      enabled: canCreateTasks,
+      disabledReason: canCreateTasks ? undefined : createTasksDisabledReason,
       onSelect: selectAndClose(openCreateTask),
     },
     {

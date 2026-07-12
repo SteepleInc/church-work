@@ -62,6 +62,23 @@ const TaskDraftByDraftIdArgs = toZeroSchema(Schema.Struct({ draft_id: Schema.Str
 const defineChurchWorkQuery = defineQueryWithType<ZeroSchema, OptionalZeroSessionContext>();
 
 export const queries = defineQueries({
+  subscription: {
+    admin_all: defineChurchWorkQuery(({ ctx }) => {
+      requireAppAdminSession(ctx);
+
+      return zql.subscription;
+    }),
+    admin_by_church: defineChurchWorkQuery(ChurchScopedArgs, ({ args, ctx }) => {
+      requireAppAdminSession(ctx);
+
+      return zql.subscription.where("referenceId", args.church_id).one();
+    }),
+    by_church: defineChurchWorkQuery(ChurchScopedArgs, ({ args, ctx }) => {
+      requireActiveChurchAccess(ctx, args.church_id);
+
+      return zql.subscription.where("referenceId", args.church_id).one();
+    }),
+  },
   demo_items: {
     admin_all: defineChurchWorkQuery(({ ctx }) => {
       requireAppAdminSession(ctx);
@@ -388,6 +405,11 @@ export const queries = defineQueries({
     }),
   },
   cycles: {
+    admin_by_church: defineChurchWorkQuery(ChurchScopedArgs, ({ args, ctx }) => {
+      requireAppAdminSession(ctx);
+
+      return zql.cycles.where("church_id", args.church_id);
+    }),
     by_church: defineChurchWorkQuery(ChurchScopedArgs, ({ args, ctx }) => {
       const scoped = zql.cycles.where("church_id", args.church_id);
 
@@ -565,6 +587,11 @@ export const queries = defineQueries({
     }),
   },
   tasks: {
+    admin_by_church: defineChurchWorkQuery(ChurchScopedArgs, ({ args, ctx }) => {
+      requireAppAdminSession(ctx);
+
+      return zql.tasks.where("church_id", args.church_id);
+    }),
     by_church: defineChurchWorkQuery(ChurchScopedArgs, ({ args, ctx }) => {
       const scoped = zql.tasks.where("church_id", args.church_id);
 

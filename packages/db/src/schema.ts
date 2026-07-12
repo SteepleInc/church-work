@@ -157,6 +157,7 @@ export const organization = pgTable(
     slug: text("slug").unique(),
     logo: text("logo"),
     metadata: text("metadata"),
+    stripeCustomerId: text("stripe_customer_id").unique(),
     churchTimeZone: text("church_time_zone").notNull().default("America/New_York"),
     rollingMaterializationWindowCycles: integer("rolling_materialization_window_cycles")
       .notNull()
@@ -178,6 +179,35 @@ export const organization = pgTable(
       .$onUpdate(() => new Date()),
   },
   (table) => [index("organization_slug_idx").on(table.slug)],
+);
+
+/** Better Auth Stripe webhook-owned state. Absence of a row means Free Plan. */
+export const subscription = pgTable(
+  "subscription",
+  {
+    id: text("id").primaryKey(),
+    plan: text("plan").notNull(),
+    referenceId: text("reference_id").notNull(),
+    stripeCustomerId: text("stripe_customer_id"),
+    stripeSubscriptionId: text("stripe_subscription_id"),
+    status: text("status").notNull().default("incomplete"),
+    periodStart: utcTimestamp("period_start"),
+    periodEnd: utcTimestamp("period_end"),
+    trialStart: utcTimestamp("trial_start"),
+    trialEnd: utcTimestamp("trial_end"),
+    cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+    cancelAt: utcTimestamp("cancel_at"),
+    canceledAt: utcTimestamp("canceled_at"),
+    endedAt: utcTimestamp("ended_at"),
+    graceStartedAt: utcTimestamp("grace_started_at"),
+    seats: integer("seats"),
+    billingInterval: text("billing_interval"),
+    stripeScheduleId: text("stripe_schedule_id"),
+  },
+  (table) => [
+    index("subscription_reference_id_idx").on(table.referenceId),
+    uniqueIndex("subscription_stripe_subscription_id_idx").on(table.stripeSubscriptionId),
+  ],
 );
 
 export const teams = pgTable(
@@ -793,6 +823,7 @@ export const schema = {
   notifications,
   organization,
   session,
+  subscription,
   team_memberships,
   teams,
   template_tasks,

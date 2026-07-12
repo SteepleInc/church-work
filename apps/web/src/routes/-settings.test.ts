@@ -19,6 +19,7 @@ describe("Linear-style settings navigation", () => {
     expect(administrationNavGroup.items.map((item) => item.to)).toEqual([
       "/settings/workspace/general",
       "/settings/workspace/members",
+      "/settings/workspace/billing",
       "/settings/workspace/labels",
       "/settings/workspace/key-dates",
       "/settings/workspace/scheduling",

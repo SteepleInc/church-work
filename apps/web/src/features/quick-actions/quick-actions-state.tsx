@@ -6,6 +6,7 @@ import {
   TemplateBigActionState,
   templateBigActionStateAtom,
 } from "@/features/big-actions/big-action-state";
+import { useTaskCreationGate } from "@/features/billing/task-creation-gate";
 import { inviteMemberDialogSourceAtom } from "@/features/settings/invite-member";
 import { createKeyDateQuickActionStateAtom } from "@/features/quick-actions/create-key-date-quick-action";
 import { createTaskQuickActionStateAtom } from "@/features/quick-actions/create-task-quick-action";
@@ -19,6 +20,7 @@ export const disableQuickActionsAtom = atom(false);
 export const quickActionsIsOpenAtom = atom(false);
 
 export function useQuickActionOpeners() {
+  const taskCreationGate = useTaskCreationGate();
   const setInviteMemberDialogSource = useSetAtom(inviteMemberDialogSourceAtom);
   const setCreateKeyDateQuickActionState = useSetAtom(createKeyDateQuickActionStateAtom);
   const setCreateTaskQuickActionState = useSetAtom(createTaskQuickActionStateAtom);
@@ -55,6 +57,15 @@ export function useQuickActionOpeners() {
           readonly dueDate?: string | null;
         } = {},
       ) => {
+        // Free Plan Task Limit (one shared policy): at 300 or more counted
+        // Tasks, every user-initiated opener — buttons, shortcuts, comment
+        // actions — raises the Sonner notification instead of opening the
+        // creation dialog. Editing existing work is untouched.
+        if (taskCreationGate.blocked) {
+          taskCreationGate.notify();
+          return;
+        }
+
         closeBigActions();
 
         setCreateTaskQuickActionState({
@@ -108,6 +119,7 @@ export function useQuickActionOpeners() {
     }),
     [
       closeBigActions,
+      taskCreationGate,
       setCreateKeyDateQuickActionState,
       setCreateTaskQuickActionState,
       setEditWeekQuickActionState,

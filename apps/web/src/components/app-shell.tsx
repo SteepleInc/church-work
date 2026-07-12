@@ -15,6 +15,8 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import UserMenu from "@/components/user-menu";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { PastDueBanner } from "@/features/billing/past-due-banner";
+import { TaskUsageCard } from "@/features/billing/task-usage-card";
 import { GlobalSearch } from "@/features/global-search/global-search";
 import { QuickActions } from "@/features/quick-actions/quick-actions";
 import { DetailsPane } from "@/components/details-pane/details-pane";
@@ -39,6 +41,7 @@ export function AppShell() {
       <AppHeaderSlotProvider>
         <AppNavigation />
         <SidebarInset className="overflow-hidden md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-0">
+          <PastDueBanner />
           <header className="flex h-11 shrink-0 items-center gap-4 px-4">
             <div className="flex min-w-0 items-center gap-1">
               <SidebarTrigger className="-ml-1" />
@@ -52,6 +55,7 @@ export function AppShell() {
               <UserMenu />
             </div>
           </header>
+          <TaskUsageCard />
           <Outlet />
         </SidebarInset>
         <DetailsPane />

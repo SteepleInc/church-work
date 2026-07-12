@@ -108,6 +108,7 @@ export async function startAuthenticatedSession(
     readonly churchName: string;
     readonly email: string;
     readonly role?: "admin";
+    readonly churchRole?: "admin" | "member" | "owner";
     readonly userName?: string;
   },
 ) {
@@ -120,6 +121,21 @@ export async function startAuthenticatedSession(
 
   await page.goto("/my-work");
   await expect(page).toHaveURL(/\/my-work$/, { timeout: 20_000 });
+}
+
+export async function setTestSubscription(
+  page: Page,
+  state: {
+    readonly cancelAtPeriodEnd?: boolean;
+    readonly graceStartedAt?: number | null;
+    readonly periodEnd?: number | null;
+    readonly status?: string;
+    readonly stripeCustomerId?: string | null;
+  },
+) {
+  const response = await postTestHelperWithRetry(page, "/api/test/subscription", { data: state });
+  test.skip(response.status() === 404, "Test subscription helper is not deployed.");
+  expect(response.ok()).toBe(true);
 }
 
 export async function promoteCurrentUserToAppAdmin(page: Page) {

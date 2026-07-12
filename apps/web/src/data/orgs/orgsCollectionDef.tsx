@@ -6,6 +6,9 @@ import { createColumnConfigHelper } from "@/components/data-table-filter/core/fi
 import { OrgLink } from "@/components/navigation/links";
 import { Badge } from "@/components/ui/badge";
 import type { OrgCollectionItem } from "@/data/orgs/orgsData.app";
+import { ChurchPlanBadge, SubscriptionStatusBadge } from "@/features/billing/subscription-badges";
+
+export { formatSubscriptionStatus } from "@/features/billing/subscription-badges";
 
 const dtf = createColumnConfigHelper<OrgCollectionItem>();
 
@@ -159,6 +162,31 @@ export const orgsColumnsDef: Array<ColumnDef<OrgCollectionItem>> = [
     id: "name",
     minSize: 220,
     size: 320,
+  },
+  {
+    accessorKey: "billing.plan",
+    cell: ({ row }) => <ChurchPlanBadge plan={row.original.billing?.plan ?? "Free"} />,
+    enableHiding: false,
+    enableSorting: false,
+    header: ({ column }) => <ColumnHeader column={column}>Plan</ColumnHeader>,
+    id: "plan",
+    minSize: 90,
+    size: 100,
+  },
+  {
+    accessorKey: "billing.status",
+    cell: ({ row }) => (
+      <SubscriptionStatusBadge
+        cancelAtPeriodEnd={row.original.billing?.cancelAtPeriodEnd ?? false}
+        status={row.original.billing?.status ?? null}
+      />
+    ),
+    enableHiding: false,
+    enableSorting: false,
+    header: ({ column }) => <ColumnHeader column={column}>Subscription</ColumnHeader>,
+    id: "subscriptionStatus",
+    minSize: 150,
+    size: 180,
   },
   {
     accessorKey: "slug",

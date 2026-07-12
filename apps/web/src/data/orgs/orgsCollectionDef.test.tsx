@@ -40,6 +40,8 @@ describe("orgs collection columns", () => {
   test("defines the full admin org column set in order", () => {
     expect(orgsColumnsDef.map((column) => column.id)).toEqual([
       "name",
+      "plan",
+      "subscriptionStatus",
       "slug",
       "churchTimeZone",
       "completedOnboarding",
@@ -50,6 +52,39 @@ describe("orgs collection columns", () => {
       "website",
       "createdAt",
     ]);
+  });
+
+  test("renders read-only billing plan and subscription lifecycle cells", () => {
+    expect(renderCell("plan")).toContain("Free");
+    expect(renderCell("subscriptionStatus")).toContain("No subscription");
+
+    const paidOrg: OrgCollectionItem = {
+      ...representativeOrg,
+      billing: {
+        plan: "Paid",
+        status: "active",
+        periodEnd: Date.UTC(2026, 6, 20),
+        cancelAtPeriodEnd: false,
+        cancelAt: null,
+        canceledAt: null,
+        endedAt: null,
+        graceEndsAt: null,
+      },
+    };
+    expect(renderCell("plan", paidOrg)).toContain("Paid");
+    expect(renderCell("subscriptionStatus", paidOrg)).toContain("Active");
+
+    const pastDueOrg: OrgCollectionItem = {
+      ...paidOrg,
+      billing: { ...paidOrg.billing!, status: "past_due" },
+    };
+    expect(renderCell("subscriptionStatus", pastDueOrg)).toContain("Past due");
+
+    const cancelScheduledOrg: OrgCollectionItem = {
+      ...paidOrg,
+      billing: { ...paidOrg.billing!, cancelAtPeriodEnd: true },
+    };
+    expect(renderCell("subscriptionStatus", cancelScheduledOrg)).toContain("Cancels at period end");
   });
 
   test("renders representative onboarding, location, count, website, and created cells", () => {

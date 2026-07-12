@@ -9,6 +9,7 @@ const e2ePort = Number(process.env.E2E_WEB_PORT ?? 32101);
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${e2ePort}`;
 const newStackTestMatch = [
   /admin-collections\.spec\.ts$/,
+  /billing-new-stack\.spec\.ts$/,
   /discard-changes-confirm\.spec\.ts$/,
   /invitations\.spec\.ts$/,
   /labels-new-stack\.spec\.ts$/,

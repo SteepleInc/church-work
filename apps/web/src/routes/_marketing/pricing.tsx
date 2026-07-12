@@ -1,5 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { motion } from "motion/react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { motion, useReducedMotion } from "motion/react";
+import type { ReactNode } from "react";
 
 import { Reveal, RISE_EASE, useHeaderEntrance } from "./-marketing-shell";
 
@@ -7,50 +8,54 @@ export const Route = createFileRoute("/_marketing/pricing")({
   component: PricingPage,
   head: () => ({
     meta: [
-      {
-        title: "Pricing — Church Work",
-      },
+      { title: "Free and Paid pricing — Church Work" },
       {
         name: "description",
         content:
-          "One plan, $19.99 a week. Unlimited users, every feature, every church. Billed by the week, like everything else you plan.",
+          "Start Church Work free with unlimited Users and Teams and up to 300 planned Tasks. Upgrade to unlimited usage for $19.99 USD per Church per week, including applicable tax.",
       },
     ],
   }),
 });
 
 /* ------------------------------------------------------------------ */
-/* Everything that's included — real product surfaces, so the checks   */
-/* encode a true fact rather than decorate the page.                   */
+/* Plan data — the two plans differ on exactly one line, so the cards   */
+/* keep the shared rows parallel and draw the differing row heavier.    */
 /* ------------------------------------------------------------------ */
 
-const INCLUDED = [
-  { title: "Unlimited users", body: "Every staff member and volunteer, no per-seat math." },
-  { title: "Unlimited Teams", body: "Worship, Production, Kids, and every team you add." },
-  { title: "Weeks & Planning", body: "The Monday-to-Sunday planning rhythm, fully managed." },
-  { title: "Templates & Schedules", body: "Recurring work written once, projected forward." },
-  { title: "Boards & Workflows", body: "Each team's own To Do → In Progress → Done." },
-  { title: "Insights", body: "Where the week stands, counted by team and status." },
-  { title: "My Work & Our Work", body: "The personal list and the shared church-wide picture." },
-  { title: "Rollover, automatically", body: "Unfinished work carries into next week on its own." },
-] as const;
+type PlanFeature = {
+  readonly label: string;
+  /** The line that actually differs between the plans. */
+  readonly highlight?: boolean;
+};
+
+const FREE_FEATURES: readonly PlanFeature[] = [
+  { label: "Unlimited Users" },
+  { label: "Unlimited Teams" },
+  { highlight: true, label: "Up to 300 planned Tasks" },
+];
+const PAID_FEATURES: readonly PlanFeature[] = [
+  { label: "Unlimited Users" },
+  { label: "Unlimited Teams" },
+  { highlight: true, label: "Unlimited planned Tasks" },
+  { label: "Unlimited product usage" },
+];
 
 function Check() {
   return (
     <span
       aria-hidden
-      className="mt-0.5 flex size-[18px] flex-none items-center justify-center rounded-full"
-      style={{ background: "oklch(0.88 0.18 95)" }}
+      className="mt-0.5 flex size-[18px] flex-none items-center justify-center rounded-full bg-mkt-accent text-mkt-accent-fg"
     >
       <svg
         fill="none"
-        height={10}
-        stroke="oklch(0.16 0.01 260)"
+        height="10"
+        stroke="currentColor"
         strokeLinecap="round"
         strokeLinejoin="round"
-        strokeWidth={3.5}
+        strokeWidth="3.5"
         viewBox="0 0 24 24"
-        width={10}
+        width="10"
       >
         <polyline points="20 6 9 17 4 12" />
       </svg>
@@ -59,236 +64,343 @@ function Check() {
 }
 
 /* ------------------------------------------------------------------ */
-/* The price hero — the most characteristic thing on the page          */
+/* Plan cards                                                          */
 /* ------------------------------------------------------------------ */
 
-// Pricing hero load cascade, as offsets (seconds) from `base` — the same
-// header-relative scheme the home hero uses. The price card is the signature,
-// so it lands last and with weight.
-const PRICE_OFFSET = {
-  eyebrow: -0.3,
-  headline: 0.05,
-  subhead: 0.4,
-  card: 0.75,
-} as const;
-const CARD_DURATION = 0.95;
+function PlanCta({ dark, label }: { readonly dark?: boolean; readonly label: string }) {
+  return (
+    <Link
+      className={`mt-8 inline-flex w-full items-center justify-center rounded-full bg-mkt-accent px-7 py-3 text-center font-semibold text-[15px] text-mkt-accent-fg transition-transform hover:scale-[1.02] focus-visible:outline-2 focus-visible:outline-offset-2 sm:w-auto ${
+        dark ? "focus-visible:outline-white" : "focus-visible:outline-mkt-fg"
+      }`}
+      to="/sign-in"
+    >
+      {label}
+    </Link>
+  );
+}
 
-// How long the hero takes to come fully to rest, measured from `base` (the
-// card's offset plus its own duration). The below-fold sections that are
-// already on-screen at load are held until this passes, so they don't reveal
-// on top of the still-animating hero.
-const HERO_TAIL_SEC = PRICE_OFFSET.card + CARD_DURATION;
+function PlanCard({
+  badge,
+  children,
+  dark,
+  features,
+  name,
+  price,
+  priceNote,
+}: {
+  readonly badge: string;
+  readonly children: ReactNode;
+  readonly dark?: boolean;
+  readonly features: readonly PlanFeature[];
+  readonly name: string;
+  readonly price: { readonly amount: string; readonly currency?: string };
+  readonly priceNote: string;
+}) {
+  const headingId = `plan-${name.toLowerCase().replace(/\s+/g, "-")}`;
+  const muted = dark ? "text-white/60" : "text-mkt-muted";
+  return (
+    <article
+      aria-labelledby={headingId}
+      className={
+        dark
+          ? "mesh-price flex flex-col rounded-[28px] p-7 text-white md:p-10"
+          : "flex flex-col rounded-[28px] border border-mkt-border bg-mkt-bg p-7 md:p-10"
+      }
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className={`font-semibold text-sm ${muted}`} id={headingId}>
+          {name}
+        </h2>
+        <span
+          className={`rounded-full px-3 py-1 font-medium text-xs ${
+            dark
+              ? "border border-white/25 bg-white/10 text-white/85"
+              : "border border-mkt-border bg-mkt-card text-mkt-muted"
+          }`}
+        >
+          {badge}
+        </span>
+      </div>
+      <div className="mt-6 flex flex-wrap items-baseline gap-x-2">
+        <span className="font-medium text-[56px] leading-none tracking-[-0.04em] md:text-7xl">
+          {price.amount}
+        </span>
+        {price.currency ? (
+          <span className={`font-medium text-[17px] ${muted}`}>{price.currency}</span>
+        ) : null}
+      </div>
+      <p className={`mt-3 text-[15px] ${muted}`}>{priceNote}</p>
+      <ul className="mt-8 space-y-3">
+        {features.map((feature) => (
+          <li className="flex items-start gap-3" key={feature.label}>
+            <Check />
+            <span className={feature.highlight ? "font-semibold" : undefined}>{feature.label}</span>
+          </li>
+        ))}
+      </ul>
+      {children}
+    </article>
+  );
+}
 
 function PriceHero({ base }: { readonly base: number }) {
-  const at = (offset: number) => Math.max(0, base + offset);
+  const reduceMotion = useReducedMotion();
   return (
     <section className="mx-auto max-w-[1400px] px-6 pt-16 md:px-10 md:pt-24">
-      {/* Eyebrow */}
       <motion.div
         animate={{ opacity: 1, y: 0 }}
-        className="flex justify-center"
-        initial={{ opacity: 0, y: 24 }}
-        transition={{ delay: at(PRICE_OFFSET.eyebrow), duration: 0.8, ease: "easeOut" }}
+        initial={reduceMotion ? false : { opacity: 0, y: 24 }}
+        transition={
+          reduceMotion ? { duration: 0 } : { delay: Math.max(0, base - 0.3), duration: 0.8 }
+        }
       >
-        <span className="inline-flex items-center gap-2 rounded-full border border-mkt-border px-3 py-1 font-medium text-[13px] text-mkt-muted">
-          <span className="size-1.5 rounded-full" style={{ background: "oklch(0.88 0.18 95)" }} />
-          One plan, every church
-        </span>
-      </motion.div>
-
-      {/* Headline */}
-      <motion.h1
-        animate={{ opacity: 1, y: 0 }}
-        className="mx-auto mt-7 max-w-[900px] text-center font-medium text-[48px] tracking-tight md:text-[76px]"
-        initial={{ opacity: 0, y: 28 }}
-        style={{ letterSpacing: "-0.035em", lineHeight: 1.04 }}
-        transition={{ delay: at(PRICE_OFFSET.headline), duration: 0.9, ease: RISE_EASE }}
-      >
-        Simple pricing, the way ministry should be.
-      </motion.h1>
-
-      <motion.p
-        animate={{ opacity: 1, y: 0 }}
-        className="mx-auto mt-6 max-w-[560px] text-center text-[18px] text-mkt-muted"
-        initial={{ opacity: 0, y: 24 }}
-        style={{ lineHeight: 1.5 }}
-        transition={{ delay: at(PRICE_OFFSET.subhead), duration: 0.9, ease: "easeOut" }}
-      >
-        No tiers to compare. No per-seat counting. No call with sales to find the real number. One
-        price, everything included.
-      </motion.p>
-
-      {/* The price card — the signature, lands last and with weight */}
-      <motion.div
-        animate={{ opacity: 1, y: 0 }}
-        className="mesh-price relative mx-auto mt-12 overflow-hidden rounded-[28px] p-8 md:mt-14 md:p-12"
-        initial={{ opacity: 0, y: 48 }}
-        transition={{ delay: at(PRICE_OFFSET.card), duration: CARD_DURATION, ease: RISE_EASE }}
-      >
-        <div className="grid items-center gap-10 md:grid-cols-[1.1fr_1fr] md:gap-12">
-          {/* Left: the number */}
-          <div className="text-white">
-            <span className="font-semibold text-[13px] text-white/55 uppercase tracking-[0.16em]">
-              Church Work · all of it
-            </span>
-
-            <div className="mt-5 flex items-end gap-3">
-              <span
-                className="font-medium text-[80px] leading-none tracking-tight md:text-[112px]"
-                style={{ letterSpacing: "-0.04em" }}
-              >
-                $19.99
-              </span>
-              <span className="pb-2 font-medium text-[20px] text-white/60 md:pb-3 md:text-[22px]">
-                / week
-              </span>
-            </div>
-
-            <p className="mt-6 max-w-[420px] text-[17px] text-white/70" style={{ lineHeight: 1.5 }}>
-              Billed by the week, like everything else you plan. Unlimited users, every feature, no
-              surprises — for the whole church.
-            </p>
-
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              <button
-                className="rounded-full px-7 py-3 font-semibold text-[15px] text-mkt-accent-fg transition-transform hover:scale-[1.02]"
-                style={{ background: "oklch(0.88 0.18 95)" }}
-                type="button"
-              >
-                Start your first week
-              </button>
-              <button
-                className="rounded-full border border-white/25 px-7 py-3 font-medium text-[15px] text-white transition-colors hover:bg-white/10"
-                type="button"
-              >
-                Book a demo
-              </button>
-            </div>
-
-            <p className="mt-5 text-[13px] text-white/45">
-              Set up in minutes · cancel anytime · no card required to start
-            </p>
-          </div>
-
-          {/* Right: what's included */}
-          <div className="rounded-[20px] border border-white/12 bg-white/[0.04] p-6 backdrop-blur-sm md:p-7">
-            <p className="font-semibold text-[12px] text-white/55 uppercase tracking-[0.14em]">
-              Everything is included
-            </p>
-            <ul className="mt-4 grid gap-x-6 gap-y-3 sm:grid-cols-2">
-              {INCLUDED.map((item) => (
-                <li className="flex items-start gap-2.5" key={item.title}>
-                  <Check />
-                  <span className="text-[14px] text-white/90 leading-snug">{item.title}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+        {/* cw-eyebrow is inline-flex, so it centers via a flex parent, not text-align. */}
+        <div className="flex justify-center">
+          <p className="cw-eyebrow">Free to start. One clear upgrade.</p>
         </div>
+        <h1 className="mx-auto mt-7 max-w-[900px] text-center font-medium text-[48px] tracking-[-0.035em] leading-[1.04] md:text-[76px]">
+          Plan the work now. Upgrade when you need more room.
+        </h1>
+        <p className="mx-auto mt-6 max-w-[650px] text-center text-[18px] text-mkt-muted leading-relaxed">
+          Every Church starts free with no card required. Both plans include unlimited Users and
+          Teams—never per-seat pricing.
+        </p>
+      </motion.div>
+      <motion.div
+        animate={{ opacity: 1, y: 0 }}
+        className="mx-auto mt-12 grid w-full max-w-[1100px] gap-5 md:mt-14 md:grid-cols-2"
+        initial={reduceMotion ? false : { opacity: 0, y: 40 }}
+        transition={
+          reduceMotion
+            ? { duration: 0 }
+            : {
+                delay: Math.max(0, base + 0.45),
+                duration: 0.9,
+                ease: RISE_EASE,
+              }
+        }
+      >
+        <PlanCard
+          badge="No card required"
+          features={FREE_FEATURES}
+          name="Free Plan"
+          price={{ amount: "$0" }}
+          priceNote="Free forever, for every Church"
+        >
+          <p className="mt-7 text-sm text-mkt-muted leading-relaxed">
+            Planned Tasks are real Tasks in your current or future planning horizon, plus Week-less
+            To Do work. Past work and projected Template work never use the allowance.
+          </p>
+          <div className="mt-auto">
+            <PlanCta label="Start free" />
+          </div>
+        </PlanCard>
+        <PlanCard
+          badge="Billed weekly"
+          dark
+          features={PAID_FEATURES}
+          name="Paid Plan"
+          price={{ amount: "$19.99", currency: "USD" }}
+          priceNote="per Church per week, including applicable tax"
+        >
+          <p className="mt-7 text-sm text-white/65 leading-relaxed">
+            Billed weekly only—no monthly, annual, or per-seat options. Sign up on Free, then a
+            Church owner or admin can upgrade from Church Billing settings.
+          </p>
+          <div className="mt-auto">
+            <PlanCta dark label="Start free, upgrade later" />
+          </div>
+        </PlanCard>
       </motion.div>
     </section>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/* Why one plan — the honest argument, in plain terms                  */
+/* Side-by-side comparison — the whole difference in one glance        */
 /* ------------------------------------------------------------------ */
 
-const REASONS = [
+const COMPARE_ROWS = [
+  { free: "Unlimited", label: "Users", paid: "Unlimited" },
+  { free: "Unlimited", label: "Teams", paid: "Unlimited" },
+  { free: "Up to 300", label: "Planned Tasks", paid: "Unlimited" },
   {
-    title: "Every church pays the same",
-    body: "A 50-person plant and a 5,000-person multisite get the same software at the same price. Fairness isn't a sales tactic here — it's the whole pricing model.",
+    free: "$0, forever",
+    label: "Price",
+    paid: "$19.99 USD per Church per week",
   },
   {
-    title: "Add your whole team",
-    body: "Invite every staff member and volunteer without watching a seat counter. The more of your church that plans together, the better Church Work works.",
-  },
-  {
-    title: "Priced like you plan",
-    body: "Your work runs week by week, so the bill does too. $19.99 a week — about the cost of a coffee run for the team — for everything.",
+    free: "No card required",
+    label: "Billing",
+    paid: "Weekly only, including applicable tax",
   },
 ] as const;
 
-function WhyOnePlan({ heroSettleMs }: { readonly heroSettleMs: number }) {
-  // On a tall viewport this section is already on-screen when the page loads, so
-  // its reveals are held back until the hero above has finished its cascade —
-  // otherwise "One plan works for every church" arrives mid-animation. The hold
-  // window is derived from the same header-relative hero timing, so it stays in
-  // sync. Once the reader scrolls down to it normally, the hold no longer applies.
+function ComparePlans({ heroSettleMs }: { readonly heroSettleMs: number }) {
   return (
-    <section className="mx-auto max-w-[1400px] px-6 pt-28 md:px-10 md:pt-36">
+    <section
+      aria-labelledby="compare-heading"
+      className="mx-auto max-w-[1400px] px-6 pt-28 md:px-10 md:pt-36"
+    >
       <Reveal holdUntil={heroSettleMs}>
-        <p className="cw-eyebrow">Why one plan</p>
+        <p className="cw-eyebrow">Side by side</p>
         <h2
-          className="mt-5 max-w-[760px] font-medium text-[40px] tracking-tight md:text-[56px]"
-          style={{ letterSpacing: "-0.03em", lineHeight: 1.05 }}
+          className="mt-5 max-w-[760px] font-medium text-[40px] tracking-[-0.03em] leading-[1.05] md:text-[56px]"
+          id="compare-heading"
         >
-          One plan works for every church.
+          One difference: how much you can plan.
         </h2>
       </Reveal>
-
-      <div className="mt-12 grid gap-px overflow-hidden rounded-2xl border border-mkt-border bg-mkt-border md:grid-cols-3">
-        {REASONS.map((r, i) => (
-          <Reveal
-            className="bg-mkt-bg p-7 md:p-8"
-            delay={i * 90}
-            holdUntil={heroSettleMs + 140 + i * 90}
-            key={r.title}
-          >
-            <h3 className="font-medium text-[22px] tracking-tight">{r.title}</h3>
-            <p className="mt-3 text-[15px] text-mkt-muted" style={{ lineHeight: 1.55 }}>
-              {r.body}
-            </p>
-          </Reveal>
-        ))}
-      </div>
+      <Reveal className="mt-10" delay={80}>
+        {/* Focusable so keyboard users can scroll the table when it overflows
+            on narrow viewports. */}
+        <div
+          aria-labelledby="compare-heading"
+          className="overflow-x-auto rounded-2xl border border-mkt-border focus-visible:outline-2 focus-visible:outline-mkt-fg focus-visible:outline-offset-2"
+          role="region"
+          tabIndex={0}
+        >
+          <table className="w-full min-w-[560px] border-collapse text-left text-[15px]">
+            <caption className="sr-only">Free Plan and Paid Plan comparison</caption>
+            <thead>
+              <tr className="border-mkt-border border-b bg-mkt-card">
+                <th className="w-[28%] px-6 py-4 font-semibold" scope="col">
+                  <span className="sr-only">Plan detail</span>
+                </th>
+                <th className="w-[32%] px-6 py-4 font-semibold text-mkt-fg" scope="col">
+                  Free Plan
+                </th>
+                <th className="px-6 py-4 font-semibold text-mkt-fg" scope="col">
+                  <span className="flex items-center gap-2">
+                    <span aria-hidden className="size-2 rounded-full bg-mkt-accent" />
+                    Paid Plan
+                  </span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {COMPARE_ROWS.map((row) => (
+                <tr className="border-mkt-border border-b last:border-b-0" key={row.label}>
+                  <th className="px-6 py-4 align-top font-medium text-mkt-muted" scope="row">
+                    {row.label}
+                  </th>
+                  <td className="px-6 py-4 align-top">{row.free}</td>
+                  <td className="px-6 py-4 align-top">{row.paid}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Reveal>
     </section>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/* Questions — direct answers, no marketing hedging                    */
+/* From signup to upgrade — the one path every Church takes            */
+/* ------------------------------------------------------------------ */
+
+const UPGRADE_STEPS = [
+  {
+    body: "Create your Church from sign-in—no card and no trial clock. Unlimited Users and Teams from day one, on either plan.",
+    label: "Sign up",
+    title: "Start free",
+  },
+  {
+    body: "Complete Onboarding, invite your Teams, and plan the weeks ahead. Free covers up to 300 planned Tasks across your current and future Weeks.",
+    label: "Settle in",
+    title: "Plan your weeks",
+  },
+  {
+    body: "Once usage passes 200 planned Tasks, every Church Member can see it. A Church owner or admin upgrades from Church Billing settings—no one stops working.",
+    label: "When you need room",
+    title: "Upgrade in Church Billing",
+  },
+] as const;
+
+function UpgradePath() {
+  return (
+    <section
+      aria-labelledby="upgrade-heading"
+      className="mx-auto max-w-[1400px] px-6 pt-28 md:px-10 md:pt-36"
+    >
+      <Reveal>
+        <p className="cw-eyebrow">Signup to upgrade</p>
+        <h2
+          className="mt-5 max-w-[760px] font-medium text-[40px] tracking-[-0.03em] leading-[1.05] md:text-[56px]"
+          id="upgrade-heading"
+        >
+          Every Church takes the same path.
+        </h2>
+      </Reveal>
+      <ol className="mt-10 grid gap-px overflow-hidden rounded-2xl border border-mkt-border bg-mkt-border md:grid-cols-3">
+        {UPGRADE_STEPS.map((step, i) => (
+          <Reveal as="li" className="bg-mkt-bg p-7 md:p-8" delay={120 + i * 90} key={step.title}>
+            <p className="cw-step-index">
+              <b>{String(i + 1).padStart(2, "0")}</b> / 03
+            </p>
+            <p className="cw-eyebrow mt-4">{step.label}</p>
+            <h3 className="mt-3 font-medium text-[22px] tracking-tight">{step.title}</h3>
+            <p className="mt-3 text-[15px] text-mkt-muted leading-[1.55]">{step.body}</p>
+          </Reveal>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Good to know                                                        */
 /* ------------------------------------------------------------------ */
 
 const FAQS = [
   {
-    q: "Is it really one price for everyone?",
-    a: "Yes. $19.99 a week covers your entire church — every user, every team, every feature. There are no tiers and nothing to upgrade to.",
+    q: "What counts toward 300 planned Tasks?",
+    a: "Real Tasks in the current Week or a future Week count while they are To Do, In Progress, or Done. Week-less To Do Tasks count too. Past-Week Tasks, canceled or deleted Tasks, and projected Template Tasks do not count.",
   },
   {
-    q: "What counts as a user?",
-    a: "Anyone you invite: staff, ministry leaders, and volunteers. There's no per-seat charge, so invite everyone who touches the plan.",
+    q: "Do Users or Teams cost extra?",
+    a: "No. Free and Paid both include unlimited Users and unlimited Teams for the whole Church.",
   },
   {
-    q: "Why billed weekly?",
-    a: "Church Work runs on the Monday-to-Sunday week, so the billing matches the rhythm you already keep. You can pay monthly if you'd rather — same total.",
+    q: "How is Paid billed?",
+    a: "Paid is $19.99 USD per Church per week, including applicable tax. There are no monthly, annual, per-seat, or trial billing options.",
   },
   {
-    q: "Can we cancel?",
-    a: "Anytime, in a click. Your work stays exportable, and you only pay for the weeks you use.",
+    q: "How do we upgrade?",
+    a: "Start with the Free Plan and complete the usual Onboarding. A Church owner or admin can upgrade later from Church Billing settings.",
+  },
+  {
+    q: "How will we know we're near the limit?",
+    a: "Every Church Member can see Task Usage once it passes 200 planned Tasks—including usage above 300 caused by scheduled Template materialization. Owners and admins can go from the usage notice straight to Church Billing.",
+  },
+  {
+    q: "What happens if a payment fails?",
+    a: "Your Church keeps Paid Plan access for a two-week recovery period. If the Subscription is still past due after that, Free Plan limits apply—existing work is never deleted or hidden.",
   },
 ] as const;
 
-function Questions() {
+function Details() {
   return (
-    <section className="mx-auto max-w-[1400px] px-6 pt-28 md:px-10 md:pt-36">
+    <section
+      aria-labelledby="details-heading"
+      className="mx-auto max-w-[1400px] px-6 pt-28 md:px-10 md:pt-36"
+    >
       <Reveal>
-        <p className="cw-eyebrow">Questions</p>
+        <p className="cw-eyebrow">Good to know</p>
         <h2
-          className="mt-5 max-w-[760px] font-medium text-[40px] tracking-tight md:text-[56px]"
-          style={{ letterSpacing: "-0.03em", lineHeight: 1.05 }}
+          className="mt-5 max-w-[760px] font-medium text-[40px] tracking-[-0.03em] leading-[1.05] md:text-[56px]"
+          id="details-heading"
         >
-          The short answers.
+          Clear limits. No hidden billing paths.
         </h2>
       </Reveal>
-
       <dl className="mt-10 grid gap-x-12 sm:grid-cols-2">
-        {FAQS.map((f, i) => (
-          <Reveal className="border-mkt-border border-t py-7" delay={i * 70} key={f.q}>
-            <dt className="font-medium text-[18px] tracking-tight">{f.q}</dt>
-            <dd className="mt-2 text-[15px] text-mkt-muted" style={{ lineHeight: 1.55 }}>
-              {f.a}
-            </dd>
+        {FAQS.map((faq, i) => (
+          <Reveal className="border-mkt-border border-t py-7" delay={i * 70} key={faq.q}>
+            <dt className="font-medium text-[18px]">{faq.q}</dt>
+            <dd className="mt-2 text-[15px] text-mkt-muted leading-relaxed">{faq.a}</dd>
           </Reveal>
         ))}
       </dl>
@@ -296,63 +408,35 @@ function Questions() {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Closing call to action                                              */
-/* ------------------------------------------------------------------ */
-
 function ClosingCTA() {
   return (
     <section className="mx-auto max-w-[1400px] px-6 pt-28 pb-8 text-center md:px-10 md:pt-40">
       <Reveal>
-        <h2
-          className="mx-auto max-w-[820px] font-medium text-[44px] tracking-tight md:text-[68px]"
-          style={{ letterSpacing: "-0.035em", lineHeight: 1.04 }}
-        >
-          Nineteen ninety-nine. The whole church.
+        <h2 className="mx-auto max-w-[820px] font-medium text-[44px] tracking-[-0.035em] leading-[1.04] md:text-[68px]">
+          Start planning for free.
         </h2>
-        <p
-          className="mx-auto mt-6 max-w-[520px] text-[18px] text-mkt-muted"
-          style={{ lineHeight: 1.5 }}
-        >
-          Set up your church in minutes and start the next week with a plan.
+        <p className="mx-auto mt-6 max-w-[560px] text-[18px] text-mkt-muted">
+          Create your Church, invite your team, and complete Onboarding without a card.
         </p>
-        <div className="mt-9 flex items-center justify-center gap-3">
-          <button
-            className="rounded-full px-7 py-3 font-semibold text-[15px] text-mkt-accent-fg transition-transform hover:scale-[1.02]"
-            style={{ backgroundColor: "oklch(0.88 0.18 95)" }}
-            type="button"
-          >
-            Get started
-          </button>
-          <button
-            className="rounded-full border border-mkt-border bg-mkt-bg px-7 py-3 font-medium text-[15px] text-mkt-fg transition-colors hover:bg-mkt-card"
-            style={{ boxShadow: "0 1px 0 rgba(0,0,0,0.04)" }}
-            type="button"
-          >
-            Book a demo
-          </button>
-        </div>
+        <Link
+          className="mt-9 inline-flex rounded-full bg-mkt-accent px-7 py-3 font-semibold text-[15px] text-mkt-accent-fg transition-transform hover:scale-[1.02] focus-visible:outline-2 focus-visible:outline-mkt-fg focus-visible:outline-offset-2"
+          to="/sign-in"
+        >
+          Get started free
+        </Link>
       </Reveal>
     </section>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Page                                                                */
-/* ------------------------------------------------------------------ */
-
 function PricingPage() {
-  // The persistent MarketingShell (see route.tsx) owns the scroll surface and
-  // the Header; this page just contributes its sections. The hero enters
-  // relative to when the header settles (full delay on a cold load, ~0 after
-  // navigation), and the below-fold hold is derived from that same timing.
   const { headerSettle } = useHeaderEntrance();
-  const heroSettleMs = Math.round((headerSettle + HERO_TAIL_SEC) * 1000);
   return (
     <>
       <PriceHero base={headerSettle} />
-      <WhyOnePlan heroSettleMs={heroSettleMs} />
-      <Questions />
+      <ComparePlans heroSettleMs={Math.round((headerSettle + 1.4) * 1000)} />
+      <UpgradePath />
+      <Details />
       <ClosingCTA />
       <div className="h-16" />
     </>

@@ -44,6 +44,7 @@ const tableNames = [
   "teams",
   "invitation",
   "member",
+  "subscription",
   "organization",
   "verification",
   "account",
