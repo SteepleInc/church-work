@@ -31,7 +31,7 @@ import {
   canManageChurchTeams,
 } from "@/features/quick-actions/quick-actions-utils";
 import type { QuickActionDefinition } from "@/features/quick-actions/quick-actions-types";
-import { useTaskCreationGate } from "@/features/billing/task-creation-gate";
+import { TASK_LIMIT_TITLE, useTaskCreationGate } from "@/features/billing/task-creation-gate";
 
 export function QuickActions() {
   const [quickActionsIsOpen, setQuickActionsIsOpen] = useAtom(quickActionsIsOpenAtom);
@@ -70,7 +70,10 @@ export function QuickActions() {
     () =>
       buildChurchWorkQuickActions({
         canCreateTasks: !taskCreationGate.blocked,
-        createTasksDisabledReason: taskCreationGate.blocked ? taskCreationGate.message : undefined,
+        // The palette's inline reason has one truncating line, so it carries
+        // the short title; full role-aware guidance lives in the Task Usage
+        // card, the control tooltips, and the Sonner notification.
+        createTasksDisabledReason: taskCreationGate.blocked ? TASK_LIMIT_TITLE : undefined,
         canInviteMembers: canInviteChurchMembers(activeChurch?.role),
         canManageKeyDates: activeChurchId !== null && canManageChurchTeams(activeChurch?.role),
         canManageTemplates: activeChurchId !== null && canManageChurchTeams(activeChurch?.role),

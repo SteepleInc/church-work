@@ -25,6 +25,10 @@ export function TaskUsageCard() {
   const atLimit = policy.blocked;
   const percent = Math.min(100, Math.round((policy.usage / policy.limit) * 100));
 
+  // Mirrors PastDueBanner: a polite status while approaching the limit, an
+  // alert once Task creation is actually paused.
+  const role = atLimit ? "alert" : "status";
+
   return (
     <aside
       aria-label="Task Usage"
@@ -32,7 +36,7 @@ export function TaskUsageCard() {
         "mx-4 mb-2 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border px-3.5 py-2.5 text-sm",
         atLimit ? "border-destructive/20 bg-destructive/5" : "border-amber-500/20 bg-amber-500/10",
       )}
-      role="status"
+      role={role}
     >
       <HugeiconsIcon
         className={cn(
