@@ -1,17 +1,35 @@
 import { describe, expect, test } from "bun:test";
 
-const routeSource = await Bun.file(new URL("./route.tsx", import.meta.url)).text();
-const shellSource = await Bun.file(new URL("./-marketing-shell.tsx", import.meta.url)).text();
-const homeSource = await Bun.file(new URL("./index.tsx", import.meta.url)).text();
-const pricingSource = await Bun.file(new URL("./pricing.tsx", import.meta.url)).text();
-const librarySource = await Bun.file(new URL("./library.tsx", import.meta.url)).text();
+const routeSource = await Bun.file(
+  new URL("./route.tsx", import.meta.url),
+).text();
+const shellSource = await Bun.file(
+  new URL("./-marketing-shell.tsx", import.meta.url),
+).text();
+const homeSource = await Bun.file(
+  new URL("./index.tsx", import.meta.url),
+).text();
+const pricingSource = await Bun.file(
+  new URL("./pricing.tsx", import.meta.url),
+).text();
+const librarySource = await Bun.file(
+  new URL("./library.tsx", import.meta.url),
+).text();
 const marketingNavigationSource = await Bun.file(
-  new URL("../../components/navigation/marketingNavigation.tsx", import.meta.url),
+  new URL(
+    "../../components/navigation/marketingNavigation.tsx",
+    import.meta.url,
+  ),
 ).text();
 const mobileMarketingNavigationSource = await Bun.file(
-  new URL("../../components/navigation/mobileMarketingNavigation.tsx", import.meta.url),
+  new URL(
+    "../../components/navigation/mobileMarketingNavigation.tsx",
+    import.meta.url,
+  ),
 ).text();
-const stylesSource = await Bun.file(new URL("../../styles/globals.css", import.meta.url)).text();
+const stylesSource = await Bun.file(
+  new URL("../../styles/globals.css", import.meta.url),
+).text();
 
 describe("marketing shell and navigation treatment", () => {
   test("light pages share one persistent shell; library opts out into its own dark shell", () => {
@@ -59,6 +77,19 @@ describe("marketing shell and navigation treatment", () => {
     // The medical/SaaS source copy is fully replaced.
     expect(homeSource).not.toContain("medical practice");
     expect(homeSource).not.toContain("Payments & Subscriptions");
+  });
+
+  test("pricing accurately presents Free and Paid plans", () => {
+    expect(pricingSource).toContain("Free Plan");
+    expect(pricingSource).toContain("$0");
+    expect(pricingSource).toContain("300 planned Tasks");
+    expect(pricingSource).toContain("Paid Plan");
+    expect(pricingSource).toContain("$19.99 USD");
+    expect(pricingSource).toContain("per Church per week");
+    expect(pricingSource).toContain("including applicable tax");
+    expect(pricingSource).toContain('to="/sign-in"');
+    expect(pricingSource).not.toContain("pay monthly");
+    expect(pricingSource).not.toContain("nothing to upgrade to");
   });
 
   test("marketing pages use semantic dark-mode tokens, not a scoped theme island", () => {
