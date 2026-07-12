@@ -124,6 +124,34 @@ _Avoid_: Pre-created task, temporary task row, occurrence record by default
 The Church setting that controls how many upcoming Cycles have their Projected Template Tasks automatically turned into real Tasks. The default Rolling Materialization Window is three Cycles, keeping near-term scheduled work actionable without creating an overwhelming amount of future work.
 _Avoid_: Materializing a whole yearly Template Schedule Occurrence at once, infinite task generation, projection window as a synonym
 
+**Active Planning Horizon**:
+The current Week, every future Week, and work not yet assigned to a Week for a Church. Free Plan Task Usage is measured across real Tasks in this horizon rather than historical Tasks; Projected Template Tasks are not Tasks and do not count until materialized.
+_Avoid_: Three-week window, rolling 21-day period, calendar month, counting projected work
+
+**Free Plan Task Limit**:
+The threshold of 300 counted Tasks in a Church's Active Planning Horizon. Reaching the limit prevents user-initiated operations from creating a new Task identity, including standard Task creation, creation from a Task Draft, Subtask creation, duplication, and agent or API creation acting for a User. It does not stop scheduled Template work from materializing, prevent Users from continuing work on existing Tasks, or prevent an existing Task from being moved, restored, or reopened.
+_Avoid_: Storage limit, lifetime task limit, blocking template materialization
+
+**Church Subscription**:
+The plan held by one Church. Its entitlements and usage limits apply across all of that Church's Users and Teams; each Church is subscribed independently, even when a User belongs to multiple Churches. Church owners and admins may manage the Church Subscription; members may see usage and limits but may not change the plan or payment details.
+_Avoid_: User subscription, Team subscription, shared subscription across Churches
+
+**Free Plan**:
+The default Church Subscription with unlimited Users and Teams and the Free Plan Task Limit.
+_Avoid_: Trial, onboarding plan, per-seat free allowance
+
+**Paid Plan**:
+The single purchasable Church Subscription, priced at $19.99 USD per Church per week including applicable tax, with unlimited product usage and no Task limit.
+_Avoid_: Per-seat plan, multiple paid tiers, metered task plan
+
+**Payment Grace Period**:
+The two-week period beginning when a Church Subscription first becomes past due. The Church retains Paid Plan access during this period so payment can be recovered; if the Subscription remains past due when the period ends, Free Plan limits apply without deleting or hiding existing work.
+_Avoid_: Immediate downgrade after one failed payment, deleting work for nonpayment, restarting grace on every retry
+
+**Task Usage**:
+The number of real, non-canceled, non-deleted Tasks counted toward a Church's Free Plan Task Limit. It includes To Do Tasks without a Week and Tasks in To Do, In Progress, or Done states in the current or any future Week; Tasks in past Weeks do not count. Every Church Member can see Task Usage once it exceeds 200 Tasks, including usage above 300 caused by scheduled Template materialization. Owners and admins may proceed from the usage notice to Church billing; members see the notice without an action.
+_Avoid_: User usage, Team usage, hiding overage from members
+
 **Soft Delete**:
 A deletion state that hides user-authored product work from normal UI and future projection without permanently removing its identity. Soft Delete applies to Drafts as well as created product content. Soft Delete allows later undo or restore; recreating similar work creates a new identity rather than reviving the old one. Hard Delete is reserved for cleanup cases where restoration is not meaningful, such as removing membership relationships.
 _Avoid_: Archive when the domain meaning is deletion, hard delete for normal product work, hidden only

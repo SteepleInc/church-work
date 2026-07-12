@@ -1,0 +1,3 @@
+# Organization-scoped Stripe billing through Better Auth
+
+Church Work will use Stripe through `@better-auth/stripe`, with each Church's underlying Better Auth Organization as the subscription reference and Stripe Customer boundary. Better Auth's Stripe webhook handling is authoritative for subscription state; checkout redirects do not grant Paid access, and persisted changes reach clients through Zero. This keeps billing Church-scoped rather than User-scoped, delegates checkout and payment management to Stripe Checkout and the Customer Portal, and avoids a parallel subscription integration outside the existing authentication organization model.
