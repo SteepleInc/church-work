@@ -162,6 +162,9 @@ export const organization = pgTable(
     rollingMaterializationWindowCycles: integer("rolling_materialization_window_cycles")
       .notNull()
       .default(3),
+    rolloverMaintenanceCompletedCycleStartDate: text(
+      "rollover_maintenance_completed_cycle_start_date",
+    ),
     completedOnboarding: boolean("completed_onboarding").notNull().default(false),
     url: text("url"),
     street: text("street"),
