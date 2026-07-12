@@ -148,14 +148,24 @@ export function useAllOrgsCollectionWithFilters() {
     columnMap: orgColumnMap,
     filterKey: FilterKeys.Orgs,
   });
-  const [orgRows = []] = useZeroQuery(queries.organization.admin_list({ list_args: listArgs }), {
+  const [orgRows = []] = useZeroQuery(
+    isAppAdmin ? queries.organization.admin_list({ list_args: listArgs }) : undefined,
+    {
+      enabled: isAppAdmin,
+    },
+  );
+  const [memberRows = []] = useZeroQuery(isAppAdmin ? queries.member.admin_all() : undefined, {
     enabled: isAppAdmin,
   });
-  const [memberRows = []] = useZeroQuery(queries.member.admin_all(), { enabled: isAppAdmin });
-  const [teamRows = []] = useZeroQuery(queries.teams_admin.admin_all(), { enabled: isAppAdmin });
-  const [subscriptionRows = []] = useZeroQuery(queries.subscription.admin_all(), {
+  const [teamRows = []] = useZeroQuery(isAppAdmin ? queries.teams_admin.admin_all() : undefined, {
     enabled: isAppAdmin,
   });
+  const [subscriptionRows = []] = useZeroQuery(
+    isAppAdmin ? queries.subscription.admin_all() : undefined,
+    {
+      enabled: isAppAdmin,
+    },
+  );
   const orgsCollection = isAppAdmin
     ? orgRows.map((org) => mapOrg(org, memberRows, teamRows, subscriptionRows))
     : [];
@@ -174,23 +184,35 @@ export function useAllOrgsCollectionWithFilters() {
 export function useAdminOrgData(params: { readonly orgId: string | null }) {
   const isAppAdmin = useIsAppAdmin();
   const [orgRows = []] = useZeroQuery(
-    queries.organization.admin_list({
-      list_args: params.orgId ? { limit: 1, selected_ids: [params.orgId] } : { limit: 0 },
-    }),
+    isAppAdmin
+      ? queries.organization.admin_list({
+          list_args: params.orgId ? { limit: 1, selected_ids: [params.orgId] } : { limit: 0 },
+        })
+      : undefined,
     { enabled: isAppAdmin },
   );
-  const [memberRows = []] = useZeroQuery(queries.member.admin_all(), { enabled: isAppAdmin });
-  const [teamRows = []] = useZeroQuery(queries.teams_admin.admin_all(), { enabled: isAppAdmin });
+  const [memberRows = []] = useZeroQuery(isAppAdmin ? queries.member.admin_all() : undefined, {
+    enabled: isAppAdmin,
+  });
+  const [teamRows = []] = useZeroQuery(isAppAdmin ? queries.teams_admin.admin_all() : undefined, {
+    enabled: isAppAdmin,
+  });
   const [subscription] = useZeroQuery(
-    params.orgId ? queries.subscription.admin_by_church({ church_id: params.orgId }) : undefined,
+    isAppAdmin && params.orgId
+      ? queries.subscription.admin_by_church({ church_id: params.orgId })
+      : undefined,
     { enabled: isAppAdmin },
   );
   const [tasks = []] = useZeroQuery(
-    params.orgId ? queries.tasks.admin_by_church({ church_id: params.orgId }) : undefined,
+    isAppAdmin && params.orgId
+      ? queries.tasks.admin_by_church({ church_id: params.orgId })
+      : undefined,
     { enabled: isAppAdmin },
   );
   const [cycles = []] = useZeroQuery(
-    params.orgId ? queries.cycles.admin_by_church({ church_id: params.orgId }) : undefined,
+    isAppAdmin && params.orgId
+      ? queries.cycles.admin_by_church({ church_id: params.orgId })
+      : undefined,
     { enabled: isAppAdmin },
   );
   const cyclesById = new Map(cycles.map((cycle) => [cycle.id, cycle]));
