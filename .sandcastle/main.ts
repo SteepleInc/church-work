@@ -60,9 +60,9 @@ const CHECK_POLL_INTERVAL_MS = Number(process.env.SANDCASTLE_CHECK_POLL_INTERVAL
 const CHECK_TIMEOUT_MS = Number(process.env.SANDCASTLE_CHECK_TIMEOUT_MS ?? String(20 * 60 * 1000));
 const MERGE_TIMEOUT_MS = Number(process.env.SANDCASTLE_MERGE_TIMEOUT_MS ?? String(20 * 60 * 1000));
 
-const allAroundAgent = () => sandcastle.opencode("openai/gpt-5.5", { variant: "low" });
+const allAroundAgent = () => sandcastle.opencode("openai/gpt-5.6-sol", { variant: "low" });
 
-const uiAgent = () => sandcastle.opencode("anthropic/claude-opus-4-8");
+const uiAgent = () => sandcastle.opencode("anthropic/claude-fable-5");
 
 const sandboxProvider = () =>
   docker({
