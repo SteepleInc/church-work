@@ -12,6 +12,7 @@ describe("Free Plan Task Usage", () => {
   test.each([
     ["Week-less To Do", { taskState: "todo" }, true],
     ["Week-less In Progress", { taskState: "in_progress" }, false],
+    ["Week-less Done", { taskState: "done" }, false],
     ["past Week", { taskState: "done", cycleEndsAt: new Date("2026-07-11T04:00:00Z") }, false],
     [
       "current Church-local Week",
@@ -24,6 +25,11 @@ describe("Free Plan Task Usage", () => {
       true,
     ],
     ["canceled", { taskState: "canceled", cycleEndsAt: new Date("2026-07-20T04:00:00Z") }, false],
+    [
+      "unknown state",
+      { taskState: "unknown", cycleEndsAt: new Date("2026-07-20T04:00:00Z") },
+      false,
+    ],
     ["soft-deleted", { taskState: "todo", deletedAt: now }, false],
     [
       "deleted Week",

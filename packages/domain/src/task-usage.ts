@@ -20,7 +20,8 @@ export function isTaskCountedForUsage(
   now: Date | number = Date.now(),
 ): boolean {
   if (task.deletedAt != null || task.taskState === "canceled") return false;
-  if (!(["todo", "in_progress", "done"] as const).includes(task.taskState as never)) return false;
+  if (task.taskState !== "todo" && task.taskState !== "in_progress" && task.taskState !== "done")
+    return false;
   if (task.cycleEndsAt == null) return task.taskState === "todo";
   if (task.cycleDeletedAt != null) return false;
   return epoch(task.cycleEndsAt) > epoch(now);

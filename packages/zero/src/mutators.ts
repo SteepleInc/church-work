@@ -8,8 +8,10 @@ import {
   resolveSchedulingRule,
   type CycleAdjustmentOverride,
   type SchedulingRule,
+  type TaskUsageCandidate,
   formatTaskIdentifier,
   generateTeamIdentifier,
+  isTaskCountedForUsage,
   isUserTaskCreationBlocked,
   FREE_PLAN_TASK_LIMIT_ERROR,
   getLabelColorForName,
@@ -725,7 +727,7 @@ const assertUserTaskCreationAllowed = async (
   churchId: string,
 ) => {
   const now = new Date();
-  const [subscriptionRow] = (await db
+  const [subscriptionRow] = await db
     .select({
       graceStartedAt: subscription.graceStartedAt,
       periodEnd: subscription.periodEnd,
@@ -733,18 +735,14 @@ const assertUserTaskCreationAllowed = async (
     })
     .from(subscription)
     .where(eq(subscription.referenceId, churchId))
-    .limit(1)) as Array<{
-    graceStartedAt: Date | null;
-    periodEnd: Date | null;
-    status: string;
-  }>;
+    .limit(1);
   if (
     subscriptionRow &&
     !isUserTaskCreationBlocked({ usage: 300, subscription: subscriptionRow, now })
   )
     return;
 
-  const candidates = (await db
+  const candidates = await db
     .select({
       cycleDeletedAt: cycles.deleted_at,
       cycleEndsAt: cycles.ends_at,
@@ -753,18 +751,9 @@ const assertUserTaskCreationAllowed = async (
     })
     .from(tasks)
     .leftJoin(cycles, and(eq(tasks.cycle_id, cycles.id), eq(cycles.church_id, churchId)))
-    .where(and(eq(tasks.church_id, churchId), isNull(tasks.deleted_at)))) as Array<{
-    cycleDeletedAt: Date | null;
-    cycleEndsAt: Date | null;
-    deletedAt: Date | null;
-    taskState: string;
-  }>;
-  const usage = candidates.filter(
-    (task) =>
-      task.taskState !== "canceled" &&
-      (task.cycleEndsAt
-        ? !task.cycleDeletedAt && task.cycleEndsAt > now
-        : task.taskState === "todo"),
+    .where(and(eq(tasks.church_id, churchId), isNull(tasks.deleted_at)));
+  const usage = candidates.filter((task: TaskUsageCandidate) =>
+    isTaskCountedForUsage(task, now),
   ).length;
   if (isUserTaskCreationBlocked({ usage, subscription: subscriptionRow ?? null, now })) {
     throw new Error(FREE_PLAN_TASK_LIMIT_ERROR);
