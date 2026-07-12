@@ -19,7 +19,7 @@ describe("schema foundation", () => {
         "select constraint_name from information_schema.table_constraints where table_schema = 'public' and constraint_type = 'FOREIGN KEY'",
       );
       const genericLifecycleColumns = await pool.query<{ column_name: string }>(
-        "select column_name from information_schema.columns where table_schema = 'public' and table_name not in ('invitation') and column_name in ('status', 'inactivated_at', 'inactivated_by')",
+        "select column_name from information_schema.columns where table_schema = 'public' and table_name not in ('invitation', 'subscription') and column_name in ('status', 'inactivated_at', 'inactivated_by')",
       );
 
       const userId = getUserId();

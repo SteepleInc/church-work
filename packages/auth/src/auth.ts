@@ -14,6 +14,7 @@ import {
   getVerificationId,
 } from "@church-work/shared/get-ids";
 import { apiKey } from "@better-auth/api-key";
+import { stripe } from "@better-auth/stripe";
 import { and, eq } from "drizzle-orm";
 import type { BetterAuthOptions } from "better-auth";
 import { betterAuth } from "better-auth/minimal";
@@ -26,12 +27,14 @@ import {
   member,
   organization as organizationTable,
   session,
+  subscription,
   user,
   verification,
 } from "@church-work/db/schema";
 import { reactInvitationEmail, reactOTPEmail } from "@church-work/email";
 import type { ChurchWorkDb } from "@church-work/db";
 import { Resend } from "resend";
+import Stripe from "stripe";
 
 import { clearOrgForOnboarding, completeOnboarding } from "./plugins";
 
@@ -225,6 +228,7 @@ export const createAuthOptions = (
         member,
         organization: organizationTable,
         session,
+        subscription,
         user,
         verification,
       },
@@ -360,6 +364,33 @@ export const createAuthOptions = (
             subject: `You've been invited to join ${data.organization.name} on ${appName}`,
             to: data.email,
           });
+        },
+      }),
+      stripe({
+        organization: { enabled: true },
+        stripeClient: new Stripe(process.env.STRIPE_SECRET_KEY ?? "sk_test_church_work_stub"),
+        stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? "whsec_church_work_stub",
+        subscription: {
+          authorizeReference: async ({ referenceId, user: requestingUser }) => {
+            const [membership] = await db
+              .select({ role: member.role })
+              .from(member)
+              .where(
+                and(eq(member.organizationId, referenceId), eq(member.userId, requestingUser.id)),
+              )
+              .limit(1);
+
+            return membership?.role === "owner" || membership?.role === "admin";
+          },
+          enabled: true,
+          getCheckoutSessionParams: () => ({ params: { automatic_tax: { enabled: true } } }),
+          plans: [
+            {
+              name: "paid",
+              priceId:
+                process.env.STRIPE_PAID_WEEKLY_PRICE_ID ?? "price_church_work_paid_weekly_stub",
+            },
+          ],
         },
       }),
       admin(),

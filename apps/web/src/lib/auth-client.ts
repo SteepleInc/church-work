@@ -9,6 +9,7 @@ import {
   organizationClient,
 } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
+import { stripeClient } from "@better-auth/stripe/client";
 
 const completeOnboardingClient = () =>
   ({
@@ -49,6 +50,7 @@ export const authClient = createAuthClient({
   },
   plugins: [
     emailOTPClient(),
+    stripeClient({ subscription: true }),
     adminClient(),
     completeOnboardingClient(),
     clearOrgForOnboardingClient(),
