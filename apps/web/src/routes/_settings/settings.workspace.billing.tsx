@@ -5,13 +5,20 @@ import { SettingsPage, SettingsPageHeader } from "@/features/settings/settings-p
 
 export const Route = createFileRoute("/_settings/settings/workspace/billing")({
   component: RouteComponent,
+  validateSearch: (search: Record<string, unknown>): { readonly checkout?: "complete" } =>
+    search.checkout === "complete" ? { checkout: "complete" } : {},
 });
 
 function RouteComponent() {
+  const { checkout } = Route.useSearch();
+
   return (
     <SettingsPage>
-      <SettingsPageHeader description="Manage the plan for your active Church." title="Billing" />
-      <ChurchBilling />
+      <SettingsPageHeader
+        description="Manage the Church Subscription for your active Church."
+        title="Billing"
+      />
+      <ChurchBilling checkoutComplete={checkout === "complete"} />
     </SettingsPage>
   );
 }
