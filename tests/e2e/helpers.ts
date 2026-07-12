@@ -129,6 +129,21 @@ export async function promoteCurrentUserToAppAdmin(page: Page) {
   expect(response.ok()).toBe(true);
 }
 
+export async function seedTasks(
+  page: Page,
+  args: {
+    readonly tasks: ReadonlyArray<{ readonly status: string; readonly title: string }>;
+    readonly team: string;
+  },
+) {
+  const response = await postTestHelperWithRetry(page, "/api/test/tasks/seed", { data: args });
+
+  test.skip(response.status() === 404, "Task seeding helper is not deployed.");
+  if (!response.ok()) {
+    throw new Error(`Could not seed Tasks: ${response.status()} ${await response.text()}`);
+  }
+}
+
 export async function completeOnboarding(page: Page, churchName: string) {
   await expect(page.getByText("Next up")).not.toBeVisible();
   await expect(page.getByLabel("Find Your Church")).toBeVisible();

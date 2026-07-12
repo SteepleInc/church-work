@@ -2,6 +2,7 @@ import { createAuth, createLocalOtpStore } from "@church-work/auth";
 import { bootstrapChurchOnboarding, createDb } from "@church-work/db";
 import {
   demo_items,
+  cycles,
   invitation,
   member,
   notifications,
@@ -9,6 +10,8 @@ import {
   session as sessionTable,
   tasks,
   teams,
+  workflow_statuses,
+  workflows,
   user,
 } from "@church-work/db/schema";
 import { formatTaskIdentifier } from "@church-work/domain";
@@ -18,7 +21,7 @@ import { anonymousServerContext, mutators, queries, schema } from "@church-work/
 import { handleMutateRequest, handleQueryRequest } from "@rocicorp/zero/server";
 import { zeroDrizzle } from "@rocicorp/zero/server/adapters/drizzle";
 import { mustGetMutator, mustGetQuery } from "@rocicorp/zero";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte, isNull, lte } from "drizzle-orm";
 import { Effect } from "effect";
 
 import type { OptionalZeroSessionContext } from "@church-work/zero";
@@ -406,6 +409,107 @@ export const createTracerApi = (databaseUrl: string) => {
       },
     });
 
+  const handleSeedTestTasks = (request: Request) =>
+    Effect.tryPromise({
+      catch: (cause) => cause,
+      try: async () => {
+        const context = await getSessionContext(authRuntime.auth, db, request);
+        if (!context?.authenticated || !("active_church_id" in context)) {
+          return Response.json({ error: "Authentication required" }, { status: 401 });
+        }
+        const churchId = context.active_church_id;
+        if (!churchId) {
+          return Response.json({ error: "Active Church required" }, { status: 400 });
+        }
+
+        const body = (await request.json()) as {
+          tasks?: Array<{ status?: string; title?: string }>;
+          team?: string;
+        };
+        const taskInputs = body.tasks ?? [];
+        const teamName = body.team?.trim();
+        if (!teamName || taskInputs.length === 0 || taskInputs.length > 50) {
+          return Response.json(
+            { error: "Team and between 1 and 50 Tasks are required" },
+            { status: 400 },
+          );
+        }
+
+        const now = new Date();
+        const [team] = await db
+          .select({ id: teams.id })
+          .from(teams)
+          .where(
+            and(eq(teams.church_id, churchId), eq(teams.name, teamName), isNull(teams.deleted_at)),
+          )
+          .limit(1);
+        const [cycle] = await db
+          .select()
+          .from(cycles)
+          .where(
+            and(
+              eq(cycles.church_id, churchId),
+              lte(cycles.starts_at, now),
+              gte(cycles.ends_at, now),
+              isNull(cycles.deleted_at),
+            ),
+          )
+          .limit(1);
+        if (!team || !cycle) {
+          return Response.json({ error: "Team or current Cycle not found" }, { status: 404 });
+        }
+
+        const statuses = await db
+          .select({ id: workflow_statuses.id, name: workflow_statuses.name })
+          .from(workflow_statuses)
+          .innerJoin(workflows, eq(workflows.id, workflow_statuses.workflow_id))
+          .where(
+            and(
+              eq(workflows.team_id, team.id),
+              eq(workflow_statuses.church_id, churchId),
+              isNull(workflow_statuses.deleted_at),
+            ),
+          );
+        const statusByName = new Map(statuses.map((status) => [status.name, status.id]));
+        const normalizedTasks = taskInputs.map((task) => ({
+          statusId: statusByName.get(task.status?.trim() ?? ""),
+          title: task.title?.trim() ?? "",
+        }));
+        if (normalizedTasks.some((task) => !task.title || !task.statusId)) {
+          return Response.json(
+            { error: "Every Task needs a valid title and status" },
+            { status: 400 },
+          );
+        }
+
+        const createTask = getMutator("tasks.create");
+        const targetCycle = {
+          church_time_zone: cycle.church_time_zone,
+          end_date: cycle.end_date,
+          ends_at: cycle.ends_at.toISOString(),
+          start_date: cycle.start_date,
+          starts_at: cycle.starts_at.toISOString(),
+        };
+        await zeroDb.transaction(async (tx) => {
+          for (const task of normalizedTasks) {
+            await createTask.fn({
+              args: {
+                church_id: churchId,
+                team_id: team.id,
+                title: task.title,
+                target_cycle: targetCycle,
+                workflow_status_id: task.statusId,
+              },
+              ctx: context,
+              tx,
+            });
+          }
+        });
+
+        return Response.json({ count: normalizedTasks.length, ok: true });
+      },
+    });
+
   const requireAppAdmin = async (request: Request) => {
     const authSession = await authRuntime.auth.api.getSession({ headers: request.headers });
 
@@ -538,6 +642,9 @@ export const createTracerApi = (databaseUrl: string) => {
       }
       if (url.pathname === "/api/test/invitations" && request.method === "POST") {
         return { effect: handleCreateTestInvitation(request), name: "test.invitations" };
+      }
+      if (url.pathname === "/api/test/tasks/seed" && request.method === "POST") {
+        return { effect: handleSeedTestTasks(request), name: "test.tasks.seed" };
       }
       if (url.pathname === "/api/tracer" && request.method === "GET") {
         return { effect: handleHealth(), name: "tracer.health" };

@@ -1,6 +1,13 @@
 import { expect, test } from "@playwright/test";
 
+import { createAuthenticatedTest } from "./authenticated-test";
 import { signInAndCompleteOnboarding } from "./helpers";
+
+const authenticatedTest = createAuthenticatedTest({
+  churchNamePrefix: "E2E App Shell Church",
+  emailPrefix: "app-shell",
+  mode: "onboarding",
+});
 
 test.skip(
   process.env.CHURCH_WORK_E2E_READY !== "1",
@@ -16,112 +23,108 @@ test("unauthenticated app routes render the OTP sign-in entry", async ({ page })
   await expect(page.getByRole("button", { name: "Continue" })).toBeVisible();
 });
 
-test("completed users land in the PreachX-style app shell", async ({ page }, testInfo) => {
-  const email = `app-shell-${Date.now()}-${testInfo.workerIndex}@example.com`;
-  const churchName = `E2E App Shell Church ${Date.now()}`;
+authenticatedTest(
+  "completed users land in the PreachX-style app shell",
+  async ({ authenticatedUser, page }) => {
+    await page.goto("/my-work");
 
-  await signInAndCompleteOnboarding(page, { email, churchName });
+    await expect(page.getByText(authenticatedUser.churchName).first()).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "breadcrumb" })).toContainText("My Work");
+    await expect(page.getByRole("button", { name: "Open quick actions" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open global search" }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Toggle theme" })).toBeVisible();
+    await expect(
+      page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Inbox" }),
+    ).toBeVisible();
+    await expect(
+      page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "My Work" }),
+    ).toBeVisible();
+    await expect(
+      page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Our Work" }),
+    ).toBeVisible();
+    await expect(
+      page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Templates" }),
+    ).toBeVisible();
+    const sidebar = page.locator('[data-sidebar="sidebar"]');
+    await expect(sidebar.getByText("Settings", { exact: true })).toBeVisible();
+    await expect(sidebar.getByRole("link", { exact: true, name: "Profile" })).toBeVisible();
+    await expect(sidebar.getByRole("link", { exact: true, name: "Church" })).toBeVisible();
+    await expect(sidebar.getByRole("link", { exact: true, name: "Team" })).toBeVisible();
+  },
+);
 
-  await expect(page.getByText(churchName).first()).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "breadcrumb" })).toContainText("My Work");
-  await expect(page.getByRole("button", { name: "Open quick actions" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Open global search" }).first()).toBeVisible();
-  await expect(page.getByRole("button", { name: "Toggle theme" })).toBeVisible();
-  await expect(
-    page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Inbox" }),
-  ).toBeVisible();
-  await expect(
-    page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "My Work" }),
-  ).toBeVisible();
-  await expect(
-    page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Our Work" }),
-  ).toBeVisible();
-  await expect(
-    page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Templates" }),
-  ).toBeVisible();
-  const sidebar = page.locator('[data-sidebar="sidebar"]');
-  await expect(sidebar.getByText("Settings", { exact: true })).toBeVisible();
-  await expect(sidebar.getByRole("link", { exact: true, name: "Profile" })).toBeVisible();
-  await expect(sidebar.getByRole("link", { exact: true, name: "Church" })).toBeVisible();
-  await expect(sidebar.getByRole("link", { exact: true, name: "Team" })).toBeVisible();
-});
+authenticatedTest(
+  "shell navigation keeps work and settings routes inside the sidebar layout",
+  async ({ page }) => {
+    await page.goto("/my-work");
 
-test("shell navigation keeps work and settings routes inside the sidebar layout", async ({
-  page,
-}, testInfo) => {
-  const email = `app-shell-nav-${Date.now()}-${testInfo.workerIndex}@example.com`;
-  const churchName = `E2E App Shell Nav Church ${Date.now()}`;
+    await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Our Work" }).click();
+    await expect(page).toHaveURL(/\/our-work$/);
+    await expect(page.getByRole("navigation", { name: "breadcrumb" })).toContainText("Our Work");
+    await expect(page.getByText("To Do").first()).toBeVisible();
 
-  await signInAndCompleteOnboarding(page, { email, churchName });
+    await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Templates" }).click();
+    await expect(page).toHaveURL(/\/templates$/);
+    await expect(page.getByRole("heading", { name: "Templates" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Templates" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Library" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Key Dates" })).toBeVisible();
+    await expect(page.getByText("No Templates yet")).toBeVisible();
 
-  await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Our Work" }).click();
-  await expect(page).toHaveURL(/\/our-work$/);
-  await expect(page.getByRole("navigation", { name: "breadcrumb" })).toContainText("Our Work");
-  await expect(page.getByText("To Do").first()).toBeVisible();
+    await page.getByRole("tab", { name: "Library" }).click();
+    await expect(page).toHaveURL(/\/templates\/library$/);
+    await expect(page.getByText("No Templates yet")).toBeVisible();
 
-  await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Templates" }).click();
-  await expect(page).toHaveURL(/\/templates$/);
-  await expect(page.getByRole("heading", { name: "Templates" })).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Templates" })).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Library" })).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Key Dates" })).toBeVisible();
-  await expect(page.getByText("No Templates yet")).toBeVisible();
+    await page.getByRole("tab", { name: "Key Dates" }).click();
+    await expect(page).toHaveURL(/\/templates\/key-dates$/);
+    await expect(page.getByRole("heading", { name: "Key Dates" })).toBeVisible();
 
-  await page.getByRole("tab", { name: "Library" }).click();
-  await expect(page).toHaveURL(/\/templates\/library$/);
-  await expect(page.getByText("No Templates yet")).toBeVisible();
+    await page
+      .locator('[data-sidebar="sidebar"]')
+      .getByRole("link", { exact: true, name: "Profile" })
+      .click();
+    await expect(page).toHaveURL(/\/settings\/profile$/);
+    await expect(page.getByText("Profile Settings", { exact: true })).toBeVisible();
 
-  await page.getByRole("tab", { name: "Key Dates" }).click();
-  await expect(page).toHaveURL(/\/templates\/key-dates$/);
-  await expect(page.getByRole("heading", { name: "Key Dates" })).toBeVisible();
+    await page
+      .locator('[data-sidebar="sidebar"]')
+      .getByRole("link", { exact: true, name: "Team" })
+      .click();
+    await expect(page).toHaveURL(/\/settings\/team\/members$/);
+    await expect(page.getByRole("tab", { name: /Members/ })).toBeVisible();
+    await expect(page.getByRole("tab", { name: /Invites/ })).toBeVisible();
 
-  await page
-    .locator('[data-sidebar="sidebar"]')
-    .getByRole("link", { exact: true, name: "Profile" })
-    .click();
-  await expect(page).toHaveURL(/\/settings\/profile$/);
-  await expect(page.getByText("Profile Settings", { exact: true })).toBeVisible();
+    await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "My Work" }).click();
+    await expect(page).toHaveURL(/\/my-work$/);
+    await expect(page.getByRole("navigation", { name: "breadcrumb" })).toContainText("My Work");
+  },
+);
 
-  await page
-    .locator('[data-sidebar="sidebar"]')
-    .getByRole("link", { exact: true, name: "Team" })
-    .click();
-  await expect(page).toHaveURL(/\/settings\/team\/members$/);
-  await expect(page.getByRole("tab", { name: /Members/ })).toBeVisible();
-  await expect(page.getByRole("tab", { name: /Invites/ })).toBeVisible();
+authenticatedTest(
+  "Inbox route is reachable from the sidebar and G then I shortcut",
+  async ({ page }) => {
+    await page.goto("/my-work");
 
-  await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "My Work" }).click();
-  await expect(page).toHaveURL(/\/my-work$/);
-  await expect(page.getByRole("navigation", { name: "breadcrumb" })).toContainText("My Work");
-});
+    await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Inbox" }).click();
+    await expect(page).toHaveURL(/\/inbox$/);
+    await expect(page.getByRole("navigation", { name: "breadcrumb" })).toContainText("Inbox");
+    await expect(page.getByRole("heading", { name: "Inbox" })).toBeVisible();
+    await expect(page.getByText("You're all caught up")).toBeVisible();
 
-test("Inbox route is reachable from the sidebar and G then I shortcut", async ({
-  page,
-}, testInfo) => {
-  const email = `app-shell-inbox-${Date.now()}-${testInfo.workerIndex}@example.com`;
-  const churchName = `E2E Inbox Shell Church ${Date.now()}`;
+    await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "My Work" }).click();
+    await expect(page).toHaveURL(/\/my-work$/);
 
-  await signInAndCompleteOnboarding(page, { email, churchName });
+    await page.keyboard.press("g");
+    await page.keyboard.press("i");
+    await expect(page).toHaveURL(/\/inbox$/);
 
-  await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "Inbox" }).click();
-  await expect(page).toHaveURL(/\/inbox$/);
-  await expect(page.getByRole("navigation", { name: "breadcrumb" })).toContainText("Inbox");
-  await expect(page.getByRole("heading", { name: "Inbox" })).toBeVisible();
-  await expect(page.getByText("You're all caught up")).toBeVisible();
-
-  await page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: "My Work" }).click();
-  await expect(page).toHaveURL(/\/my-work$/);
-
-  await page.keyboard.press("g");
-  await page.keyboard.press("i");
-  await expect(page).toHaveURL(/\/inbox$/);
-
-  await page.goto("/my-work");
-  await page.getByRole("button", { name: "Open global search" }).first().click();
-  await page.keyboard.press("g");
-  await page.keyboard.press("i");
-  await expect(page).toHaveURL(/\/my-work$/);
-});
+    await page.goto("/my-work");
+    await page.getByRole("button", { name: "Open global search" }).first().click();
+    await page.keyboard.press("g");
+    await page.keyboard.press("i");
+    await expect(page).toHaveURL(/\/my-work$/);
+  },
+);
 
 test("mobile sidebar drawer exposes the shared PreachX header controls", async ({
   page,

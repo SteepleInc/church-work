@@ -1,6 +1,15 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import { randomUUID } from "node:crypto";
 
-import { startAuthenticatedSession } from "./helpers";
+import { expect, type Locator, type Page } from "@playwright/test";
+
+import { createAuthenticatedTest } from "./authenticated-test";
+
+const test = createAuthenticatedTest({
+  churchNamePrefix: "E2E Hover Keybindings Church",
+  emailPrefix: "hover-keybindings",
+  mode: "test-session",
+  userName: "E2E Hover Keybindings Owner",
+});
 
 // Same gating as the other onboarding-stack specs: only runs against the local
 // Postgres/Zero stack booted by `bun run test:e2e:hover-keybindings`.
@@ -10,6 +19,13 @@ test.skip(
 );
 
 test.setTimeout(120_000);
+
+test.beforeEach(async ({ page }) => {
+  await page.goto("/my-work");
+  await expect(page).toHaveURL(/\/my-work$/);
+  await page.mouse.move(0, 0);
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+});
 
 const taskCard = (page: Page, title: string) => page.getByLabel(`Task card ${title}`);
 
@@ -45,14 +61,7 @@ async function bootBoardWithTask(page: Page, title: string): Promise<Locator> {
 test.describe("Task card hover keybindings", () => {
   test("create-task draft surface keeps field shortcuts live without hijacking typing", async ({
     page,
-  }, testInfo) => {
-    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
-    await startAuthenticatedSession(page, {
-      churchName: `E2E Draft Surface Church ${suffix}`,
-      email: `draft-surface-${suffix}@example.com`,
-      userName: "E2E Draft Surface Owner",
-    });
-
+  }) => {
     await page.getByRole("main").getByRole("button", { name: "Create Task" }).click();
     const dialog = page.getByRole("dialog", { name: /New Task/ });
     await expect(dialog).toBeVisible();
@@ -88,16 +97,7 @@ test.describe("Task card hover keybindings", () => {
     await page.keyboard.press("Escape");
   });
 
-  test("Escape blurs a focused field before it exits the create-Task dialog", async ({
-    page,
-  }, testInfo) => {
-    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
-    await startAuthenticatedSession(page, {
-      churchName: `E2E Draft Escape Church ${suffix}`,
-      email: `draft-escape-${suffix}@example.com`,
-      userName: "E2E Draft Escape Owner",
-    });
-
+  test("Escape blurs a focused field before it exits the create-Task dialog", async ({ page }) => {
     await page.getByRole("main").getByRole("button", { name: "Create Task" }).click();
     const dialog = page.getByRole("dialog", { name: /New Task/ });
     await expect(dialog).toBeVisible();
@@ -121,7 +121,9 @@ test.describe("Task card hover keybindings", () => {
 
     // Re-focusing the description and pressing Escape blurs it the same way — one
     // press to leave the field, the dialog still open.
-    const description = dialog.getByRole("textbox", { name: "Add description" });
+    const description = dialog.getByRole("textbox", {
+      name: "Add description",
+    });
     await description.click();
     await expect(description).toBeFocused();
     await page.keyboard.press("Escape");
@@ -142,13 +144,7 @@ test.describe("Task card hover keybindings", () => {
   test("hovering a card arms its status (S) and priority (P) shortcuts", async ({
     page,
   }, testInfo) => {
-    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
-    await startAuthenticatedSession(page, {
-      churchName: `E2E Hover Keys Church ${suffix}`,
-      email: `hover-keys-${suffix}@example.com`,
-      userName: "E2E Hover Owner",
-    });
-
+    const suffix = `${Date.now()}-${testInfo.workerIndex}-${randomUUID()}`;
     const title = `Hover Shortcut Task ${suffix}`;
     const card = await bootBoardWithTask(page, title);
 
@@ -178,13 +174,7 @@ test.describe("Task card hover keybindings", () => {
   test("hover moves the armed card to whichever one is under the mouse", async ({
     page,
   }, testInfo) => {
-    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
-    await startAuthenticatedSession(page, {
-      churchName: `E2E Hover Move Church ${suffix}`,
-      email: `hover-move-${suffix}@example.com`,
-      userName: "E2E Hover Mover",
-    });
-
+    const suffix = `${Date.now()}-${testInfo.workerIndex}-${randomUUID()}`;
     const firstTitle = `Hover First ${suffix}`;
     const secondTitle = `Hover Second ${suffix}`;
     const first = await bootBoardWithTask(page, firstTitle);
@@ -213,13 +203,7 @@ test.describe("Task card hover keybindings", () => {
   test("hover arms select (X) and open (O) without clicking the card", async ({
     page,
   }, testInfo) => {
-    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
-    await startAuthenticatedSession(page, {
-      churchName: `E2E Hover Select Church ${suffix}`,
-      email: `hover-select-${suffix}@example.com`,
-      userName: "E2E Hover Selector",
-    });
-
+    const suffix = `${Date.now()}-${testInfo.workerIndex}-${randomUUID()}`;
     const title = `Hover Select Task ${suffix}`;
     const card = await bootBoardWithTask(page, title);
 
@@ -245,7 +229,9 @@ test.describe("Task card hover keybindings", () => {
     await card.hover();
     await page.keyboard.press("KeyO");
     await expect
-      .poll(() => new URL(page.url()).searchParams.get("details-pane"), { timeout: 20_000 })
+      .poll(() => new URL(page.url()).searchParams.get("details-pane"), {
+        timeout: 20_000,
+      })
       .toContain(identifier!);
   });
 });
