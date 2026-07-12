@@ -39,8 +39,15 @@ test("App Administration collections show cross-Church data while normal members
   await signInWithOtp(page, primaryEmail);
 
   await page.goto("/admin/orgs");
-  await expect(page.getByRole("table").getByText(primaryChurch)).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByRole("table").getByText(otherChurch)).toBeVisible({ timeout: 20_000 });
+  const orgsTable = page.getByRole("table");
+  await expect(orgsTable.getByText(primaryChurch)).toBeVisible({ timeout: 20_000 });
+  await expect(orgsTable.getByText(otherChurch)).toBeVisible({ timeout: 20_000 });
+  await expect(orgsTable.getByRole("columnheader", { name: "Plan" })).toBeVisible();
+  await expect(orgsTable.getByRole("columnheader", { name: "Subscription" })).toBeVisible();
+
+  const primaryChurchRow = orgsTable.getByRole("row").filter({ hasText: primaryChurch });
+  await expect(primaryChurchRow.getByText("Free", { exact: true })).toBeVisible();
+  await expect(primaryChurchRow.getByText("No subscription", { exact: true })).toBeVisible();
 
   await page.goto("/admin/users");
   const usersTable = page.getByRole("table");

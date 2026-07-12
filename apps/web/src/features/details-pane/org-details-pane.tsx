@@ -297,6 +297,7 @@ function TaskUsageValue({
         aria-valuemax={FREE_PLAN_TASK_LIMIT}
         aria-valuemin={0}
         aria-valuenow={taskUsage}
+        aria-valuetext={`${taskUsage} of ${FREE_PLAN_TASK_LIMIT} Tasks`}
         className="h-1 w-full max-w-56 overflow-hidden rounded-full bg-foreground/10"
         role="meter"
       >
@@ -325,8 +326,9 @@ function OptionalBillingDate({
 }) {
   if (value == null) {
     return (
-      <span aria-label="Not present" className="text-muted-foreground">
-        —
+      <span className="text-muted-foreground">
+        <span aria-hidden="true">—</span>
+        <span className="sr-only">Not present</span>
       </span>
     );
   }

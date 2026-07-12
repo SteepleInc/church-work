@@ -25,7 +25,10 @@ describe("org details pane", () => {
     );
     expect(orgDetailsPaneSource).toContain("<ChurchPlanBadge");
     expect(orgDetailsPaneSource).toContain("<SubscriptionStatusBadge");
-    expect(orgDetailsPaneSource).toContain('aria-label="Not present"');
+    expect(orgDetailsPaneSource).toContain('<span className="sr-only">Not present</span>');
+    expect(orgDetailsPaneSource).toContain(
+      "aria-valuetext={`${taskUsage} of ${FREE_PLAN_TASK_LIMIT} Tasks`}",
+    );
     expect(orgDetailsPaneSource).toContain("FREE_PLAN_TASK_LIMIT");
     expect(orgDetailsPaneSource).toContain("Payment Grace Period runs through");
     expect(orgDetailsPaneSource).not.toContain("Customer Portal");
