@@ -1,8 +1,6 @@
 import type { ComponentPropsWithoutRef } from "react";
 import { motion } from "motion/react";
 
-import { cn } from "@/lib/utils";
-
 export const CHURCH_WORK_WORDMARK = "Church Work";
 export const CHURCH_WORK_WORDMARK_PATH_COUNT = 10;
 
@@ -50,14 +48,6 @@ export function ChurchWorkLogoMark({ className, ...props }: SvgProps) {
         </clipPath>
       </defs>
     </svg>
-  );
-}
-
-export function ChurchWorkWordmark({ className, ...props }: ComponentPropsWithoutRef<"span">) {
-  return (
-    <span className={cn("font-semibold text-black", className)} {...props}>
-      <span>Church</span> <span className="text-[#F97316]">Work</span>
-    </span>
   );
 }
 

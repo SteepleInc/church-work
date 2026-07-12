@@ -1,5 +1,5 @@
 import { ModeToggle } from "@/components/mode-toggle";
-import { ChurchWorkLogoMark, ChurchWorkWordmark } from "@/components/church-work-logo";
+import { ChurchWorkLogoMark, ChurchWorkWordmarkSvg } from "@/components/church-work-logo";
 import { Button } from "@/components/ui/button";
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 
@@ -28,7 +28,7 @@ function AuthLayoutComponent() {
           to="/"
         >
           <ChurchWorkLogoMark className="size-10 shrink-0" />
-          <ChurchWorkWordmark className="text-3xl [&>span:first-child]:text-foreground" />
+          <ChurchWorkWordmarkSvg className="h-7 w-[196px] text-foreground" />
         </Link>
 
         <Outlet />

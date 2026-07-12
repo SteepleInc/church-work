@@ -1,10 +1,10 @@
+import { ChurchWorkLogoMark, ChurchWorkWordmarkSvg } from "@/components/church-work-logo";
 import { ModeToggle } from "@/components/mode-toggle";
 import { OnboardingOrgSwitcher } from "@/components/onboarding-org-switcher";
 import UserMenu from "@/components/user-menu";
 import { QuickActions } from "@/features/quick-actions/quick-actions";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
-import { Church } from "lucide-react";
 
 export const Route = createFileRoute("/_onboarding")({
   component: OnboardingLayout,
@@ -29,11 +29,9 @@ function OnboardingLayout() {
       <aside className="flex shrink-0 flex-col md:w-[36%] md:max-w-[500px] lg:w-[40%]">
         <div className="relative flex h-full flex-col items-start overflow-hidden px-4 pt-4 text-white xs:px-6 xs:pt-6 md:p-4 lg:p-8 dark:text-black">
           <div className="flex w-full items-center justify-between md:block">
-            <div className="flex items-center gap-2 text-lg font-semibold">
-              <span className="flex size-10 items-center justify-center rounded-xl bg-cream text-black dark:bg-black dark:text-cream">
-                <Church className="size-5" />
-              </span>
-              Church Work
+            <div className="flex items-center gap-2.5">
+              <ChurchWorkLogoMark className="size-10 shrink-0 [--church-work-logo-frame:#3a302b] dark:[--church-work-logo-frame:#eae2de]" />
+              <ChurchWorkWordmarkSvg className="h-6 w-[168px] text-white dark:text-black" />
             </div>
             <div className="flex flex-row items-center gap-2 md:hidden">
               <ModeToggle />
