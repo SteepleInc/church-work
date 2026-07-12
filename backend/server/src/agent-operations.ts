@@ -1643,6 +1643,7 @@ const runTaskTool = (
             .limit(1),
         );
         if (existing) return json({ ok: true, tool, deduped: true, task: toTaskDto(existing) });
+        yield* Effect.promise(() => assertUserTaskCreationAllowed(services.db, churchId));
         const teamId = requireString(body, "teamId");
         const statusId = requireString(body, "workflowStatusId");
         const [team] = yield* Effect.promise(() =>
