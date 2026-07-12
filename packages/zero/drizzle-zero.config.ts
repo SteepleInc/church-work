@@ -28,6 +28,7 @@ export default drizzleZeroConfig(drizzleSchema, {
     member: true,
     notifications: true,
     organization: true,
+    subscription: true,
     task_comment_subscriptions: true,
     task_comments: true,
     task_drafts: true,

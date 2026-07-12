@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import {
   Calendar03Icon,
   CalendarSetting02Icon,
+  CreditCardIcon,
   Tag01Icon,
   UserGroupIcon,
 } from "@hugeicons/core-free-icons";
@@ -55,6 +56,11 @@ export const administrationNavGroup: SettingsNavGroup = {
       icon: <NavIcon icon={UserGroupIcon} />,
       title: "Members",
       to: "/settings/workspace/members",
+    },
+    {
+      icon: <NavIcon icon={CreditCardIcon} />,
+      title: "Billing",
+      to: "/settings/workspace/billing",
     },
     {
       icon: <NavIcon icon={Tag01Icon} />,

@@ -62,6 +62,13 @@ const TaskDraftByDraftIdArgs = toZeroSchema(Schema.Struct({ draft_id: Schema.Str
 const defineChurchWorkQuery = defineQueryWithType<ZeroSchema, OptionalZeroSessionContext>();
 
 export const queries = defineQueries({
+  subscription: {
+    by_church: defineChurchWorkQuery(ChurchScopedArgs, ({ args, ctx }) => {
+      requireActiveChurchAccess(ctx, args.church_id);
+
+      return zql.subscription.where("referenceId", args.church_id).one();
+    }),
+  },
   demo_items: {
     admin_all: defineChurchWorkQuery(({ ctx }) => {
       requireAppAdminSession(ctx);
