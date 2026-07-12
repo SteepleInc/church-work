@@ -64,7 +64,7 @@ describe("scheduled work", () => {
       await db.insert(organization).values({
         _tag: "org",
         churchTimeZone: "America/New_York",
-        completedOnboarding: true,
+        completedOnboarding: false,
         id: churchId,
         name: "Scheduled Work Church",
         slug: "scheduled-work-church",
@@ -353,9 +353,10 @@ describe("scheduled work", () => {
       expect(cycleRows.map((cycle) => cycle.start_date).sort()).toEqual([
         "2026-06-15",
         "2026-06-22",
+        "2026-06-29",
         "2026-07-06",
       ]);
-      expect(result.resultsByChurchId[`${churchId}_sparse`]?.ensuredCycleIds).toHaveLength(2);
+      expect(result.resultsByChurchId[`${churchId}_sparse`]?.ensuredCycleIds).toHaveLength(3);
       expect(result.resultsByChurchId[`${churchId}_sparse`]?.ensuredCycleIds).not.toContain(
         "cycle_authored_future",
       );
@@ -370,6 +371,7 @@ describe("scheduled work", () => {
       expect(secondCycleRows.map((cycle) => cycle.start_date).sort()).toEqual([
         "2026-06-15",
         "2026-06-22",
+        "2026-06-29",
         "2026-07-06",
       ]);
       expect(secondCycleRows.some((cycle) => cycle.id === "cycle_authored_future")).toBe(true);

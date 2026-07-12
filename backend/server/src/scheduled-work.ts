@@ -637,6 +637,7 @@ export const maintainCyclesForChurch = Effect.fn("maintainCyclesForChurch")(func
         const cycleLocalDates = [
           currentCycleFields.start_date,
           addLocalDateDays(currentCycleFields.start_date, 7),
+          addLocalDateDays(currentCycleFields.start_date, 14),
         ];
         const ensuredCycleIds: string[] = [];
         const createdCycleIds: string[] = [];

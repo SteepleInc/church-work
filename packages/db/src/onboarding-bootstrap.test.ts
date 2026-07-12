@@ -99,7 +99,7 @@ describe("onboarding product bootstrap", () => {
       expect(keyDateRows.map((keyDate) => JSON.parse(keyDate.schedule).kind)).toContain(
         "computedYearly",
       );
-      expect(cycleRows.map((cycle) => cycle.start_date).sort()).toHaveLength(2);
+      expect(cycleRows.map((cycle) => cycle.start_date).sort()).toHaveLength(3);
 
       await bootstrapChurchOnboarding(db, { church_id: churchId, user_id: userId });
       const secondCycleRows = await db.select().from(cycles).where(eq(cycles.church_id, churchId));
@@ -107,11 +107,12 @@ describe("onboarding product bootstrap", () => {
         .select()
         .from(key_dates)
         .where(eq(key_dates.church_id, churchId));
-      expect(secondCycleRows).toHaveLength(2);
+      expect(secondCycleRows).toHaveLength(3);
       expect(secondKeyDateRows).toHaveLength(STARTER_KEY_DATES.length);
       expect(secondCycleRows.map((cycle) => cycle.start_date).sort()).toEqual([
         currentCycleStartDate("America/New_York"),
         addLocalDateDays(currentCycleStartDate("America/New_York"), 7),
+        addLocalDateDays(currentCycleStartDate("America/New_York"), 14),
       ]);
     } finally {
       await pool.end();

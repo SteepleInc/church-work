@@ -34,12 +34,16 @@ import {
   workflows,
 } from "./schema";
 
-const currentAndNextCycleStartDates = (churchTimeZone: string, now = new Date()) => {
+const planningHorizonCycleStartDates = (churchTimeZone: string, now = new Date()) => {
   const currentCycleStartDate = cycleStartDateForLocalDate(
     localDateForInstant(now, churchTimeZone),
   );
 
-  return [currentCycleStartDate, addLocalDateDays(currentCycleStartDate, 7)] as const;
+  return [
+    currentCycleStartDate,
+    addLocalDateDays(currentCycleStartDate, 7),
+    addLocalDateDays(currentCycleStartDate, 14),
+  ] as const;
 };
 
 const buildOnboardingCycleInsert = (args: {
@@ -79,7 +83,7 @@ export const bootstrapChurchOnboarding = async (
       .limit(1);
     const churchTimeZone = church?.churchTimeZone ?? "America/New_York";
 
-    for (const startDate of currentAndNextCycleStartDates(churchTimeZone)) {
+    for (const startDate of planningHorizonCycleStartDates(churchTimeZone)) {
       await tx
         .insert(cycles)
         .values(
