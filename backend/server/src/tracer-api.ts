@@ -66,6 +66,41 @@ const getSessionContext = async (
 const toResponse = (result: unknown) =>
   result instanceof Response ? result : Response.json(result);
 
+const TEST_SUBSCRIPTION_STATUSES = new Set([
+  "active",
+  "canceled",
+  "incomplete",
+  "incomplete_expired",
+  "past_due",
+  "paused",
+  "trialing",
+  "unpaid",
+]);
+
+type TestSubscriptionState = {
+  readonly cancelAtPeriodEnd?: boolean;
+  readonly graceStartedAt?: number | null;
+  readonly periodEnd?: number | null;
+  readonly status?: string;
+  readonly stripeCustomerId?: string | null;
+};
+
+const isOptionalEpoch = (value: unknown): value is number | null | undefined =>
+  value == null || (typeof value === "number" && Number.isFinite(value));
+
+const isTestSubscriptionState = (value: unknown): value is TestSubscriptionState => {
+  if (typeof value !== "object" || value === null) return false;
+  const state = value as Record<string, unknown>;
+  return (
+    (state.cancelAtPeriodEnd === undefined || typeof state.cancelAtPeriodEnd === "boolean") &&
+    isOptionalEpoch(state.graceStartedAt) &&
+    isOptionalEpoch(state.periodEnd) &&
+    (state.status === undefined ||
+      (typeof state.status === "string" && TEST_SUBSCRIPTION_STATUSES.has(state.status))) &&
+    (state.stripeCustomerId == null || typeof state.stripeCustomerId === "string")
+  );
+};
+
 export const createTracerApi = (databaseUrl: string) => {
   const { db, pool } = createDb(databaseUrl);
   const otpStore = createLocalOtpStore();
@@ -312,13 +347,19 @@ export const createTracerApi = (databaseUrl: string) => {
           return Response.json({ error: "Active Church required" }, { status: 401 });
         }
 
-        const body = (await request.json()) as {
-          cancelAtPeriodEnd?: boolean;
-          graceStartedAt?: number | null;
-          periodEnd?: number | null;
-          status?: string;
-          stripeCustomerId?: string | null;
-        };
+        const [activeOrganization] = await db
+          .select({ slug: organization.slug })
+          .from(organization)
+          .where(eq(organization.id, activeOrganizationId))
+          .limit(1);
+        if (!activeOrganization?.slug?.startsWith("e2e-")) {
+          return Response.json({ error: "E2E Church required" }, { status: 403 });
+        }
+
+        const body: unknown = await request.json();
+        if (!isTestSubscriptionState(body)) {
+          return Response.json({ error: "Invalid subscription state" }, { status: 400 });
+        }
         const id = `e2e-subscription-${activeOrganizationId}`;
         await db
           .insert(subscription)
