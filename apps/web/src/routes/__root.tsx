@@ -12,6 +12,12 @@ import { getSidebarOpen } from "@/shared/sidebar-cookie";
 
 import "../index.css";
 
+const APP_NAME = "Church Work";
+const APP_TITLE = "Church Work — Shared task clarity for church teams";
+const APP_DESCRIPTION =
+  "Weeks, Templates & Teams. Coordinate recurring and project-based church work — without another spreadsheet — so every team knows what's next.";
+const APP_URL = "https://churchwork.ai";
+
 export const Route = createRootRoute({
   // Read presentation-preference cookies up front so the SSR first paint
   // matches the persisted state (e.g. sidebar expanded/collapsed) instead of
@@ -32,11 +38,79 @@ export const Route = createRootRoute({
           "width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content",
       },
       {
-        title: "church-work",
+        title: APP_TITLE,
       },
       {
         name: "description",
-        content: "church-work is a web application",
+        content: APP_DESCRIPTION,
+      },
+      {
+        property: "og:title",
+        content: APP_TITLE,
+      },
+      {
+        property: "og:description",
+        content: APP_DESCRIPTION,
+      },
+      {
+        property: "og:site_name",
+        content: APP_NAME,
+      },
+      {
+        property: "og:type",
+        content: "website",
+      },
+      {
+        property: "og:url",
+        content: APP_URL,
+      },
+      {
+        property: "og:image",
+        content: `${APP_URL}/opengraph.jpg`,
+      },
+      {
+        property: "og:image:type",
+        content: "image/jpeg",
+      },
+      {
+        property: "og:image:width",
+        content: "1200",
+      },
+      {
+        property: "og:image:height",
+        content: "630",
+      },
+      {
+        property: "og:image:alt",
+        content: APP_TITLE,
+      },
+      {
+        property: "og:locale",
+        content: "en_US",
+      },
+      {
+        name: "theme-color",
+        content: "#ffffff",
+      },
+      {
+        name: "twitter:card",
+        content: "summary_large_image",
+      },
+      {
+        name: "twitter:title",
+        content: APP_TITLE,
+      },
+      {
+        name: "twitter:description",
+        content: APP_DESCRIPTION,
+      },
+      {
+        name: "twitter:image",
+        content: `${APP_URL}/opengraph.jpg`,
+      },
+      {
+        name: "twitter:image:alt",
+        content: APP_TITLE,
       },
     ],
     links: [
@@ -63,6 +137,31 @@ export const Route = createRootRoute({
       {
         rel: "icon",
         href: "/favicon.ico",
+      },
+      {
+        rel: "icon",
+        type: "image/png",
+        sizes: "32x32",
+        href: "/favicon-32x32.png",
+      },
+      {
+        rel: "icon",
+        type: "image/png",
+        sizes: "16x16",
+        href: "/favicon-16x16.png",
+      },
+      {
+        rel: "apple-touch-icon",
+        sizes: "180x180",
+        href: "/apple-touch-icon.png",
+      },
+      {
+        rel: "manifest",
+        href: "/site.webmanifest",
+      },
+      {
+        rel: "canonical",
+        href: APP_URL,
       },
     ],
   }),
