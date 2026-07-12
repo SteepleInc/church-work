@@ -2,6 +2,7 @@ import { useHotkey } from "@tanstack/react-hotkeys";
 import { useNavigate } from "@tanstack/react-router";
 import { useAtom, useAtomValue } from "jotai";
 import { useMemo } from "react";
+import { toast } from "sonner";
 
 import {
   CommandDialog,
@@ -31,12 +32,15 @@ import {
   canManageChurchTeams,
 } from "@/features/quick-actions/quick-actions-utils";
 import type { QuickActionDefinition } from "@/features/quick-actions/quick-actions-types";
+import { useTaskUsagePolicy } from "@/features/billing/use-task-usage-policy";
+import { canManageSubscription } from "@/features/billing/billing-helpers";
 
 export function QuickActions() {
   const [quickActionsIsOpen, setQuickActionsIsOpen] = useAtom(quickActionsIsOpenAtom);
   const disableQuickActions = useAtomValue(disableQuickActionsAtom);
   const { currentOrgOpt: activeChurch } = useCurrentOrgOpt();
   const navigate = useNavigate();
+  const taskUsagePolicy = useTaskUsagePolicy();
   const {
     openCreateKeyDate,
     openCreateTask,
@@ -56,11 +60,25 @@ export function QuickActions() {
   // Linear-style "C" opens Create Task from anywhere. As a single key it
   // defaults to `ignoreInputs: true`, so the manager skips it while the user is
   // typing in an input, textarea, or contentEditable.
-  useHotkey("C", () => openCreateTask(), {
-    enabled: !disableQuickActions,
-    preventDefault: true,
-    requireReset: true,
-  });
+  useHotkey(
+    "C",
+    () => {
+      if (taskUsagePolicy.blocked) {
+        toast.error(
+          canManageSubscription(activeChurch?.role ?? "member")
+            ? "Task limit reached. Upgrade in Church Billing to create more Tasks."
+            : "Task limit reached. Ask a Church owner or admin to upgrade.",
+        );
+        return;
+      }
+      openCreateTask();
+    },
+    {
+      enabled: !disableQuickActions,
+      preventDefault: true,
+      requireReset: true,
+    },
+  );
 
   const activeChurchId = activeChurch?.id ?? null;
   const actions = useMemo(

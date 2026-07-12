@@ -10,6 +10,8 @@ import {
   type SchedulingRule,
   formatTaskIdentifier,
   generateTeamIdentifier,
+  isUserTaskCreationBlocked,
+  FREE_PLAN_TASK_LIMIT_ERROR,
   getLabelColorForName,
   getTeamColorForName,
   normalizeTeamIdentifier,
@@ -57,6 +59,7 @@ import {
   member,
   notifications,
   organization,
+  subscription,
   tasks,
   task_drafts,
   task_comment_subscriptions,
@@ -715,6 +718,57 @@ const executeInsertDoNothing = async (insert: unknown) => {
 const serverDb = (tx: { readonly location: string }) => {
   if (tx.location !== "server") return null;
   return (tx as typeof tx & ServerTx).dbTransaction.wrappedTransaction;
+};
+
+const assertUserTaskCreationAllowed = async (
+  db: ServerTx["dbTransaction"]["wrappedTransaction"],
+  churchId: string,
+) => {
+  const now = new Date();
+  const [subscriptionRow] = (await db
+    .select({
+      graceStartedAt: subscription.graceStartedAt,
+      periodEnd: subscription.periodEnd,
+      status: subscription.status,
+    })
+    .from(subscription)
+    .where(eq(subscription.referenceId, churchId))
+    .limit(1)) as Array<{
+    graceStartedAt: Date | null;
+    periodEnd: Date | null;
+    status: string;
+  }>;
+  if (
+    subscriptionRow &&
+    !isUserTaskCreationBlocked({ usage: 300, subscription: subscriptionRow, now })
+  )
+    return;
+
+  const candidates = (await db
+    .select({
+      cycleDeletedAt: cycles.deleted_at,
+      cycleEndsAt: cycles.ends_at,
+      deletedAt: tasks.deleted_at,
+      taskState: tasks.task_state,
+    })
+    .from(tasks)
+    .leftJoin(cycles, and(eq(tasks.cycle_id, cycles.id), eq(cycles.church_id, churchId)))
+    .where(and(eq(tasks.church_id, churchId), isNull(tasks.deleted_at)))) as Array<{
+    cycleDeletedAt: Date | null;
+    cycleEndsAt: Date | null;
+    deletedAt: Date | null;
+    taskState: string;
+  }>;
+  const usage = candidates.filter(
+    (task) =>
+      task.taskState !== "canceled" &&
+      (task.cycleEndsAt
+        ? !task.cycleDeletedAt && task.cycleEndsAt > now
+        : task.taskState === "todo"),
+  ).length;
+  if (isUserTaskCreationBlocked({ usage, subscription: subscriptionRow ?? null, now })) {
+    throw new Error(FREE_PLAN_TASK_LIMIT_ERROR);
+  }
 };
 
 const getChurchLabels = async (
@@ -4717,6 +4771,7 @@ export const mutators = defineMutators({
       const session = requireActiveChurchAccess(ctx, args.church_id);
       const title = args.title.trim();
       if (!title) throw new Error("Task title is required.");
+      await assertUserTaskCreationAllowed(db, args.church_id);
 
       if (args.draft_id) {
         const ownedDrafts = (await db
@@ -5043,6 +5098,7 @@ export const mutators = defineMutators({
           await db.update(tasks).set(patch).where(eq(tasks.id, existing[0].id));
           return;
         }
+        await assertUserTaskCreationAllowed(db, args.church_id);
 
         const [team] = (await db
           .select({ id: teams.id, next_task_number: teams.next_task_number })
