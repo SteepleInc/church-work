@@ -807,10 +807,11 @@ export function CreateTaskQuickAction() {
       if (!isEditable) return;
       // Only intercept fields that live inside this dialog's popup, not a
       // portaled picker input sitting above it.
-      if (!active.closest('[data-slot="dialog-content"]')) return;
+      const dialogContent = active.closest<HTMLElement>('[data-slot="dialog-content"]');
+      if (!dialogContent) return;
       event.preventDefault();
       event.stopPropagation();
-      active.blur();
+      dialogContent.focus();
     };
     document.addEventListener("keydown", onKeyDownCapture, true);
     return () => document.removeEventListener("keydown", onKeyDownCapture, true);
