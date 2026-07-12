@@ -69,6 +69,11 @@ import {
   useTaskDraft,
 } from "@/data/drafts/draftsData.app";
 import {
+  normalizeDraftEstimate,
+  normalizeDraftPriority,
+  parseDraftLabelIds,
+} from "@/features/drafts/task-draft-values";
+import {
   useCreateTaskMutation,
   useSaveTaskDraftMutation,
   useUpdateTaskDraftMutation,
@@ -1239,40 +1244,4 @@ export function CreateTaskQuickAction() {
       />
     </>
   );
-}
-
-function parseDraftLabelIds(raw: string | null | undefined): readonly string[] {
-  try {
-    const parsed = JSON.parse(raw ?? "[]");
-    return Array.isArray(parsed)
-      ? parsed.filter((value): value is string => typeof value === "string")
-      : [];
-  } catch {
-    return [];
-  }
-}
-
-function normalizeDraftPriority(value: string | null | undefined): TaskPriority {
-  switch (value) {
-    case "urgent":
-    case "high":
-    case "medium":
-    case "low":
-      return value;
-    default:
-      return "no_priority";
-  }
-}
-
-function normalizeDraftEstimate(value: string | null | undefined): TaskEstimate {
-  switch (value) {
-    case "xs":
-    case "s":
-    case "m":
-    case "l":
-    case "xl":
-      return value;
-    default:
-      return "no_estimate";
-  }
 }

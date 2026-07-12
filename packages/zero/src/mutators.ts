@@ -77,6 +77,12 @@ import {
   workflows,
 } from "@church-work/db/schema";
 import { requireActiveChurchAccess, requireSignedInSession } from "./session-context";
+
+const requireSessionActiveChurch = (ctx: Parameters<typeof requireSignedInSession>[0]) => {
+  const session = requireSignedInSession(ctx);
+  if (!session.active_church_id) throw new Error("Active Church required.");
+  return { churchId: session.active_church_id, session };
+};
 import { toZeroSchema } from "./effect-schema";
 import { buildNotificationPlans } from "./notification-triggers";
 import { extractDescriptionMentions } from "./description-mentions";
@@ -211,7 +217,7 @@ const TaskFieldsArg = Schema.Struct({
 const CreateTaskArgs = toZeroSchema(
   Schema.Struct({
     assigned_user_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
-    church_id: Schema.String,
+    church_id: Schema.optional(Schema.String),
     draft_id: Schema.optional(Schema.String),
     description: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
     due_date: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
@@ -237,17 +243,11 @@ const TaskDraftFieldsArg = Schema.Struct({
   title: Schema.optional(Schema.String),
   workflow_status_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
 });
-const SaveTaskDraftArgs = toZeroSchema(
-  Schema.Struct({ church_id: Schema.String, ...TaskDraftFieldsArg.fields }),
-);
-const DraftIdArgs = toZeroSchema(
-  Schema.Struct({ church_id: Schema.String, draft_id: Schema.String }),
-);
-const DraftIdsArgs = toZeroSchema(
-  Schema.Struct({ church_id: Schema.String, draft_ids: Schema.Array(Schema.String) }),
-);
+const SaveTaskDraftArgs = toZeroSchema(Schema.Struct({ ...TaskDraftFieldsArg.fields }));
+const DraftIdArgs = toZeroSchema(Schema.Struct({ draft_id: Schema.String }));
+const DraftIdsArgs = toZeroSchema(Schema.Struct({ draft_ids: Schema.Array(Schema.String) }));
 const UpdateTaskDraftArgs = toZeroSchema(
-  Schema.Struct({ church_id: Schema.String, draft_id: Schema.String, fields: TaskDraftFieldsArg }),
+  Schema.Struct({ draft_id: Schema.String, fields: TaskDraftFieldsArg }),
 );
 const UpdateTaskArgs = toZeroSchema(
   Schema.Struct({ church_id: Schema.String, fields: TaskFieldsArg, task_id: Schema.String }),
@@ -2351,8 +2351,7 @@ export const mutators = defineMutators({
       const db = serverDb(tx);
       if (!db) return;
 
-      const session = requireActiveChurchAccess(ctx, args.church_id);
-      const churchId = args.church_id;
+      const { churchId, session } = requireSessionActiveChurch(ctx);
 
       const now = new Date();
       const draftId = getDraftId();
@@ -2399,8 +2398,7 @@ export const mutators = defineMutators({
       const db = serverDb(tx);
       if (!db) return;
 
-      const session = requireActiveChurchAccess(ctx, args.church_id);
-      const churchId = args.church_id;
+      const { churchId, session } = requireSessionActiveChurch(ctx);
 
       const now = new Date();
       await db
@@ -2443,8 +2441,7 @@ export const mutators = defineMutators({
       const db = serverDb(tx);
       if (!db) return;
 
-      const session = requireActiveChurchAccess(ctx, args.church_id);
-      const churchId = args.church_id;
+      const { churchId, session } = requireSessionActiveChurch(ctx);
 
       const now = new Date();
       const scope = and(
@@ -2484,8 +2481,7 @@ export const mutators = defineMutators({
       const db = serverDb(tx);
       if (!db || args.draft_ids.length === 0) return;
 
-      const session = requireActiveChurchAccess(ctx, args.church_id);
-      const churchId = args.church_id;
+      const { churchId, session } = requireSessionActiveChurch(ctx);
 
       const now = new Date();
       await db
@@ -2525,8 +2521,7 @@ export const mutators = defineMutators({
       const db = serverDb(tx);
       if (!db || args.draft_ids.length === 0) return;
 
-      const session = requireActiveChurchAccess(ctx, args.church_id);
-      const churchId = args.church_id;
+      const { churchId, session } = requireSessionActiveChurch(ctx);
 
       const now = new Date();
       await db
@@ -4757,10 +4752,16 @@ export const mutators = defineMutators({
       const db = serverDb(tx);
       if (!db) return;
 
-      const session = requireActiveChurchAccess(ctx, args.church_id);
+      if (!args.draft_id && !args.church_id) throw new Error("Church is required.");
+      const { churchId, session } = args.draft_id
+        ? requireSessionActiveChurch(ctx)
+        : {
+            churchId: args.church_id as string,
+            session: requireActiveChurchAccess(ctx, args.church_id as string),
+          };
       const title = args.title.trim();
       if (!title) throw new Error("Task title is required.");
-      await assertUserTaskCreationAllowed(db, args.church_id);
+      await assertUserTaskCreationAllowed(db, churchId);
 
       if (args.draft_id) {
         const ownedDrafts = (await db
@@ -4769,7 +4770,7 @@ export const mutators = defineMutators({
           .where(
             and(
               eq(drafts.id, args.draft_id),
-              eq(drafts.church_id, args.church_id),
+              eq(drafts.church_id, churchId),
               eq(drafts.owner_user_id, session.user_id),
               isNull(drafts.deleted_at),
             ),
@@ -4787,7 +4788,7 @@ export const mutators = defineMutators({
         .where(
           and(
             eq(workflow_statuses.id, args.workflow_status_id),
-            eq(workflow_statuses.church_id, args.church_id),
+            eq(workflow_statuses.church_id, churchId),
             isNull(workflow_statuses.deleted_at),
           ),
         )) as Array<{
@@ -4806,11 +4807,7 @@ export const mutators = defineMutators({
         })
         .from(teams)
         .where(
-          and(
-            eq(teams.id, args.team_id),
-            eq(teams.church_id, args.church_id),
-            isNull(teams.deleted_at),
-          ),
+          and(eq(teams.id, args.team_id), eq(teams.church_id, churchId), isNull(teams.deleted_at)),
         )) as Array<{
         readonly id: string;
         readonly identifier: string;
@@ -4826,7 +4823,7 @@ export const mutators = defineMutators({
           and(
             eq(workflows.id, status.workflow_id),
             eq(workflows.team_id, team.id),
-            eq(workflows.church_id, args.church_id),
+            eq(workflows.church_id, churchId),
             isNull(workflows.deleted_at),
           ),
         )) as Array<{ readonly id: string }>;
@@ -4834,7 +4831,7 @@ export const mutators = defineMutators({
         throw new Error("Workflow Status is not in the Team Workflow.");
 
       const labelIds = args.label_ids ?? [];
-      validateTaskLabelIds(await getChurchLabels(db, args.church_id), {
+      validateTaskLabelIds(await getChurchLabels(db, churchId), {
         label_ids: labelIds,
         team_id: team.id,
       });
@@ -4856,19 +4853,19 @@ export const mutators = defineMutators({
       let cycleId: string | null = null;
       if (args.target_cycle) {
         cycleId = await ensureTargetCycle(db, {
-          church_id: args.church_id,
+          church_id: churchId,
           session_user_id: session.user_id,
           target_cycle: args.target_cycle,
         });
       } else if (status.task_state !== "todo") {
-        cycleId = await requireCurrentCycleId(db, args.church_id);
+        cycleId = await requireCurrentCycleId(db, churchId);
       }
 
       await db.insert(tasks).values({
         _tag: "task",
         assigned_user_id: args.assigned_user_id ?? null,
         board_order: boardOrder,
-        church_id: args.church_id,
+        church_id: churchId,
         created_at: now,
         created_by: session.user_id,
         created_by_user_id: session.user_id,
@@ -4907,7 +4904,7 @@ export const mutators = defineMutators({
 
       await writeActivity(db, {
         actor_id: session.user_id,
-        church_id: args.church_id,
+        church_id: churchId,
         cycle_id: cycleId,
         entity_id: taskId,
         entity_type: "task",
@@ -4918,7 +4915,7 @@ export const mutators = defineMutators({
 
       const { newly_mentioned_task_ids, newly_mentioned_user_ids } = await syncTaskMentions(db, {
         actor_id: session.user_id,
-        church_id: args.church_id,
+        church_id: churchId,
         description: args.description ?? null,
         occurred_at: now,
         source_task_id: taskId,
@@ -4926,7 +4923,7 @@ export const mutators = defineMutators({
       const taskIdentifier = formatTaskIdentifier(team.identifier, team.next_task_number);
       await notifyTaskMentions(db, {
         actor_id: session.user_id,
-        church_id: args.church_id,
+        church_id: churchId,
         cycle_id: cycleId,
         newly_mentioned_user_ids,
         occurred_at: now,
@@ -4936,7 +4933,7 @@ export const mutators = defineMutators({
       });
       await logTaskBacklinks(db, {
         actor_id: session.user_id,
-        church_id: args.church_id,
+        church_id: churchId,
         newly_mentioned_task_ids,
         occurred_at: now,
         source_task_id: taskId,
@@ -4956,7 +4953,7 @@ export const mutators = defineMutators({
           .where(
             and(
               eq(task_drafts.draft_id, args.draft_id),
-              eq(task_drafts.church_id, args.church_id),
+              eq(task_drafts.church_id, churchId),
               eq(task_drafts.owner_user_id, session.user_id),
               isNull(task_drafts.deleted_at),
             ),
@@ -4972,7 +4969,7 @@ export const mutators = defineMutators({
           .where(
             and(
               eq(drafts.id, args.draft_id),
-              eq(drafts.church_id, args.church_id),
+              eq(drafts.church_id, churchId),
               eq(drafts.owner_user_id, session.user_id),
               isNull(drafts.deleted_at),
             ),

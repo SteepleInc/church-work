@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useSetAtom } from "jotai";
 import { FileTextIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -34,7 +33,7 @@ import {
 } from "@/data/drafts/draftsData.app";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { DraftCard } from "@/features/drafts/draft-card";
-import { createTaskQuickActionStateAtom } from "@/features/quick-actions/create-task-quick-action";
+import { useQuickActionOpeners } from "@/features/quick-actions/quick-actions-state";
 
 export const Route = createFileRoute("/_org/drafts")({ component: DraftsPage });
 
@@ -46,9 +45,8 @@ function DraftsPage() {
   const discardDraft = useDiscardDraftMutation();
   const discardAll = useDiscardAllDraftsMutation();
   const restoreDrafts = useRestoreDraftsMutation();
-  const openCreateTask = useSetAtom(createTaskQuickActionStateAtom);
+  const { openTaskDraft } = useQuickActionOpeners();
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [pendingDiscardId, setPendingDiscardId] = useState<string | null>(null);
   const [discardingDraftIds, setDiscardingDraftIds] = useState(() => new Set<string>());
 
   const visibleDrafts = collection.filter((draft) => !discardingDraftIds.has(draft.draft_id));
@@ -113,7 +111,7 @@ function DraftsPage() {
   }
 
   function onOpenDraft(draftId: string) {
-    openCreateTask({ assignTo: null, draftId });
+    openTaskDraft({ draftId });
   }
 
   return (
@@ -153,15 +151,11 @@ function DraftsPage() {
                 <FileTextIcon />
               </EmptyMedia>
               <EmptyTitle>No active drafts</EmptyTitle>
-              <EmptyDescription>
-                Start a New Task and choose Save to drafts to keep it for later. Your saved drafts
-                land here, ready to finish whenever you are.
-              </EmptyDescription>
+              <EmptyDescription>Saved drafts will appear here.</EmptyDescription>
             </EmptyHeader>
           </Empty>
         ) : (
           <section className="flex flex-col gap-2">
-            <h2 className="font-medium text-muted-foreground text-sm">Issues</h2>
             {/* A responsive column grid: each column caps at 540px, and the
                 grid packs as many 540px columns as fit, Linear-style. */}
             <div className="grid grid-cols-[repeat(auto-fill,minmax(0,540px))] gap-3">
@@ -169,7 +163,7 @@ function DraftsPage() {
                 <DraftCard
                   churchId={churchId}
                   key={draft.draft_id}
-                  onDiscard={setPendingDiscardId}
+                  onDiscard={(draftId) => void onDiscardOne(draftId)}
                   onOpen={onOpenDraft}
                   taskDraft={draft}
                 />
@@ -185,17 +179,11 @@ function DraftsPage() {
             <AlertDialogMedia>
               <Trash2Icon />
             </AlertDialogMedia>
-            <AlertDialogTitle>
-              {count === 1 ? "Discard this draft?" : `Discard all ${count} drafts?`}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {count === 1
-                ? "This draft leaves your Drafts. You can undo right after."
-                : "Every draft leaves your Drafts. You can undo right after."}
-            </AlertDialogDescription>
+            <AlertDialogTitle>Discard all drafts?</AlertDialogTitle>
+            <AlertDialogDescription>All your drafts will be discarded.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{count === 1 ? "Keep it" : "Keep them"}</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault();
@@ -203,38 +191,7 @@ function DraftsPage() {
               }}
               variant="destructive"
             >
-              {count === 1 ? "Discard draft" : "Discard all"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog
-        onOpenChange={(open) => {
-          if (!open) setPendingDiscardId(null);
-        }}
-        open={pendingDiscardId !== null}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogMedia>
-              <Trash2Icon />
-            </AlertDialogMedia>
-            <AlertDialogTitle>Discard this draft?</AlertDialogTitle>
-            <AlertDialogDescription>Your draft will be deleted.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(event) => {
-                event.preventDefault();
-                const draftId = pendingDiscardId;
-                setPendingDiscardId(null);
-                if (draftId) void onDiscardOne(draftId);
-              }}
-              variant="destructive"
-            >
-              Discard
+              Discard all
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -246,7 +203,6 @@ function DraftsPage() {
 function DraftsSkeleton() {
   return (
     <section className="flex flex-col gap-2" aria-hidden>
-      <Skeleton className="h-4 w-12" />
       <div className="grid grid-cols-[repeat(auto-fill,minmax(0,540px))] gap-3">
         {[0, 1, 2].map((row) => (
           <div className="rounded-xl border bg-card p-4 shadow-xs" key={row}>
