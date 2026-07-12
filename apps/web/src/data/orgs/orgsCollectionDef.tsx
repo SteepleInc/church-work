@@ -161,6 +161,26 @@ export const orgsColumnsDef: Array<ColumnDef<OrgCollectionItem>> = [
     size: 320,
   },
   {
+    accessorKey: "billing.plan",
+    cell: ({ row }) => <Badge variant="outline">{row.original.billing?.plan ?? "Free"}</Badge>,
+    enableHiding: false,
+    enableSorting: false,
+    header: ({ column }) => <ColumnHeader column={column}>Plan</ColumnHeader>,
+    id: "plan",
+    minSize: 90,
+    size: 100,
+  },
+  {
+    accessorKey: "billing.status",
+    cell: ({ row }) => formatSubscriptionStatus(row.original.billing?.status ?? null),
+    enableHiding: false,
+    enableSorting: false,
+    header: ({ column }) => <ColumnHeader column={column}>Subscription</ColumnHeader>,
+    id: "subscriptionStatus",
+    minSize: 120,
+    size: 140,
+  },
+  {
     accessorKey: "slug",
     cell: ({ row }) => row.original.slug ?? "-",
     enableHiding: false,
@@ -262,3 +282,8 @@ export const orgsColumnsDef: Array<ColumnDef<OrgCollectionItem>> = [
     size: 150,
   },
 ];
+
+export function formatSubscriptionStatus(status: string | null) {
+  if (!status) return "No subscription";
+  return status.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
+}

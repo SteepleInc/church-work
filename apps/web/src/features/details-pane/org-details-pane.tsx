@@ -1,4 +1,5 @@
 import { useOrgData } from "@/data/orgs/orgData.app";
+import { useAdminOrgData } from "@/data/orgs/orgsData.app";
 import type { DetailsPaneOrg } from "@/components/details-pane/details-pane-types";
 import {
   DetailItem,
@@ -11,7 +12,12 @@ import { BaseAvatar } from "@/components/avatars/baseAvatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatCreatedAt, formatDisplayUrl } from "@/data/orgs/orgsCollectionDef";
+import {
+  formatCreatedAt,
+  formatDisplayUrl,
+  formatSubscriptionStatus,
+} from "@/data/orgs/orgsCollectionDef";
+import { formatBillingDate } from "@/features/billing/billing-helpers";
 import type { OrgCollectionItem } from "@/data/orgs/orgsData.app";
 import { OrgActions } from "@/features/actions/orgActions";
 
@@ -22,7 +28,10 @@ export function OrgDetailsPane({
   readonly orgId: string;
   readonly tab: DetailsPaneOrg["tab"];
 }) {
-  const { orgOpt: org, loading } = useOrgData({ orgId });
+  const userOrgData = useOrgData({ orgId });
+  const adminOrgData = useAdminOrgData({ orgId });
+  const org = adminOrgData.orgOpt ?? userOrgData.orgOpt;
+  const loading = adminOrgData.orgOpt ? adminOrgData.loading : userOrgData.loading;
 
   return (
     <DetailsShell
@@ -140,11 +149,47 @@ function OrgDetailsContent({ org }: OrgDetailsContentProps) {
         <DetailItem label="Members" value={org.membersCount ?? 0} />
       </DetailSection>
 
+      <DetailSection title="Billing (read-only)">
+        <DetailItem
+          label="Plan"
+          value={<Badge variant="outline">{org.billing?.plan ?? "Free"}</Badge>}
+        />
+        <DetailItem
+          label="Stripe Subscription Status"
+          value={formatSubscriptionStatus(org.billing?.status ?? null)}
+        />
+        <DetailItem label="Task Usage" value={org.billing?.taskUsage ?? 0} />
+        <DetailItem
+          label="Renewal / Period End"
+          value={formatOptionalBillingDate(org.billing?.periodEnd)}
+        />
+        <DetailItem
+          label="Cancellation Date"
+          value={formatOptionalBillingDate(org.billing?.cancelAt)}
+        />
+        <DetailItem
+          label="Payment Grace Period Expiry"
+          value={formatOptionalBillingDate(org.billing?.graceEndsAt)}
+        />
+        <DetailItem
+          label="Canceled At"
+          value={formatOptionalBillingDate(org.billing?.canceledAt)}
+        />
+        <DetailItem label="Ended At" value={formatOptionalBillingDate(org.billing?.endedAt)} />
+        <p className="text-xs text-muted-foreground">
+          Subscription changes and payment recovery are handled in Stripe.
+        </p>
+      </DetailSection>
+
       <DetailSection title="Created">
         <DetailItem label="Created At" value={formatCreatedAt(org.createdAt)} />
       </DetailSection>
     </>
   );
+}
+
+function formatOptionalBillingDate(value: number | null | undefined) {
+  return value == null ? "Not present" : formatBillingDate(value);
 }
 
 function formatAddress(org: {

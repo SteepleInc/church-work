@@ -119,6 +119,26 @@ describe("Zero product queries", () => {
         },
       }),
     ).toThrow("App Administrator access required.");
+
+    for (const name of [
+      "subscription.admin_all",
+      "subscription.admin_by_church",
+      "cycles.admin_by_church",
+      "tasks.admin_by_church",
+    ] as const) {
+      expect(() =>
+        mustGetQuery(queries, name).fn({
+          args: { church_id: "org_other" },
+          ctx: memberContext,
+        }),
+      ).toThrow("App Administrator access required.");
+      expect(() =>
+        mustGetQuery(queries, name).fn({
+          args: { church_id: "org_other" },
+          ctx: appAdminContext,
+        }),
+      ).not.toThrow();
+    }
   });
 
   test("derives Draft query scope from the signed-in session", () => {

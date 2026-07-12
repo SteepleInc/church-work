@@ -7,6 +7,7 @@ const orgDetailsPaneSource = await Bun.file(
 describe("org details pane", () => {
   test("renders the PreachX-style org pane slots and detail sections", () => {
     expect(orgDetailsPaneSource).toContain("<DetailsShell");
+    expect(orgDetailsPaneSource).toContain("useAdminOrgData({ orgId })");
     expect(orgDetailsPaneSource).toContain("topBarButtons={<OrgTopBarButtons orgId={orgId} />}");
     expect(orgDetailsPaneSource).toContain('<OrgActions orgId={orgId} mode="details-pane" />');
     expect(orgDetailsPaneSource).toContain("tabBar={<OrgDetailsTabBar activeTab={tab} />}");
@@ -16,5 +17,11 @@ describe("org details pane", () => {
     expect(orgDetailsPaneSource).toContain('title="Onboarding"');
     expect(orgDetailsPaneSource).toContain('title="Members"');
     expect(orgDetailsPaneSource).toContain('title="Created"');
+    expect(orgDetailsPaneSource).toContain('title="Billing (read-only)"');
+    expect(orgDetailsPaneSource).toContain('label="Task Usage"');
+    expect(orgDetailsPaneSource).toContain('label="Payment Grace Period Expiry"');
+    expect(orgDetailsPaneSource).toContain('value == null ? "Not present"');
+    expect(orgDetailsPaneSource).not.toContain("Customer Portal");
+    expect(orgDetailsPaneSource).not.toContain("Upgrade");
   });
 });
