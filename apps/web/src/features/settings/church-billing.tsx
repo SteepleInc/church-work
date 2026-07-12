@@ -7,6 +7,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { Subscription } from "@church-work/zero";
+import { hasPaidEntitlements, paymentGraceEndsAt } from "@church-work/domain";
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
@@ -19,9 +20,6 @@ import { useCurrentOrgOpt, type CurrentOrg } from "@/data/orgs/orgData.app";
 import { SettingsSection } from "@/features/settings/settings-page";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
-
-/** Webhook statuses that keep Paid Plan access, including the Payment Grace Period. */
-const PAID_STATUSES = new Set(["active", "trialing", "past_due"]);
 
 const PAID_PRICE = "$19.99";
 const PAID_PRICE_NOTE = "USD per Church per week, tax inclusive";
@@ -91,8 +89,9 @@ function BillingPanel({
   }
 
   const canManage = canManageSubscription(activeChurch.role);
-  const isPaid = Boolean(subscriptionOpt && PAID_STATUSES.has(subscriptionOpt.status ?? ""));
-  const isPastDue = isPaid && subscriptionOpt?.status === "past_due";
+  const isPaid = hasPaidEntitlements(subscriptionOpt ?? null);
+  const isPastDue = subscriptionOpt?.status === "past_due";
+  const graceEndsAt = subscriptionOpt ? paymentGraceEndsAt(subscriptionOpt) : null;
   const hasStripeCustomer = Boolean(subscriptionOpt?.stripeCustomerId);
   const billingUrl = `${window.location.origin}/settings/workspace/billing`;
 
@@ -186,12 +185,22 @@ function BillingPanel({
           <HugeiconsIcon icon={CreditCardIcon} strokeWidth={2} />
           <AlertTitle>Payment past due</AlertTitle>
           <AlertDescription>
-            The latest payment for the Paid Plan didn't go through. Paid access continues during the
-            two-week Payment Grace Period
+            The latest payment for the Paid Plan didn't go through. Unlimited access
+            {graceEndsAt ? ` ends ${formatDate(graceEndsAt)}` : " is paused until payment recovers"}
             {canManage
-              ? " — update the payment method in Manage billing to keep it."
-              : ". A Church owner or admin can update the payment method from this page."}
+              ? " — fix payment in the Customer Portal to keep it."
+              : ". A Church owner or admin can fix payment; no payment details are shown to members."}
           </AlertDescription>
+          {canManage && hasStripeCustomer ? (
+            <Button
+              className="mt-3"
+              onClick={() => void openPortal()}
+              type="button"
+              variant="outline"
+            >
+              Fix payment
+            </Button>
+          ) : null}
         </Alert>
       ) : null}
 
