@@ -63,6 +63,7 @@
     "test:cli": "turbo -F @church-work/cli test:cli",
     "test:e2e": "bun --env-file=.env.e2e playwright test --workers=1",
     "test:e2e:onboarding": "bun --env-file=.env.e2e playwright test tests/e2e/onboarding-new-stack.spec.ts --workers=1",
+    "test:e2e:billing": "bun --env-file=.env.e2e playwright test tests/e2e/billing-new-stack.spec.ts --workers=1",
     "test:e2e:labels": "bun --env-file=.env.e2e playwright test tests/e2e/labels-new-stack.spec.ts --workers=1",
     "test:e2e:tasks-boards": "bun --env-file=.env.e2e playwright test tests/e2e/tasks-boards-new-stack.spec.ts --workers=1",
     "test:e2e:task-list-scroll": "bun --env-file=.env.e2e playwright test tests/e2e/task-list-scroll-sections-new-stack.spec.ts --workers=1",

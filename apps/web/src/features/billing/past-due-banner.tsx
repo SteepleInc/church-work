@@ -36,6 +36,13 @@ export function PastDueBanner() {
   const graceEndsAt = paymentGraceEndsAt(subscriptionOpt);
   const graceActive = hasPaidEntitlements(subscriptionOpt);
 
+  // Better Auth persists the status before invoking the lifecycle callback.
+  // Avoid briefly claiming that access has expired while the stable grace
+  // timestamp is still being written and streamed back through Zero.
+  if (graceEndsAt === null) {
+    return null;
+  }
+
   return (
     <div
       className={cn(
@@ -44,7 +51,7 @@ export function PastDueBanner() {
           ? "border-amber-500/20 bg-amber-500/10"
           : "border-destructive/20 bg-destructive/5",
       )}
-      role="status"
+      role={graceActive ? "status" : "alert"}
     >
       <HugeiconsIcon
         className={cn(

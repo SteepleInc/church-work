@@ -9,6 +9,7 @@ export function formatBillingDate(epochMs: number): string {
   return new Date(epochMs).toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
+    timeZone: "UTC",
     year: "numeric",
   });
 }

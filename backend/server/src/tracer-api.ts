@@ -7,6 +7,7 @@ import {
   notifications,
   organization,
   session as sessionTable,
+  subscription,
   tasks,
   teams,
   user,
@@ -177,6 +178,7 @@ export const createTracerApi = (databaseUrl: string) => {
           churchName?: string;
           email?: string;
           role?: string | null;
+          churchRole?: "admin" | "member" | "owner";
           userName?: string;
         };
         const email = body.email?.trim().toLowerCase();
@@ -270,6 +272,17 @@ export const createTracerApi = (databaseUrl: string) => {
             .where(eq(sessionTable.id, authSession.session.id));
         }
 
+        if (body.churchRole && body.churchRole !== "owner") {
+          await db
+            .update(member)
+            .set({ role: body.churchRole })
+            .where(and(eq(member.organizationId, org.id), eq(member.userId, authSession.user.id)));
+          await db
+            .update(sessionTable)
+            .set({ orgRole: body.churchRole })
+            .where(eq(sessionTable.id, authSession.session.id));
+        }
+
         return Response.json(
           {
             church: { id: org.id, name: churchName },
@@ -278,6 +291,60 @@ export const createTracerApi = (databaseUrl: string) => {
           },
           { headers: { "set-cookie": sessionCookie } },
         );
+      },
+    });
+
+  const handleSetTestSubscription = (request: Request) =>
+    Effect.tryPromise({
+      catch: (cause) => cause,
+      try: async () => {
+        const authSession = await authRuntime.auth.api.getSession({ headers: request.headers });
+        if (!authSession) {
+          return Response.json({ error: "Active Church required" }, { status: 401 });
+        }
+        const activeOrganizationId = (
+          authSession.session as typeof authSession.session & {
+            readonly activeOrganizationId?: string | null;
+          }
+        ).activeOrganizationId;
+
+        if (!activeOrganizationId) {
+          return Response.json({ error: "Active Church required" }, { status: 401 });
+        }
+
+        const body = (await request.json()) as {
+          cancelAtPeriodEnd?: boolean;
+          graceStartedAt?: number | null;
+          periodEnd?: number | null;
+          status?: string;
+          stripeCustomerId?: string | null;
+        };
+        const id = `e2e-subscription-${activeOrganizationId}`;
+        await db
+          .insert(subscription)
+          .values({
+            cancelAtPeriodEnd: body.cancelAtPeriodEnd ?? false,
+            graceStartedAt: body.graceStartedAt == null ? null : new Date(body.graceStartedAt),
+            id,
+            periodEnd: body.periodEnd == null ? null : new Date(body.periodEnd),
+            plan: "paid",
+            referenceId: activeOrganizationId,
+            status: body.status ?? "active",
+            stripeCustomerId: body.stripeCustomerId ?? "cus_e2e",
+            stripeSubscriptionId: `sub_e2e_${activeOrganizationId}`,
+          })
+          .onConflictDoUpdate({
+            set: {
+              cancelAtPeriodEnd: body.cancelAtPeriodEnd ?? false,
+              graceStartedAt: body.graceStartedAt == null ? null : new Date(body.graceStartedAt),
+              periodEnd: body.periodEnd == null ? null : new Date(body.periodEnd),
+              status: body.status ?? "active",
+              stripeCustomerId: body.stripeCustomerId ?? "cus_e2e",
+            },
+            target: subscription.id,
+          });
+
+        return Response.json({ ok: true });
       },
     });
 
@@ -532,6 +599,9 @@ export const createTracerApi = (databaseUrl: string) => {
       }
       if (url.pathname === "/api/test/session" && request.method === "POST") {
         return { effect: handleCreateTestSession(request), name: "test.session" };
+      }
+      if (url.pathname === "/api/test/subscription" && request.method === "POST") {
+        return { effect: handleSetTestSubscription(request), name: "test.subscription" };
       }
       if (url.pathname === "/api/test/notifications" && request.method === "POST") {
         return { effect: handleCreateTestNotification(request), name: "test.notifications" };
