@@ -411,7 +411,8 @@ describe("scheduled work", () => {
         .from(cycles)
         .where(eq(cycles.church_id, `${churchId}_sparse`));
 
-      expect(secondResult.resultsByChurchId[`${churchId}_sparse`]?.createdCycleIds).toEqual([]);
+      expect(secondResult.maintainedChurchIds).toEqual([]);
+      expect(secondResult.resultsByChurchId[`${churchId}_sparse`]).toBeUndefined();
       expect(secondCycleRows.map((cycle) => cycle.start_date).sort()).toEqual([
         "2026-06-15",
         "2026-06-22",
