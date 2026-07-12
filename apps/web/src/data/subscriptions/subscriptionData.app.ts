@@ -1,4 +1,4 @@
-import { queries, type Subscription } from "@church-work/zero";
+import { queries } from "@church-work/zero";
 import { useQuery } from "@rocicorp/zero/react";
 
 const NO_ACTIVE_CHURCH_ID = "__no_church__";
@@ -15,6 +15,6 @@ export function useChurchSubscription(params: { readonly churchId: string | null
 
   return {
     loading: params.churchId !== null && result.type !== "complete",
-    subscriptionOpt: (subscription ?? null) as Subscription | null,
+    subscriptionOpt: subscription ?? null,
   };
 }

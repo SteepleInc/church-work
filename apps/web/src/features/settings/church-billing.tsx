@@ -38,6 +38,26 @@ function formatDate(epochMs: number): string {
   });
 }
 
+function getRenewalLine({
+  cancelAtPeriodEnd,
+  isPaid,
+  periodEnd,
+}: {
+  readonly cancelAtPeriodEnd: boolean;
+  readonly isPaid: boolean;
+  readonly periodEnd: number | null;
+}): string | null {
+  if (!isPaid || !periodEnd) {
+    return null;
+  }
+
+  if (cancelAtPeriodEnd) {
+    return `Paid access ends ${formatDate(periodEnd)}, then this Church returns to the Free Plan.`;
+  }
+
+  return `Renews ${formatDate(periodEnd)}.`;
+}
+
 export function ChurchBilling({
   checkoutComplete = false,
 }: {
@@ -261,13 +281,7 @@ function CurrentPlanRow({
   const cancelAtPeriodEnd = Boolean(subscriptionOpt?.cancelAtPeriodEnd);
   const periodEnd = subscriptionOpt?.periodEnd ?? null;
 
-  const renewalLine = !isPaid
-    ? null
-    : cancelAtPeriodEnd && periodEnd
-      ? `Paid access ends ${formatDate(periodEnd)}, then this Church returns to the Free Plan.`
-      : periodEnd
-        ? `Renews ${formatDate(periodEnd)}.`
-        : null;
+  const renewalLine = getRenewalLine({ cancelAtPeriodEnd, isPaid, periodEnd });
 
   return (
     <div className="flex flex-col justify-between gap-4 py-4 sm:flex-row sm:items-center sm:gap-6">

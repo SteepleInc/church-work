@@ -215,14 +215,18 @@ describe("Better Auth Postgres foundation", () => {
 
       expect(created.error).toBeNull();
       expect(created.data?.id).toEqual(expect.stringMatching(/^org_/));
+      if (!created.data) {
+        throw new Error("Expected organization creation to return data");
+      }
+
       await expect(
-        db.select().from(subscription).where(eq(subscription.referenceId, created.data!.id)),
+        db.select().from(subscription).where(eq(subscription.referenceId, created.data.id)),
       ).resolves.toHaveLength(0);
       await expect(
         db
           .select({ stripeCustomerId: organization.stripeCustomerId })
           .from(organization)
-          .where(eq(organization.id, created.data!.id)),
+          .where(eq(organization.id, created.data.id)),
       ).resolves.toEqual([{ stripeCustomerId: null }]);
 
       const session = await authClient.getSession({ fetchOptions: { headers: cookieHeaders } });
