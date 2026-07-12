@@ -1,6 +1,16 @@
-import { expect, type Page, test } from "@playwright/test";
+import { randomUUID } from "node:crypto";
 
-import { startAuthenticatedSession } from "./helpers";
+import { expect } from "@playwright/test";
+
+import { createAuthenticatedTest } from "./authenticated-test";
+import { createTaskAndOpenDetails, taskDetailsPane } from "./task-details-helpers";
+
+const test = createAuthenticatedTest({
+  churchNamePrefix: "E2E Details Pickers Church",
+  emailPrefix: "details-pickers",
+  mode: "test-session",
+  userName: "E2E Details Owner",
+});
 
 // Same gating as the other onboarding-stack specs: the Task details pickers
 // persist through Zero, so this needs the local Postgres/Zero stack booted by
@@ -12,52 +22,15 @@ test.skip(
 
 test.setTimeout(120_000);
 
-const detailsPane = (page: Page) => page.getByRole("dialog", { name: "Details Pane" });
-
-async function createTask(page: Page, title: string, team: string) {
-  await page.getByRole("main").getByRole("button", { name: "Create Task" }).click();
-  const dialog = page.getByRole("dialog", { name: /New Task/ });
-  await expect(dialog).toBeVisible();
-  await dialog.getByPlaceholder("Task title").fill(title);
-
-  const teamPicker = dialog.getByLabel("Team");
-  await expect(teamPicker).toBeVisible();
-  await teamPicker.click();
-  await page.getByRole("option", { name: team }).click();
-
-  await dialog.getByRole("button", { name: "Create Task" }).click();
-  await expect(dialog).not.toBeVisible({ timeout: 20_000 });
-}
-
-/**
- * Boots a board with a single Task on the given Team and opens its details pane
- * by clicking the card. The pane title is an editable textbox (Linear-style),
- * not a heading, so it is the stable anchor for "the pane is open on this Task".
- */
-async function openTaskDetails(page: Page, title: string, team: string) {
-  await createTask(page, title, team);
-  const card = page.getByLabel(`Task card ${title}`);
-  await expect(card).toBeVisible({ timeout: 20_000 });
-  await card.click();
-
-  const pane = detailsPane(page);
-  await expect(pane).toBeVisible();
-  await expect(pane.getByRole("textbox", { name: "Task title" })).toHaveValue(title);
-  return pane;
-}
+const detailsPane = taskDetailsPane;
 
 test.describe("Task details pane pickers", () => {
-  test("each property shortcut opens its picker while the pane is open", async ({
-    page,
-  }, testInfo) => {
-    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
-    await startAuthenticatedSession(page, {
-      churchName: `E2E Details Pickers Church ${suffix}`,
-      email: `details-pickers-${suffix}@example.com`,
-      userName: "E2E Details Owner",
-    });
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/my-work");
+  });
 
-    await openTaskDetails(page, `Details Pickers Task ${suffix}`, "Worship");
+  test("each property shortcut opens its picker while the pane is open", async ({ page }) => {
+    await createTaskAndOpenDetails(page, `Details Pickers Task ${randomUUID()}`, "Worship");
 
     // Unlike the board cards (which gate shortcuts on hover), the pane keeps the
     // field shortcuts live the whole time it is open — no hover or trigger focus
@@ -92,16 +65,9 @@ test.describe("Task details pane pickers", () => {
     await expect(page.getByRole("grid")).toHaveCount(0);
   });
 
-  test("typing in the title does not trigger field shortcuts", async ({ page }, testInfo) => {
-    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
-    await startAuthenticatedSession(page, {
-      churchName: `E2E Details Typing Church ${suffix}`,
-      email: `details-typing-${suffix}@example.com`,
-      userName: "E2E Details Typist",
-    });
-
-    const title = `Details Typing Task ${suffix}`;
-    const pane = await openTaskDetails(page, title, "Worship");
+  test("typing in the title does not trigger field shortcuts", async ({ page }) => {
+    const title = `Details Typing Task ${randomUUID()}`;
+    const pane = await createTaskAndOpenDetails(page, title, "Worship");
 
     // Focus the title editor and type letters that double as picker shortcuts
     // (s, p, a). The keydown listener bails on editable targets, so no picker
@@ -120,17 +86,12 @@ test.describe("Task details pane pickers", () => {
     await expect(titleEditor).toHaveValue(/spat/);
   });
 
-  test("changing status from the pane persists and reflects in the chip", async ({
-    page,
-  }, testInfo) => {
-    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
-    await startAuthenticatedSession(page, {
-      churchName: `E2E Details Status Church ${suffix}`,
-      email: `details-status-${suffix}@example.com`,
-      userName: "E2E Details Status Owner",
-    });
-
-    const pane = await openTaskDetails(page, `Details Status Task ${suffix}`, "Worship");
+  test("changing status from the pane persists and reflects in the chip", async ({ page }) => {
+    const pane = await createTaskAndOpenDetails(
+      page,
+      `Details Status Task ${randomUUID()}`,
+      "Worship",
+    );
 
     // New Tasks start in the Worship Workflow's default status ("To Do").
     const statusChip = pane.getByTestId("task-details-status-trigger");
@@ -152,15 +113,12 @@ test.describe("Task details pane pickers", () => {
 
   test("changing team remaps the Task to the destination Workflow default status", async ({
     page,
-  }, testInfo) => {
-    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
-    await startAuthenticatedSession(page, {
-      churchName: `E2E Details Team Church ${suffix}`,
-      email: `details-team-${suffix}@example.com`,
-      userName: "E2E Details Team Owner",
-    });
-
-    const pane = await openTaskDetails(page, `Details Team Task ${suffix}`, "Worship");
+  }) => {
+    const pane = await createTaskAndOpenDetails(
+      page,
+      `Details Team Task ${randomUUID()}`,
+      "Worship",
+    );
 
     const teamChip = pane.getByTestId("task-details-team-trigger");
     await expect(teamChip).toContainText("Worship");
@@ -174,18 +132,9 @@ test.describe("Task details pane pickers", () => {
     await expect(pane.getByTestId("task-details-status-trigger")).toContainText("To Do");
   });
 
-  test("title and description arrow-navigate as one surface in the pane", async ({
-    page,
-  }, testInfo) => {
-    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
-    await startAuthenticatedSession(page, {
-      churchName: `E2E Details Seam Church ${suffix}`,
-      email: `details-seam-${suffix}@example.com`,
-      userName: "E2E Details Seam Owner",
-    });
-
-    const title = `Details Seam Task ${suffix}`;
-    const pane = await openTaskDetails(page, title, "Worship");
+  test("title and description arrow-navigate as one surface in the pane", async ({ page }) => {
+    const title = `Details Seam Task ${randomUUID()}`;
+    const pane = await createTaskAndOpenDetails(page, title, "Worship");
 
     const titleEditor = pane.getByRole("textbox", { name: "Task title" });
     const description = pane.getByRole("textbox", { name: "Task description" });

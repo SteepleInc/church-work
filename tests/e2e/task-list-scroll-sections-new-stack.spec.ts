@@ -1,6 +1,6 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
-import { startAuthenticatedSession } from "./helpers";
+import { seedTasks, startAuthenticatedSession } from "./helpers";
 
 test.skip(
   process.env.CHURCH_WORK_E2E_ONBOARDING_STACK !== "1",
@@ -12,27 +12,6 @@ test.setTimeout(180_000);
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const taskCard = (page: Page, title: string) => page.getByLabel(`Task card ${title}`);
-
-async function chooseCardOption(task: Locator, label: string, optionName: string) {
-  await task.getByRole("combobox", { name: label }).first().click();
-  await task
-    .page()
-    .getByRole("option", { name: new RegExp(`^${escapeRegExp(optionName)}(?:\\s|$)`) })
-    .click();
-}
-
-async function createTask(page: Page, title: string, team: string) {
-  await page.getByRole("main").getByRole("button", { name: "Create Task" }).click();
-  const dialog = page.getByRole("dialog", { name: /New Task/ });
-  await expect(dialog).toBeVisible();
-  await dialog.getByPlaceholder("Task title").fill(title);
-  const teamPicker = dialog.getByLabel("Team");
-  await expect(teamPicker).toBeVisible();
-  await teamPicker.click();
-  await page.getByRole("option", { name: team }).click();
-  await dialog.getByRole("button", { name: "Create Task" }).click();
-  await expect(dialog).not.toBeVisible({ timeout: 20_000 });
-}
 
 test("keeps list group headers pinned and surfaces an off-screen-below beacon while scrolling", async ({
   page,
@@ -75,27 +54,15 @@ test("keeps list group headers pinned and surfaces an off-screen-below beacon wh
   const inProgressTitles = Array.from({ length: 6 }, (_, i) => `Progress Task ${i + 1} ${suffix}`);
   const doneTitles = Array.from({ length: 6 }, (_, i) => `Done Task ${i + 1} ${suffix}`);
 
-  for (const title of [...todoTitles, ...inProgressTitles, ...doneTitles]) {
-    await createTask(page, title, "Worship");
-    await expect(taskCard(page, title)).toBeVisible({ timeout: 20_000 });
-  }
-
-  // The Week board shows every Task State across its Workflow Status columns
-  // (it has no state filter pills, just the Week's total issue count), so Done
-  // Tasks stay visible after their status change without any tab toggle.
-
-  // Move the In Progress and Done groups into their Workflow Statuses on the
-  // board (the list shares the same grouping) so all three groups are populated.
-  for (const title of inProgressTitles) {
-    await chooseCardOption(taskCard(page, title), "Change status", "In Progress");
-    await expect(page.getByLabel("In Progress Tasks").getByText(title)).toBeVisible({
-      timeout: 20_000,
-    });
-  }
-  for (const title of doneTitles) {
-    await chooseCardOption(taskCard(page, title), "Change status", "Done");
-    await expect(page.getByLabel("Done Tasks").getByText(title)).toBeVisible({ timeout: 20_000 });
-  }
+  await seedTasks(page, {
+    tasks: [
+      ...todoTitles.map((title) => ({ status: "To Do", title })),
+      ...inProgressTitles.map((title) => ({ status: "In Progress", title })),
+      ...doneTitles.map((title) => ({ status: "Done", title })),
+    ],
+    team: "Worship",
+  });
+  await expect(taskCard(page, doneTitles.at(-1)!)).toBeVisible({ timeout: 20_000 });
 
   // Shrink the viewport so only the first group fits and later groups sit well
   // below the fold, forcing the off-screen-below beacon to appear.

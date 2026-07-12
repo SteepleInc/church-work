@@ -1,6 +1,16 @@
-import { expect, type Page, test } from "@playwright/test";
+import { randomUUID } from "node:crypto";
 
-import { startAuthenticatedSession } from "./helpers";
+import { expect, type Page } from "@playwright/test";
+
+import { createAuthenticatedTest } from "./authenticated-test";
+import { createTaskAndOpenDetails, taskDetailsPane } from "./task-details-helpers";
+
+const test = createAuthenticatedTest({
+  churchNamePrefix: "E2E Activity Church",
+  emailPrefix: "activity",
+  mode: "test-session",
+  userName: "E2E Activity Owner",
+});
 
 // The Activity Feed is fed by Activities written through Zero in the same
 // mutation as each Task change, so this needs the local Postgres/Zero stack
@@ -12,49 +22,18 @@ test.skip(
 
 test.setTimeout(120_000);
 
-const detailsPane = (page: Page) => page.getByRole("dialog", { name: "Details Pane" });
+const detailsPane = taskDetailsPane;
 
 const activityFeed = (page: Page) => detailsPane(page).getByRole("list", { name: "Activity" });
 
 const subTasks = (page: Page) => detailsPane(page).getByRole("region", { name: "Sub-tasks" });
 
-async function createTask(page: Page, title: string, team: string) {
-  await page.getByRole("main").getByRole("button", { name: "Create Task" }).click();
-  const dialog = page.getByRole("dialog", { name: /New Task/ });
-  await expect(dialog).toBeVisible();
-  await dialog.getByPlaceholder("Task title").fill(title);
-
-  const teamPicker = dialog.getByLabel("Team");
-  await expect(teamPicker).toBeVisible();
-  await teamPicker.click();
-  await page.getByRole("option", { name: team }).click();
-
-  await dialog.getByRole("button", { name: "Create Task" }).click();
-  await expect(dialog).not.toBeVisible({ timeout: 20_000 });
-}
-
-async function openTaskDetails(page: Page, title: string, team: string) {
-  await createTask(page, title, team);
-  const card = page.getByLabel(`Task card ${title}`);
-  await expect(card).toBeVisible({ timeout: 20_000 });
-  await card.click();
-
-  const pane = detailsPane(page);
-  await expect(pane).toBeVisible();
-  await expect(pane.getByRole("textbox", { name: "Task title" })).toHaveValue(title);
-  return pane;
-}
-
 test.describe("Task details Activity Feed", () => {
-  test("shows a created entry and a rich status-change entry", async ({ page }, testInfo) => {
-    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
-    await startAuthenticatedSession(page, {
-      churchName: `E2E Activity Church ${suffix}`,
-      email: `activity-${suffix}@example.com`,
-      userName: "E2E Activity Owner",
-    });
+  test("shows a created entry and a rich status-change entry", async ({ page }) => {
+    const suffix = randomUUID();
 
-    const pane = await openTaskDetails(page, `Activity Task ${suffix}`, "Worship");
+    await page.goto("/my-work");
+    const pane = await createTaskAndOpenDetails(page, `Activity Task ${suffix}`, "Worship");
 
     // The Activity section header and the creation line render for a fresh Task.
     await expect(pane.getByRole("heading", { name: "Activity" })).toBeVisible();
@@ -79,20 +58,18 @@ test.describe("Task details Activity Feed", () => {
     await page.reload();
     await expect(detailsPane(page)).toBeVisible();
     await expect(
-      detailsPane(page).getByText("moved this from To Do to In Progress", { exact: false }),
+      detailsPane(page).getByText("moved this from To Do to In Progress", {
+        exact: false,
+      }),
     ).toBeVisible({ timeout: 20_000 });
     await expect(detailsPane(page).getByText("created this task", { exact: false })).toBeVisible();
   });
 
-  test("renders a rich team-change entry", async ({ page }, testInfo) => {
-    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
-    await startAuthenticatedSession(page, {
-      churchName: `E2E Activity Team Church ${suffix}`,
-      email: `activity-team-${suffix}@example.com`,
-      userName: "E2E Activity Team Owner",
-    });
+  test("renders a rich team-change entry", async ({ page }) => {
+    const suffix = randomUUID();
 
-    const pane = await openTaskDetails(page, `Activity Team Task ${suffix}`, "Worship");
+    await page.goto("/my-work");
+    const pane = await createTaskAndOpenDetails(page, `Activity Team Task ${suffix}`, "Worship");
 
     // Move the Task to a different Team. The mutator writes a task.team_changed
     // Activity with { from: Worship, to: Production }, rendered as a single line.
@@ -106,43 +83,36 @@ test.describe("Task details Activity Feed", () => {
     );
   });
 
-  test("adds a top-level Task Comment to the Activity feed", async ({ page }, testInfo) => {
-    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
-    await startAuthenticatedSession(page, {
-      churchName: `E2E Activity Comment Church ${suffix}`,
-      email: `activity-comment-${suffix}@example.com`,
-      userName: "E2E Comment Owner",
-    });
+  test("adds a top-level Task Comment to the Activity feed", async ({ page }) => {
+    const suffix = randomUUID();
 
-    const pane = await openTaskDetails(page, `Activity Comment Task ${suffix}`, "Worship");
+    await page.goto("/my-work");
+    const pane = await createTaskAndOpenDetails(page, `Activity Comment Task ${suffix}`, "Worship");
     const commentBody = `This is a persisted top-level comment ${suffix}`;
 
     await pane.getByRole("textbox", { name: "Add a comment" }).fill(commentBody);
     await pane.getByRole("button", { exact: true, name: "Comment" }).click();
 
-    await expect(activityFeed(page).getByText("E2E Comment Owner").first()).toBeVisible({
+    await expect(activityFeed(page).getByText("E2E Activity Owner").first()).toBeVisible({
       timeout: 20_000,
     });
-    await expect(activityFeed(page).getByText(commentBody)).toBeVisible({ timeout: 20_000 });
+    await expect(activityFeed(page).getByText(commentBody)).toBeVisible({
+      timeout: 20_000,
+    });
 
     await page.reload();
     await expect(detailsPane(page)).toBeVisible();
-    await expect(activityFeed(page).getByText(commentBody)).toBeVisible({ timeout: 20_000 });
+    await expect(activityFeed(page).getByText(commentBody)).toBeVisible({
+      timeout: 20_000,
+    });
   });
 
-  test("supports Task Comment menu actions and thread subscriptions", async ({
-    context,
-    page,
-  }, testInfo) => {
-    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
+  test("supports Task Comment menu actions and thread subscriptions", async ({ context, page }) => {
+    const suffix = randomUUID();
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-    await startAuthenticatedSession(page, {
-      churchName: `E2E Activity Menu Church ${suffix}`,
-      email: `activity-menu-${suffix}@example.com`,
-      userName: "E2E Menu Owner",
-    });
 
-    const pane = await openTaskDetails(page, `Activity Menu Task ${suffix}`, "Worship");
+    await page.goto("/my-work");
+    const pane = await createTaskAndOpenDetails(page, `Activity Menu Task ${suffix}`, "Worship");
     const commentBody = `Comment with **Markdown** menu actions ${suffix}`;
 
     await pane.getByRole("textbox", { name: "Add a comment" }).fill(commentBody);
@@ -180,16 +150,12 @@ test.describe("Task details Activity Feed", () => {
     await expect(page.getByText("Attachments are coming soon.")).toBeVisible();
   });
 
-  test("creates Tasks and Subtasks from Task Comments", async ({ page }, testInfo) => {
-    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
-    await startAuthenticatedSession(page, {
-      churchName: `E2E Activity Comment Tasks Church ${suffix}`,
-      email: `activity-comment-tasks-${suffix}@example.com`,
-      userName: "E2E Comment Task Owner",
-    });
+  test("creates Tasks and Subtasks from Task Comments", async ({ page }) => {
+    const suffix = randomUUID();
 
+    await page.goto("/my-work");
     const parentTitle = `Activity Comment Source ${suffix}`;
-    const pane = await openTaskDetails(page, parentTitle, "Worship");
+    const pane = await createTaskAndOpenDetails(page, parentTitle, "Worship");
     const commentBody = `Follow up with choir ${suffix}\nBring the updated stage plot.`;
 
     await pane.getByRole("textbox", { name: "Add a comment" }).fill(commentBody);
@@ -208,7 +174,7 @@ test.describe("Task details Activity Feed", () => {
       `Follow up with choir ${suffix}`,
     );
     await expect(taskDialog.getByLabel("Add description")).toContainText(
-      `@E2E Comment Task Owner said in`,
+      `@E2E Activity Owner said in`,
     );
     // The comment text is carried into the new Task's description as a rich
     // blockquote (Plate JSON), so it renders without a literal "> " prefix.
@@ -253,21 +219,19 @@ test.describe("Task details Activity Feed", () => {
     await expect(subtaskDialog).not.toBeVisible({ timeout: 20_000 });
 
     await expect(
-      subTasks(page).getByText(`Follow up with choir ${suffix}`, { exact: true }),
+      subTasks(page).getByText(`Follow up with choir ${suffix}`, {
+        exact: true,
+      }),
     ).toBeVisible({
       timeout: 20_000,
     });
   });
 
-  test("adds one-level replies inside a Task Comment card", async ({ page }, testInfo) => {
-    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
-    await startAuthenticatedSession(page, {
-      churchName: `E2E Activity Reply Church ${suffix}`,
-      email: `activity-reply-${suffix}@example.com`,
-      userName: "E2E Reply Owner",
-    });
+  test("adds one-level replies inside a Task Comment card", async ({ page }) => {
+    const suffix = randomUUID();
 
-    const pane = await openTaskDetails(page, `Activity Reply Task ${suffix}`, "Worship");
+    await page.goto("/my-work");
+    const pane = await createTaskAndOpenDetails(page, `Activity Reply Task ${suffix}`, "Worship");
     const commentBody = `Parent comment for reply ${suffix}`;
     const replyBody = `Nested one-level reply ${suffix}`;
 
@@ -296,16 +260,16 @@ test.describe("Task details Activity Feed", () => {
     });
   });
 
-  test("deep-links directly to root comments and replies", async ({ context, page }, testInfo) => {
-    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
+  test("deep-links directly to root comments and replies", async ({ context, page }) => {
+    const suffix = randomUUID();
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-    await startAuthenticatedSession(page, {
-      churchName: `E2E Activity Deep Link Church ${suffix}`,
-      email: `activity-deep-link-${suffix}@example.com`,
-      userName: "E2E Deep Link Owner",
-    });
 
-    const pane = await openTaskDetails(page, `Activity Deep Link Task ${suffix}`, "Worship");
+    await page.goto("/my-work");
+    const pane = await createTaskAndOpenDetails(
+      page,
+      `Activity Deep Link Task ${suffix}`,
+      "Worship",
+    );
     const commentBody = `Root deep link comment ${suffix}`;
     const replyBody = `Reply deep link target ${suffix}`;
 
@@ -331,7 +295,9 @@ test.describe("Task details Activity Feed", () => {
 
     await page.goto(commentLink);
     const linkedComment = page.locator(`[id="${commentFragment}"]`);
-    await expect(linkedComment.getByText(commentBody)).toBeVisible({ timeout: 20_000 });
+    await expect(linkedComment.getByText(commentBody)).toBeVisible({
+      timeout: 20_000,
+    });
     await expect(linkedComment.locator("article")).toHaveClass(/ring-2/);
 
     const replyRow = linkedComment.getByRole("listitem").filter({ hasText: replyBody });
@@ -345,19 +311,21 @@ test.describe("Task details Activity Feed", () => {
 
     await page.goto(replyLink);
     const linkedReply = page.locator(`[id="${replyFragment}"]`);
-    await expect(linkedReply.getByText(replyBody)).toBeVisible({ timeout: 20_000 });
+    await expect(linkedReply.getByText(replyBody)).toBeVisible({
+      timeout: 20_000,
+    });
     await expect(linkedReply).toHaveClass(/ring-2/);
   });
 
-  test("edits and deletes Task Comments as visible tombstones", async ({ page }, testInfo) => {
-    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
-    await startAuthenticatedSession(page, {
-      churchName: `E2E Activity Moderate Church ${suffix}`,
-      email: `activity-moderate-${suffix}@example.com`,
-      userName: "E2E Moderate Owner",
-    });
+  test("edits and deletes Task Comments as visible tombstones", async ({ page }) => {
+    const suffix = randomUUID();
 
-    const pane = await openTaskDetails(page, `Activity Moderate Task ${suffix}`, "Worship");
+    await page.goto("/my-work");
+    const pane = await createTaskAndOpenDetails(
+      page,
+      `Activity Moderate Task ${suffix}`,
+      "Worship",
+    );
     const originalBody = `Original comment to edit ${suffix}`;
     const editedBody = `Edited comment body ${suffix}`;
 
@@ -381,7 +349,9 @@ test.describe("Task details Activity Feed", () => {
     await editComposer.pressSequentially(editedBody);
     await pane.getByRole("button", { exact: true, name: "Save" }).click();
 
-    await expect(activityFeed(page).getByText(editedBody)).toBeVisible({ timeout: 20_000 });
+    await expect(activityFeed(page).getByText(editedBody)).toBeVisible({
+      timeout: 20_000,
+    });
     await expect(activityFeed(page).getByText(originalBody)).not.toBeVisible();
     const editedCommentCard = activityFeed(page)
       .getByRole("listitem")

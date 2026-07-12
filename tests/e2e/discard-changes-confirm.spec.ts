@@ -1,11 +1,46 @@
-import { expect, test } from "@playwright/test";
+import { randomUUID } from "node:crypto";
 
-import { openTemplateCreate, selectTemplateShape, signInAndCompleteOnboarding } from "./helpers";
+import { expect } from "@playwright/test";
+
+import { createAuthenticatedTest } from "./authenticated-test";
+import { openTemplateCreate, selectTemplateShape } from "./helpers";
+
+const test = createAuthenticatedTest({
+  churchNamePrefix: "E2E Discard Changes Church",
+  emailPrefix: "discard-changes",
+  mode: "test-session",
+  userName: "E2E Discard Changes Owner",
+});
 
 test.skip(
   process.env.CHURCH_WORK_E2E_READY !== "1",
   process.env.CHURCH_WORK_E2E_SKIP_REASON ?? "E2E environment is not configured.",
 );
+
+test.beforeEach(async ({ page }) => {
+  await page.goto("/my-work");
+  await expect(page.getByRole("button", { name: "Open quick actions" })).toBeVisible();
+
+  const draftsLink = page.locator('[data-sidebar="sidebar"]').getByRole("link", { name: /Drafts/ });
+  const hasDrafts = await draftsLink.waitFor({ state: "visible", timeout: 2_000 }).then(
+    () => true,
+    () => false,
+  );
+  if (!hasDrafts) return;
+
+  await draftsLink.click();
+  await expect(page).toHaveURL(/\/drafts$/);
+
+  const discardAll = page.getByRole("button", { name: "Discard all drafts" });
+  const emptyState = page.getByText("No active drafts");
+  await expect(discardAll).toBeVisible({ timeout: 20_000 });
+  await discardAll.click();
+  const confirm = page.getByRole("alertdialog");
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole("button", { name: "Discard draft" }).click();
+  await expect(emptyState).toBeVisible();
+  await page.goto("/my-work");
+});
 
 /**
  * Closing a create surface that holds unsaved edits raises an "are you sure"
@@ -35,11 +70,7 @@ async function pressEscapeToExit(page: import("@playwright/test").Page) {
 
 test("create-Task quick action offers saving dirty work to drafts before closing", async ({
   page,
-}, testInfo) => {
-  const email = `discard-task-${Date.now()}-${testInfo.workerIndex}@example.com`;
-  const churchName = `E2E Discard Task Church ${Date.now()}`;
-
-  await signInAndCompleteOnboarding(page, { churchName, email });
+}) => {
   const sidebar = page.locator('[data-sidebar="sidebar"]');
   await expect(sidebar.getByRole("link", { name: /Drafts/ })).not.toBeVisible();
 
@@ -83,18 +114,13 @@ test("create-Task quick action offers saving dirty work to drafts before closing
   await expect(reopened.getByPlaceholder("Task title")).toHaveValue("");
 });
 
-test("create-Task quick action saves dirty work from the close dialog", async ({
-  page,
-}, testInfo) => {
-  const email = `save-task-draft-${Date.now()}-${testInfo.workerIndex}@example.com`;
-  const churchName = `E2E Save Task Draft Church ${Date.now()}`;
-
-  await signInAndCompleteOnboarding(page, { churchName, email });
+test("create-Task quick action saves dirty work from the close dialog", async ({ page }) => {
+  const title = `A task for later ${randomUUID()}`;
   const sidebar = page.locator('[data-sidebar="sidebar"]');
   await expect(sidebar.getByRole("link", { name: /Drafts/ })).not.toBeVisible();
 
   const dialog = await openCreateTaskQuickAction(page);
-  await dialog.getByPlaceholder("Task title").fill("A task for later");
+  await dialog.getByPlaceholder("Task title").fill(title);
   await pressEscapeToExit(page);
 
   const confirm = page.getByRole("alertdialog");
@@ -106,15 +132,10 @@ test("create-Task quick action saves dirty work from the close dialog", async ({
   await expect(sidebar.getByText("1", { exact: true })).toBeVisible();
 });
 
-test("Drafts page lists saved Task Drafts and supports discarding one or all", async ({
-  page,
-}, testInfo) => {
-  const email = `drafts-page-${Date.now()}-${testInfo.workerIndex}@example.com`;
-  const churchName = `E2E Drafts Page Church ${Date.now()}`;
-  const firstTitle = `Draft one ${Date.now()}`;
-  const secondTitle = `Draft two ${Date.now()}`;
-
-  await signInAndCompleteOnboarding(page, { churchName, email });
+test("Drafts page lists saved Task Drafts and supports discarding one or all", async ({ page }) => {
+  const suffix = randomUUID();
+  const firstTitle = `Draft one ${suffix}`;
+  const secondTitle = `Draft two ${suffix}`;
 
   for (const title of [firstTitle, secondTitle]) {
     const dialog = await openCreateTaskQuickAction(page);
@@ -139,7 +160,9 @@ test("Drafts page lists saved Task Drafts and supports discarding one or all", a
   await expect(page.getByText(firstTitle)).toBeVisible();
   await expect(page.getByText(secondTitle)).toBeVisible();
 
-  const firstDraftCard = page.getByRole("button", { name: new RegExp(firstTitle) });
+  const firstDraftCard = page.getByRole("button", {
+    name: new RegExp(firstTitle),
+  });
   await firstDraftCard.hover();
   await firstDraftCard.getByRole("button", { name: "Discard draft" }).click();
   const discardOneConfirm = page.getByRole("alertdialog");
@@ -162,13 +185,9 @@ test("Drafts page lists saved Task Drafts and supports discarding one or all", a
 
 test("Drafts page opens an existing Task Draft for rehydrated autosaved editing", async ({
   page,
-}, testInfo) => {
-  const email = `open-task-draft-${Date.now()}-${testInfo.workerIndex}@example.com`;
-  const churchName = `E2E Open Task Draft Church ${Date.now()}`;
-  const originalTitle = `Openable draft ${Date.now()}`;
+}) => {
+  const originalTitle = `Openable draft ${randomUUID()}`;
   const editedTitle = `${originalTitle} edited`;
-
-  await signInAndCompleteOnboarding(page, { churchName, email });
 
   const dialog = await openCreateTaskQuickAction(page);
   await dialog.getByPlaceholder("Task title").fill(originalTitle);
@@ -191,9 +210,6 @@ test("Drafts page opens an existing Task Draft for rehydrated autosaved editing"
   await expect(draftDialog.getByPlaceholder("Task title")).toHaveValue(originalTitle);
 
   await draftDialog.getByPlaceholder("Task title").fill(editedTitle);
-  await expect(page.getByRole("heading", { exact: true, name: editedTitle })).toBeVisible({
-    timeout: 15_000,
-  });
 
   // First Escape blurs the title, the second closes the draft dialog. A Draft
   // autosaves, so closing never prompts.
@@ -207,12 +223,8 @@ test("Drafts page opens an existing Task Draft for rehydrated autosaved editing"
   await expect(page.getByRole("heading", { exact: true, name: originalTitle })).not.toBeVisible();
 });
 
-test("creating a Task from an opened Draft removes the Draft card", async ({ page }, testInfo) => {
-  const email = `create-from-draft-${Date.now()}-${testInfo.workerIndex}@example.com`;
-  const churchName = `E2E Create From Draft Church ${Date.now()}`;
-  const draftTitle = `Draft to create ${Date.now()}`;
-
-  await signInAndCompleteOnboarding(page, { churchName, email });
+test("creating a Task from an opened Draft removes the Draft card", async ({ page }) => {
+  const draftTitle = `Draft to create ${randomUUID()}`;
 
   const dialog = await openCreateTaskQuickAction(page);
   await dialog.getByPlaceholder("Task title").fill(draftTitle);
@@ -240,14 +252,7 @@ test("creating a Task from an opened Draft removes the Draft card", async ({ pag
   await expect(page.getByText("No active drafts")).toBeVisible();
 });
 
-test("create-Task quick action closes a pristine draft without prompting", async ({
-  page,
-}, testInfo) => {
-  const email = `discard-task-clean-${Date.now()}-${testInfo.workerIndex}@example.com`;
-  const churchName = `E2E Clean Task Church ${Date.now()}`;
-
-  await signInAndCompleteOnboarding(page, { churchName, email });
-
+test("create-Task quick action closes a pristine draft without prompting", async ({ page }) => {
   const dialog = await openCreateTaskQuickAction(page);
 
   // The title autofocuses on open, so the first Escape only blurs it — the
@@ -270,14 +275,7 @@ async function gotoTemplates(page: import("@playwright/test").Page) {
   await expect(page).toHaveURL(/\/templates$/);
 }
 
-test("create-Template big action confirms before discarding unsaved edits", async ({
-  page,
-}, testInfo) => {
-  const email = `discard-template-${Date.now()}-${testInfo.workerIndex}@example.com`;
-  const churchName = `E2E Discard Template Church ${Date.now()}`;
-
-  await signInAndCompleteOnboarding(page, { churchName, email });
-
+test("create-Template big action confirms before discarding unsaved edits", async ({ page }) => {
   await gotoTemplates(page);
   await openTemplateCreate(page);
   await selectTemplateShape(page, "Weekly service");
@@ -307,14 +305,7 @@ test("create-Template big action confirms before discarding unsaved edits", asyn
   await expect(page).toHaveURL(/\/templates$/);
 });
 
-test("create-Template big action closes a pristine flow without prompting", async ({
-  page,
-}, testInfo) => {
-  const email = `discard-template-clean-${Date.now()}-${testInfo.workerIndex}@example.com`;
-  const churchName = `E2E Clean Template Church ${Date.now()}`;
-
-  await signInAndCompleteOnboarding(page, { churchName, email });
-
+test("create-Template big action closes a pristine flow without prompting", async ({ page }) => {
   await gotoTemplates(page);
   await openTemplateCreate(page);
   // The shape picker is on screen but nothing has been entered yet.

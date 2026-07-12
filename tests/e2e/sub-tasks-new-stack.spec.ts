@@ -1,6 +1,16 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import { randomUUID } from "node:crypto";
 
-import { startAuthenticatedSession } from "./helpers";
+import { expect, type Locator, type Page } from "@playwright/test";
+
+import { createAuthenticatedTest } from "./authenticated-test";
+import { createTaskAndOpenDetails, taskDetailsPane } from "./task-details-helpers";
+
+const test = createAuthenticatedTest({
+  churchNamePrefix: "E2E Sub-tasks Church",
+  emailPrefix: "subtasks",
+  mode: "test-session",
+  userName: "E2E Sub-tasks Owner",
+});
 
 // Sub-task creation and inline edits persist through Zero, so this needs the
 // local Postgres/Zero stack booted by the onboarding-stack e2e run
@@ -12,42 +22,18 @@ test.skip(
 
 test.setTimeout(120_000);
 
-const detailsPane = (page: Page) => page.getByRole("dialog", { name: "Details Pane" });
+const detailsPane = taskDetailsPane;
 const subTasks = (page: Page) => detailsPane(page).getByRole("region", { name: "Sub-tasks" });
+
+test.beforeEach(async ({ page }) => {
+  await page.goto("/my-work");
+});
 
 /** The row element (the one armed on hover) for a sub-task by its title. */
 const subTaskRow = (page: Page, title: string) =>
   subTasks(page)
     .getByText(title, { exact: true })
     .locator("xpath=ancestor::*[@data-sub-task-row][1]");
-
-async function createTask(page: Page, title: string, team: string) {
-  await page.getByRole("main").getByRole("button", { name: "Create Task" }).click();
-  const dialog = page.getByRole("dialog", { name: /New Task/ });
-  await expect(dialog).toBeVisible();
-  await dialog.getByPlaceholder("Task title").fill(title);
-
-  const teamPicker = dialog.getByLabel("Team");
-  await expect(teamPicker).toBeVisible();
-  await teamPicker.click();
-  await page.getByRole("option", { name: team }).click();
-
-  await dialog.getByRole("button", { name: "Create Task" }).click();
-  await expect(dialog).not.toBeVisible({ timeout: 20_000 });
-}
-
-/** Creates a Task and opens its details pane by clicking the board card. */
-async function openTaskDetails(page: Page, title: string, team: string) {
-  await createTask(page, title, team);
-  const card = page.getByLabel(`Task card ${title}`);
-  await expect(card).toBeVisible({ timeout: 20_000 });
-  await card.click();
-
-  const pane = detailsPane(page);
-  await expect(pane).toBeVisible();
-  await expect(pane.getByRole("textbox", { name: "Task title" })).toHaveValue(title);
-  return pane;
-}
 
 /**
  * Opens the inline creator from the always-present header "+ Add sub-task"
@@ -56,7 +42,9 @@ async function openTaskDetails(page: Page, title: string, team: string) {
  */
 async function openCreator(page: Page): Promise<Locator> {
   await subTasks(page).getByRole("button", { name: "Add sub-task" }).first().click();
-  const titleInput = subTasks(page).getByRole("textbox", { name: "Sub-task title" });
+  const titleInput = subTasks(page).getByRole("textbox", {
+    name: "Sub-task title",
+  });
   await expect(titleInput).toBeVisible();
   return titleInput;
 }
@@ -68,10 +56,14 @@ async function openCreator(page: Page): Promise<Locator> {
  * can be exercised.
  */
 async function createSubTask(page: Page, title: string) {
-  const titleInput = subTasks(page).getByRole("textbox", { name: "Sub-task title" });
+  const titleInput = subTasks(page).getByRole("textbox", {
+    name: "Sub-task title",
+  });
   await titleInput.fill(title);
   await subTasks(page).getByRole("button", { name: "Create" }).click();
-  await expect(subTasks(page).getByText(title, { exact: true })).toBeVisible({ timeout: 20_000 });
+  await expect(subTasks(page).getByText(title, { exact: true })).toBeVisible({
+    timeout: 20_000,
+  });
   // Close the still-open creator via Cancel (Escape would bubble to the pane and
   // close the whole details pane) so focus leaves its editable title input.
   await subTasks(page).getByRole("button", { name: "Cancel" }).click();
@@ -79,15 +71,10 @@ async function createSubTask(page: Page, title: string) {
 }
 
 test.describe("Task details pane sub-tasks", () => {
-  test("creates a sub-task and keeps the creator open and reset", async ({ page }, testInfo) => {
-    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
-    await startAuthenticatedSession(page, {
-      churchName: `E2E Sub-tasks Create Church ${suffix}`,
-      email: `subtasks-create-${suffix}@example.com`,
-      userName: "E2E Sub-tasks Owner",
-    });
+  test("creates a sub-task and keeps the creator open and reset", async ({ page }) => {
+    const suffix = randomUUID();
 
-    await openTaskDetails(page, `Sub-tasks Parent ${suffix}`, "Worship");
+    await createTaskAndOpenDetails(page, `Sub-tasks Parent ${suffix}`, "Worship");
 
     const titleInput = await openCreator(page);
     await titleInput.fill(`Child One ${suffix}`);
@@ -112,15 +99,10 @@ test.describe("Task details pane sub-tasks", () => {
     await expect(subTasks(page).getByText(`Child One ${suffix}`, { exact: true })).toBeVisible();
   });
 
-  test("Cmd/Ctrl+Enter creates without leaving the keyboard", async ({ page }, testInfo) => {
-    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
-    await startAuthenticatedSession(page, {
-      churchName: `E2E Sub-tasks Keyboard Church ${suffix}`,
-      email: `subtasks-keyboard-${suffix}@example.com`,
-      userName: "E2E Sub-tasks Keyboarder",
-    });
+  test("Cmd/Ctrl+Enter creates without leaving the keyboard", async ({ page }) => {
+    const suffix = randomUUID();
 
-    await openTaskDetails(page, `Sub-tasks Keyboard Parent ${suffix}`, "Worship");
+    await createTaskAndOpenDetails(page, `Sub-tasks Keyboard Parent ${suffix}`, "Worship");
 
     const titleInput = await openCreator(page);
     await titleInput.fill(`Keyboard Child ${suffix}`);
@@ -135,17 +117,10 @@ test.describe("Task details pane sub-tasks", () => {
     await expect(titleInput).toBeFocused();
   });
 
-  test("multi-line paste into an empty title creates one sub-task per line", async ({
-    page,
-  }, testInfo) => {
-    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
-    await startAuthenticatedSession(page, {
-      churchName: `E2E Sub-tasks Paste Church ${suffix}`,
-      email: `subtasks-paste-${suffix}@example.com`,
-      userName: "E2E Sub-tasks Paster",
-    });
+  test("multi-line paste into an empty title creates one sub-task per line", async ({ page }) => {
+    const suffix = randomUUID();
 
-    await openTaskDetails(page, `Sub-tasks Paste Parent ${suffix}`, "Worship");
+    await createTaskAndOpenDetails(page, `Sub-tasks Paste Parent ${suffix}`, "Worship");
 
     const titleInput = await openCreator(page);
     const lines = [`Paste A ${suffix}`, `Paste B ${suffix}`, `Paste C ${suffix}`];
@@ -166,15 +141,10 @@ test.describe("Task details pane sub-tasks", () => {
     await expect(subTasks(page).getByRole("heading", { name: /Sub-tasks/ })).toContainText("0/3");
   });
 
-  test("hovering a sub-task row arms its field shortcuts and open", async ({ page }, testInfo) => {
-    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
-    await startAuthenticatedSession(page, {
-      churchName: `E2E Sub-tasks Hover Church ${suffix}`,
-      email: `subtasks-hover-${suffix}@example.com`,
-      userName: "E2E Sub-tasks Hoverer",
-    });
+  test("hovering a sub-task row arms its field shortcuts and open", async ({ page }) => {
+    const suffix = randomUUID();
 
-    await openTaskDetails(page, `Sub-tasks Hover Parent ${suffix}`, "Worship");
+    await createTaskAndOpenDetails(page, `Sub-tasks Hover Parent ${suffix}`, "Worship");
     await openCreator(page);
     const childTitle = `Hover Child ${suffix}`;
     await createSubTask(page, childTitle);
@@ -217,22 +187,19 @@ test.describe("Task details pane sub-tasks", () => {
     await row.hover();
     await page.keyboard.press("KeyO");
     await expect
-      .poll(() => new URL(page.url()).searchParams.get("details-pane"), { timeout: 20_000 })
+      .poll(() => new URL(page.url()).searchParams.get("details-pane"), {
+        timeout: 20_000,
+      })
       .not.toBe(parentIdentifier);
     await expect(detailsPane(page).getByRole("textbox", { name: "Task title" })).toHaveValue(
       childTitle,
     );
   });
 
-  test("inline status edit on a sub-task row persists", async ({ page }, testInfo) => {
-    const suffix = `${Date.now()}-${testInfo.workerIndex}`;
-    await startAuthenticatedSession(page, {
-      churchName: `E2E Sub-tasks Edit Church ${suffix}`,
-      email: `subtasks-edit-${suffix}@example.com`,
-      userName: "E2E Sub-tasks Editor",
-    });
+  test("inline status edit on a sub-task row persists", async ({ page }) => {
+    const suffix = randomUUID();
 
-    await openTaskDetails(page, `Sub-tasks Edit Parent ${suffix}`, "Worship");
+    await createTaskAndOpenDetails(page, `Sub-tasks Edit Parent ${suffix}`, "Worship");
     await openCreator(page);
     const childTitle = `Edit Child ${suffix}`;
     await createSubTask(page, childTitle);

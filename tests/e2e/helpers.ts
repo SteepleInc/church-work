@@ -145,6 +145,21 @@ export async function promoteCurrentUserToAppAdmin(page: Page) {
   expect(response.ok()).toBe(true);
 }
 
+export async function seedTasks(
+  page: Page,
+  args: {
+    readonly tasks: ReadonlyArray<{ readonly status: string; readonly title: string }>;
+    readonly team: string;
+  },
+) {
+  const response = await postTestHelperWithRetry(page, "/api/test/tasks/seed", { data: args });
+
+  test.skip(response.status() === 404, "Task seeding helper is not deployed.");
+  if (!response.ok()) {
+    throw new Error(`Could not seed Tasks: ${response.status()} ${await response.text()}`);
+  }
+}
+
 export async function completeOnboarding(page: Page, churchName: string) {
   await expect(page.getByText("Next up")).not.toBeVisible();
   await expect(page.getByLabel("Find Your Church")).toBeVisible();
@@ -280,8 +295,16 @@ export async function stepperNext(page: Page) {
  * the seeded Team before closing the inline editor.
  */
 export async function addTemplateTask(page: Page, title: string, team = "Worship") {
-  await page.getByRole("button", { name: "Add Template Task" }).first().click();
-  await page.getByPlaceholder("Add task title").fill(title);
+  const addButton = page
+    .getByRole("button", { exact: true, name: "Add Template Task" })
+    .filter({ visible: true })
+    .first();
+  await expect(addButton).toBeVisible();
+  await addButton.click();
+
+  const titleInput = page.getByPlaceholder("Add task title");
+  await expect(titleInput).toBeVisible();
+  await titleInput.fill(title);
   await page.getByRole("combobox", { name: "Change team" }).click();
   await page.getByRole("option", { name: team }).click();
 }
