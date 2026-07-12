@@ -1,11 +1,11 @@
-import { CalendarIcon, ChevronRight, PlusIcon, Tag, Triangle } from "lucide-react";
+import { CalendarIcon, ChevronRight, Tag, Triangle } from "lucide-react";
 import { type MouseEvent as ReactMouseEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAppForm } from "@/components/form/ts-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Kbd } from "@/components/ui/kbd";
 import { ScrollSections, type SectionRenderArgs } from "@/components/ui/scroll-sections";
+import { AddTaskColumnButton } from "@/components/tasks/add-task-column-button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -297,26 +297,7 @@ function TaskListGroup({
           <span className="text-muted-foreground text-sm tabular-nums">{tasks.length}</span>
         </div>
         {onAddTask ? (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  size="icon-xs"
-                  variant="ghost"
-                  aria-label={`Add Task to ${column.title}`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onAddTask(column.id);
-                  }}
-                >
-                  <PlusIcon />
-                </Button>
-              }
-            />
-            <TooltipContent>
-              Add Task... <Kbd>C</Kbd>
-            </TooltipContent>
-          </Tooltip>
+          <AddTaskColumnButton columnTitle={column.title} onAddTask={() => onAddTask(column.id)} />
         ) : null}
       </div>
     );

@@ -3,6 +3,9 @@ import { useMemo, useState } from "react";
 
 import { statusOptions } from "@/components/tasks/task-kanban-board-utils";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useTaskCreationGate } from "@/features/billing/task-creation-gate";
+import { cn } from "@/lib/utils";
 import { SubTaskCreator, type SubTaskCreateInput } from "@/features/details-pane/sub-task-creator";
 import { SubTaskOptionsPopover } from "@/features/details-pane/sub-task-options-popover";
 import {
@@ -85,6 +88,17 @@ export function SubTaskSection({
   const [view, setView] = useState<SubTaskViewOptions>(DEFAULT_SUB_TASK_VIEW_OPTIONS);
   const [creating, setCreating] = useState(false);
   const hoverShortcuts = useSubTaskHoverShortcuts();
+  // Subtask creation makes a new Task identity, so the Free Plan Task Limit
+  // gates both openers: they read as disabled with a role-aware tooltip, and
+  // clicking raises the shared Sonner notification instead of the creator.
+  const taskCreationGate = useTaskCreationGate();
+  const openCreator = () => {
+    if (taskCreationGate.blocked) {
+      taskCreationGate.notify();
+      return;
+    }
+    setCreating(true);
+  };
 
   const statusSortById = useMemo(
     () => new Map(workflowStatuses.map((status) => [status.id, status.sortOrder])),
@@ -230,15 +244,36 @@ export function SubTaskSection({
           {completion.total > 0 ? (
             <SubTaskOptionsPopover onViewChange={setView} view={view} />
           ) : null}
-          <Button
-            aria-label="Add sub-task"
-            onClick={() => setCreating(true)}
-            size="icon-sm"
-            type="button"
-            variant="ghost"
-          >
-            <Plus />
-          </Button>
+          {taskCreationGate.blocked ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    aria-disabled="true"
+                    aria-label="Add sub-task"
+                    className="cursor-not-allowed opacity-50"
+                    onClick={openCreator}
+                    size="icon-sm"
+                    type="button"
+                    variant="ghost"
+                  />
+                }
+              >
+                <Plus />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-64">{taskCreationGate.message}</TooltipContent>
+            </Tooltip>
+          ) : (
+            <Button
+              aria-label="Add sub-task"
+              onClick={openCreator}
+              size="icon-sm"
+              type="button"
+              variant="ghost"
+            >
+              <Plus />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -307,14 +342,36 @@ export function SubTaskSection({
           }
         />
       ) : tree.length === 0 ? (
-        <button
-          className="flex w-fit items-center gap-1.5 rounded-md px-1 py-1 text-muted-foreground text-sm transition-colors hover:text-foreground"
-          onClick={() => setCreating(true)}
-          type="button"
-        >
-          <Plus className="size-4" />
-          Add sub-task
-        </button>
+        taskCreationGate.blocked ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  aria-disabled="true"
+                  className={cn(
+                    "flex w-fit items-center gap-1.5 rounded-md px-1 py-1 text-muted-foreground text-sm",
+                    "cursor-not-allowed opacity-50",
+                  )}
+                  onClick={openCreator}
+                  type="button"
+                />
+              }
+            >
+              <Plus className="size-4" />
+              Add sub-task
+            </TooltipTrigger>
+            <TooltipContent className="max-w-64">{taskCreationGate.message}</TooltipContent>
+          </Tooltip>
+        ) : (
+          <button
+            className="flex w-fit items-center gap-1.5 rounded-md px-1 py-1 text-muted-foreground text-sm transition-colors hover:text-foreground"
+            onClick={openCreator}
+            type="button"
+          >
+            <Plus className="size-4" />
+            Add sub-task
+          </button>
+        )
       ) : null}
     </section>
   );
