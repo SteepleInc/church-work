@@ -821,7 +821,8 @@ export const runScheduledCycleMaintenance = Effect.fn("runScheduledCycleMaintena
   const maintainedChurchIds: string[] = [];
 
   for (const church of churches) {
-    if (church.rollover_maintenance_completed_cycle_start_date) {
+    const completedCycleStartDate = church.rollover_maintenance_completed_cycle_start_date;
+    if (completedCycleStartDate) {
       const [completedCycle] = yield* Effect.tryPromise({
         catch: (cause) => cause,
         try: () =>
@@ -831,7 +832,7 @@ export const runScheduledCycleMaintenance = Effect.fn("runScheduledCycleMaintena
             .where(
               and(
                 eq(cycles.church_id, church.id),
-                eq(cycles.start_date, church.rollover_maintenance_completed_cycle_start_date!),
+                eq(cycles.start_date, completedCycleStartDate),
                 isNull(cycles.deleted_at),
               ),
             )
@@ -842,7 +843,7 @@ export const runScheduledCycleMaintenance = Effect.fn("runScheduledCycleMaintena
       if (
         !isRolloverMaintenanceDue({
           completed_cycle_ends_at: completedCycle?.ends_at ?? null,
-          completed_cycle_start_date: church.rollover_maintenance_completed_cycle_start_date,
+          completed_cycle_start_date: completedCycleStartDate,
           now: maintenanceInstant,
         })
       )
