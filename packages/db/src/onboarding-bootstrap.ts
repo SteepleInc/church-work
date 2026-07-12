@@ -83,22 +83,22 @@ export const bootstrapChurchOnboarding = async (
       .limit(1);
     const churchTimeZone = church?.churchTimeZone ?? "America/New_York";
 
-    for (const startDate of planningHorizonCycleStartDates(churchTimeZone)) {
-      await tx
-        .insert(cycles)
-        .values(
+    await tx
+      .insert(cycles)
+      .values(
+        planningHorizonCycleStartDates(churchTimeZone).map((startDate) =>
           buildOnboardingCycleInsert({
             church_id: args.church_id,
             churchTimeZone,
             createdByUserId: args.user_id,
             startDate,
           }),
-        )
-        .onConflictDoNothing({
-          target: [cycles.church_id, cycles.start_date],
-          where: sql`${cycles.deleted_at} IS NULL`,
-        });
-    }
+        ),
+      )
+      .onConflictDoNothing({
+        target: [cycles.church_id, cycles.start_date],
+        where: sql`${cycles.deleted_at} IS NULL`,
+      });
 
     const existingTeams = await tx
       .select({ identifier: teams.identifier })
