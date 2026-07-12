@@ -61,6 +61,19 @@ describe("marketing shell and navigation treatment", () => {
     expect(homeSource).not.toContain("Payments & Subscriptions");
   });
 
+  test("pricing accurately presents Free and Paid plans", () => {
+    expect(pricingSource).toContain("Free Plan");
+    expect(pricingSource).toContain("$0");
+    expect(pricingSource).toContain("300 planned Tasks");
+    expect(pricingSource).toContain("Paid Plan");
+    expect(pricingSource).toContain("$19.99 USD");
+    expect(pricingSource).toContain("per Church per week");
+    expect(pricingSource).toContain("including applicable tax");
+    expect(pricingSource).toContain('to="/sign-in"');
+    expect(pricingSource).not.toContain("pay monthly");
+    expect(pricingSource).not.toContain("nothing to upgrade to");
+  });
+
   test("marketing pages use semantic dark-mode tokens, not a scoped theme island", () => {
     // Page chrome uses the mkt-* palette utilities that respond to dark mode…
     expect(homeSource).toContain("bg-mkt-bg");

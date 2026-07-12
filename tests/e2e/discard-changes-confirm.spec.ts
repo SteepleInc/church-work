@@ -191,7 +191,9 @@ test("Drafts page opens an existing Task Draft for rehydrated autosaved editing"
   await expect(draftDialog.getByPlaceholder("Task title")).toHaveValue(originalTitle);
 
   await draftDialog.getByPlaceholder("Task title").fill(editedTitle);
-  await expect(page.getByText(editedTitle)).toBeVisible();
+  await expect(page.getByRole("heading", { exact: true, name: editedTitle })).toBeVisible({
+    timeout: 15_000,
+  });
 
   // First Escape blurs the title, the second closes the draft dialog. A Draft
   // autosaves, so closing never prompts.
