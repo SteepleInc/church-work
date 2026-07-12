@@ -7,6 +7,7 @@ import {
   notifications,
   organization,
   session as sessionTable,
+  subscription,
   tasks,
   teams,
   user,
@@ -64,6 +65,41 @@ const getSessionContext = async (
 
 const toResponse = (result: unknown) =>
   result instanceof Response ? result : Response.json(result);
+
+const TEST_SUBSCRIPTION_STATUSES = new Set([
+  "active",
+  "canceled",
+  "incomplete",
+  "incomplete_expired",
+  "past_due",
+  "paused",
+  "trialing",
+  "unpaid",
+]);
+
+type TestSubscriptionState = {
+  readonly cancelAtPeriodEnd?: boolean;
+  readonly graceStartedAt?: number | null;
+  readonly periodEnd?: number | null;
+  readonly status?: string;
+  readonly stripeCustomerId?: string | null;
+};
+
+const isOptionalEpoch = (value: unknown): value is number | null | undefined =>
+  value == null || (typeof value === "number" && Number.isFinite(value));
+
+const isTestSubscriptionState = (value: unknown): value is TestSubscriptionState => {
+  if (typeof value !== "object" || value === null) return false;
+  const state = value as Record<string, unknown>;
+  return (
+    (state.cancelAtPeriodEnd === undefined || typeof state.cancelAtPeriodEnd === "boolean") &&
+    isOptionalEpoch(state.graceStartedAt) &&
+    isOptionalEpoch(state.periodEnd) &&
+    (state.status === undefined ||
+      (typeof state.status === "string" && TEST_SUBSCRIPTION_STATUSES.has(state.status))) &&
+    (state.stripeCustomerId == null || typeof state.stripeCustomerId === "string")
+  );
+};
 
 export const createTracerApi = (databaseUrl: string) => {
   const { db, pool } = createDb(databaseUrl);
@@ -177,6 +213,7 @@ export const createTracerApi = (databaseUrl: string) => {
           churchName?: string;
           email?: string;
           role?: string | null;
+          churchRole?: "admin" | "member" | "owner";
           userName?: string;
         };
         const email = body.email?.trim().toLowerCase();
@@ -270,6 +307,17 @@ export const createTracerApi = (databaseUrl: string) => {
             .where(eq(sessionTable.id, authSession.session.id));
         }
 
+        if (body.churchRole && body.churchRole !== "owner") {
+          await db
+            .update(member)
+            .set({ role: body.churchRole })
+            .where(and(eq(member.organizationId, org.id), eq(member.userId, authSession.user.id)));
+          await db
+            .update(sessionTable)
+            .set({ orgRole: body.churchRole })
+            .where(eq(sessionTable.id, authSession.session.id));
+        }
+
         return Response.json(
           {
             church: { id: org.id, name: churchName },
@@ -278,6 +326,66 @@ export const createTracerApi = (databaseUrl: string) => {
           },
           { headers: { "set-cookie": sessionCookie } },
         );
+      },
+    });
+
+  const handleSetTestSubscription = (request: Request) =>
+    Effect.tryPromise({
+      catch: (cause) => cause,
+      try: async () => {
+        const authSession = await authRuntime.auth.api.getSession({ headers: request.headers });
+        if (!authSession) {
+          return Response.json({ error: "Active Church required" }, { status: 401 });
+        }
+        const activeOrganizationId = (
+          authSession.session as typeof authSession.session & {
+            readonly activeOrganizationId?: string | null;
+          }
+        ).activeOrganizationId;
+
+        if (!activeOrganizationId) {
+          return Response.json({ error: "Active Church required" }, { status: 401 });
+        }
+
+        const [activeOrganization] = await db
+          .select({ slug: organization.slug })
+          .from(organization)
+          .where(eq(organization.id, activeOrganizationId))
+          .limit(1);
+        if (!activeOrganization?.slug?.startsWith("e2e-")) {
+          return Response.json({ error: "E2E Church required" }, { status: 403 });
+        }
+
+        const body: unknown = await request.json();
+        if (!isTestSubscriptionState(body)) {
+          return Response.json({ error: "Invalid subscription state" }, { status: 400 });
+        }
+        const id = `e2e-subscription-${activeOrganizationId}`;
+        await db
+          .insert(subscription)
+          .values({
+            cancelAtPeriodEnd: body.cancelAtPeriodEnd ?? false,
+            graceStartedAt: body.graceStartedAt == null ? null : new Date(body.graceStartedAt),
+            id,
+            periodEnd: body.periodEnd == null ? null : new Date(body.periodEnd),
+            plan: "paid",
+            referenceId: activeOrganizationId,
+            status: body.status ?? "active",
+            stripeCustomerId: body.stripeCustomerId ?? "cus_e2e",
+            stripeSubscriptionId: `sub_e2e_${activeOrganizationId}`,
+          })
+          .onConflictDoUpdate({
+            set: {
+              cancelAtPeriodEnd: body.cancelAtPeriodEnd ?? false,
+              graceStartedAt: body.graceStartedAt == null ? null : new Date(body.graceStartedAt),
+              periodEnd: body.periodEnd == null ? null : new Date(body.periodEnd),
+              status: body.status ?? "active",
+              stripeCustomerId: body.stripeCustomerId ?? "cus_e2e",
+            },
+            target: subscription.id,
+          });
+
+        return Response.json({ ok: true });
       },
     });
 
@@ -532,6 +640,9 @@ export const createTracerApi = (databaseUrl: string) => {
       }
       if (url.pathname === "/api/test/session" && request.method === "POST") {
         return { effect: handleCreateTestSession(request), name: "test.session" };
+      }
+      if (url.pathname === "/api/test/subscription" && request.method === "POST") {
+        return { effect: handleSetTestSubscription(request), name: "test.subscription" };
       }
       if (url.pathname === "/api/test/notifications" && request.method === "POST") {
         return { effect: handleCreateTestNotification(request), name: "test.notifications" };

@@ -199,6 +199,7 @@ export const subscription = pgTable(
     cancelAt: utcTimestamp("cancel_at"),
     canceledAt: utcTimestamp("canceled_at"),
     endedAt: utcTimestamp("ended_at"),
+    graceStartedAt: utcTimestamp("grace_started_at"),
     seats: integer("seats"),
     billingInterval: text("billing_interval"),
     stripeScheduleId: text("stripe_schedule_id"),

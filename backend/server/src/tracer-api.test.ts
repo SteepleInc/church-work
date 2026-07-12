@@ -247,6 +247,24 @@ describe("tracer API", () => {
       });
       expect(sessionBody.session?.activeOrganizationId).toMatch(/^org_/);
       expect(sessionBody.session?.orgCompletedOnboarding).toBe(true);
+
+      const invalidSubscriptionResponse = await api.fetch(
+        new Request("http://127.0.0.1/api/test/subscription", {
+          body: JSON.stringify({ status: "not-a-stripe-status" }),
+          headers: { "content-type": "application/json", cookie },
+          method: "POST",
+        }),
+      );
+      expect(invalidSubscriptionResponse.status).toBe(400);
+
+      const subscriptionResponse = await api.fetch(
+        new Request("http://127.0.0.1/api/test/subscription", {
+          body: JSON.stringify({ graceStartedAt: Date.UTC(2026, 6, 1), status: "past_due" }),
+          headers: { "content-type": "application/json", cookie },
+          method: "POST",
+        }),
+      );
+      expect(subscriptionResponse.ok).toBe(true);
     } finally {
       await api.close();
       await harness.stop();

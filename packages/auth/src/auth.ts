@@ -15,7 +15,7 @@ import {
 } from "@church-work/shared/get-ids";
 import { apiKey } from "@better-auth/api-key";
 import { stripe } from "@better-auth/stripe";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { BetterAuthOptions } from "better-auth";
 import { betterAuth } from "better-auth/minimal";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -384,6 +384,23 @@ export const createAuthOptions = (
           },
           enabled: true,
           getCheckoutSessionParams: () => ({ params: { automatic_tax: { enabled: true } } }),
+          onSubscriptionUpdate: async ({ subscription: updatedSubscription }) => {
+            const graceStartedAt = updatedSubscription.status === "past_due" ? new Date() : null;
+
+            if (updatedSubscription.status === "past_due") {
+              await db
+                .update(subscription)
+                .set({
+                  graceStartedAt: sql`coalesce(${subscription.graceStartedAt}, ${graceStartedAt})`,
+                })
+                .where(eq(subscription.id, updatedSubscription.id));
+            } else if (updatedSubscription.status === "active") {
+              await db
+                .update(subscription)
+                .set({ graceStartedAt: null })
+                .where(eq(subscription.id, updatedSubscription.id));
+            }
+          },
           plans: [
             {
               name: "paid",

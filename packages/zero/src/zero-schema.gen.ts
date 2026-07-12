@@ -1098,6 +1098,12 @@ const subscriptionTable = {
       customType: null as unknown as number,
       serverName: "ended_at",
     },
+    graceStartedAt: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+      serverName: "grace_started_at",
+    },
     seats: {
       type: "number",
       optional: true,
