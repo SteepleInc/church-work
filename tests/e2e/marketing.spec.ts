@@ -48,3 +48,30 @@ test("marketing library keeps Church Work copy in the copied collection card lay
   await expect(page.getByRole("link", { name: /Settings/ })).toBeVisible();
   await expect(page.getByText(/Sermon|PreachX|preacher|royalty/)).toHaveCount(0);
 });
+
+test("pricing presents Free and Paid plans and their upgrade path", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ height: 844, width: 390 });
+  await page.goto("/pricing");
+
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: "Plan the work now. Upgrade when you need more room.",
+    }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Free Plan" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Paid Plan" })).toBeVisible();
+  await expect(page.getByText("$0", { exact: true })).toBeVisible();
+  await expect(page.getByText("$19.99", { exact: true })).toBeVisible();
+
+  const comparison = page.getByRole("table", { name: "Free Plan and Paid Plan comparison" });
+  await expect(
+    comparison.getByRole("row", { name: /Planned Tasks Up to 300 Unlimited/ }),
+  ).toBeVisible();
+
+  const pricingCtas = page.getByRole("link", { name: /Start free/ });
+  await expect(pricingCtas).toHaveCount(2);
+  await expect(pricingCtas.first()).toHaveAttribute("href", "/sign-in");
+  await expect(pricingCtas.last()).toHaveAttribute("href", "/sign-in");
+});

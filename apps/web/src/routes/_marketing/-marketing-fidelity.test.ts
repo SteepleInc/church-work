@@ -1,35 +1,17 @@
 import { describe, expect, test } from "bun:test";
 
-const routeSource = await Bun.file(
-  new URL("./route.tsx", import.meta.url),
-).text();
-const shellSource = await Bun.file(
-  new URL("./-marketing-shell.tsx", import.meta.url),
-).text();
-const homeSource = await Bun.file(
-  new URL("./index.tsx", import.meta.url),
-).text();
-const pricingSource = await Bun.file(
-  new URL("./pricing.tsx", import.meta.url),
-).text();
-const librarySource = await Bun.file(
-  new URL("./library.tsx", import.meta.url),
-).text();
+const routeSource = await Bun.file(new URL("./route.tsx", import.meta.url)).text();
+const shellSource = await Bun.file(new URL("./-marketing-shell.tsx", import.meta.url)).text();
+const homeSource = await Bun.file(new URL("./index.tsx", import.meta.url)).text();
+const pricingSource = await Bun.file(new URL("./pricing.tsx", import.meta.url)).text();
+const librarySource = await Bun.file(new URL("./library.tsx", import.meta.url)).text();
 const marketingNavigationSource = await Bun.file(
-  new URL(
-    "../../components/navigation/marketingNavigation.tsx",
-    import.meta.url,
-  ),
+  new URL("../../components/navigation/marketingNavigation.tsx", import.meta.url),
 ).text();
 const mobileMarketingNavigationSource = await Bun.file(
-  new URL(
-    "../../components/navigation/mobileMarketingNavigation.tsx",
-    import.meta.url,
-  ),
+  new URL("../../components/navigation/mobileMarketingNavigation.tsx", import.meta.url),
 ).text();
-const stylesSource = await Bun.file(
-  new URL("../../styles/globals.css", import.meta.url),
-).text();
+const stylesSource = await Bun.file(new URL("../../styles/globals.css", import.meta.url)).text();
 
 describe("marketing shell and navigation treatment", () => {
   test("light pages share one persistent shell; library opts out into its own dark shell", () => {

@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import type { ReactNode } from "react";
 
 import { Reveal, RISE_EASE, useHeaderEntrance } from "./-marketing-shell";
@@ -145,12 +145,15 @@ function PlanCard({
 }
 
 function PriceHero({ base }: { readonly base: number }) {
+  const reduceMotion = useReducedMotion();
   return (
     <section className="mx-auto max-w-[1200px] px-6 pt-16 md:px-10 md:pt-24">
       <motion.div
         animate={{ opacity: 1, y: 0 }}
-        initial={{ opacity: 0, y: 24 }}
-        transition={{ delay: Math.max(0, base - 0.3), duration: 0.8 }}
+        initial={reduceMotion ? false : { opacity: 0, y: 24 }}
+        transition={
+          reduceMotion ? { duration: 0 } : { delay: Math.max(0, base - 0.3), duration: 0.8 }
+        }
       >
         <p className="cw-eyebrow text-center">Free to start. One clear upgrade.</p>
         <h1 className="mx-auto mt-7 max-w-[900px] text-center font-medium text-[48px] tracking-[-0.035em] leading-[1.04] md:text-[76px]">
@@ -164,12 +167,16 @@ function PriceHero({ base }: { readonly base: number }) {
       <motion.div
         animate={{ opacity: 1, y: 0 }}
         className="mt-12 grid gap-5 md:mt-14 md:grid-cols-2"
-        initial={{ opacity: 0, y: 40 }}
-        transition={{
-          delay: Math.max(0, base + 0.45),
-          duration: 0.9,
-          ease: RISE_EASE,
-        }}
+        initial={reduceMotion ? false : { opacity: 0, y: 40 }}
+        transition={
+          reduceMotion
+            ? { duration: 0 }
+            : {
+                delay: Math.max(0, base + 0.45),
+                duration: 0.9,
+                ease: RISE_EASE,
+              }
+        }
       >
         <PlanCard
           badge="No card required"
