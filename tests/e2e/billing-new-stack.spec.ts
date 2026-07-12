@@ -43,7 +43,10 @@ test("shows a grace deadline and recovery action to a past-due owner", async ({
   });
 
   await page.reload();
-  await expect(page.getByRole("status")).toContainText("Payment past due.", { timeout: 20_000 });
+  await expect(page.getByRole("status", { name: /Payment past due\./ })).toContainText(
+    "Payment past due.",
+    { timeout: 20_000 },
+  );
   await expect(page.getByRole("link", { name: "Fix payment" })).toBeVisible();
 
   await page.goto("/settings/workspace/billing");
