@@ -6,6 +6,9 @@ import { createColumnConfigHelper } from "@/components/data-table-filter/core/fi
 import { OrgLink } from "@/components/navigation/links";
 import { Badge } from "@/components/ui/badge";
 import type { OrgCollectionItem } from "@/data/orgs/orgsData.app";
+import { ChurchPlanBadge, SubscriptionStatusBadge } from "@/features/billing/subscription-badges";
+
+export { formatSubscriptionStatus } from "@/features/billing/subscription-badges";
 
 const dtf = createColumnConfigHelper<OrgCollectionItem>();
 
@@ -162,7 +165,7 @@ export const orgsColumnsDef: Array<ColumnDef<OrgCollectionItem>> = [
   },
   {
     accessorKey: "billing.plan",
-    cell: ({ row }) => <Badge variant="outline">{row.original.billing?.plan ?? "Free"}</Badge>,
+    cell: ({ row }) => <ChurchPlanBadge plan={row.original.billing?.plan ?? "Free"} />,
     enableHiding: false,
     enableSorting: false,
     header: ({ column }) => <ColumnHeader column={column}>Plan</ColumnHeader>,
@@ -172,13 +175,18 @@ export const orgsColumnsDef: Array<ColumnDef<OrgCollectionItem>> = [
   },
   {
     accessorKey: "billing.status",
-    cell: ({ row }) => formatSubscriptionStatus(row.original.billing?.status ?? null),
+    cell: ({ row }) => (
+      <SubscriptionStatusBadge
+        cancelAtPeriodEnd={row.original.billing?.cancelAtPeriodEnd ?? false}
+        status={row.original.billing?.status ?? null}
+      />
+    ),
     enableHiding: false,
     enableSorting: false,
     header: ({ column }) => <ColumnHeader column={column}>Subscription</ColumnHeader>,
     id: "subscriptionStatus",
-    minSize: 120,
-    size: 140,
+    minSize: 150,
+    size: 180,
   },
   {
     accessorKey: "slug",
@@ -282,8 +290,3 @@ export const orgsColumnsDef: Array<ColumnDef<OrgCollectionItem>> = [
     size: 150,
   },
 ];
-
-export function formatSubscriptionStatus(status: string | null) {
-  if (!status) return "No subscription";
-  return status.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
-}

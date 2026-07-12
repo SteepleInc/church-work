@@ -20,7 +20,14 @@ describe("org details pane", () => {
     expect(orgDetailsPaneSource).toContain('title="Billing (read-only)"');
     expect(orgDetailsPaneSource).toContain('label="Task Usage"');
     expect(orgDetailsPaneSource).toContain('label="Payment Grace Period Expiry"');
-    expect(orgDetailsPaneSource).toContain('value == null ? "Not present"');
+    expect(orgDetailsPaneSource).toContain(
+      "{org.billing ? <BillingSection billing={org.billing} /> : null}",
+    );
+    expect(orgDetailsPaneSource).toContain("<ChurchPlanBadge");
+    expect(orgDetailsPaneSource).toContain("<SubscriptionStatusBadge");
+    expect(orgDetailsPaneSource).toContain('aria-label="Not present"');
+    expect(orgDetailsPaneSource).toContain("FREE_PLAN_TASK_LIMIT");
+    expect(orgDetailsPaneSource).toContain("Payment Grace Period runs through");
     expect(orgDetailsPaneSource).not.toContain("Customer Portal");
     expect(orgDetailsPaneSource).not.toContain("Upgrade");
   });
