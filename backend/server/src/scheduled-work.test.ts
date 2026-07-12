@@ -20,6 +20,7 @@ import {
 import {
   buildCycleForInstant,
   buildCycleForLocalDate,
+  isRolloverMaintenanceDue,
   normalizeMaterializationWindowCycles,
   runScheduledCycleMaintenance,
 } from "./scheduled-work";
@@ -54,6 +55,31 @@ describe("scheduled work", () => {
     expect(normalizeMaterializationWindowCycles(53)).toBe(52);
     expect(normalizeMaterializationWindowCycles(6.9)).toBe(6);
     expect(normalizeMaterializationWindowCycles(Number.NaN)).toBe(3);
+  });
+
+  test("makes missing checkpoints due immediately and completed Cycles due only at their persisted boundary", () => {
+    const boundary = new Date("2026-06-22T04:00:00.000Z");
+    expect(
+      isRolloverMaintenanceDue({
+        completed_cycle_ends_at: null,
+        completed_cycle_start_date: null,
+        now,
+      }),
+    ).toBe(true);
+    expect(
+      isRolloverMaintenanceDue({
+        completed_cycle_ends_at: boundary,
+        completed_cycle_start_date: "2026-06-15",
+        now: new Date("2026-06-22T03:59:59.999Z"),
+      }),
+    ).toBe(false);
+    expect(
+      isRolloverMaintenanceDue({
+        completed_cycle_ends_at: boundary,
+        completed_cycle_start_date: "2026-06-15",
+        now: boundary,
+      }),
+    ).toBe(true);
   });
 
   test("maintains cycles for a Church before onboarding, rolls unfinished tasks, and projects Template work", async () => {
@@ -312,8 +338,26 @@ describe("scheduled work", () => {
       );
 
       const secondResult = await Effect.runPromise(runScheduledCycleMaintenance(db, { now }));
-      expect(secondResult.resultsByChurchId[churchId]?.rolledOverTaskIds).toEqual([]);
-      expect(secondResult.resultsByChurchId[churchId]?.materializedTaskIds).toEqual([]);
+      expect(secondResult.maintainedChurchIds).toEqual([]);
+      const [maintainedChurch] = await db
+        .select({
+          completedCycleStartDate: organization.rolloverMaintenanceCompletedCycleStartDate,
+        })
+        .from(organization)
+        .where(eq(organization.id, churchId));
+      expect(maintainedChurch?.completedCycleStartDate).toBe("2026-06-15");
+
+      const boundaryResult = await Effect.runPromise(
+        runScheduledCycleMaintenance(db, { now: "2026-06-22T04:00:00.000Z" }),
+      );
+      expect(boundaryResult.maintainedChurchIds).toEqual([churchId]);
+      const [advancedChurch] = await db
+        .select({
+          completedCycleStartDate: organization.rolloverMaintenanceCompletedCycleStartDate,
+        })
+        .from(organization)
+        .where(eq(organization.id, churchId));
+      expect(advancedChurch?.completedCycleStartDate).toBe("2026-06-22");
     } finally {
       await harness.stop();
     }
@@ -367,7 +411,8 @@ describe("scheduled work", () => {
         .from(cycles)
         .where(eq(cycles.church_id, `${churchId}_sparse`));
 
-      expect(secondResult.resultsByChurchId[`${churchId}_sparse`]?.createdCycleIds).toEqual([]);
+      expect(secondResult.maintainedChurchIds).toEqual([]);
+      expect(secondResult.resultsByChurchId[`${churchId}_sparse`]).toBeUndefined();
       expect(secondCycleRows.map((cycle) => cycle.start_date).sort()).toEqual([
         "2026-06-15",
         "2026-06-22",

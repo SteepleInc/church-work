@@ -109,6 +109,15 @@ type ScheduledCycleMaintenanceResult = {
   readonly resultsByChurchId: Readonly<Record<string, CycleMaintenanceResult>>;
 };
 
+export const isRolloverMaintenanceDue = (args: {
+  readonly completed_cycle_start_date: string | null;
+  readonly completed_cycle_ends_at: Date | null;
+  readonly now: Date;
+}) =>
+  args.completed_cycle_start_date === null ||
+  args.completed_cycle_ends_at === null ||
+  args.now >= args.completed_cycle_ends_at;
+
 export const buildCycleForLocalDate = (args: {
   readonly churchTimeZone: string;
   readonly localDate: string;
@@ -781,6 +790,11 @@ export const maintainCyclesForChurch = Effect.fn("maintainCyclesForChurch")(func
           }
         }
 
+        await tx
+          .update(organization)
+          .set({ rolloverMaintenanceCompletedCycleStartDate: currentCycleFields.start_date })
+          .where(eq(organization.id, args.church_id));
+
         return { createdCycleIds, ensuredCycleIds, materializedTaskIds, rolledOverTaskIds };
       }),
   });
@@ -797,6 +811,8 @@ export const runScheduledCycleMaintenance = Effect.fn("runScheduledCycleMaintena
         .select({
           church_time_zone: organization.churchTimeZone,
           id: organization.id,
+          rollover_maintenance_completed_cycle_start_date:
+            organization.rolloverMaintenanceCompletedCycleStartDate,
           rolling_materialization_window_cycles: organization.rollingMaterializationWindowCycles,
         })
         .from(organization),
@@ -805,6 +821,35 @@ export const runScheduledCycleMaintenance = Effect.fn("runScheduledCycleMaintena
   const maintainedChurchIds: string[] = [];
 
   for (const church of churches) {
+    const completedCycleStartDate = church.rollover_maintenance_completed_cycle_start_date;
+    if (completedCycleStartDate) {
+      const [completedCycle] = yield* Effect.tryPromise({
+        catch: (cause) => cause,
+        try: () =>
+          db
+            .select({ ends_at: cycles.ends_at })
+            .from(cycles)
+            .where(
+              and(
+                eq(cycles.church_id, church.id),
+                eq(cycles.start_date, completedCycleStartDate),
+                isNull(cycles.deleted_at),
+              ),
+            )
+            .limit(1),
+      });
+      const maintenanceInstant =
+        typeof args.now === "string" ? new Date(args.now) : (args.now ?? new Date());
+      if (
+        !isRolloverMaintenanceDue({
+          completed_cycle_ends_at: completedCycle?.ends_at ?? null,
+          completed_cycle_start_date: completedCycleStartDate,
+          now: maintenanceInstant,
+        })
+      )
+        continue;
+    }
+
     const result = yield* maintainCyclesForChurch(db, {
       church_id: church.id,
       church_time_zone: church.church_time_zone,
