@@ -57,11 +57,11 @@ A Week shown from Church calendar and Template projections before it has real Ta
 _Avoid_: Empty Cycle, pre-created Cycle, virtual Cycle
 
 **Rollover Maintenance**:
-The scheduled transition that closes a Church's current Week and ensures the Church has a current Cycle and next Cycle, creating either Cycle if needed and moving unfinished Tasks into the new current Cycle. Rollover Maintenance does not pre-create arbitrary future Cycles just so they can appear in planning UI.
+The scheduled transition that closes a Church's current Week and ensures the Church has at least three consecutive Cycles—the current Cycle and the next two Cycles—creating any missing Cycle and moving unfinished Tasks into the new current Cycle. Rollover Maintenance does not pre-create arbitrary future Cycles beyond this minimum planning horizon just so they can appear in planning UI.
 _Avoid_: Cycle creation cron, weekly seed job
 
 **Initial Cycles**:
-The current Cycle and next Cycle created when a Church is onboarded so the Church begins with a real planning window and a ready next Week. Initial Cycles are a bootstrap exception to otherwise sparse Cycle materialization.
+The current Cycle and next two Cycles created when a Church is onboarded so the Church begins with a real three-Week planning window. Initial Cycles are a bootstrap exception to otherwise sparse Cycle materialization.
 _Avoid_: Seeded future cycles, onboarding schedule
 
 **Cycle Name**:
