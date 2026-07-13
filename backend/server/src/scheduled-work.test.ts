@@ -352,7 +352,7 @@ describe("scheduled work", () => {
           }),
         ),
       ]);
-      const result = concurrentResults.find((candidate) => candidate.succeeded === 1);
+      const successfulResult = concurrentResults.find((candidate) => candidate.succeeded === 1);
 
       expect(concurrentResults.map(({ skipped, succeeded }) => ({ skipped, succeeded }))).toEqual(
         expect.arrayContaining([
@@ -360,12 +360,15 @@ describe("scheduled work", () => {
           { skipped: 1, succeeded: 0 },
         ]),
       );
-      expect(result?.maintainedChurchIds).toEqual([churchId]);
-      expect(result?.resultsByChurchId[churchId]?.rolledOverTaskIds).toEqual([
+      expect(successfulResult).toBeDefined();
+      if (!successfulResult)
+        throw new Error("Expected one concurrent maintenance invocation to win");
+      expect(successfulResult.maintainedChurchIds).toEqual([churchId]);
+      expect(successfulResult.resultsByChurchId[churchId]?.rolledOverTaskIds).toEqual([
         "task_rollover",
         "task_progress_rollover",
       ]);
-      expect(result?.resultsByChurchId[churchId]?.materializedTaskIds).toHaveLength(1);
+      expect(successfulResult.resultsByChurchId[churchId]?.materializedTaskIds).toHaveLength(1);
 
       const [rolledTask] = await db.select().from(tasks).where(eq(tasks.id, "task_rollover"));
       expect(rolledTask).toMatchObject({
@@ -430,8 +433,6 @@ describe("scheduled work", () => {
         activityRows.filter((activity) => activity.event_type === "cycle.created"),
       ).toHaveLength(4);
 
-      const secondResult = await Effect.runPromise(runScheduledCycleMaintenance(db, { now }));
-      expect(secondResult.maintainedChurchIds).toEqual([]);
       const [maintainedChurch] = await db
         .select({
           completedCycleStartDate: organization.rolloverMaintenanceCompletedCycleStartDate,
@@ -439,6 +440,9 @@ describe("scheduled work", () => {
         .from(organization)
         .where(eq(organization.id, churchId));
       expect(maintainedChurch?.completedCycleStartDate).toBe("2026-06-15");
+
+      const secondResult = await Effect.runPromise(runScheduledCycleMaintenance(db, { now }));
+      expect(secondResult.maintainedChurchIds).toEqual([]);
 
       const boundaryResult = await Effect.runPromise(
         runScheduledCycleMaintenance(db, { now: "2026-06-22T04:00:00.000Z" }),
