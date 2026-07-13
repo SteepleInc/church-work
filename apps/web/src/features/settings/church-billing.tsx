@@ -437,6 +437,10 @@ function FreePlanUsageMeter() {
   const approaching = !atLimit && usage > FREE_PLAN_TASK_USAGE_NOTICE_THRESHOLD;
   const percent = Math.min(100, Math.round((usage / limit) * 100));
   const remaining = Math.max(0, limit - usage);
+  // The meter is always visible on Billing, so the amber transition needs a
+  // text cue too — otherwise crossing the notice threshold only recolors a
+  // 1.5px bar. Destructive still wins at the limit.
+  const approachingText = "text-amber-600 dark:text-amber-500";
 
   return (
     <div className="flex flex-col gap-2 border-border/60 border-t pt-4">
@@ -445,6 +449,7 @@ function FreePlanUsageMeter() {
         <span
           className={cn(
             "text-muted-foreground text-xs tabular-nums",
+            approaching && approachingText,
             atLimit && "text-destructive",
           )}
         >
@@ -460,7 +465,7 @@ function FreePlanUsageMeter() {
         aria-valuemin={0}
         aria-valuenow={usage}
         aria-valuetext={`${usage} of ${limit} Tasks in the Active Planning Horizon`}
-        className="h-1.5 w-full overflow-hidden rounded-full bg-foreground/10"
+        className="h-1.5 w-full max-w-72 overflow-hidden rounded-full bg-foreground/10"
         role="meter"
       >
         <div
@@ -471,7 +476,13 @@ function FreePlanUsageMeter() {
           style={{ width: `${percent}%` }}
         />
       </div>
-      <p className={cn("text-muted-foreground text-xs", atLimit && "text-destructive")}>
+      <p
+        className={cn(
+          "text-muted-foreground text-xs",
+          approaching && approachingText,
+          atLimit && "text-destructive",
+        )}
+      >
         {atLimit
           ? "Free Plan Task limit reached — Task creation is paused. Existing and scheduled work stays available."
           : `${remaining} ${remaining === 1 ? "Task" : "Tasks"} remaining before the Free Plan limit. Counts Tasks in the Active Planning Horizon.`}
