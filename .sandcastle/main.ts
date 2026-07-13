@@ -68,7 +68,7 @@ mkdirSync(BUN_CACHE_DIR, { recursive: true });
 
 const allAroundAgent = () => sandcastle.opencode("openai/gpt-5.6-sol", { variant: "low" });
 
-const uiAgent = () => sandcastle.opencode("anthropic/claude-fable-5");
+const uiAgent = () => sandcastle.opencode("anthropic/claude-opus-4-8");
 
 const sandboxProvider = () =>
   docker({
