@@ -31,6 +31,26 @@ const ownerContext = {
   user_id: "user_owner",
 } satisfies ZeroSessionContext;
 
+const adminContext = {
+  ...memberContext,
+  church_role: "admin",
+  session_id: "session_church_admin",
+  user_id: "user_church_admin",
+} satisfies ZeroSessionContext;
+
+function expectQueryToFilterByChurch(query: object, churchId: string) {
+  const ast: unknown = Reflect.get(query, "ast");
+
+  expect(ast).toMatchObject({
+    where: {
+      left: { name: "referenceId", type: "column" },
+      op: "=",
+      right: { type: "literal", value: churchId },
+      type: "simple",
+    },
+  });
+}
+
 const churchScopedQueryNames = [
   "cycles.by_church",
   "focus_windows.by_church",
@@ -89,14 +109,14 @@ describe("Zero product queries", () => {
     expect(schema.tables.organization.columns).not.toHaveProperty("stripeCustomerId");
   });
 
-  test("authorizes Church billing state for active members and owners only", () => {
-    for (const ctx of [memberContext, ownerContext]) {
-      expect(() =>
-        mustGetQuery(queries, "subscription.by_church").fn({
-          args: { church_id: "org_member" },
-          ctx,
-        }),
-      ).not.toThrow();
+  test("authorizes and scopes Church billing state for active Church roles", () => {
+    for (const ctx of [memberContext, adminContext, ownerContext]) {
+      const query = mustGetQuery(queries, "subscription.by_church").fn({
+        args: { church_id: "org_member" },
+        ctx,
+      });
+
+      expectQueryToFilterByChurch(query, "org_member");
     }
 
     expect(() =>
@@ -111,12 +131,11 @@ describe("Zero product queries", () => {
         ctx: { authenticated: false, runtime: "server" },
       }),
     ).toThrow("Authentication required.");
-    expect(() =>
-      mustGetQuery(queries, "subscription.admin_by_church").fn({
-        args: { church_id: "org_other" },
-        ctx: appAdminContext,
-      }),
-    ).not.toThrow();
+    const appAdminQuery = mustGetQuery(queries, "subscription.admin_by_church").fn({
+      args: { church_id: "org_other" },
+      ctx: appAdminContext,
+    });
+    expectQueryToFilterByChurch(appAdminQuery, "org_other");
   });
 
   test("does not throw while the browser is still refreshing active Church context", () => {

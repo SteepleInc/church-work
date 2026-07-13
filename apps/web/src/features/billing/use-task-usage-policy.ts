@@ -18,11 +18,21 @@ export function useTaskUsagePolicy() {
     zero.context?.authenticated === true && zero.context.active_church_id === requestedChurchId
       ? requestedChurchId
       : null;
-  const [tasks] = useQuery(churchId ? queries.tasks.by_church({ church_id: churchId }) : undefined);
-  const [cycles] = useQuery(
+  const [tasks, tasksResult] = useQuery(
+    churchId ? queries.tasks.by_church({ church_id: churchId }) : undefined,
+  );
+  const [cycles, cyclesResult] = useQuery(
     churchId ? queries.cycles.by_church({ church_id: churchId }) : undefined,
   );
-  const { loading, subscriptionOpt } = useChurchSubscription({ churchId: requestedChurchId });
+  const { loading: subscriptionLoading, subscriptionOpt } = useChurchSubscription({
+    churchId: requestedChurchId,
+  });
+  const loading =
+    requestedChurchId !== null &&
+    (churchId === null ||
+      subscriptionLoading ||
+      tasksResult.type !== "complete" ||
+      cyclesResult.type !== "complete");
   const cyclesById = new Map((cycles ?? []).map((cycle) => [cycle.id, cycle]));
   const usage = (tasks ?? []).filter((task) => {
     const cycle = task.cycle_id ? cyclesById.get(task.cycle_id) : null;
@@ -41,7 +51,7 @@ export function useTaskUsagePolicy() {
       isUserTaskCreationBlocked({ usage, subscription: subscriptionOpt }),
     church,
     limit: FREE_PLAN_TASK_LIMIT,
-    loading: requestedChurchId !== null && (churchId === null || loading),
+    loading,
     showUsage:
       churchId !== null &&
       !loading &&

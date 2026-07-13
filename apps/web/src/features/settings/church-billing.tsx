@@ -463,7 +463,7 @@ function FreePlanUsageMeter() {
         aria-label="Free Plan Task Usage"
         aria-valuemax={limit}
         aria-valuemin={0}
-        aria-valuenow={usage}
+        aria-valuenow={Math.min(usage, limit)}
         aria-valuetext={`${usage} of ${limit} Tasks in the Active Planning Horizon`}
         className="h-1.5 w-full max-w-72 overflow-hidden rounded-full bg-foreground/10"
         role="meter"
