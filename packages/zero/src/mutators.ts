@@ -561,7 +561,7 @@ const restoreEntity = async (params: {
     .where(and(eq(params.table.id, params.id), eq(params.table.church_id, params.church_id)));
 };
 
-const requireTeamManager = (ctx: OptionalZeroSessionContext, _church_id: string) => {
+const requireTeamManager = (ctx: OptionalZeroSessionContext) => {
   const { session } = requireSessionActiveChurch(ctx);
 
   if (!session.is_app_admin && session.church_role !== "owner" && session.church_role !== "admin") {
@@ -1440,8 +1440,7 @@ const remapSerializedJsonFieldValues = (
   }
 };
 
-const requireTemplateManager = (ctx: OptionalZeroSessionContext, church_id: string) =>
-  requireTeamManager(ctx, church_id);
+const requireTemplateManager = (ctx: OptionalZeroSessionContext) => requireTeamManager(ctx);
 
 const parseIsoInstant = (value: string) => {
   const date = new Date(value);
@@ -2707,7 +2706,7 @@ export const mutators = defineMutators({
         return;
       }
 
-      const session = requireTeamManager(ctx, args.church_id);
+      const session = requireTeamManager(ctx);
       const now = new Date();
       const serverTx = tx as typeof tx & {
         readonly dbTransaction: {
@@ -2814,7 +2813,7 @@ export const mutators = defineMutators({
         return;
       }
 
-      const session = requireTeamManager(ctx, args.church_id);
+      const session = requireTeamManager(ctx);
       const name = args.name.trim();
       if (!name) throw new Error("Team name is required.");
 
@@ -2849,7 +2848,7 @@ export const mutators = defineMutators({
         return;
       }
 
-      const session = requireTeamManager(ctx, args.church_id);
+      const session = requireTeamManager(ctx);
       const identifier = normalizeTeamIdentifier(args.identifier);
       if (!isValidTeamIdentifier(identifier)) {
         throw new Error(
@@ -2931,7 +2930,7 @@ export const mutators = defineMutators({
         return;
       }
 
-      const session = requireTeamManager(ctx, args.church_id);
+      const session = requireTeamManager(ctx);
       const now = new Date();
       const serverTx = tx as typeof tx & {
         readonly dbTransaction: {
@@ -3014,7 +3013,7 @@ export const mutators = defineMutators({
         return;
       }
 
-      const session = requireTeamManager(ctx, args.church_id);
+      const session = requireTeamManager(ctx);
       const serverTx = tx as typeof tx & {
         readonly dbTransaction: {
           readonly wrappedTransaction: { readonly update: (table: unknown) => any };
@@ -3055,7 +3054,7 @@ export const mutators = defineMutators({
         return;
       }
 
-      const session = requireTeamManager(ctx, args.church_id);
+      const session = requireTeamManager(ctx);
       const serverTx = tx as typeof tx & {
         readonly dbTransaction: {
           readonly wrappedTransaction: {
@@ -3105,7 +3104,7 @@ export const mutators = defineMutators({
         return;
       }
 
-      const session = requireTeamManager(ctx, args.church_id);
+      const session = requireTeamManager(ctx);
       const serverTx = tx as typeof tx & {
         readonly dbTransaction: {
           readonly wrappedTransaction: { readonly delete: (table: unknown) => any };
@@ -3373,7 +3372,7 @@ export const mutators = defineMutators({
       const db = serverDb(tx);
       if (!db) return;
 
-      const session = requireTemplateManager(ctx, args.church_id);
+      const session = requireTemplateManager(ctx);
       const now = new Date();
       const keyDateId = getKeyDateId();
       await db.insert(key_dates).values({
@@ -3402,7 +3401,7 @@ export const mutators = defineMutators({
       const db = serverDb(tx);
       if (!db) return;
 
-      const session = requireTemplateManager(ctx, args.church_id);
+      const session = requireTemplateManager(ctx);
       const now = new Date();
       await db
         .update(key_dates)
@@ -3435,7 +3434,7 @@ export const mutators = defineMutators({
       const db = serverDb(tx);
       if (!db) return;
 
-      const session = requireTemplateManager(ctx, args.church_id);
+      const session = requireTemplateManager(ctx);
       const now = new Date();
       await db
         .update(key_dates)
@@ -3464,7 +3463,7 @@ export const mutators = defineMutators({
         const db = serverDb(tx);
         if (!db) return;
 
-        const session = requireTemplateManager(ctx, args.church_id);
+        const session = requireTemplateManager(ctx);
         const now = new Date();
         await db.insert(key_date_occurrences).values({
           _tag: "keydateoccurrence",
@@ -3486,7 +3485,7 @@ export const mutators = defineMutators({
       const db = serverDb(tx);
       if (!db) return;
 
-      const session = requireTemplateManager(ctx, args.church_id);
+      const session = requireTemplateManager(ctx);
       const now = new Date();
       const templateId = getTemplateId();
       const templateTeamIdByKey = new Map<string, string>();
@@ -3661,7 +3660,7 @@ export const mutators = defineMutators({
     duplicate: defineChurchWorkMutator(DuplicateTemplateArgs, async ({ args, ctx, tx }) => {
       const db = serverDb(tx);
       if (!db) return;
-      const session = requireTemplateManager(ctx, args.church_id);
+      const session = requireTemplateManager(ctx);
       const now = new Date();
       const [source] = (await db
         .select({
@@ -3944,7 +3943,7 @@ export const mutators = defineMutators({
     delete: defineChurchWorkMutator(TemplateEntityMutationArgs, async ({ args, ctx, tx }) => {
       const db = serverDb(tx);
       if (!db) return;
-      const session = requireTemplateManager(ctx, args.church_id);
+      const session = requireTemplateManager(ctx);
       const now = new Date();
       // A Template owns its projection sources. If only the Template row is
       // hidden, its active Schedules/Template Tasks still appear in the planning
@@ -4000,7 +3999,7 @@ export const mutators = defineMutators({
     restore: defineChurchWorkMutator(TemplateEntityMutationArgs, async ({ args, ctx, tx }) => {
       const db = serverDb(tx);
       if (!db) return;
-      const session = requireTemplateManager(ctx, args.church_id);
+      const session = requireTemplateManager(ctx);
       const now = new Date();
       await restoreEntity({
         church_id: args.church_id,
@@ -4203,7 +4202,7 @@ export const mutators = defineMutators({
     delete: defineChurchWorkMutator(TemplateEntityMutationArgs, async ({ args, ctx, tx }) => {
       const db = serverDb(tx);
       if (!db) return;
-      const session = requireTemplateManager(ctx, args.church_id);
+      const session = requireTemplateManager(ctx);
       const now = new Date();
       await softDeleteEntity({
         church_id: args.church_id,
@@ -4226,7 +4225,7 @@ export const mutators = defineMutators({
     restore: defineChurchWorkMutator(TemplateEntityMutationArgs, async ({ args, ctx, tx }) => {
       const db = serverDb(tx);
       if (!db) return;
-      const session = requireTemplateManager(ctx, args.church_id);
+      const session = requireTemplateManager(ctx);
       const now = new Date();
       await restoreEntity({
         church_id: args.church_id,
@@ -4251,7 +4250,7 @@ export const mutators = defineMutators({
     delete: defineChurchWorkMutator(DeleteTemplateScheduleArgs, async ({ args, ctx, tx }) => {
       const db = serverDb(tx);
       if (!db) return;
-      const session = requireTemplateManager(ctx, args.church_id);
+      const session = requireTemplateManager(ctx);
       const now = new Date();
       await softDeleteEntity({
         church_id: args.church_id,
@@ -4312,7 +4311,7 @@ export const mutators = defineMutators({
     restore: defineChurchWorkMutator(TemplateEntityMutationArgs, async ({ args, ctx, tx }) => {
       const db = serverDb(tx);
       if (!db) return;
-      const session = requireTemplateManager(ctx, args.church_id);
+      const session = requireTemplateManager(ctx);
       const now = new Date();
       await restoreEntity({
         church_id: args.church_id,
@@ -4338,7 +4337,7 @@ export const mutators = defineMutators({
       const db = serverDb(tx);
       if (!db) return;
 
-      const session = requireTemplateManager(ctx, args.church_id);
+      const session = requireTemplateManager(ctx);
       const now = new Date();
       for (const adjustment of args.adjustments) {
         const existing = (await db
@@ -5303,7 +5302,7 @@ export const mutators = defineMutators({
         return;
       }
 
-      const session = requireTeamManager(ctx, args.church_id);
+      const session = requireTeamManager(ctx);
       const name = args.name.trim();
       if (!name) throw new Error("Workflow name is required.");
 
@@ -5338,7 +5337,7 @@ export const mutators = defineMutators({
         return;
       }
 
-      const session = requireTeamManager(ctx, args.church_id);
+      const session = requireTeamManager(ctx);
       const serverTx = tx as typeof tx & {
         readonly dbTransaction: {
           readonly wrappedTransaction: {
@@ -5400,7 +5399,7 @@ export const mutators = defineMutators({
         return;
       }
 
-      requireTeamManager(ctx, args.church_id);
+      requireTeamManager(ctx);
       const serverTx = tx as typeof tx & {
         readonly dbTransaction: {
           readonly wrappedTransaction: { readonly select: (fields: unknown) => any };
@@ -5425,7 +5424,7 @@ export const mutators = defineMutators({
         return;
       }
 
-      const session = requireTeamManager(ctx, args.church_id);
+      const session = requireTeamManager(ctx);
       const name = args.status.name.trim();
       const key = args.status.key.trim();
       if (!name) throw new Error("Workflow Status name is required.");
@@ -5487,7 +5486,7 @@ export const mutators = defineMutators({
         return;
       }
 
-      const session = requireTeamManager(ctx, args.church_id);
+      const session = requireTeamManager(ctx);
       const name = args.name.trim();
       if (!name) throw new Error("Workflow Status name is required.");
 
@@ -5524,7 +5523,7 @@ export const mutators = defineMutators({
           return;
         }
 
-        const session = requireTeamManager(ctx, args.church_id);
+        const session = requireTeamManager(ctx);
         const serverTx = tx as typeof tx & {
           readonly dbTransaction: {
             readonly wrappedTransaction: { readonly update: (table: unknown) => any };
@@ -5569,7 +5568,7 @@ export const mutators = defineMutators({
           return;
         }
 
-        const session = requireTeamManager(ctx, args.church_id);
+        const session = requireTeamManager(ctx);
         const now = new Date();
         const serverTx = tx as typeof tx & {
           readonly dbTransaction: {
