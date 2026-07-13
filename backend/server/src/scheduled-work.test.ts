@@ -328,14 +328,44 @@ describe("scheduled work", () => {
         title: "Prepare weekly checklist",
       });
 
-      const result = await Effect.runPromise(runScheduledCycleMaintenance(db, { now }));
+      let transactionsReady = 0;
+      let releaseTransactions = () => {};
+      const transactionsReleased = new Promise<void>((resolve) => {
+        releaseTransactions = resolve;
+      });
+      const waitForConcurrentTransactions = async () => {
+        transactionsReady += 1;
+        if (transactionsReady === 2) releaseTransactions();
+        await transactionsReleased;
+      };
+      const concurrentResults = await Promise.all([
+        Effect.runPromise(
+          runScheduledCycleMaintenance(db, {
+            before_church_lock: waitForConcurrentTransactions,
+            now,
+          }),
+        ),
+        Effect.runPromise(
+          runScheduledCycleMaintenance(db, {
+            before_church_lock: waitForConcurrentTransactions,
+            now,
+          }),
+        ),
+      ]);
+      const result = concurrentResults.find((candidate) => candidate.succeeded === 1);
 
-      expect(result.maintainedChurchIds).toEqual([churchId]);
-      expect(result.resultsByChurchId[churchId]?.rolledOverTaskIds).toEqual([
+      expect(concurrentResults.map(({ skipped, succeeded }) => ({ skipped, succeeded }))).toEqual(
+        expect.arrayContaining([
+          { skipped: 0, succeeded: 1 },
+          { skipped: 1, succeeded: 0 },
+        ]),
+      );
+      expect(result?.maintainedChurchIds).toEqual([churchId]);
+      expect(result?.resultsByChurchId[churchId]?.rolledOverTaskIds).toEqual([
         "task_rollover",
         "task_progress_rollover",
       ]);
-      expect(result.resultsByChurchId[churchId]?.materializedTaskIds).toHaveLength(1);
+      expect(result?.resultsByChurchId[churchId]?.materializedTaskIds).toHaveLength(1);
 
       const [rolledTask] = await db.select().from(tasks).where(eq(tasks.id, "task_rollover"));
       expect(rolledTask).toMatchObject({
@@ -377,10 +407,28 @@ describe("scheduled work", () => {
       });
       expect(projectedTasks.every((task) => task.created_by === null)).toBe(true);
 
+      const cycleRows = await db.select().from(cycles).where(eq(cycles.church_id, churchId));
+      expect(cycleRows.map((cycle) => cycle.start_date).sort()).toEqual([
+        "2026-06-01",
+        "2026-06-08",
+        "2026-06-15",
+        "2026-06-22",
+        "2026-06-29",
+      ]);
+
       const activityRows = await db.select().from(activities);
       expect(activityRows.map((activity) => activity.event_type)).toEqual(
         expect.arrayContaining(["cycle.created", "task.rolled_over", "task.template_synced"]),
       );
+      expect(
+        activityRows.filter((activity) => activity.event_type === "task.rolled_over"),
+      ).toHaveLength(2);
+      expect(
+        activityRows.filter((activity) => activity.event_type === "task.template_synced"),
+      ).toHaveLength(1);
+      expect(
+        activityRows.filter((activity) => activity.event_type === "cycle.created"),
+      ).toHaveLength(4);
 
       const secondResult = await Effect.runPromise(runScheduledCycleMaintenance(db, { now }));
       expect(secondResult.maintainedChurchIds).toEqual([]);

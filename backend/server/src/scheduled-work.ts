@@ -638,6 +638,7 @@ export const maintainCyclesForChurch = Effect.fn("maintainCyclesForChurch")(func
   args: {
     readonly church_id: string;
     readonly church_time_zone: string;
+    readonly before_church_lock?: () => Promise<void>;
     readonly now?: Date | string;
     readonly rolling_materialization_window_cycles?: number;
   },
@@ -653,6 +654,26 @@ export const maintainCyclesForChurch = Effect.fn("maintainCyclesForChurch")(func
           churchTimeZone: args.church_time_zone,
           instant: now,
         });
+        await args.before_church_lock?.();
+        const [lockedChurch] = await tx
+          .select({
+            completedCycleStartDate: organization.rolloverMaintenanceCompletedCycleStartDate,
+          })
+          .from(organization)
+          .where(eq(organization.id, args.church_id))
+          .limit(1)
+          .for("update");
+
+        if (!lockedChurch) {
+          throw new Error(`Church not found during Rollover Maintenance: ${args.church_id}`);
+        }
+        if (
+          lockedChurch.completedCycleStartDate !== null &&
+          lockedChurch.completedCycleStartDate >= currentCycleFields.start_date
+        ) {
+          return null;
+        }
+
         const cycleLocalDates = [
           currentCycleFields.start_date,
           addLocalDateDays(currentCycleFields.start_date, 7),
@@ -825,7 +846,10 @@ const toMaintenanceInstant = (now: Date | DateTime.Utc | string | undefined): Da
 
 export const runScheduledCycleMaintenance = Effect.fn("runScheduledCycleMaintenance")(function* (
   db: ChurchWorkDb,
-  args: { readonly now?: Date | DateTime.Utc | string } = {},
+  args: {
+    readonly before_church_lock?: () => Promise<void>;
+    readonly now?: Date | DateTime.Utc | string;
+  } = {},
 ) {
   const maintenanceInstant = toMaintenanceInstant(args.now);
   const churches = yield* Effect.tryPromise({
@@ -875,11 +899,15 @@ export const runScheduledCycleMaintenance = Effect.fn("runScheduledCycleMaintena
           }
 
           const result = yield* maintainCyclesForChurch(db, {
+            before_church_lock: args.before_church_lock,
             church_id: church.id,
             church_time_zone: church.church_time_zone,
             now: maintenanceInstant,
             rolling_materialization_window_cycles: church.rolling_materialization_window_cycles,
           });
+          if (result === null) {
+            return { status: "skipped" as const };
+          }
           return { result, status: "succeeded" as const };
         }).pipe(Effect.exit);
 
