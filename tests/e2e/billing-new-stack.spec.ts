@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { setTestSubscription, startAuthenticatedSession } from "./helpers";
+import { seedTasks, setTestSubscription, startAuthenticatedSession } from "./helpers";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -26,6 +26,51 @@ test("shows a new Church owner the Church-scoped Free Plan", async ({ page }, te
   await expect(page.getByText("Free Plan", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Upgrade to Paid" }).first()).toBeVisible();
   await expect(page.getByText("No active Church selected.")).not.toBeVisible();
+});
+
+test("shows a re-subscribed Church as Paid when canceled history remains", async ({
+  page,
+}, testInfo) => {
+  const suffix = `${Date.now()}-${testInfo.workerIndex}`;
+  await startAuthenticatedSession(page, {
+    churchName: `E2E Re-subscribed Church ${suffix}`,
+    email: `billing-resubscribed-${suffix}@example.com`,
+    userName: "E2E Billing Owner",
+  });
+  await setTestSubscription(page, { historyKey: "old", status: "canceled" });
+  await setTestSubscription(page, { historyKey: "current", status: "active" });
+  await seedTasks(page, {
+    tasks: Array.from({ length: 300 }, (_, index) => ({
+      status: "To Do",
+      title: `Paid capacity Task ${index + 1}`,
+    })),
+    team: "Worship",
+  });
+
+  await page.goto("/settings/workspace/billing");
+  await expect(page.getByText("Paid Plan", { exact: true }).first()).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(page.getByRole("button", { name: "Upgrade to Paid" })).not.toBeVisible();
+
+  await page.goto("/my-work");
+  const createTaskButton = page.getByRole("main").getByRole("button", { name: "Create Task" });
+  await expect(createTaskButton).toBeEnabled({
+    timeout: 20_000,
+  });
+  await createTaskButton.click();
+  const dialog = page.getByRole("dialog", { name: /New Task/ });
+  const title = `Paid over-limit Task ${suffix}`;
+  await dialog.getByPlaceholder("Task title").fill(title);
+  await dialog.getByRole("button", { name: "Create Task" }).click();
+  await expect(dialog).not.toBeVisible();
+
+  // The seeded usage set can put the new card outside the virtualized viewport.
+  // Global Search observes the full Church Task collection, so finding it there
+  // confirms that the over-limit server mutation was accepted rather than rolled back.
+  await page.getByRole("button", { name: "Open global search" }).click();
+  await page.getByRole("textbox", { name: "Global Search" }).fill(title);
+  await expect(page.getByText(title, { exact: true }).first()).toBeVisible({ timeout: 20_000 });
 });
 
 test("shows a grace deadline and recovery action to a past-due owner", async ({
