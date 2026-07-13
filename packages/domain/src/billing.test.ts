@@ -40,8 +40,9 @@ describe("authoritative Church Subscription resolution", () => {
     expect(resolveChurchSubscription([active])).toBe(active);
   });
 
-  test("does not grant Paid from a Checkout-era incomplete row", () => {
+  test("does not resolve a Checkout-era incomplete row as authoritative", () => {
     const resolved = resolveChurchSubscription([subscription("checkout", "incomplete", 100)]);
+    expect(resolved).toBeNull();
     expect(hasPaidEntitlements(resolved)).toBe(false);
   });
 

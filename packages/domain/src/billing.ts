@@ -20,7 +20,6 @@ const epoch = (value: Date | number): number => (value instanceof Date ? value.g
 
 const statusPriority = (status: string | null | undefined): number => {
   if (status === "active" || status === "trialing" || status === "past_due") return 2;
-  if (status === "incomplete") return 1;
   return 0;
 };
 
@@ -48,6 +47,10 @@ export function resolveChurchSubscription<T extends ResolvableChurchSubscription
   let current: T | null = null;
 
   for (const candidate of subscriptions) {
+    // Better Auth can create this row before Stripe confirms Checkout. It is
+    // not webhook-owned subscription state and must not become authoritative.
+    if (candidate.status === "incomplete") continue;
+
     if (!current) {
       current = candidate;
       continue;
