@@ -23,10 +23,9 @@ export function useNotificationsCollection(params: { readonly churchId: string |
 export function useMarkNotificationReadMutation() {
   const zero = useZero();
 
-  return (params: { readonly churchId: string; readonly notificationId: string }) =>
+  return (params: { readonly notificationId: string }) =>
     zero.mutate(
       mutators.notifications.mark_read({
-        church_id: params.churchId,
         notification_id: params.notificationId,
       }),
     );
@@ -35,10 +34,9 @@ export function useMarkNotificationReadMutation() {
 export function useMarkNotificationUnreadMutation() {
   const zero = useZero();
 
-  return (params: { readonly churchId: string; readonly notificationId: string }) =>
+  return (params: { readonly notificationId: string }) =>
     zero.mutate(
       mutators.notifications.mark_unread({
-        church_id: params.churchId,
         notification_id: params.notificationId,
       }),
     );
@@ -47,17 +45,15 @@ export function useMarkNotificationUnreadMutation() {
 export function useMarkAllNotificationsReadMutation() {
   const zero = useZero();
 
-  return (params: { readonly churchId: string }) =>
-    zero.mutate(mutators.notifications.mark_all_read({ church_id: params.churchId }));
+  return () => zero.mutate(mutators.notifications.mark_all_read({}));
 }
 
 export function useDeleteNotificationMutation() {
   const zero = useZero();
 
-  return (params: { readonly churchId: string; readonly notificationId: string }) =>
+  return (params: { readonly notificationId: string }) =>
     zero.mutate(
       mutators.notifications.delete({
-        church_id: params.churchId,
         notification_id: params.notificationId,
       }),
     );
@@ -66,21 +62,15 @@ export function useDeleteNotificationMutation() {
 export function useDeleteReadNotificationsMutation() {
   const zero = useZero();
 
-  return (params: { readonly churchId: string }) =>
-    zero.mutate(mutators.notifications.delete_read({ church_id: params.churchId }));
+  return () => zero.mutate(mutators.notifications.delete_read({}));
 }
 
 export function useSnoozeNotificationMutation() {
   const zero = useZero();
 
-  return (params: {
-    readonly churchId: string;
-    readonly notificationId: string;
-    readonly snoozedUntil: Date;
-  }) =>
+  return (params: { readonly notificationId: string; readonly snoozedUntil: Date }) =>
     zero.mutate(
       mutators.notifications.snooze({
-        church_id: params.churchId,
         notification_id: params.notificationId,
         snoozed_until: params.snoozedUntil.toISOString(),
       }),

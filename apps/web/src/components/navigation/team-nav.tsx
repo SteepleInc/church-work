@@ -186,11 +186,9 @@ async function copyTeamLink(identifier: string) {
 
 export function TeamNavList({
   teams,
-  churchId,
   currentUserId,
 }: {
   readonly teams: readonly TeamCollectionItem[];
-  readonly churchId: string;
   readonly currentUserId: string | null;
 }) {
   const { expanded, setKey } = useExpansionState();
@@ -200,7 +198,6 @@ export function TeamNavList({
       {teams.map((team) => (
         <TeamNavItem
           key={team.id}
-          churchId={churchId}
           currentUserId={currentUserId}
           expanded={expanded}
           setExpanded={setKey}
@@ -213,13 +210,11 @@ export function TeamNavList({
 
 function TeamNavItem({
   team,
-  churchId,
   currentUserId,
   expanded,
   setExpanded,
 }: {
   readonly team: TeamCollectionItem;
-  readonly churchId: string;
   readonly currentUserId: string | null;
   readonly expanded: Record<string, boolean>;
   readonly setExpanded: (key: string, open: boolean) => void;
@@ -280,12 +275,7 @@ function TeamNavItem({
         </ContextMenuContent>
       </ContextMenu>
 
-      <TeamActionsMenu
-        churchId={churchId}
-        currentUserId={currentUserId}
-        isViewingTeam={isActive}
-        team={team}
-      />
+      <TeamActionsMenu currentUserId={currentUserId} isViewingTeam={isActive} team={team} />
 
       <CollapsibleTrigger
         render={
@@ -490,12 +480,10 @@ function ChildContextMenuContent({ href }: { readonly href: string }) {
 
 function TeamActionsMenu({
   team,
-  churchId,
   currentUserId,
   isViewingTeam,
 }: {
   readonly team: TeamCollectionItem;
-  readonly churchId: string;
   readonly currentUserId: string | null;
   readonly isViewingTeam: boolean;
 }) {
@@ -522,7 +510,7 @@ function TeamActionsMenu({
   const leaveTeam = async () => {
     if (!currentUserId) return;
     setLeaving(true);
-    const result = await removeTeamMember({ churchId, teamId: team.id, userId: currentUserId });
+    const result = await removeTeamMember({ teamId: team.id, userId: currentUserId });
     setLeaving(false);
 
     if (!result.ok) {
@@ -642,7 +630,7 @@ export function YourTeamsAddMenu({
 
   const handleJoin = async (team: TeamCollectionItem) => {
     if (!currentUserId) return;
-    const result = await addTeamMember({ churchId, teamId: team.id, userId: currentUserId });
+    const result = await addTeamMember({ teamId: team.id, userId: currentUserId });
     if (!result.ok) {
       toast.error(mutationErrorMessage(result, "Could not join Team."));
       return;

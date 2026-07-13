@@ -465,7 +465,6 @@ function ManageMemberTeamsBody({
     setPendingTeamId(teamId);
     const mutation = next ? addTeamMember : removeTeamMember;
     const result = await mutation({
-      churchId: state.churchId,
       teamId,
       userId: state.member.userId,
     });

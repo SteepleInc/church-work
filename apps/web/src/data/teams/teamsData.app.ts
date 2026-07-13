@@ -99,20 +99,17 @@ export function useTeamMembershipsCollection(params: { readonly churchId: string
 export function useCreateTeamMutation() {
   const zero = useZero();
 
-  return (params: { readonly churchId: string; readonly name: string }) =>
-    mutationResult(() =>
-      zero.mutate(mutators.teams.create({ church_id: params.churchId, name: params.name })),
-    );
+  return (params: { readonly name: string }) =>
+    mutationResult(() => zero.mutate(mutators.teams.create({ name: params.name })));
 }
 
 export function useRenameTeamMutation() {
   const zero = useZero();
 
-  return (params: { readonly churchId: string; readonly name: string; readonly teamId: string }) =>
+  return (params: { readonly name: string; readonly teamId: string }) =>
     mutationResult(() =>
       zero.mutate(
         mutators.teams.rename({
-          church_id: params.churchId,
           name: params.name,
           team_id: params.teamId,
         }),
@@ -123,15 +120,10 @@ export function useRenameTeamMutation() {
 export function useSetTeamIdentifierMutation() {
   const zero = useZero();
 
-  return (params: {
-    readonly churchId: string;
-    readonly identifier: string;
-    readonly teamId: string;
-  }) =>
+  return (params: { readonly identifier: string; readonly teamId: string }) =>
     mutationResult(() =>
       zero.mutate(
         mutators.teams.set_identifier({
-          church_id: params.churchId,
           identifier: params.identifier,
           team_id: params.teamId,
         }),
@@ -146,35 +138,24 @@ export function useArchiveTeamMutation() {
 export function useDeleteTeamMutation() {
   const zero = useZero();
 
-  return (params: { readonly churchId: string; readonly teamId: string }) =>
-    mutationResult(() =>
-      zero.mutate(mutators.teams.delete({ church_id: params.churchId, team_id: params.teamId })),
-    );
+  return (params: { readonly teamId: string }) =>
+    mutationResult(() => zero.mutate(mutators.teams.delete({ team_id: params.teamId })));
 }
 
 export function useReorderTeamsMutation() {
   const zero = useZero();
 
-  return (params: { readonly churchId: string; readonly teamIds: readonly string[] }) =>
-    mutationResult(() =>
-      zero.mutate(
-        mutators.teams.reorder({ church_id: params.churchId, team_ids: [...params.teamIds] }),
-      ),
-    );
+  return (params: { readonly teamIds: readonly string[] }) =>
+    mutationResult(() => zero.mutate(mutators.teams.reorder({ team_ids: [...params.teamIds] })));
 }
 
 export function useAddTeamMemberMutation() {
   const zero = useZero();
 
-  return (params: {
-    readonly churchId: string;
-    readonly teamId: string;
-    readonly userId: string;
-  }) =>
+  return (params: { readonly teamId: string; readonly userId: string }) =>
     mutationResult(() =>
       zero.mutate(
         mutators.teams.add_member({
-          church_id: params.churchId,
           team_id: params.teamId,
           user_id: params.userId,
         }),
@@ -185,15 +166,10 @@ export function useAddTeamMemberMutation() {
 export function useRemoveTeamMemberMutation() {
   const zero = useZero();
 
-  return (params: {
-    readonly churchId: string;
-    readonly teamId: string;
-    readonly userId: string;
-  }) =>
+  return (params: { readonly teamId: string; readonly userId: string }) =>
     mutationResult(() =>
       zero.mutate(
         mutators.teams.remove_member({
-          church_id: params.churchId,
           team_id: params.teamId,
           user_id: params.userId,
         }),

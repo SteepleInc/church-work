@@ -85,18 +85,13 @@ export function useTaskCommentSubscriptionsForTaskCollection(params: {
   };
 }
 
-export function useCreateTaskCommentMutation(params: {
-  readonly churchId: string | null;
-  readonly taskId: string;
-}) {
+export function useCreateTaskCommentMutation(params: { readonly taskId: string }) {
   const zero = useZero();
 
   return async (body: string, parentCommentId?: string | null) => {
-    if (params.churchId === null) throw new Error("Church is required to comment.");
     await zero.mutate(
       mutators.task_comments.create({
         body,
-        church_id: params.churchId,
         parent_comment_id: parentCommentId ?? null,
         task_id: params.taskId,
       }),
@@ -104,58 +99,45 @@ export function useCreateTaskCommentMutation(params: {
   };
 }
 
-export function useUpdateTaskCommentMutation(params: { readonly churchId: string | null }) {
+export function useUpdateTaskCommentMutation() {
   const zero = useZero();
 
   return async (commentId: string, body: string) => {
-    if (params.churchId === null) throw new Error("Church is required to edit comments.");
     await zero.mutate(
       mutators.task_comments.update({
         body,
-        church_id: params.churchId,
         comment_id: commentId,
       }),
     );
   };
 }
 
-export function useDeleteTaskCommentMutation(params: { readonly churchId: string | null }) {
+export function useDeleteTaskCommentMutation() {
   const zero = useZero();
 
   return async (commentId: string) => {
-    if (params.churchId === null) throw new Error("Church is required to delete comments.");
-    await zero.mutate(
-      mutators.task_comments.delete({ church_id: params.churchId, comment_id: commentId }),
-    );
+    await zero.mutate(mutators.task_comments.delete({ comment_id: commentId }));
   };
 }
 
-export function useSubscribeTaskCommentThreadMutation(params: {
-  readonly churchId: string | null;
-}) {
+export function useSubscribeTaskCommentThreadMutation() {
   const zero = useZero();
 
   return async (rootCommentId: string) => {
-    if (params.churchId === null) throw new Error("Church is required to subscribe.");
     await zero.mutate(
       mutators.task_comments.subscribe({
-        church_id: params.churchId,
         root_comment_id: rootCommentId,
       }),
     );
   };
 }
 
-export function useUnsubscribeTaskCommentThreadMutation(params: {
-  readonly churchId: string | null;
-}) {
+export function useUnsubscribeTaskCommentThreadMutation() {
   const zero = useZero();
 
   return async (rootCommentId: string) => {
-    if (params.churchId === null) throw new Error("Church is required to unsubscribe.");
     await zero.mutate(
       mutators.task_comments.unsubscribe({
-        church_id: params.churchId,
         root_comment_id: rootCommentId,
       }),
     );

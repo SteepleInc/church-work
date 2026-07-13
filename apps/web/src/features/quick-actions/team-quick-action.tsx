@@ -91,7 +91,7 @@ function TeamQuickActionBody(props: {
   const { teamsCollection, loading } = useTeamsCollection({ churchId: state.churchId });
 
   if (state.mode === "create") {
-    return <TeamForm churchId={state.churchId} team={null} onDone={onDone} />;
+    return <TeamForm team={null} onDone={onDone} />;
   }
 
   const team = teamsCollection.find((candidate) => candidate.id === state.teamId) ?? null;
@@ -108,15 +108,14 @@ function TeamQuickActionBody(props: {
     );
   }
 
-  return <TeamForm churchId={state.churchId} key={team.id} team={team} onDone={onDone} />;
+  return <TeamForm key={team.id} team={team} onDone={onDone} />;
 }
 
 function TeamForm(props: {
-  readonly churchId: string;
   readonly team: TeamCollectionItem | null;
   readonly onDone: () => void;
 }) {
-  const { churchId, team, onDone } = props;
+  const { team, onDone } = props;
   const createTeam = useCreateTeamMutation();
   const renameTeam = useRenameTeamMutation();
   const setTeamIdentifier = useSetTeamIdentifierMutation();
@@ -137,7 +136,7 @@ function TeamForm(props: {
       const name = value.name.trim();
 
       if (!isEdit) {
-        const result = await createTeam({ churchId, name });
+        const result = await createTeam({ name });
         if ("error" in result) {
           setFormError(result.error.message);
           return;
@@ -148,7 +147,7 @@ function TeamForm(props: {
       }
 
       if (name !== team.name) {
-        const result = await renameTeam({ churchId, name, teamId: team.id });
+        const result = await renameTeam({ name, teamId: team.id });
         if ("error" in result) {
           setFormError(result.error.message);
           return;
@@ -157,7 +156,7 @@ function TeamForm(props: {
 
       const identifier = normalizeTeamIdentifier(value.identifier);
       if (identifier !== team.identifier) {
-        const result = await setTeamIdentifier({ churchId, identifier, teamId: team.id });
+        const result = await setTeamIdentifier({ identifier, teamId: team.id });
         if ("error" in result) {
           setFormError(result.error.message);
           return;

@@ -69,15 +69,8 @@ function softDeletedToast(params: {
 export function useTemplateSoftDelete() {
   const actions = useTemplateSoftDeleteActions();
 
-  const removeTemplate = async (params: {
-    readonly churchId: string;
-    readonly id: string;
-    readonly name: string;
-  }) => {
-    const result = await actions.deleteTemplate({
-      churchId: params.churchId,
-      templateId: params.id,
-    });
+  const removeTemplate = async (params: { readonly id: string; readonly name: string }) => {
+    const result = await actions.deleteTemplate({ templateId: params.id });
     if (!result.ok) {
       toast.error(result.error.message);
       return result;
@@ -85,20 +78,13 @@ export function useTemplateSoftDelete() {
     softDeletedToast({
       entity: "Template",
       name: params.name,
-      onUndo: () => actions.restoreTemplate({ churchId: params.churchId, templateId: params.id }),
+      onUndo: () => actions.restoreTemplate({ templateId: params.id }),
     });
     return result;
   };
 
-  const removeTemplateTask = async (params: {
-    readonly churchId: string;
-    readonly id: string;
-    readonly name: string;
-  }) => {
-    const result = await actions.deleteTemplateTask({
-      churchId: params.churchId,
-      templateTaskId: params.id,
-    });
+  const removeTemplateTask = async (params: { readonly id: string; readonly name: string }) => {
+    const result = await actions.deleteTemplateTask({ templateTaskId: params.id });
     if (!result.ok) {
       toast.error(result.error.message);
       return result;
@@ -106,19 +92,16 @@ export function useTemplateSoftDelete() {
     softDeletedToast({
       entity: "Template Task",
       name: params.name,
-      onUndo: () =>
-        actions.restoreTemplateTask({ churchId: params.churchId, templateTaskId: params.id }),
+      onUndo: () => actions.restoreTemplateTask({ templateTaskId: params.id }),
     });
     return result;
   };
 
   const removeSchedule = async (params: {
-    readonly churchId: string;
     readonly schedule: TemplateScheduleCollectionItem;
     readonly cleanupCurrentOccurrence: boolean;
   }) => {
     const result = await actions.deleteTemplateSchedule({
-      churchId: params.churchId,
       options: {
         cleanupCurrentOccurrence: params.cleanupCurrentOccurrence,
         currentDate: todayLocalDate(),
@@ -133,11 +116,7 @@ export function useTemplateSoftDelete() {
     softDeletedToast({
       entity: "Schedule",
       name: params.schedule.name,
-      onUndo: () =>
-        actions.restoreTemplateSchedule({
-          churchId: params.churchId,
-          scheduleId: params.schedule.id,
-        }),
+      onUndo: () => actions.restoreTemplateSchedule({ scheduleId: params.schedule.id }),
     });
     return result;
   };

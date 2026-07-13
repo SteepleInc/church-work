@@ -72,7 +72,7 @@ export function TemplatesCollection() {
     if (!churchId || !pendingTemplate) {
       return Promise.resolve({ error: { message: "Select a Template to delete." }, ok: false });
     }
-    return removeTemplate({ churchId, id: pendingTemplate.id, name: pendingTemplate.name });
+    return removeTemplate({ id: pendingTemplate.id, name: pendingTemplate.name });
   };
 
   const newTemplateButton = canManage ? (

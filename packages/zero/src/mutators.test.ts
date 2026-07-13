@@ -67,7 +67,7 @@ describe("Zero Cycle mutators", () => {
     const { tx, updateCalls } = createRecordingUpdateTx();
 
     await mustGetMutator(mutators, "notifications.mark_read").fn({
-      args: { church_id: "org_test", notification_id: "notification_test" },
+      args: { notification_id: "notification_test" },
       ctx: signedInContext,
       tx,
     });
@@ -82,22 +82,22 @@ describe("Zero Cycle mutators", () => {
     const { tx, updateCalls } = createRecordingUpdateTx();
 
     await mustGetMutator(mutators, "notifications.mark_unread").fn({
-      args: { church_id: "org_test", notification_id: "notification_test" },
+      args: { notification_id: "notification_test" },
       ctx: signedInContext,
       tx,
     });
     await mustGetMutator(mutators, "notifications.mark_all_read").fn({
-      args: { church_id: "org_test" },
+      args: {},
       ctx: signedInContext,
       tx,
     });
     await mustGetMutator(mutators, "notifications.delete").fn({
-      args: { church_id: "org_test", notification_id: "notification_test" },
+      args: { notification_id: "notification_test" },
       ctx: signedInContext,
       tx,
     });
     await mustGetMutator(mutators, "notifications.delete_read").fn({
-      args: { church_id: "org_test" },
+      args: {},
       ctx: signedInContext,
       tx,
     });
@@ -128,7 +128,6 @@ describe("Zero Cycle mutators", () => {
 
     await mustGetMutator(mutators, "notifications.snooze").fn({
       args: {
-        church_id: "org_test",
         notification_id: "notification_test",
         snoozed_until: "2999-01-01T09:00:00.000Z",
       },
@@ -142,26 +141,25 @@ describe("Zero Cycle mutators", () => {
     expect(updateCalls[0]?.set.snoozed_until).toEqual(new Date("2999-01-01T09:00:00.000Z"));
   });
 
-  test("rejects unauthorized and invalid Notification Inbox actions without updating", async () => {
+  test("requires authentication and a session active Church for Notification Inbox actions", async () => {
     const { tx, updateCalls } = createRecordingUpdateTx();
 
     await expect(
       mustGetMutator(mutators, "notifications.mark_read").fn({
-        args: { church_id: "org_test", notification_id: "notification_test" },
+        args: { notification_id: "notification_test" },
         ctx: { authenticated: false, runtime: "server" },
         tx,
       }),
     ).rejects.toThrow("Authentication required.");
     await expect(
       mustGetMutator(mutators, "notifications.mark_unread").fn({
-        args: { church_id: "org_other", notification_id: "notification_test" },
-        ctx: signedInContext,
+        args: { notification_id: "notification_test" },
+        ctx: { ...signedInContext, active_church_id: null },
         tx,
       }),
-    ).rejects.toThrow("Active Church access required.");
+    ).rejects.toThrow("Active Church required.");
     await mustGetMutator(mutators, "notifications.snooze").fn({
       args: {
-        church_id: "org_test",
         notification_id: "notification_test",
         snoozed_until: "not-a-date",
       },
@@ -170,7 +168,6 @@ describe("Zero Cycle mutators", () => {
     });
     await mustGetMutator(mutators, "notifications.snooze").fn({
       args: {
-        church_id: "org_test",
         notification_id: "notification_test",
         snoozed_until: "2000-01-01T09:00:00.000Z",
       },
@@ -202,12 +199,12 @@ describe("Zero Cycle mutators", () => {
     } as never;
 
     await mustGetMutator(mutators, "templates.delete").fn({
-      args: { church_id: "org_test", id: "template_service" },
+      args: { id: "template_service" },
       ctx: signedInContext,
       tx,
     });
     await mustGetMutator(mutators, "templates.restore").fn({
-      args: { church_id: "org_test", id: "template_service" },
+      args: { id: "template_service" },
       ctx: signedInContext,
       tx,
     });
@@ -247,18 +244,17 @@ describe("Zero Cycle mutators", () => {
     } as never;
 
     await mustGetMutator(mutators, "template_tasks.delete").fn({
-      args: { church_id: "org_test", id: "templatetask_plan_setlist" },
+      args: { id: "templatetask_plan_setlist" },
       ctx: signedInContext,
       tx,
     });
     await mustGetMutator(mutators, "template_tasks.restore").fn({
-      args: { church_id: "org_test", id: "templatetask_plan_setlist" },
+      args: { id: "templatetask_plan_setlist" },
       ctx: signedInContext,
       tx,
     });
     await mustGetMutator(mutators, "template_schedules.delete").fn({
       args: {
-        church_id: "org_test",
         cleanup_current_occurrence: false,
         current_date: "2026-06-15",
         current_occurrence_key: "weekly:2026-06-21:sunday",
@@ -268,7 +264,7 @@ describe("Zero Cycle mutators", () => {
       tx,
     });
     await mustGetMutator(mutators, "template_schedules.restore").fn({
-      args: { church_id: "org_test", id: "templateschedule_sunday_service" },
+      args: { id: "templateschedule_sunday_service" },
       ctx: signedInContext,
       tx,
     });
@@ -312,7 +308,7 @@ describe("Zero Cycle mutators", () => {
     } as never;
 
     await mustGetMutator(mutators, "templates.delete").fn({
-      args: { church_id: "org_test", id: "template_service" },
+      args: { id: "template_service" },
       ctx: signedInContext,
       tx,
     });
@@ -347,7 +343,6 @@ describe("Zero Cycle mutators", () => {
 
     await mustGetMutator(mutators, "template_schedules.delete").fn({
       args: {
-        church_id: "org_test",
         cleanup_current_occurrence: true,
         current_date: "2026-06-15",
         current_occurrence_key: "weekly:2026-06-21:sunday",
@@ -393,7 +388,6 @@ describe("Zero Cycle mutators", () => {
 
     await mustGetMutator(mutators, "cycles.upsert").fn({
       args: {
-        church_id: "org_test",
         church_time_zone: "America/New_York",
         end_date: "2026-04-05",
         ends_at: "2026-04-06T04:00:00.000Z",
@@ -439,7 +433,6 @@ describe("Zero Cycle mutators", () => {
 
     await mustGetMutator(mutators, "cycles.updateDetails").fn({
       args: {
-        church_id: "org_test",
         cycle_id: "cycle_easter",
         description: "Coordinate Easter follow-up and volunteer care.",
         name: "Easter follow-up Week",
@@ -487,7 +480,6 @@ describe("Zero Key Date mutators", () => {
 
     await mustGetMutator(mutators, "key_dates.create").fn({
       args: {
-        church_id: "org_test",
         key: "easter-service",
         name: "Easter Service",
         schedule: { kind: "computedYearly", rule: "easter" },
@@ -545,7 +537,6 @@ describe("Zero Key Date mutators", () => {
 
     await mustGetMutator(mutators, "key_dates.update").fn({
       args: {
-        church_id: "org_test",
         key: "christmas-eve",
         key_date_id: "keydate_christmas",
         name: "Christmas Eve",
@@ -555,7 +546,7 @@ describe("Zero Key Date mutators", () => {
       tx,
     });
     await mustGetMutator(mutators, "key_dates.delete").fn({
-      args: { church_id: "org_test", key_date_id: "keydate_christmas" },
+      args: { key_date_id: "keydate_christmas" },
       ctx: signedInContext,
       tx,
     });
@@ -602,12 +593,13 @@ describe("Zero Team mutators", () => {
     } as never;
 
     await mustGetMutator(mutators, "teams.create").fn({
-      args: { church_id: "org_test", name: "Leadership" },
+      args: { name: "Leadership" },
       ctx: signedInContext,
       tx,
     });
 
     const teamInsert = insertCalls.find((call) => call.table === teams)?.values as {
+      readonly church_id: string;
       readonly id: string;
       readonly identifier: string;
     };
@@ -628,6 +620,7 @@ describe("Zero Team mutators", () => {
     }>;
 
     expect(teamInsert.identifier).toBe("LEA2");
+    expect(teamInsert.church_id).toBe("org_test");
     expect(getIdType(teamInsert.id)).toBe("team");
     expect(membershipInsert).toMatchObject({ team_id: teamInsert.id, user_id: "user_test" });
     expect(workflowInsert.team_id).toBe(teamInsert.id);
@@ -663,7 +656,7 @@ describe("Zero Team mutators", () => {
     } as never;
 
     await mustGetMutator(mutators, "teams.reorder").fn({
-      args: { church_id: "org_test", team_ids: ["team_two", "team_one"] },
+      args: { team_ids: ["team_two", "team_one"] },
       ctx: signedInContext,
       tx,
     });
@@ -702,13 +695,13 @@ describe("Zero Team mutators", () => {
     } as never;
 
     await mustGetMutator(mutators, "teams.add_member").fn({
-      args: { church_id: "org_test", team_id: "team_test", user_id: "user_two" },
+      args: { team_id: "team_test", user_id: "user_two" },
       ctx: signedInContext,
       tx,
     });
 
     await mustGetMutator(mutators, "teams.remove_member").fn({
-      args: { church_id: "org_test", team_id: "team_test", user_id: "user_two" },
+      args: { team_id: "team_test", user_id: "user_two" },
       ctx: signedInContext,
       tx,
     });
@@ -745,12 +738,12 @@ describe("Zero Workflow mutators", () => {
     } as never;
 
     await mustGetMutator(mutators, "workflows.rename").fn({
-      args: { church_id: "org_test", name: "Planning", workflow_id: "workflow_test" },
+      args: { name: "Planning", workflow_id: "workflow_test" },
       ctx: signedInContext,
       tx,
     });
     await mustGetMutator(mutators, "workflows.rename_status").fn({
-      args: { church_id: "org_test", name: "Queued", status_id: "workflowstatus_test" },
+      args: { name: "Queued", status_id: "workflowstatus_test" },
       ctx: signedInContext,
       tx,
     });
@@ -789,7 +782,7 @@ describe("Zero Workflow mutators", () => {
     } as never;
 
     await mustGetMutator(mutators, "workflows.reorder").fn({
-      args: { church_id: "org_test", workflow_ids: ["workflow_two", "workflow_one"] },
+      args: { workflow_ids: ["workflow_two", "workflow_one"] },
       ctx: signedInContext,
       tx,
     });
@@ -830,7 +823,6 @@ describe("Zero Workflow mutators", () => {
 
     await mustGetMutator(mutators, "workflows.add_status").fn({
       args: {
-        church_id: "org_test",
         status: { key: "review", name: "Review", sort_order: 3, task_state: "in_progress" },
         workflow_id: "workflow_test",
       },
@@ -839,7 +831,6 @@ describe("Zero Workflow mutators", () => {
     });
     await mustGetMutator(mutators, "workflows.reorder_statuses").fn({
       args: {
-        church_id: "org_test",
         status_ids: ["workflowstatus_two", "workflowstatus_one"],
         workflow_id: "workflow_test",
       },
@@ -847,7 +838,7 @@ describe("Zero Workflow mutators", () => {
       tx,
     });
     await mustGetMutator(mutators, "workflows.archive_status").fn({
-      args: { church_id: "org_test", status_id: "workflowstatus_two" },
+      args: { status_id: "workflowstatus_two" },
       ctx: signedInContext,
       tx,
     });
@@ -929,12 +920,12 @@ describe("Zero Label mutators", () => {
     const memberContext = { ...signedInContext, church_role: "member" } as const;
 
     await mustGetMutator(mutators, "labels.create").fn({
-      args: { church_id: "org_test", name: "Worship" },
+      args: { name: "Worship" },
       ctx: memberContext,
       tx,
     });
     await mustGetMutator(mutators, "labels.create").fn({
-      args: { church_id: "org_test", name: "Worship", team_id: "team_worship" },
+      args: { name: "Worship", team_id: "team_worship" },
       ctx: memberContext,
       tx,
     });
@@ -964,7 +955,7 @@ describe("Zero Label mutators", () => {
     ]);
     await expect(
       mustGetMutator(mutators, "labels.create").fn({
-        args: { church_id: "org_test", name: "Worship" },
+        args: { name: "Worship" },
         ctx: memberContext,
         tx: churchDuplicateTx,
       }),
@@ -976,7 +967,7 @@ describe("Zero Label mutators", () => {
     ]);
     await expect(
       mustGetMutator(mutators, "labels.create").fn({
-        args: { church_id: "org_test", name: "Worship", team_id: "team_worship" },
+        args: { name: "Worship", team_id: "team_worship" },
         ctx: memberContext,
         tx: teamDuplicateTx,
       }),
@@ -995,12 +986,12 @@ describe("Zero Label mutators", () => {
     const memberContext = { ...signedInContext, church_role: "member" } as const;
 
     await mustGetMutator(mutators, "labels.update").fn({
-      args: { church_id: "org_test", color: "blue", label_id: "label_worship", name: "Music" },
+      args: { color: "blue", label_id: "label_worship", name: "Music" },
       ctx: memberContext,
       tx,
     });
     await mustGetMutator(mutators, "labels.delete").fn({
-      args: { church_id: "org_test", label_id: "label_worship" },
+      args: { label_id: "label_worship" },
       ctx: memberContext,
       tx,
     });
@@ -1212,7 +1203,6 @@ describe("Zero Task mutators", () => {
 
     await mustGetMutator(mutators, "tasks.create").fn({
       args: {
-        church_id: "org_test",
         team_id: "team_production",
         title: "Prepare stage cues",
         workflow_status_id: "workflowstatus_todo",
@@ -1260,7 +1250,7 @@ describe("Zero Task mutators", () => {
     expect(formatTaskIdentifier("PRO", taskInsert.number)).toBe("PRO-7");
   });
 
-  test("creates a Task from a Draft and soft-deletes both Draft rows", async () => {
+  test("creates a Task in the session active Church from a Draft and soft-deletes both Draft rows", async () => {
     const { insertCalls, tx, updateCalls } = createServerTx([
       [{ status: "active" }],
       [{ id: "draft_test" }],
@@ -1273,7 +1263,6 @@ describe("Zero Task mutators", () => {
 
     await mustGetMutator(mutators, "tasks.create").fn({
       args: {
-        church_id: "org_other",
         description: "submitted body",
         draft_id: "draft_test",
         team_id: "team_production",
@@ -1322,7 +1311,6 @@ describe("Zero Task mutators", () => {
     await expect(
       mustGetMutator(mutators, "tasks.create").fn({
         args: {
-          church_id: "org_test",
           draft_id: "draft_other",
           team_id: "team_production",
           title: "Submitted title",
@@ -1343,7 +1331,6 @@ describe("Zero Task mutators", () => {
     await mustGetMutator(mutators, "task_comments.create").fn({
       args: {
         body: "First line\n\nSecond line",
-        church_id: "org_test",
         task_id: "task_test",
       },
       ctx: signedInContext,
@@ -1388,7 +1375,6 @@ describe("Zero Task mutators", () => {
     await mustGetMutator(mutators, "task_comments.create").fn({
       args: {
         body: "Reply line one\nReply line two",
-        church_id: "org_test",
         parent_comment_id: "taskcomment_root",
         task_id: "task_test",
       },
@@ -1427,7 +1413,6 @@ describe("Zero Task mutators", () => {
       mustGetMutator(mutators, "task_comments.create").fn({
         args: {
           body: "Nested reply",
-          church_id: "org_test",
           parent_comment_id: "taskcomment_reply",
           task_id: "task_test",
         },
@@ -1453,7 +1438,7 @@ describe("Zero Task mutators", () => {
     ]);
 
     await mustGetMutator(mutators, "task_comments.update").fn({
-      args: { body: "Edited body", church_id: "org_test", comment_id: "taskcomment_root" },
+      args: { body: "Edited body", comment_id: "taskcomment_root" },
       ctx: signedInContext,
       tx,
     });
@@ -1482,7 +1467,7 @@ describe("Zero Task mutators", () => {
     ]);
 
     await mustGetMutator(mutators, "task_comments.delete").fn({
-      args: { church_id: "org_test", comment_id: "taskcomment_reply" },
+      args: { comment_id: "taskcomment_reply" },
       ctx: signedInContext,
       tx,
     });
@@ -1516,7 +1501,7 @@ describe("Zero Task mutators", () => {
 
     await expect(
       mustGetMutator(mutators, "task_comments.update").fn({
-        args: { body: "Bad edit", church_id: "org_test", comment_id: "taskcomment_root" },
+        args: { body: "Bad edit", comment_id: "taskcomment_root" },
         ctx: { ...signedInContext, church_role: "member" },
         tx,
       }),
@@ -1540,7 +1525,7 @@ describe("Zero Task mutators", () => {
     ]);
 
     await mustGetMutator(mutators, "task_comments.delete").fn({
-      args: { church_id: "org_test", comment_id: "taskcomment_root" },
+      args: { comment_id: "taskcomment_root" },
       ctx: { ...signedInContext, church_role: "admin" },
       tx,
     });
@@ -1554,7 +1539,7 @@ describe("Zero Task mutators", () => {
     ]);
 
     await mustGetMutator(mutators, "task_comments.subscribe").fn({
-      args: { church_id: "org_test", root_comment_id: "taskcomment_root" },
+      args: { root_comment_id: "taskcomment_root" },
       ctx: signedInContext,
       tx,
     });
@@ -1593,7 +1578,6 @@ describe("Zero Task mutators", () => {
     await mustGetMutator(mutators, "task_comments.create").fn({
       args: {
         body: "Reply with useful context",
-        church_id: "org_test",
         parent_comment_id: "taskcomment_root",
         task_id: "task_test",
       },
@@ -1636,7 +1620,7 @@ describe("Zero Task mutators", () => {
     const { tx, updateCalls } = createServerTx([]);
 
     await mustGetMutator(mutators, "task_comments.unsubscribe").fn({
-      args: { church_id: "org_test", root_comment_id: "taskcomment_root" },
+      args: { root_comment_id: "taskcomment_root" },
       ctx: signedInContext,
       tx,
     });
@@ -1660,7 +1644,6 @@ describe("Zero Task mutators", () => {
 
     await mustGetMutator(mutators, "tasks.create").fn({
       args: {
-        church_id: "org_test",
         target_cycle: {
           church_time_zone: "America/New_York",
           end_date: "2026-07-05",
@@ -1696,7 +1679,6 @@ describe("Zero Task mutators", () => {
 
     await mustGetMutator(mutators, "tasks.create").fn({
       args: {
-        church_id: "org_test",
         target_cycle: {
           church_time_zone: "America/New_York",
           end_date: "2026-08-02",
@@ -1765,7 +1747,6 @@ describe("Zero Task mutators", () => {
 
     await mustGetMutator(mutators, "tasks.update_batch").fn({
       args: {
-        church_id: "org_test",
         updates: [
           { fields: { board_order: "a2" }, task_id: "task_one" },
           { fields: { board_order: "a1" }, task_id: "task_two" },
@@ -1806,7 +1787,6 @@ describe("Zero Task mutators", () => {
 
     await mustGetMutator(mutators, "tasks.update").fn({
       args: {
-        church_id: "org_test",
         fields: {
           target_cycle: {
             church_time_zone: "America/New_York",
@@ -1860,7 +1840,6 @@ describe("Zero Task mutators", () => {
 
     await mustGetMutator(mutators, "tasks.update").fn({
       args: {
-        church_id: "org_test",
         fields: { cycle_id: "cycle_previous" },
         task_id: "task_rolled_over",
       },
@@ -1903,7 +1882,6 @@ describe("Zero Task mutators", () => {
 
     await mustGetMutator(mutators, "tasks.update").fn({
       args: {
-        church_id: "org_test",
         fields: { due_date: "2026-07-29" },
         task_id: "task_one",
       },
@@ -1954,7 +1932,6 @@ describe("Zero Task mutators", () => {
 
     await mustGetMutator(mutators, "tasks.update").fn({
       args: {
-        church_id: "org_test",
         fields: {
           target_cycle: {
             church_time_zone: "America/New_York",
@@ -2017,7 +1994,6 @@ describe("Zero Task mutators", () => {
 
     await mustGetMutator(mutators, "tasks.update").fn({
       args: {
-        church_id: "org_test",
         fields: { workflow_status_id: "workflowstatus_done" },
         task_id: "task_one",
       },
@@ -2066,7 +2042,7 @@ describe("Zero Task mutators", () => {
     ]);
 
     await mustGetMutator(mutators, "tasks.update").fn({
-      args: { church_id: "org_test", fields: { team_id: "team_new" }, task_id: "task_one" },
+      args: { fields: { team_id: "team_new" }, task_id: "task_one" },
       ctx: signedInContext,
       tx,
     });
@@ -2121,12 +2097,12 @@ describe("Zero Task mutators", () => {
     ]);
 
     await mustGetMutator(mutators, "tasks.complete").fn({
-      args: { church_id: "org_test", task_id: "task_one" },
+      args: { task_id: "task_one" },
       ctx: signedInContext,
       tx,
     });
     await mustGetMutator(mutators, "tasks.reopen").fn({
-      args: { church_id: "org_test", task_id: "task_one" },
+      args: { task_id: "task_one" },
       ctx: signedInContext,
       tx,
     });
@@ -2189,7 +2165,6 @@ describe("Zero Task mutators", () => {
 
     await mustGetMutator(mutators, "tasks.update").fn({
       args: {
-        church_id: "org_test",
         fields: {
           assigned_user_id: "user_new",
           workflow_status_id: "workflowstatus_in_progress",
@@ -2248,7 +2223,6 @@ describe("Zero Template and Cycle projection", () => {
 
     await mustGetMutator(mutators, "templates.create").fn({
       args: {
-        church_id: "org_test",
         focus_windows: [],
         key: "weekly-service",
         name: "Weekly Service",
@@ -2418,7 +2392,7 @@ describe("Zero Template and Cycle projection", () => {
     } as never;
 
     await mustGetMutator(mutators, "templates.duplicate").fn({
-      args: { church_id: "org_test", template_id: "template_source" },
+      args: { template_id: "template_source" },
       ctx: signedInContext,
       tx,
     });

@@ -909,8 +909,6 @@ export function useCreateTaskMutation() {
   const zero = useZero();
 
   return async (params: {
-    readonly churchId: string;
-    readonly actorUserId: string | null;
     readonly title: string;
     readonly description?: string | null;
     readonly teamId: string;
@@ -931,7 +929,6 @@ export function useCreateTaskMutation() {
         zero.mutate(
           mutators.tasks.create({
             assigned_user_id: params.assignedUserId ?? null,
-            ...(!params.draftId ? { church_id: params.churchId } : {}),
             ...(params.draftId ? { draft_id: params.draftId } : {}),
             description: params.description ?? null,
             due_date: params.dueDate ?? null,
@@ -960,7 +957,6 @@ export function useSaveTaskDraftMutation() {
   const zero = useZero();
 
   return async (params: {
-    readonly churchId: string;
     readonly title: string;
     readonly description?: string | null;
     readonly teamId?: string | null;
@@ -999,7 +995,6 @@ export function useUpdateTaskDraftMutation() {
   const zero = useZero();
 
   return async (params: {
-    readonly churchId: string;
     readonly draftId: string;
     readonly title: string;
     readonly description?: string | null;
@@ -1038,17 +1033,11 @@ export function useUpdateTaskDraftMutation() {
 export function useUpdateTaskMutation() {
   const zero = useZero();
 
-  return (params: {
-    readonly churchId: string;
-    readonly actorUserId: string | null;
-    readonly taskId: string;
-    readonly fields: TaskUpdateFields;
-  }) =>
+  return (params: { readonly taskId: string; readonly fields: TaskUpdateFields }) =>
     zeroMutationResult(
       () =>
         zero.mutate(
           mutators.tasks.update({
-            church_id: params.churchId,
             fields: taskFieldsToZero(params.fields),
             task_id: params.taskId,
           }),
@@ -1061,7 +1050,6 @@ export function useAdjustProjectedTemplateTaskMutation() {
   const zero = useZero();
 
   return (params: {
-    readonly churchId: string;
     readonly cycleId: string;
     readonly sourceTemplateScheduleId: string;
     readonly sourceTemplateOccurrenceKey: string;
@@ -1082,7 +1070,6 @@ export function useAdjustProjectedTemplateTaskMutation() {
                 template_task_id: params.sourceTemplateTaskId,
               },
             ],
-            church_id: params.churchId,
           }),
         ),
       "Could not adjust projected Template Task.",
@@ -1098,7 +1085,6 @@ export function useMaterializeProjectedTemplateTaskMutation() {
         zero.mutate(
           mutators.tasks.materialize_projected({
             assigned_user_id: params.task.assignedUserId,
-            church_id: params.task.churchId,
             cycle_id: params.task.cycleId ?? "",
             description: params.task.description,
             due_date: params.task.dueDate,
@@ -1122,15 +1108,12 @@ export function useUpdateTasksBatchMutation() {
   const zero = useZero();
 
   return (params: {
-    readonly churchId: string;
-    readonly actorUserId: string | null;
     readonly updates: readonly { readonly taskId: string; readonly fields: TaskUpdateFields }[];
   }) =>
     zeroMutationResult(
       () =>
         zero.mutate(
           mutators.tasks.update_batch({
-            church_id: params.churchId,
             updates: params.updates.map((update) => ({
               fields: taskFieldsToZero(update.fields),
               task_id: update.taskId,
@@ -1144,16 +1127,9 @@ export function useUpdateTasksBatchMutation() {
 export function useCompleteTaskMutation() {
   const zero = useZero();
 
-  return (params: {
-    readonly churchId: string;
-    readonly actorUserId: string | null;
-    readonly taskId: string;
-  }) =>
+  return (params: { readonly taskId: string }) =>
     zeroMutationResult(
-      () =>
-        zero.mutate(
-          mutators.tasks.complete({ church_id: params.churchId, task_id: params.taskId }),
-        ),
+      () => zero.mutate(mutators.tasks.complete({ task_id: params.taskId })),
       "Could not complete Task.",
     );
 }
@@ -1161,14 +1137,9 @@ export function useCompleteTaskMutation() {
 export function useCancelTaskMutation() {
   const zero = useZero();
 
-  return (params: {
-    readonly churchId: string;
-    readonly actorUserId: string | null;
-    readonly taskId: string;
-  }) =>
+  return (params: { readonly taskId: string }) =>
     zeroMutationResult(
-      () =>
-        zero.mutate(mutators.tasks.cancel({ church_id: params.churchId, task_id: params.taskId })),
+      () => zero.mutate(mutators.tasks.cancel({ task_id: params.taskId })),
       "Could not cancel Task.",
     );
 }
@@ -1176,14 +1147,9 @@ export function useCancelTaskMutation() {
 export function useReopenTaskMutation() {
   const zero = useZero();
 
-  return (params: {
-    readonly churchId: string;
-    readonly actorUserId: string | null;
-    readonly taskId: string;
-  }) =>
+  return (params: { readonly taskId: string }) =>
     zeroMutationResult(
-      () =>
-        zero.mutate(mutators.tasks.reopen({ church_id: params.churchId, task_id: params.taskId })),
+      () => zero.mutate(mutators.tasks.reopen({ task_id: params.taskId })),
       "Could not reopen Task.",
     );
 }

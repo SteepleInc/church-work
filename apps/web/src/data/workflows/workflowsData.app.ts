@@ -170,15 +170,10 @@ export function useWorkflowStatusMeta(params: {
 export function useRenameWorkflowMutation() {
   const zero = useZero();
 
-  return (params: {
-    readonly churchId: string;
-    readonly name: string;
-    readonly workflowId: string;
-  }) =>
+  return (params: { readonly name: string; readonly workflowId: string }) =>
     mutationResult(() =>
       zero.mutate(
         mutators.workflows.rename({
-          church_id: params.churchId,
           name: params.name,
           workflow_id: params.workflowId,
         }),
@@ -189,11 +184,10 @@ export function useRenameWorkflowMutation() {
 export function useReorderWorkflowsMutation() {
   const zero = useZero();
 
-  return (params: { readonly churchId: string; readonly workflowIds: readonly string[] }) =>
+  return (params: { readonly workflowIds: readonly string[] }) =>
     mutationResult(() =>
       zero.mutate(
         mutators.workflows.reorder({
-          church_id: params.churchId,
           workflow_ids: [...params.workflowIds],
         }),
       ),
@@ -203,11 +197,10 @@ export function useReorderWorkflowsMutation() {
 export function useArchiveWorkflowMutation() {
   const zero = useZero();
 
-  return (params: { readonly churchId: string; readonly workflowId: string }) =>
+  return (params: { readonly workflowId: string }) =>
     mutationResult(() =>
       zero.mutate(
         mutators.workflows.archive({
-          church_id: params.churchId,
           workflow_id: params.workflowId,
         }),
       ),
@@ -218,7 +211,6 @@ export function useAddWorkflowStatusMutation() {
   const zero = useZero();
 
   return (params: {
-    readonly churchId: string;
     readonly workflowId: string;
     readonly status: {
       readonly key: string;
@@ -230,7 +222,6 @@ export function useAddWorkflowStatusMutation() {
     mutationResult(() =>
       zero.mutate(
         mutators.workflows.add_status({
-          church_id: params.churchId,
           status: {
             key: params.status.key,
             name: params.status.name,
@@ -246,15 +237,10 @@ export function useAddWorkflowStatusMutation() {
 export function useRenameWorkflowStatusMutation() {
   const zero = useZero();
 
-  return (params: {
-    readonly churchId: string;
-    readonly name: string;
-    readonly statusId: string;
-  }) =>
+  return (params: { readonly name: string; readonly statusId: string }) =>
     mutationResult(() =>
       zero.mutate(
         mutators.workflows.rename_status({
-          church_id: params.churchId,
           name: params.name,
           status_id: params.statusId,
         }),
@@ -265,15 +251,10 @@ export function useRenameWorkflowStatusMutation() {
 export function useReorderWorkflowStatusesMutation() {
   const zero = useZero();
 
-  return (params: {
-    readonly churchId: string;
-    readonly statusIds: readonly string[];
-    readonly workflowId: string;
-  }) =>
+  return (params: { readonly statusIds: readonly string[]; readonly workflowId: string }) =>
     mutationResult(() =>
       zero.mutate(
         mutators.workflows.reorder_statuses({
-          church_id: params.churchId,
           status_ids: [...params.statusIds],
           workflow_id: params.workflowId,
         }),
@@ -284,15 +265,10 @@ export function useReorderWorkflowStatusesMutation() {
 export function useArchiveWorkflowStatusMutation() {
   const zero = useZero();
 
-  return (params: {
-    readonly archivedAt?: string;
-    readonly churchId: string;
-    readonly statusId: string;
-  }) =>
+  return (params: { readonly archivedAt?: string; readonly statusId: string }) =>
     mutationResult(() =>
       zero.mutate(
         mutators.workflows.archive_status({
-          church_id: params.churchId,
           status_id: params.statusId,
         }),
       ),

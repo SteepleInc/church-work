@@ -1048,7 +1048,6 @@ function KeyDateAuthoring({
     const trimmed = keyDateName.trim();
     const key = slugify(trimmed);
     const result = await createKeyDate({
-      churchId,
       key,
       name: trimmed,
       schedule,
@@ -1084,7 +1083,6 @@ function KeyDateAuthoring({
       },
     );
     const result = await createTemplate({
-      churchId,
       description: description.trim() || null,
       key: slugify(trimmedName),
       keyDateId: selectedKeyDate.id,

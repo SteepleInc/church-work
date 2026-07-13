@@ -289,7 +289,6 @@ export function useCreateWeeklyServiceTemplate() {
   const zero = useZero();
   return useCallback(
     (params: {
-      readonly churchId: string;
       readonly key: string;
       readonly name: string;
       readonly description: string | null;
@@ -306,7 +305,6 @@ export function useCreateWeeklyServiceTemplate() {
       mutationResult(() =>
         zero.mutate(
           mutators.templates.create({
-            church_id: params.churchId,
             description: params.description,
             focus_windows: [],
             key: params.key,
@@ -358,7 +356,6 @@ export function useCreatePeriodTemplate() {
   const zero = useZero();
   return useCallback(
     (params: {
-      readonly churchId: string;
       readonly key: string;
       readonly name: string;
       readonly description: string | null;
@@ -376,7 +373,6 @@ export function useCreatePeriodTemplate() {
       mutationResult(() =>
         zero.mutate(
           mutators.templates.create({
-            church_id: params.churchId,
             description: params.description,
             focus_windows: [],
             key: params.key,
@@ -425,7 +421,6 @@ export function useCreateKeyDateTemplate() {
   const zero = useZero();
   return useCallback(
     (params: {
-      readonly churchId: string;
       readonly key: string;
       readonly name: string;
       readonly description: string | null;
@@ -443,7 +438,6 @@ export function useCreateKeyDateTemplate() {
       return mutationResult(() =>
         zero.mutate(
           mutators.templates.create({
-            church_id: params.churchId,
             description: params.description,
             focus_windows: [
               {
@@ -529,24 +523,15 @@ export function useTemplateSoftDeleteActions() {
   const zero = useZero();
   return {
     deleteTemplate: useCallback(
-      (params: { readonly churchId: string; readonly templateId: string }) =>
-        mutationResult(() =>
-          zero.mutate(
-            mutators.templates.delete({ church_id: params.churchId, id: params.templateId }),
-          ),
-        ),
+      (params: { readonly templateId: string }) =>
+        mutationResult(() => zero.mutate(mutators.templates.delete({ id: params.templateId }))),
       [zero],
     ),
     deleteTemplateSchedule: useCallback(
-      (params: {
-        readonly churchId: string;
-        readonly scheduleId: string;
-        readonly options: DeleteTemplateScheduleOptions;
-      }) =>
+      (params: { readonly scheduleId: string; readonly options: DeleteTemplateScheduleOptions }) =>
         mutationResult(() =>
           zero.mutate(
             mutators.template_schedules.delete({
-              church_id: params.churchId,
               cleanup_current_occurrence: params.options.cleanupCurrentOccurrence,
               current_date: params.options.currentDate,
               current_occurrence_key: params.options.currentOccurrenceKey,
@@ -557,11 +542,10 @@ export function useTemplateSoftDeleteActions() {
       [zero],
     ),
     deleteTemplateTask: useCallback(
-      (params: { readonly churchId: string; readonly templateTaskId: string }) =>
+      (params: { readonly templateTaskId: string }) =>
         mutationResult(() =>
           zero.mutate(
             mutators.template_tasks.delete({
-              church_id: params.churchId,
               id: params.templateTaskId,
             }),
           ),
@@ -569,20 +553,15 @@ export function useTemplateSoftDeleteActions() {
       [zero],
     ),
     restoreTemplate: useCallback(
-      (params: { readonly churchId: string; readonly templateId: string }) =>
-        mutationResult(() =>
-          zero.mutate(
-            mutators.templates.restore({ church_id: params.churchId, id: params.templateId }),
-          ),
-        ),
+      (params: { readonly templateId: string }) =>
+        mutationResult(() => zero.mutate(mutators.templates.restore({ id: params.templateId }))),
       [zero],
     ),
     restoreTemplateSchedule: useCallback(
-      (params: { readonly churchId: string; readonly scheduleId: string }) =>
+      (params: { readonly scheduleId: string }) =>
         mutationResult(() =>
           zero.mutate(
             mutators.template_schedules.restore({
-              church_id: params.churchId,
               id: params.scheduleId,
             }),
           ),
@@ -590,11 +569,10 @@ export function useTemplateSoftDeleteActions() {
       [zero],
     ),
     restoreTemplateTask: useCallback(
-      (params: { readonly churchId: string; readonly templateTaskId: string }) =>
+      (params: { readonly templateTaskId: string }) =>
         mutationResult(() =>
           zero.mutate(
             mutators.template_tasks.restore({
-              church_id: params.churchId,
               id: params.templateTaskId,
             }),
           ),
@@ -607,11 +585,10 @@ export function useTemplateSoftDeleteActions() {
 export function useDuplicateTemplateAction() {
   const zero = useZero();
   return useCallback(
-    (params: { readonly churchId: string; readonly templateId: string }) =>
+    (params: { readonly templateId: string }) =>
       mutationResult(() =>
         zero.mutate(
           mutators.templates.duplicate({
-            church_id: params.churchId,
             template_id: params.templateId,
           }),
         ),

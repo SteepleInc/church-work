@@ -44,7 +44,7 @@ import {
   getWorkflowId,
   getWorkflowStatusId,
 } from "@church-work/shared/get-ids";
-import { defineMutatorWithType, defineMutators } from "@rocicorp/zero";
+import { defineMutatorWithType, defineMutators, type Transaction } from "@rocicorp/zero";
 import { and, eq, gte, inArray, isNotNull, isNull, lte } from "drizzle-orm";
 import { Schema } from "effect";
 
@@ -93,38 +93,26 @@ import type { PlannedNotification } from "./notification-triggers";
 import type { Schema as ZeroSchema } from "./zero-schema.gen";
 
 const CreateDemoItemArgs = toZeroSchema(Schema.Struct({ name: Schema.String }));
-const NotificationIdArgs = toZeroSchema(
-  Schema.Struct({ church_id: Schema.String, notification_id: Schema.String }),
-);
+const NotificationIdArgs = toZeroSchema(Schema.Struct({ notification_id: Schema.String }));
 const SnoozeNotificationArgs = toZeroSchema(
   Schema.Struct({
-    church_id: Schema.String,
     notification_id: Schema.String,
     snoozed_until: Schema.String,
   }),
 );
-const NotificationChurchArgs = toZeroSchema(Schema.Struct({ church_id: Schema.String }));
-const CreateTeamArgs = toZeroSchema(
-  Schema.Struct({ church_id: Schema.String, name: Schema.String }),
-);
-const RenameTeamArgs = toZeroSchema(
-  Schema.Struct({ church_id: Schema.String, name: Schema.String, team_id: Schema.String }),
-);
+const NotificationChurchArgs = toZeroSchema(Schema.Struct({}));
+const CreateTeamArgs = toZeroSchema(Schema.Struct({ name: Schema.String }));
+const RenameTeamArgs = toZeroSchema(Schema.Struct({ name: Schema.String, team_id: Schema.String }));
 const SetTeamIdentifierArgs = toZeroSchema(
-  Schema.Struct({ church_id: Schema.String, identifier: Schema.String, team_id: Schema.String }),
+  Schema.Struct({ identifier: Schema.String, team_id: Schema.String }),
 );
-const DeleteTeamArgs = toZeroSchema(
-  Schema.Struct({ church_id: Schema.String, team_id: Schema.String }),
-);
-const ReorderTeamsArgs = toZeroSchema(
-  Schema.Struct({ church_id: Schema.String, team_ids: Schema.Array(Schema.String) }),
-);
+const DeleteTeamArgs = toZeroSchema(Schema.Struct({ team_id: Schema.String }));
+const ReorderTeamsArgs = toZeroSchema(Schema.Struct({ team_ids: Schema.Array(Schema.String) }));
 const TeamMemberArgs = toZeroSchema(
-  Schema.Struct({ church_id: Schema.String, team_id: Schema.String, user_id: Schema.String }),
+  Schema.Struct({ team_id: Schema.String, user_id: Schema.String }),
 );
 const CreateLabelArgs = toZeroSchema(
   Schema.Struct({
-    church_id: Schema.String,
     color: Schema.optional(Schema.String),
     label_id: Schema.optional(Schema.String),
     name: Schema.String,
@@ -133,27 +121,21 @@ const CreateLabelArgs = toZeroSchema(
 );
 const UpdateLabelArgs = toZeroSchema(
   Schema.Struct({
-    church_id: Schema.String,
     color: Schema.optional(Schema.String),
     label_id: Schema.String,
     name: Schema.optional(Schema.String),
   }),
 );
-const DeleteLabelArgs = toZeroSchema(
-  Schema.Struct({ church_id: Schema.String, label_id: Schema.String }),
-);
+const DeleteLabelArgs = toZeroSchema(Schema.Struct({ label_id: Schema.String }));
 const RenameWorkflowArgs = toZeroSchema(
-  Schema.Struct({ church_id: Schema.String, name: Schema.String, workflow_id: Schema.String }),
+  Schema.Struct({ name: Schema.String, workflow_id: Schema.String }),
 );
 const ReorderWorkflowsArgs = toZeroSchema(
-  Schema.Struct({ church_id: Schema.String, workflow_ids: Schema.Array(Schema.String) }),
+  Schema.Struct({ workflow_ids: Schema.Array(Schema.String) }),
 );
-const ArchiveWorkflowArgs = toZeroSchema(
-  Schema.Struct({ church_id: Schema.String, workflow_id: Schema.String }),
-);
+const ArchiveWorkflowArgs = toZeroSchema(Schema.Struct({ workflow_id: Schema.String }));
 const AddWorkflowStatusArgs = toZeroSchema(
   Schema.Struct({
-    church_id: Schema.String,
     status: Schema.Struct({
       key: Schema.String,
       name: Schema.String,
@@ -164,18 +146,15 @@ const AddWorkflowStatusArgs = toZeroSchema(
   }),
 );
 const RenameWorkflowStatusArgs = toZeroSchema(
-  Schema.Struct({ church_id: Schema.String, name: Schema.String, status_id: Schema.String }),
+  Schema.Struct({ name: Schema.String, status_id: Schema.String }),
 );
 const ReorderWorkflowStatusesArgs = toZeroSchema(
   Schema.Struct({
-    church_id: Schema.String,
     status_ids: Schema.Array(Schema.String),
     workflow_id: Schema.String,
   }),
 );
-const ArchiveWorkflowStatusArgs = toZeroSchema(
-  Schema.Struct({ church_id: Schema.String, status_id: Schema.String }),
-);
+const ArchiveWorkflowStatusArgs = toZeroSchema(Schema.Struct({ status_id: Schema.String }));
 const TaskEstimateArg = Schema.Union([
   Schema.Literal("xs"),
   Schema.Literal("s"),
@@ -217,7 +196,6 @@ const TaskFieldsArg = Schema.Struct({
 const CreateTaskArgs = toZeroSchema(
   Schema.Struct({
     assigned_user_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
-    church_id: Schema.optional(Schema.String),
     draft_id: Schema.optional(Schema.String),
     description: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
     due_date: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
@@ -250,18 +228,16 @@ const UpdateTaskDraftArgs = toZeroSchema(
   Schema.Struct({ draft_id: Schema.String, fields: TaskDraftFieldsArg }),
 );
 const UpdateTaskArgs = toZeroSchema(
-  Schema.Struct({ church_id: Schema.String, fields: TaskFieldsArg, task_id: Schema.String }),
+  Schema.Struct({ fields: TaskFieldsArg, task_id: Schema.String }),
 );
 const UpdateTasksBatchArgs = toZeroSchema(
   Schema.Struct({
-    church_id: Schema.String,
     updates: Schema.Array(Schema.Struct({ fields: TaskFieldsArg, task_id: Schema.String })),
   }),
 );
 const MaterializeProjectedTaskArgs = toZeroSchema(
   Schema.Struct({
     assigned_user_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
-    church_id: Schema.String,
     cycle_id: Schema.String,
     description: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
     due_date: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
@@ -277,26 +253,19 @@ const MaterializeProjectedTaskArgs = toZeroSchema(
     workflow_status_id: Schema.String,
   }),
 );
-const TaskTransitionArgs = toZeroSchema(
-  Schema.Struct({ church_id: Schema.String, task_id: Schema.String }),
-);
+const TaskTransitionArgs = toZeroSchema(Schema.Struct({ task_id: Schema.String }));
 const CreateTaskCommentArgs = toZeroSchema(
   Schema.Struct({
     body: Schema.String,
-    church_id: Schema.String,
     parent_comment_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
     task_id: Schema.String,
   }),
 );
 const UpdateTaskCommentArgs = toZeroSchema(
-  Schema.Struct({ body: Schema.String, church_id: Schema.String, comment_id: Schema.String }),
+  Schema.Struct({ body: Schema.String, comment_id: Schema.String }),
 );
-const DeleteTaskCommentArgs = toZeroSchema(
-  Schema.Struct({ church_id: Schema.String, comment_id: Schema.String }),
-);
-const TaskCommentSubscriptionArgs = toZeroSchema(
-  Schema.Struct({ church_id: Schema.String, root_comment_id: Schema.String }),
-);
+const DeleteTaskCommentArgs = toZeroSchema(Schema.Struct({ comment_id: Schema.String }));
+const TaskCommentSubscriptionArgs = toZeroSchema(Schema.Struct({ root_comment_id: Schema.String }));
 const KeyDateScheduleArg = Schema.Union([
   Schema.Struct({ kind: Schema.Literal("fixedYearly"), month: Schema.Number, day: Schema.Number }),
   Schema.Struct({
@@ -405,7 +374,6 @@ const mergeCycleAdjustmentOverrides = (
 };
 const UpsertCycleArgs = toZeroSchema(
   Schema.Struct({
-    church_id: Schema.String,
     church_time_zone: Schema.String,
     description: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
     end_date: Schema.String,
@@ -417,7 +385,6 @@ const UpsertCycleArgs = toZeroSchema(
 );
 const UpdateCycleDetailsArgs = toZeroSchema(
   Schema.Struct({
-    church_id: Schema.String,
     cycle_id: Schema.String,
     description: Schema.Union([Schema.String, Schema.Null]),
     name: Schema.Union([Schema.String, Schema.Null]),
@@ -425,7 +392,6 @@ const UpdateCycleDetailsArgs = toZeroSchema(
 );
 const CreateKeyDateArgs = toZeroSchema(
   Schema.Struct({
-    church_id: Schema.String,
     key: Schema.String,
     name: Schema.String,
     schedule: KeyDateScheduleArg,
@@ -433,19 +399,15 @@ const CreateKeyDateArgs = toZeroSchema(
 );
 const UpdateKeyDateArgs = toZeroSchema(
   Schema.Struct({
-    church_id: Schema.String,
     key: Schema.String,
     key_date_id: Schema.String,
     name: Schema.String,
     schedule: KeyDateScheduleArg,
   }),
 );
-const DeleteKeyDateArgs = toZeroSchema(
-  Schema.Struct({ church_id: Schema.String, key_date_id: Schema.String }),
-);
+const DeleteKeyDateArgs = toZeroSchema(Schema.Struct({ key_date_id: Schema.String }));
 const CreateKeyDateOccurrenceArgs = toZeroSchema(
   Schema.Struct({
-    church_id: Schema.String,
     key_date_id: Schema.String,
     label: Schema.Union([Schema.String, Schema.Null]),
     local_date: Schema.String,
@@ -453,7 +415,6 @@ const CreateKeyDateOccurrenceArgs = toZeroSchema(
 );
 const CreateTemplateArgs = toZeroSchema(
   Schema.Struct({
-    church_id: Schema.String,
     focus_windows: Schema.Array(
       Schema.Struct({
         anchor_date: Schema.Union([Schema.String, Schema.Null]),
@@ -515,21 +476,15 @@ const SetCycleAdjustmentsArgs = toZeroSchema(
         template_task_id: Schema.String,
       }),
     ),
-    church_id: Schema.String,
   }),
 );
 const ProjectTemplateCycleArgs = toZeroSchema(
-  Schema.Struct({ church_id: Schema.String, cycle_id: Schema.String, template_id: Schema.String }),
+  Schema.Struct({ cycle_id: Schema.String, template_id: Schema.String }),
 );
-const TemplateEntityMutationArgs = toZeroSchema(
-  Schema.Struct({ church_id: Schema.String, id: Schema.String }),
-);
-const DuplicateTemplateArgs = toZeroSchema(
-  Schema.Struct({ church_id: Schema.String, template_id: Schema.String }),
-);
+const TemplateEntityMutationArgs = toZeroSchema(Schema.Struct({ id: Schema.String }));
+const DuplicateTemplateArgs = toZeroSchema(Schema.Struct({ template_id: Schema.String }));
 const DeleteTemplateScheduleArgs = toZeroSchema(
   Schema.Struct({
-    church_id: Schema.String,
     cleanup_current_occurrence: Schema.Boolean,
     current_date: Schema.String,
     current_occurrence_key: Schema.Union([Schema.String, Schema.Null]),
@@ -537,11 +492,35 @@ const DeleteTemplateScheduleArgs = toZeroSchema(
   }),
 );
 
-const defineChurchWorkMutator = defineMutatorWithType<
+const defineUnscopedChurchWorkMutator = defineMutatorWithType<
   ZeroSchema,
   OptionalZeroSessionContext,
   unknown
 >();
+
+type MutatorJsonValue =
+  | boolean
+  | null
+  | number
+  | string
+  | readonly MutatorJsonValue[]
+  | { readonly [key: string]: MutatorJsonValue | undefined };
+type MutatorJsonObject = { readonly [key: string]: MutatorJsonValue | undefined };
+
+const defineChurchWorkMutator = <
+  S extends Schema.ConstraintDecoder<MutatorJsonObject> & { readonly Encoded: MutatorJsonObject },
+>(
+  validator: ReturnType<typeof toZeroSchema<S>>,
+  mutator: (options: {
+    readonly args: S["Type"] & { readonly church_id: string };
+    readonly ctx: OptionalZeroSessionContext;
+    readonly tx: Transaction<ZeroSchema, unknown>;
+  }) => Promise<void>,
+) =>
+  defineUnscopedChurchWorkMutator(validator, async ({ args, ctx, tx }) => {
+    const { churchId } = requireSessionActiveChurch(ctx);
+    await mutator({ args: { ...args, church_id: churchId }, ctx, tx });
+  });
 
 const softDeleteEntity = async (params: {
   readonly db: ReturnType<typeof serverDb> extends infer Db ? NonNullable<Db> : never;
@@ -582,8 +561,8 @@ const restoreEntity = async (params: {
     .where(and(eq(params.table.id, params.id), eq(params.table.church_id, params.church_id)));
 };
 
-const requireTeamManager = (ctx: OptionalZeroSessionContext, church_id: string) => {
-  const session = requireActiveChurchAccess(ctx, church_id);
+const requireTeamManager = (ctx: OptionalZeroSessionContext, _church_id: string) => {
+  const { session } = requireSessionActiveChurch(ctx);
 
   if (!session.is_app_admin && session.church_role !== "owner" && session.church_role !== "admin") {
     throw new Error("Only Church owners and admins can change Teams.");
@@ -593,7 +572,7 @@ const requireTeamManager = (ctx: OptionalZeroSessionContext, church_id: string) 
 };
 
 const canModerateTaskComment = (
-  session: ReturnType<typeof requireActiveChurchAccess>,
+  session: ReturnType<typeof requireSignedInSession>,
   authoredByUserId: string,
 ) =>
   session.user_id === authoredByUserId ||
@@ -2549,7 +2528,7 @@ export const mutators = defineMutators({
     }),
   },
   demo_items: {
-    create: defineChurchWorkMutator(CreateDemoItemArgs, async ({ args, ctx, tx }) => {
+    create: defineUnscopedChurchWorkMutator(CreateDemoItemArgs, async ({ args, ctx, tx }) => {
       if (tx.location !== "server") {
         throw new Error("demo_items.create must run on the server");
       }
@@ -4752,15 +4731,7 @@ export const mutators = defineMutators({
       const db = serverDb(tx);
       if (!db) return;
 
-      let churchId: string;
-      let session: ReturnType<typeof requireSignedInSession>;
-      if (args.draft_id) {
-        ({ churchId, session } = requireSessionActiveChurch(ctx));
-      } else {
-        churchId = args.church_id ?? "";
-        if (!churchId) throw new Error("Church is required.");
-        session = requireActiveChurchAccess(ctx, churchId);
-      }
+      const { churchId, session } = requireSessionActiveChurch(ctx);
       const title = args.title.trim();
       if (!title) throw new Error("Task title is required.");
       await assertUserTaskCreationAllowed(db, churchId);

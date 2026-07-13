@@ -81,7 +81,6 @@ export function KeyDatesCollection() {
       if (!churchId) return;
       void run(() =>
         updateKeyDate({
-          churchId,
           key: keyDate.key,
           keyDateId: keyDate.id,
           name: keyDate.name,
@@ -95,7 +94,6 @@ export function KeyDatesCollection() {
       if (!churchId || name === keyDate.name) return;
       void run(() =>
         updateKeyDate({
-          churchId,
           key: uniqueKeyDateKey(usedKeys, name, keyDate.key),
           keyDateId: keyDate.id,
           name,
@@ -171,7 +169,7 @@ export function KeyDatesCollection() {
                 <KeyDateRowActions
                   onDelete={() => {
                     if (!churchId) return;
-                    void run(() => deleteKeyDate({ churchId, keyDateId: keyDate.id }));
+                    void run(() => deleteKeyDate({ keyDateId: keyDate.id }));
                   }}
                   onRename={() => setEditingId(keyDate.id)}
                 />

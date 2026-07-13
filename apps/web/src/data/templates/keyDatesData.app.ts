@@ -148,16 +148,10 @@ export function useKeyDatesCollectionWithFilters(params: {
 export function useCreateKeyDate() {
   const zero = useZero();
   return useCallback(
-    (params: {
-      readonly churchId: string;
-      readonly key: string;
-      readonly name: string;
-      readonly schedule: KeyDateRule;
-    }) =>
+    (params: { readonly key: string; readonly name: string; readonly schedule: KeyDateRule }) =>
       mutationResult(() =>
         zero.mutate(
           mutators.key_dates.create({
-            church_id: params.churchId,
             key: params.key,
             name: params.name,
             schedule: params.schedule,
@@ -172,7 +166,6 @@ export function useUpdateKeyDate() {
   const zero = useZero();
   return useCallback(
     (params: {
-      readonly churchId: string;
       readonly keyDateId: string;
       readonly key: string;
       readonly name: string;
@@ -181,7 +174,6 @@ export function useUpdateKeyDate() {
       mutationResult(() =>
         zero.mutate(
           mutators.key_dates.update({
-            church_id: params.churchId,
             key: params.key,
             key_date_id: params.keyDateId,
             name: params.name,
@@ -196,11 +188,9 @@ export function useUpdateKeyDate() {
 export function useDeleteKeyDate() {
   const zero = useZero();
   return useCallback(
-    (params: { readonly churchId: string; readonly keyDateId: string }) =>
+    (params: { readonly keyDateId: string }) =>
       mutationResult(() =>
-        zero.mutate(
-          mutators.key_dates.delete({ church_id: params.churchId, key_date_id: params.keyDateId }),
-        ),
+        zero.mutate(mutators.key_dates.delete({ key_date_id: params.keyDateId })),
       ),
     [zero],
   );

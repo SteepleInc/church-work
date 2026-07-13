@@ -31,10 +31,9 @@ export function useOnboardingTeamsCollection(params: { readonly churchId: string
 export function useDeleteOnboardingTeamMutation() {
   const zero = useZero();
 
-  return async (params: { readonly churchId: string; readonly teamId: string }) => {
+  return async (params: { readonly teamId: string }) => {
     await zero.mutate(
       mutators.teams.delete({
-        church_id: params.churchId,
         team_id: params.teamId,
       }),
     );

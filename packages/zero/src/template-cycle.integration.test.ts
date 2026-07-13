@@ -160,7 +160,6 @@ describe("template-to-cycle projection integration", () => {
 
       await mustGetMutator(mutators, "templates.project_cycle").fn({
         args: {
-          church_id: churchId,
           cycle_id: "cycle_easter_integration",
           template_id: "template_easter_integration",
         },
@@ -213,7 +212,6 @@ describe("template-to-cycle projection integration", () => {
 
       await mustGetMutator(mutators, "templates.project_cycle").fn({
         args: {
-          church_id: churchId,
           cycle_id: "cycle_easter_integration",
           template_id: "template_easter_integration",
         },
@@ -232,6 +230,68 @@ describe("template-to-cycle projection integration", () => {
 
       expect(projectedAgain).toHaveLength(2);
       expect(teamAgain[0]?.next_task_number).toBe(14);
+    } finally {
+      await harness.stop();
+    }
+  }, 60_000);
+
+  test("uses the session active Church and cannot rename a Team from another Church", async () => {
+    const harness = await startPostgresHarness();
+    const { db } = harness;
+
+    try {
+      await db.insert(teams).values([
+        {
+          ...baseEntity("team"),
+          church_id: churchId,
+          color: "blue",
+          id: "team_active_church_integration",
+          identifier: "ACT",
+          name: "Active Church Team",
+          next_task_number: 1,
+          previous_identifiers: "[]",
+          sort_order: 0,
+        },
+        {
+          ...baseEntity("team"),
+          church_id: "org_other_integration",
+          color: "red",
+          id: "team_other_church_integration",
+          identifier: "OTH",
+          name: "Other Church Team",
+          next_task_number: 1,
+          previous_identifiers: "[]",
+          sort_order: 0,
+        },
+      ]);
+
+      const tx = {
+        dbTransaction: { wrappedTransaction: db },
+        location: "server",
+      } as never;
+
+      await mustGetMutator(mutators, "teams.rename").fn({
+        args: { name: "Renamed Active Team", team_id: "team_active_church_integration" },
+        ctx: sessionContext,
+        tx,
+      });
+      await mustGetMutator(mutators, "teams.rename").fn({
+        args: { name: "Renamed Other Team", team_id: "team_other_church_integration" },
+        ctx: sessionContext,
+        tx,
+      });
+
+      const activeTeam = await db
+        .select({ name: teams.name })
+        .from(teams)
+        .where(eq(teams.id, "team_active_church_integration"));
+      const otherTeam = await db
+        .select({ name: teams.name })
+        .from(teams)
+        .where(eq(teams.id, "team_other_church_integration"));
+
+      expect(activeTeam[0]?.name).toBe("Renamed Active Team");
+      expect(otherTeam[0]?.name).toBe("Other Church Team");
     } finally {
       await harness.stop();
     }
