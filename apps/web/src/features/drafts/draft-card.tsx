@@ -112,7 +112,8 @@ export function DraftCard({
             <WorkflowStatusIcon className="size-3.5" taskState={status.taskState} />
           </span>
         ) : null}
-        <h2 className="min-w-0 truncate font-medium text-card-foreground text-sm">{title}</h2>
+        {/* h3: card titles sit under the page's h2 section heading ("Tasks"). */}
+        <h3 className="min-w-0 truncate font-medium text-card-foreground text-sm">{title}</h3>
         {editedLabel ? (
           <span className="shrink-0 text-muted-foreground text-xs" title={editedTitle}>
             {editedLabel}
@@ -197,7 +198,11 @@ function DraftCardPills({
   if (!hasAnyPill) return null;
 
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-1.5">
+    // `pointer-events-none`: everywhere else these pills are picker triggers
+    // whose hover highlight promises a click. Here they are a read-only
+    // preview, so suppress pointer events to keep the hover chrome quiet and
+    // let the card present one uniform open-the-composer affordance.
+    <div className="pointer-events-none mt-3 flex flex-wrap items-center gap-1.5">
       {hasStatus ? (
         <TaskStatusPillTrigger
           status={{
