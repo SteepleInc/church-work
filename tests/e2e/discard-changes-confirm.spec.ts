@@ -149,11 +149,20 @@ test("Drafts page lists saved Task Drafts and supports discarding one or all", a
   await expect(page.getByText(firstTitle)).not.toBeVisible();
   await expect(page.getByText(secondTitle)).toBeVisible();
 
+  // Undo exercises the restore mutator and returns the optimistically hidden
+  // Draft to both the list and sidebar count before the bulk-discard flow.
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByText(firstTitle)).toBeVisible();
+  await expect(
+    page.locator('[data-sidebar="sidebar"]').getByText("2", { exact: true }),
+  ).toBeVisible();
+
   await page.getByRole("button", { name: "Discard all drafts" }).click();
   const discardAllConfirm = page.getByRole("alertdialog");
   await expect(discardAllConfirm).toBeVisible();
   await expect(discardAllConfirm.getByText("Discard all drafts?")).toBeVisible();
   await discardAllConfirm.getByRole("button", { name: "Discard all", exact: true }).click();
+  await expect(page.getByText(firstTitle)).not.toBeVisible();
   await expect(page.getByText(secondTitle)).not.toBeVisible();
   await expect(page.getByText("No active drafts")).toBeVisible();
   await expect(
@@ -204,7 +213,7 @@ test("Drafts page opens an existing Task Draft for rehydrated autosaved editing"
   await page.keyboard.press("Escape");
   await expect(page.getByRole("alertdialog")).not.toBeVisible();
   await expect(draftDialog).not.toBeVisible();
-  await expect(page.getByText(editedTitle)).toBeVisible();
+  await expect(page.getByRole("button", { name: new RegExp(editedTitle) })).toBeVisible();
   await expect(page.getByRole("heading", { exact: true, name: originalTitle })).not.toBeVisible();
 });
 
