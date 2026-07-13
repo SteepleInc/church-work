@@ -1738,6 +1738,8 @@ const templateTaskSourceKey = (source: {
     : source.source_template_task_id;
 
 type EffectiveTemplateCycleTask = {
+  readonly assigned_user_id: string | null;
+  readonly description: string | null;
   readonly due_date: string;
   readonly estimate: string | null;
   readonly parent_template_task_id: string | null;
@@ -1746,6 +1748,7 @@ type EffectiveTemplateCycleTask = {
   readonly team_id: string;
   readonly template_task_key: string;
   readonly title: string;
+  readonly label_ids: readonly string[];
 };
 export type TemplateCycleTaskProjection = {
   readonly cycle_id: string;
@@ -1775,6 +1778,8 @@ type ProjectionTaskInsert = {
   readonly created_by: string;
   readonly created_by_user_id: string;
   readonly cycle_id: string;
+  readonly assigned_user_id: string | null;
+  readonly description: string | null;
   readonly due_date: string;
   readonly estimate: string | null;
   readonly finished_at: null;
@@ -1853,12 +1858,15 @@ const buildEffectiveTemplateCycleTasks = (args: {
     if (merged.skipped || !merged.effectiveTask) return [];
     return [
       {
+        assigned_user_id: merged.effectiveTask.assignedUserId,
+        description: merged.effectiveTask.description,
         due_date: merged.effectiveTask.dueDate,
         estimate: merged.effectiveTask.estimate,
         parent_template_task_id: merged.effectiveTask.parentTemplateTaskId,
         priority: merged.effectiveTask.priority,
         source_template_task_id: templateTask.id,
-        team_id: templateTeam.mapped_team_id,
+        label_ids: merged.effectiveTask.labelIds,
+        team_id: merged.effectiveTask.teamId,
         template_task_key: merged.effectiveTask.templateTaskKey,
         title: merged.effectiveTask.title,
       },
@@ -1932,10 +1940,12 @@ export const buildTemplateCycleTaskInserts = (args: {
       created_by_user_id: args.session_user_id,
       cycle_id: args.cycle.id,
       due_date: effectiveTask.due_date,
+      assigned_user_id: effectiveTask.assigned_user_id,
+      description: effectiveTask.description,
       estimate: effectiveTask.estimate,
       finished_at: null,
       id: taskId,
-      label_ids: "[]",
+      label_ids: JSON.stringify(effectiveTask.label_ids),
       number,
       parent_task_id: null,
       priority: effectiveTask.priority,

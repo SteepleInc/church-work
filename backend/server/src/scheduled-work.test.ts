@@ -6,11 +6,13 @@ import { describe, expect, test } from "vitest";
 
 import {
   activities,
+  cycle_adjustments,
   cycles,
   organization,
   tasks,
   teams,
   template_tasks,
+  template_schedules,
   template_teams,
   templates,
   workflow_statuses,
@@ -210,6 +212,17 @@ describe("scheduled work", () => {
         church_id: churchId,
         id: "cycle_closed",
       });
+      await db.insert(cycles).values(
+        ["2026-06-15", "2026-06-22", "2026-06-29"].map((localDate, index) => ({
+          ...baseEntity("cycle"),
+          ...buildCycleForLocalDate({
+            churchTimeZone: "America/New_York",
+            localDate,
+          }),
+          church_id: churchId,
+          id: `cycle_planned_${index}`,
+        })),
+      );
       await db.insert(tasks).values([
         {
           ...baseEntity("task"),
@@ -327,6 +340,37 @@ describe("scheduled work", () => {
         template_team_id: "templateteam_weekly_ops",
         title: "Prepare weekly checklist",
       });
+      await db.insert(template_schedules).values({
+        ...baseEntity("templateschedule"),
+        church_id: churchId,
+        id: "templateschedule_weekly_ops",
+        template_id: "template_weekly_ops",
+        key: "sunday-service",
+        name: "Sunday Service",
+        kind: "weekly",
+        recurrence: "repeating",
+        start_date: "2026-06-14",
+        rule: JSON.stringify({ kind: "weekly", weekdays: [0] }),
+      });
+      await db.insert(cycle_adjustments).values({
+        ...baseEntity("cycleadjustment"),
+        church_id: churchId,
+        cycle_id: "cycle_planned_0",
+        id: "cycleadjustment_weekly_ops",
+        lifecycle: "active",
+        overrides: JSON.stringify([
+          { field: "title", value: "Prepare adjusted checklist" },
+          { field: "dueDate", value: "2026-06-18" },
+          { field: "description", value: "Adjusted for this occurrence" },
+          { field: "assignedUserId", value: "user_adjusted" },
+          { field: "labelIds", value: ["label_adjusted"] },
+          { field: "estimate", value: "3" },
+          { field: "priority", value: "high" },
+        ]),
+        source_template_occurrence_key: "weekly:2026-06-21:sunday",
+        source_template_schedule_id: "templateschedule_weekly_ops",
+        template_task_id: "templatetask_weekly_checklist",
+      });
 
       const result = await Effect.runPromise(runScheduledCycleMaintenance(db, { now }));
 
@@ -335,7 +379,7 @@ describe("scheduled work", () => {
         "task_rollover",
         "task_progress_rollover",
       ]);
-      expect(result.resultsByChurchId[churchId]?.materializedTaskIds).toHaveLength(1);
+      expect(result.resultsByChurchId[churchId]?.materializedTaskIds).toHaveLength(4);
 
       const [rolledTask] = await db.select().from(tasks).where(eq(tasks.id, "task_rollover"));
       expect(rolledTask).toMatchObject({
@@ -370,8 +414,28 @@ describe("scheduled work", () => {
         .select()
         .from(tasks)
         .where(eq(tasks.source_template_id, "template_weekly_ops"));
-      expect(projectedTasks).toHaveLength(1);
-      expect(projectedTasks[0]).toMatchObject({
+      expect(projectedTasks).toHaveLength(4);
+      expect(
+        projectedTasks.filter((task) => task.source_template_schedule_id === null),
+      ).toHaveLength(1);
+      const adjustedScheduledTask = projectedTasks.find(
+        (task) => task.source_template_occurrence_key === "weekly:2026-06-21:sunday",
+      );
+      expect(adjustedScheduledTask).toMatchObject({
+        assigned_user_id: "user_adjusted",
+        description: "Adjusted for this occurrence",
+        due_date: "2026-06-18",
+        estimate: "3",
+        label_ids: JSON.stringify(["label_adjusted"]),
+        priority: "high",
+        source_template_cycle_id: "cycle_planned_0",
+        source_template_schedule_id: "templateschedule_weekly_ops",
+        title: "Prepare adjusted checklist",
+      });
+      const legacyProjectedTask = projectedTasks.find(
+        (task) => task.source_template_schedule_id === null,
+      );
+      expect(legacyProjectedTask).toMatchObject({
         due_date: "2026-06-16",
         source_template_sync_enabled: false,
       });
@@ -379,8 +443,32 @@ describe("scheduled work", () => {
 
       const activityRows = await db.select().from(activities);
       expect(activityRows.map((activity) => activity.event_type)).toEqual(
-        expect.arrayContaining(["cycle.created", "task.rolled_over", "task.template_synced"]),
+        expect.arrayContaining([
+          "task.rolled_over",
+          "task.template_materialized",
+          "task.template_synced",
+        ]),
       );
+      const materializedActivity = activityRows.find(
+        (activity) => activity.entity_id === adjustedScheduledTask?.id,
+      );
+      expect(JSON.parse(materializedActivity?.metadata ?? "{}")).toEqual({
+        cycle_id: "cycle_planned_0",
+        source_template_occurrence_key: "weekly:2026-06-21:sunday",
+        source_template_schedule_id: "templateschedule_weekly_ops",
+        template_id: "template_weekly_ops",
+        template_task_id: "templatetask_weekly_checklist",
+      });
+
+      await db
+        .update(organization)
+        .set({ rolloverMaintenanceCompletedCycleStartDate: null })
+        .where(eq(organization.id, churchId));
+      const retryResult = await Effect.runPromise(runScheduledCycleMaintenance(db, { now }));
+      expect(retryResult.maintainedChurchIds).toEqual([churchId]);
+      expect(retryResult.resultsByChurchId[churchId]?.materializedTaskIds).toEqual([]);
+      expect(await db.select().from(tasks).where(eq(tasks.church_id, churchId))).toHaveLength(9);
+      expect(await db.select().from(activities)).toHaveLength(activityRows.length);
 
       const secondResult = await Effect.runPromise(runScheduledCycleMaintenance(db, { now }));
       expect(secondResult.maintainedChurchIds).toEqual([]);

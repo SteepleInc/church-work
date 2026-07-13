@@ -491,11 +491,16 @@ const materializeScheduledTemplateTasksForWindow = async (
 
       const templateTaskRows = await db
         .select({
+          assigned_user_id: template_tasks.assigned_user_id,
+          description: template_tasks.description,
+          estimate: template_tasks.estimate,
           id: template_tasks.id,
           key: template_tasks.key,
+          label_ids: template_tasks.label_ids,
           parent_template_task_id: template_tasks.parent_template_task_id,
           placement_cycle_offset: template_tasks.placement_cycle_offset,
           placement_weekday: template_tasks.placement_weekday,
+          priority: template_tasks.priority,
           scheduling_rule: template_tasks.scheduling_rule,
           template_team_id: template_tasks.template_team_id,
           title: template_tasks.title,
@@ -555,23 +560,11 @@ const materializeScheduledTemplateTasksForWindow = async (
       const teamRows = await db
         .select({ id: teams.id, next_task_number: teams.next_task_number })
         .from(teams)
-        .where(
-          and(
-            eq(teams.church_id, args.church_id),
-            inArray(teams.id, mappedTeamIds),
-            isNull(teams.deleted_at),
-          ),
-        );
+        .where(and(eq(teams.church_id, args.church_id), isNull(teams.deleted_at)));
       const workflowRows = await db
         .select({ id: workflows.id, team_id: workflows.team_id })
         .from(workflows)
-        .where(
-          and(
-            eq(workflows.church_id, args.church_id),
-            inArray(workflows.team_id, mappedTeamIds),
-            isNull(workflows.deleted_at),
-          ),
-        );
+        .where(and(eq(workflows.church_id, args.church_id), isNull(workflows.deleted_at)));
       const statusRows = await db
         .select({ id: workflow_statuses.id, workflow_id: workflow_statuses.workflow_id })
         .from(workflow_statuses)
@@ -590,8 +583,24 @@ const materializeScheduledTemplateTasksForWindow = async (
           church_time_zone: args.church_time_zone,
           local_date: cycleStartDate,
         });
+        const adjustmentRows = await db
+          .select({
+            lifecycle: cycle_adjustments.lifecycle,
+            overrides: cycle_adjustments.overrides,
+            template_task_id: cycle_adjustments.template_task_id,
+          })
+          .from(cycle_adjustments)
+          .where(
+            and(
+              eq(cycle_adjustments.church_id, args.church_id),
+              eq(cycle_adjustments.cycle_id, cycle.cycle.id),
+              eq(cycle_adjustments.source_template_schedule_id, schedule.id),
+              eq(cycle_adjustments.source_template_occurrence_key, occurrenceKey),
+              isNull(cycle_adjustments.deleted_at),
+            ),
+          );
         const projection = buildTemplateCycleTaskInserts({
-          adjustments: [],
+          adjustments: adjustmentRows as never,
           church_id: args.church_id,
           cycle: cycle.cycle,
           existing_projected_tasks: existingProjectedTasks.filter(hasSourceTemplateTaskId),
@@ -620,6 +629,23 @@ const materializeScheduledTemplateTasksForWindow = async (
           updated_by: null,
         }));
         if (systemInserts.length > 0) await db.insert(tasks).values(systemInserts);
+        for (const task of systemInserts) {
+          await writeSystemActivity(db, {
+            church_id: args.church_id,
+            cycle_id: cycle.cycle.id,
+            entity_id: task.id,
+            entity_type: "task",
+            event_type: "task.template_materialized",
+            metadata: {
+              cycle_id: cycle.cycle.id,
+              source_template_occurrence_key: occurrenceKey,
+              source_template_schedule_id: schedule.id,
+              template_id: schedule.template_id,
+              template_task_id: task.source_template_task_id,
+            },
+            occurred_at: args.now,
+          });
+        }
         createdTaskIds.push(...systemInserts.map((task) => task.id));
       }
       for (const [team_id, next_task_number] of nextNumberByTeamId.entries()) {
