@@ -177,7 +177,15 @@ function DraftCardPills({
     .filter((label): label is (typeof labelsCollection)[number] => label !== undefined)
     .map((label) => ({ id: label.id, name: label.name, color: label.color }));
 
-  const hasStatus = taskDraft.workflow_status_id != null && statusMeta !== null;
+  const status =
+    taskDraft.workflow_status_id != null && statusMeta !== null
+      ? {
+          id: taskDraft.workflow_status_id,
+          name: statusMeta.name,
+          taskState: statusMeta.taskState,
+        }
+      : null;
+  const hasStatus = status !== null;
   const hasTeam = taskDraft.team_id != null && teamOpt !== null;
   const hasAssignee = taskDraft.assigned_user_id != null && userOpt !== null;
   const hasPriority = priority !== "no_priority";
@@ -204,13 +212,7 @@ function DraftCardPills({
     // let the card present one uniform open-the-composer affordance.
     <div className="pointer-events-none mt-3 flex flex-wrap items-center gap-1.5">
       {hasStatus ? (
-        <TaskStatusPillTrigger
-          status={{
-            id: taskDraft.workflow_status_id as string,
-            name: statusMeta.name,
-            taskState: statusMeta.taskState,
-          }}
-        />
+        <TaskStatusPillTrigger status={status} />
       ) : null}
       {hasPriority ? <TaskPriorityPillTrigger value={priority} /> : null}
       {hasTeam ? (

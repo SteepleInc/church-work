@@ -4752,13 +4752,15 @@ export const mutators = defineMutators({
       const db = serverDb(tx);
       if (!db) return;
 
-      if (!args.draft_id && !args.church_id) throw new Error("Church is required.");
-      const { churchId, session } = args.draft_id
-        ? requireSessionActiveChurch(ctx)
-        : {
-            churchId: args.church_id as string,
-            session: requireActiveChurchAccess(ctx, args.church_id as string),
-          };
+      let churchId: string;
+      let session: ReturnType<typeof requireSignedInSession>;
+      if (args.draft_id) {
+        ({ churchId, session } = requireSessionActiveChurch(ctx));
+      } else {
+        churchId = args.church_id ?? "";
+        if (!churchId) throw new Error("Church is required.");
+        session = requireActiveChurchAccess(ctx, churchId);
+      }
       const title = args.title.trim();
       if (!title) throw new Error("Task title is required.");
       await assertUserTaskCreationAllowed(db, churchId);

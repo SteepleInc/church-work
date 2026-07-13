@@ -455,7 +455,7 @@ export function CreateTaskQuickAction() {
         assignedUserId: value.assignedUserId,
         workflowStatusId: submitStatus.id,
         dueDate: value.dueDate,
-        parentTaskId: state?.parentTaskId ?? null,
+        parentTaskId: editingTaskDraft?.parent_task_id ?? state?.parentTaskId ?? null,
         labelIds: [...value.labels],
         estimate: value.estimate === "no_estimate" ? null : value.estimate,
         priority: value.priority === "no_priority" ? null : value.priority,
@@ -578,7 +578,7 @@ export function CreateTaskQuickAction() {
     dueDate: value.dueDate,
     estimate: value.estimate === "no_estimate" ? null : value.estimate,
     labelIds: [...value.labels],
-    parentTaskId: state?.parentTaskId ?? null,
+    parentTaskId: editingTaskDraft?.parent_task_id ?? state?.parentTaskId ?? null,
     priority: value.priority === "no_priority" ? null : value.priority,
     teamId: value.teamId,
     title: value.title.trim(),
@@ -648,14 +648,18 @@ export function CreateTaskQuickAction() {
       clearTimeout(autosaveTimerRef.current);
       autosaveTimerRef.current = null;
     }
-    close();
     if (!churchId) return;
-    await discardDraft(churchId, draftId).catch(() => undefined);
+    close();
+    const result = await discardDraft(draftId).catch(() => undefined);
+    if (!result || result.type === "error") {
+      toast.error(result?.error?.message ?? "Could not discard draft.");
+      return;
+    }
     // Discarding is a Soft Delete (CONTEXT.md), so offer the same undo the
     // Drafts page does — closing the dialog shouldn't make the action feel
     // more final than discarding from the list.
     toast.success("Draft discarded.", {
-      action: { label: "Undo", onClick: () => void restoreDrafts(churchId, [draftId]) },
+      action: { label: "Undo", onClick: () => void restoreDrafts([draftId]) },
     });
   };
 

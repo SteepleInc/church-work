@@ -43,25 +43,19 @@ export function useTaskDraft(draftId: string) {
   return row as TaskDraft | undefined;
 }
 
-// The Draft mutators derive the owning User and active Church from the Zero
-// session context (ADR 0021), so these hooks no longer forward a church id.
-// Callers still gate on having an active Church before invoking them, so the
-// `churchId` parameter is retained as that presence signal even though it is
-// not passed to the mutator.
 export function useDiscardDraftMutation() {
   const zero = useZero();
-  return (_churchId: string, draftId: string) =>
-    zero.mutate(mutators.drafts.discard({ draft_id: draftId })).server;
+  return (draftId: string) => zero.mutate(mutators.drafts.discard({ draft_id: draftId })).server;
 }
 
 export function useDiscardAllDraftsMutation() {
   const zero = useZero();
-  return (_churchId: string, draftIds: readonly string[]) =>
+  return (draftIds: readonly string[]) =>
     zero.mutate(mutators.drafts.discard_all({ draft_ids: [...draftIds] })).server;
 }
 
 export function useRestoreDraftsMutation() {
   const zero = useZero();
-  return (_churchId: string, draftIds: readonly string[]) =>
+  return (draftIds: readonly string[]) =>
     zero.mutate(mutators.drafts.restore({ draft_ids: [...draftIds] })).server;
 }
