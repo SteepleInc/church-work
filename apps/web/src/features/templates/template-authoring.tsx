@@ -2685,6 +2685,7 @@ function AddTaskTrigger({
     return (
       <button
         className="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-primary/25 border-dashed py-2 font-medium text-primary text-xs transition-colors hover:bg-primary/[0.06]"
+        data-template-task-trigger
         onClick={onClick}
         type="button"
       >
@@ -2700,6 +2701,7 @@ function AddTaskTrigger({
         "flex cursor-pointer items-center gap-1 rounded-md px-1.5 py-1 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground",
         quiet && "opacity-0 group-hover/cell:opacity-100 focus-visible:opacity-100",
       )}
+      data-template-task-trigger
       onClick={onClick}
       type="button"
     >
@@ -2896,7 +2898,27 @@ function TemplateTaskEditor({
   };
 
   return (
-    <Popover onOpenChange={(next) => (next ? undefined : onClose())} open>
+    <Popover
+      onOpenChange={(next, eventDetails) => {
+        if (next) return;
+
+        // The editor is mounted by this trigger press. Base UI can observe the
+        // tail of that same press as an outside interaction after the controlled
+        // Popover mounts and immediately close it again.
+        const eventTarget = eventDetails.event.target;
+        if (
+          eventDetails.reason === "outside-press" &&
+          eventTarget instanceof Element &&
+          eventTarget.closest("[data-template-task-trigger]")
+        ) {
+          eventDetails.cancel();
+          return;
+        }
+
+        onClose();
+      }}
+      open
+    >
       {/* Full-cell anchor: the editor opens to the side of the column the Task
           lives in (Google-Calendar style). base-ui flips to the opposite side
           when there isn't room. */}
