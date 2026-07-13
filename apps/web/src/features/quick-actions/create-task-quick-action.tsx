@@ -920,7 +920,11 @@ export function CreateTaskQuickAction() {
                   {(canSaveDraft) =>
                     canSaveDraft ? (
                       <Button
-                        className="rounded-full text-muted-foreground hover:text-foreground"
+                        // Fades in the moment the form turns dirty (and
+                        // unmounts when it reverts to pristine) so the
+                        // affordance always reflects draftable work without
+                        // popping.
+                        className="rounded-full text-muted-foreground motion-safe:fade-in-0 hover:text-foreground motion-safe:animate-in motion-safe:duration-200"
                         loading={savingDraft}
                         onClick={() => void saveDraftAndClose()}
                         size="sm"

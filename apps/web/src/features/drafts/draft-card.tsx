@@ -1,14 +1,16 @@
 import type { MouseEvent } from "react";
-import { Trash2Icon } from "lucide-react";
+import { ListTreeIcon, Trash2Icon } from "lucide-react";
 
 import type { TaskDraft } from "@church-work/zero";
 
+import { commentValueToPlainText } from "@/components/editor/comment-value";
 import {
   TaskAssigneePillTrigger,
   TaskDueDatePillTrigger,
   TaskEstimatePillTrigger,
   TaskLabelsPillTrigger,
   TaskPriorityPillTrigger,
+  TaskPropertyPill,
   TaskStatusPillTrigger,
   TaskTeamPillTrigger,
   WorkflowStatusIcon,
@@ -53,7 +55,10 @@ export function DraftCard({
   readonly onOpen: (draftId: string) => void;
 }) {
   const title = taskDraft.title?.trim() || "Untitled";
-  const description = taskDraft.description?.trim();
+  // Draft descriptions share the Task description storage format (serialized
+  // Plate JSON), so flatten to plain text for the card preview — never show
+  // the raw JSON. Mentions render as their label (`@Jane`, `DEV-12`).
+  const description = commentValueToPlainText(taskDraft.description);
 
   const status = useWorkflowStatusMeta({
     churchId,
@@ -72,7 +77,7 @@ export function DraftCard({
 
   return (
     <article
-      className="group relative cursor-pointer rounded-xl border bg-card p-4 shadow-xs ring-foreground/5 transition-colors hover:bg-accent/30 hover:ring-1"
+      className="group relative cursor-pointer rounded-xl border bg-card p-4 shadow-xs ring-foreground/5 transition-colors outline-none hover:bg-accent/30 hover:ring-1 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
       onClick={() => onOpen(taskDraft.draft_id)}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -217,9 +222,18 @@ function DraftCardPills({
       {hasLabels ? <TaskLabelsPillTrigger labels={selectedLabels} showEmptyIcon={false} /> : null}
       {hasDueDate ? <TaskDueDatePillTrigger value={taskDraft.due_date ?? null} /> : null}
       {hasParentTask ? (
-        <span className="inline-flex h-7 items-center rounded-md border bg-background px-2 text-muted-foreground text-xs">
-          Parent: {parentTask.identifier}
-        </span>
+        // Mirrors the composer header's subtask lineage pill (Identifier +
+        // title) in the shared property pill chrome.
+        <TaskPropertyPill
+          aria-label={`Subtask of ${parentTask.identifier} ${parentTask.title}`}
+          className="max-w-56"
+          muted
+          title={`${parentTask.identifier} ${parentTask.title}`}
+        >
+          <ListTreeIcon aria-hidden className="size-3.5 shrink-0" />
+          <span className="shrink-0">{parentTask.identifier}</span>
+          <span className="truncate text-muted-foreground/80">{parentTask.title}</span>
+        </TaskPropertyPill>
       ) : null}
     </div>
   );

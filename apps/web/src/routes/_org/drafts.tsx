@@ -47,6 +47,9 @@ function DraftsPage() {
   const restoreDrafts = useRestoreDraftsMutation();
   const { openTaskDraft } = useQuickActionOpeners();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // Card-level discard asks first (matching Linear); the id of the Draft whose
+  // confirmation is showing, or null when none is.
+  const [pendingDiscardId, setPendingDiscardId] = useState<string | null>(null);
   const [discardingDraftIds, setDiscardingDraftIds] = useState(() => new Set<string>());
 
   const visibleDrafts = collection.filter((draft) => !discardingDraftIds.has(draft.draft_id));
@@ -156,6 +159,10 @@ function DraftsPage() {
           </Empty>
         ) : (
           <section className="flex flex-col gap-2">
+            {/* Drafts are grouped by what they'll become — Task Drafts today,
+                Template Drafts later — mirroring Linear's type-grouped Drafts
+                panel in Church Work's domain language. */}
+            <h2 className="font-medium text-muted-foreground text-sm">Tasks</h2>
             {/* A responsive column grid: each column caps at 540px, and the
                 grid packs as many 540px columns as fit, Linear-style. */}
             <div className="grid grid-cols-[repeat(auto-fill,minmax(0,540px))] gap-3">
@@ -163,7 +170,7 @@ function DraftsPage() {
                 <DraftCard
                   churchId={churchId}
                   key={draft.draft_id}
-                  onDiscard={(draftId) => void onDiscardOne(draftId)}
+                  onDiscard={setPendingDiscardId}
                   onOpen={onOpenDraft}
                   taskDraft={draft}
                 />
@@ -196,6 +203,37 @@ function DraftsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog
+        onOpenChange={(open) => {
+          if (!open) setPendingDiscardId(null);
+        }}
+        open={pendingDiscardId !== null}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogMedia>
+              <Trash2Icon />
+            </AlertDialogMedia>
+            <AlertDialogTitle>Discard this draft?</AlertDialogTitle>
+            <AlertDialogDescription>Your draft will be discarded.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                const draftId = pendingDiscardId;
+                setPendingDiscardId(null);
+                if (draftId) void onDiscardOne(draftId);
+              }}
+              variant="destructive"
+            >
+              Discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainContainer>
   );
 }
@@ -203,6 +241,7 @@ function DraftsPage() {
 function DraftsSkeleton() {
   return (
     <section className="flex flex-col gap-2" aria-hidden>
+      <Skeleton className="h-4 w-12" />
       <div className="grid grid-cols-[repeat(auto-fill,minmax(0,540px))] gap-3">
         {[0, 1, 2].map((row) => (
           <div className="rounded-xl border bg-card p-4 shadow-xs" key={row}>

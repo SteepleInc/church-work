@@ -135,7 +135,7 @@ test("Drafts page lists saved Task Drafts and supports discarding one or all", a
     page.locator('[data-sidebar="sidebar"]').getByText("2", { exact: true }),
   ).toBeVisible();
   await expect(page).toHaveURL(/\/drafts$/);
-  await expect(page.getByRole("heading", { name: "Issues" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tasks" })).toBeVisible();
   await expect(page.getByText(firstTitle)).toBeVisible();
   await expect(page.getByText(secondTitle)).toBeVisible();
 
@@ -152,7 +152,8 @@ test("Drafts page lists saved Task Drafts and supports discarding one or all", a
   await page.getByRole("button", { name: "Discard all drafts" }).click();
   const discardAllConfirm = page.getByRole("alertdialog");
   await expect(discardAllConfirm).toBeVisible();
-  await discardAllConfirm.getByRole("button", { name: "Discard draft" }).click();
+  await expect(discardAllConfirm.getByText("Discard all drafts?")).toBeVisible();
+  await discardAllConfirm.getByRole("button", { name: "Discard all", exact: true }).click();
   await expect(page.getByText(secondTitle)).not.toBeVisible();
   await expect(page.getByText("No active drafts")).toBeVisible();
   await expect(
