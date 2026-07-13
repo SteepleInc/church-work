@@ -211,9 +211,7 @@ function DraftCardPills({
     // preview, so suppress pointer events to keep the hover chrome quiet and
     // let the card present one uniform open-the-composer affordance.
     <div className="pointer-events-none mt-3 flex flex-wrap items-center gap-1.5">
-      {hasStatus ? (
-        <TaskStatusPillTrigger status={status} />
-      ) : null}
+      {hasStatus ? <TaskStatusPillTrigger status={status} /> : null}
       {hasPriority ? <TaskPriorityPillTrigger value={priority} /> : null}
       {hasTeam ? (
         <TaskTeamPillTrigger
