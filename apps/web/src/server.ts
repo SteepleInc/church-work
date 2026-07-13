@@ -20,12 +20,16 @@ const serverEntry = createServerEntry({
   },
 });
 
-export default {
-  fetch(request, env) {
+const worker = {
+  fetch(request: Request, env: Env) {
     applyWorkerEnv(env);
     return serverEntry.fetch(request);
   },
-  async scheduled(controller, env) {
-    await runCloudflareRolloverMaintenance(controller, env);
+  async scheduled(controller: ScheduledController, env: Env) {
+    return runCloudflareRolloverMaintenance(controller, env);
   },
-} satisfies ExportedHandler<Env>;
+};
+
+// Cloudflare ignores a scheduled handler's resolved value, while returning the
+// summary gives high-level tests and other direct callers a stable result seam.
+export default worker as typeof worker & ExportedHandler<Env>;

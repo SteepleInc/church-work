@@ -11,6 +11,7 @@
     "deploy": "bun run build && bun run wrangler deploy",
     "cf-typegen": "bun run wrangler types",
     "start": "vite",
+    "test": "vitest run --config vitest-scheduled.config.ts",
     "check-types": "vite build && tsc --noEmit"
   },
   "dependencies": {
@@ -79,6 +80,7 @@
   },
   "devDependencies": {
     "@church-work/config": "workspace:*",
+    "@church-work/test-harness": "workspace:*",
     "@cloudflare/vite-plugin": "^1.29.0",
     "@tanstack/react-router-devtools": "^1.167.0",
     "@tanstack/router-plugin": "^1.168.18",
@@ -87,10 +89,12 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "^6.0.2",
+    "drizzle-orm": "catalog:",
     "postcss": "^8.5.15",
     "tailwindcss": "^4.3.1",
     "typescript": "catalog:",
     "vite": "^8.0.16",
+    "vitest": "catalog:",
     "wrangler": "catalog:"
   }
 }
