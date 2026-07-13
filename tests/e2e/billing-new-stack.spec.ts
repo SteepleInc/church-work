@@ -63,7 +63,14 @@ test("shows a re-subscribed Church as Paid when canceled history remains", async
   const title = `Paid over-limit Task ${suffix}`;
   await dialog.getByPlaceholder("Task title").fill(title);
   await dialog.getByRole("button", { name: "Create Task" }).click();
-  await expect(page.getByLabel(`Task card ${title}`)).toBeVisible({ timeout: 20_000 });
+  await expect(dialog).not.toBeVisible();
+
+  // The seeded usage set can put the new card outside the virtualized viewport.
+  // Global Search observes the full Church Task collection, so finding it there
+  // confirms that the over-limit server mutation was accepted rather than rolled back.
+  await page.getByRole("button", { name: "Open global search" }).click();
+  await page.getByLabel("Global Search").fill(title);
+  await expect(page.getByText(title, { exact: true }).first()).toBeVisible({ timeout: 20_000 });
 });
 
 test("shows a grace deadline and recovery action to a past-due owner", async ({
