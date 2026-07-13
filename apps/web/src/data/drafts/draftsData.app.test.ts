@@ -58,4 +58,16 @@ describe("sortDraftsByMostRecentlyUpdated", () => {
 
     expect(drafts).toEqual(snapshot);
   });
+
+  test("uses the draft id to keep equal timestamps deterministic", () => {
+    const drafts: readonly (OrderableDraft & { readonly draft_id: string })[] = [
+      { draft_id: "draft-z", updated_at: 200, created_at: 100 },
+      { draft_id: "draft-a", updated_at: 200, created_at: 100 },
+    ];
+
+    expect(sortDraftsByMostRecentlyUpdated(drafts).map((draft) => draft.draft_id)).toEqual([
+      "draft-a",
+      "draft-z",
+    ]);
+  });
 });

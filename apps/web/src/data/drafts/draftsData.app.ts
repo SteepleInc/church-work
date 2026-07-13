@@ -17,9 +17,17 @@ export function draftOrderTimestamp(draft: Pick<TaskDraft, "updated_at" | "creat
  * deterministically rather than as a flickering order.
  */
 export function sortDraftsByMostRecentlyUpdated<
-  T extends Pick<TaskDraft, "updated_at" | "created_at">,
+  T extends Pick<TaskDraft, "updated_at" | "created_at"> & {
+    readonly draft_id?: string;
+    readonly id?: string;
+  },
 >(drafts: readonly T[]): readonly T[] {
-  return [...drafts].sort((left, right) => draftOrderTimestamp(right) - draftOrderTimestamp(left));
+  return [...drafts].sort((left, right) => {
+    const timestampDifference = draftOrderTimestamp(right) - draftOrderTimestamp(left);
+    if (timestampDifference !== 0) return timestampDifference;
+
+    return (left.draft_id ?? left.id ?? "").localeCompare(right.draft_id ?? right.id ?? "");
+  });
 }
 
 export function useMyDraftsCollection() {
