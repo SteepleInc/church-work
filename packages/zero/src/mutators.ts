@@ -17,6 +17,7 @@ import {
   getLabelColorForName,
   getTeamColorForName,
   normalizeTeamIdentifier,
+  resolveChurchSubscription,
   TEAM_IDENTIFIER_MAX_LENGTH,
 } from "@church-work/domain";
 import {
@@ -706,15 +707,22 @@ const assertUserTaskCreationAllowed = async (
   churchId: string,
 ) => {
   const now = new Date();
-  const [subscriptionRow] = await db
+  const subscriptionRows = await db
     .select({
+      cancelAt: subscription.cancelAt,
+      canceledAt: subscription.canceledAt,
+      endedAt: subscription.endedAt,
       graceStartedAt: subscription.graceStartedAt,
+      id: subscription.id,
       periodEnd: subscription.periodEnd,
+      periodStart: subscription.periodStart,
       status: subscription.status,
+      trialEnd: subscription.trialEnd,
+      trialStart: subscription.trialStart,
     })
     .from(subscription)
-    .where(eq(subscription.referenceId, churchId))
-    .limit(1);
+    .where(eq(subscription.referenceId, churchId));
+  const subscriptionRow = resolveChurchSubscription(subscriptionRows);
   if (
     subscriptionRow &&
     !isUserTaskCreationBlocked({ usage: 300, subscription: subscriptionRow, now })

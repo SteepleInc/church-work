@@ -131,6 +131,7 @@ export async function setTestSubscription(
     readonly periodEnd?: number | null;
     readonly status?: string;
     readonly stripeCustomerId?: string | null;
+    readonly historyKey?: string;
   },
 ) {
   const response = await postTestHelperWithRetry(page, "/api/test/subscription", { data: state });
