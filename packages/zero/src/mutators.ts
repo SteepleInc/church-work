@@ -1715,7 +1715,7 @@ type FocusWindowRow = {
 };
 type KeyDateOccurrenceRow = { readonly key_date_id: string; readonly local_date: string };
 type CycleAdjustmentRow = {
-  readonly lifecycle: "active" | "skipped";
+  readonly lifecycle: string;
   readonly overrides: string;
   readonly template_task_id: string;
 };
@@ -1849,7 +1849,7 @@ const buildEffectiveTemplateCycleTasks = (args: {
       },
       adjustment
         ? {
-            lifecycle: adjustment.lifecycle,
+            lifecycle: adjustment.lifecycle === "skipped" ? "skipped" : "active",
             overrides: parseJson<readonly CycleAdjustmentOverride[]>(adjustment.overrides, []),
           }
         : null,

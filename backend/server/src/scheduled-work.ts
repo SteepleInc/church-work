@@ -403,7 +403,7 @@ const materializeLegacyTemplateCycleTasks = async (
       );
 
     const projection = buildTemplateCycleTaskInserts({
-      adjustments: adjustmentRows as never,
+      adjustments: adjustmentRows,
       church_id: args.church_id,
       cycle: args.cycle,
       existing_projected_tasks: existingProjectedTasks.filter(
@@ -600,7 +600,7 @@ const materializeScheduledTemplateTasksForWindow = async (
             ),
           );
         const projection = buildTemplateCycleTaskInserts({
-          adjustments: adjustmentRows as never,
+          adjustments: adjustmentRows,
           church_id: args.church_id,
           cycle: cycle.cycle,
           existing_projected_tasks: existingProjectedTasks.filter(hasSourceTemplateTaskId),
