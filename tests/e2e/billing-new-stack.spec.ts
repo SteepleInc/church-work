@@ -69,7 +69,7 @@ test("shows a re-subscribed Church as Paid when canceled history remains", async
   // Global Search observes the full Church Task collection, so finding it there
   // confirms that the over-limit server mutation was accepted rather than rolled back.
   await page.getByRole("button", { name: "Open global search" }).click();
-  await page.getByLabel("Global Search").fill(title);
+  await page.getByRole("textbox", { name: "Global Search" }).fill(title);
   await expect(page.getByText(title, { exact: true }).first()).toBeVisible({ timeout: 20_000 });
 });
 
