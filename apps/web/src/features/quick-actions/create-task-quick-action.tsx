@@ -446,8 +446,6 @@ export function CreateTaskQuickAction() {
       setError(null);
       await flushDraftAutosave();
       const result = await createTask({
-        churchId,
-        actorUserId: currentUserId,
         draftId: editingDraftId,
         title: trimmedTitle,
         description: serializedDescription === "" ? null : serializedDescription,
@@ -595,7 +593,7 @@ export function CreateTaskQuickAction() {
     const key = JSON.stringify(payload);
     if (key === lastAutosavedRef.current) return;
     if (!churchId) return;
-    const result = await updateTaskDraft({ churchId, draftId: editingDraftId, ...payload }).catch(
+    const result = await updateTaskDraft({ draftId: editingDraftId, ...payload }).catch(
       () => undefined,
     );
     if (result?.ok) lastAutosavedRef.current = key;
@@ -619,7 +617,6 @@ export function CreateTaskQuickAction() {
     }
     const result = await saveTaskDraft({
       assignedUserId: value.assignedUserId,
-      churchId,
       description: value.description === "" ? null : value.description,
       dueDate: value.dueDate,
       estimate: value.estimate === "no_estimate" ? null : value.estimate,
@@ -753,7 +750,7 @@ export function CreateTaskQuickAction() {
   // selection.
   const handleCreateLabel = async (name: string) => {
     if (!churchId) return;
-    const result = await createLabel({ churchId, name });
+    const result = await createLabel({ name });
     if (!result.ok) {
       toast.error(result.error.message);
       return;

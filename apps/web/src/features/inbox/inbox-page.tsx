@@ -295,7 +295,7 @@ export function InboxPage() {
 
   const handleMarkAllRead = () => {
     if (!activeChurch || unreadCount === 0) return;
-    void markAllRead({ churchId: activeChurch.id });
+    void markAllRead();
     toast.success(
       unreadCount === 1
         ? "Marked 1 notification as read."
@@ -306,7 +306,7 @@ export function InboxPage() {
   const handleDeleteRead = () => {
     if (!activeChurch || !hasReadNotifications) return;
     const removed = readCount;
-    void deleteRead({ churchId: activeChurch.id });
+    void deleteRead();
     setDeleteReadOpen(false);
     toast.success(
       removed === 1 ? "Deleted 1 read notification." : `Deleted ${removed} read notifications.`,
@@ -582,7 +582,6 @@ function NotificationRow({
     if (!taskReference) return;
 
     void markNotificationRead({
-      churchId: notification.church_id,
       notificationId: notification.id,
     });
     const url = openTaskDetailsPaneUrl({ id: taskReference });
@@ -591,7 +590,6 @@ function NotificationRow({
 
   const snoozeUntil = (snoozedUntil: Date, label: string) => {
     void snoozeNotification({
-      churchId: notification.church_id,
       notificationId: notification.id,
       snoozedUntil,
     });
@@ -752,7 +750,6 @@ function NotificationRow({
                   aria-label={isUnread ? "Mark notification read" : "Mark notification unread"}
                   onClick={() =>
                     void (isUnread ? markNotificationRead : markNotificationUnread)({
-                      churchId: notification.church_id,
                       notificationId: notification.id,
                     })
                   }
@@ -773,7 +770,6 @@ function NotificationRow({
                   className="text-muted-foreground hover:text-destructive"
                   onClick={() =>
                     void deleteNotification({
-                      churchId: notification.church_id,
                       notificationId: notification.id,
                     })
                   }

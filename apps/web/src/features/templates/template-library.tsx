@@ -159,7 +159,7 @@ function TemplateLibraryPanel({
   const [pendingTemplate, setPendingTemplate] = useState<TemplateCollectionItem | null>(null);
   const onDuplicateTemplate = async (template: TemplateCollectionItem) => {
     if (!churchId) return;
-    const result = await duplicateTemplate({ churchId, templateId: template.id });
+    const result = await duplicateTemplate({ templateId: template.id });
     if (result.ok) {
       toast.success(`${template.name} duplicated`);
     } else {
@@ -170,7 +170,7 @@ function TemplateLibraryPanel({
     if (!churchId || !pendingTemplate) {
       return Promise.resolve({ error: { message: "Select a Template to delete." }, ok: false });
     }
-    return removeTemplate({ churchId, id: pendingTemplate.id, name: pendingTemplate.name });
+    return removeTemplate({ id: pendingTemplate.id, name: pendingTemplate.name });
   };
 
   if (loading) return <TemplateCardSkeleton />;
@@ -295,11 +295,11 @@ export function TemplateDetailPage({ templateId }: { readonly templateId: string
     if (!churchId || !pendingSchedule) {
       return Promise.resolve({ error: { message: "Select a Schedule to delete." }, ok: false });
     }
-    return removeSchedule({ churchId, cleanupCurrentOccurrence, schedule: pendingSchedule });
+    return removeSchedule({ cleanupCurrentOccurrence, schedule: pendingSchedule });
   };
   const onDuplicateTemplate = async () => {
     if (!churchId || !template) return;
-    const result = await duplicateTemplate({ churchId, templateId: template.id });
+    const result = await duplicateTemplate({ templateId: template.id });
     if (result.ok) {
       toast.success(`${template.name} duplicated`);
       await navigate({ to: "/templates/library" });
@@ -442,7 +442,6 @@ export function TemplateDetailPage({ templateId }: { readonly templateId: string
                   };
                 }
                 const result = await removeTemplate({
-                  churchId,
                   id: template.id,
                   name: template.name,
                 });

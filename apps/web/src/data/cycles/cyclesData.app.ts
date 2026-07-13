@@ -335,7 +335,6 @@ export function useUpdateWeekDetailsMutation() {
   const zero = useZero();
 
   return (params: {
-    readonly churchId: string;
     readonly cycleId: string;
     readonly name: string | null;
     readonly description: string | null;
@@ -343,7 +342,6 @@ export function useUpdateWeekDetailsMutation() {
     mutationResult(() =>
       zero.mutate(
         mutators.cycles.updateDetails({
-          church_id: params.churchId,
           cycle_id: params.cycleId,
           description: params.description,
           name: params.name,

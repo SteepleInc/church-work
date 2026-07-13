@@ -161,13 +161,17 @@ export function useLabelName(params: {
 
 export function useCreateLabelMutation() {
   const zero = useZero();
+  const churchId = useChurchId();
 
-  return async (params: { readonly churchId: string; readonly name: string }) => {
+  return async (params: { readonly name: string }) => {
+    if (churchId === null) {
+      return { error: { message: "Active Church required." }, ok: false } as const;
+    }
+
     const labelId = getLabelId();
     const result = await mutationResult(() =>
       zero.mutate(
         mutators.labels.create({
-          church_id: params.churchId,
           label_id: labelId,
           name: params.name,
         }),
@@ -179,7 +183,7 @@ export function useCreateLabelMutation() {
       data: {
         labels: [
           {
-            churchId: params.churchId,
+            churchId,
             color: getLabelColorForName(params.name),
             createdAt: Date.now(),
             id: labelId,
@@ -198,16 +202,10 @@ export function useCreateLabelMutation() {
 export function useUpdateLabelMutation() {
   const zero = useZero();
 
-  return (params: {
-    readonly churchId: string;
-    readonly labelId: string;
-    readonly name?: string;
-    readonly color?: string;
-  }) =>
+  return (params: { readonly labelId: string; readonly name?: string; readonly color?: string }) =>
     mutationResult(() =>
       zero.mutate(
         mutators.labels.update({
-          church_id: params.churchId,
           color: params.color,
           label_id: params.labelId,
           name: params.name,
@@ -219,8 +217,6 @@ export function useUpdateLabelMutation() {
 export function useDeleteLabelMutation() {
   const zero = useZero();
 
-  return (params: { readonly churchId: string; readonly labelId: string }) =>
-    mutationResult(() =>
-      zero.mutate(mutators.labels.delete({ church_id: params.churchId, label_id: params.labelId })),
-    );
+  return (params: { readonly labelId: string }) =>
+    mutationResult(() => zero.mutate(mutators.labels.delete({ label_id: params.labelId })));
 }

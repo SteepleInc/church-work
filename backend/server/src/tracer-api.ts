@@ -54,12 +54,14 @@ const getSessionContext = async (
         )
         .limit(1)
     : [];
+  const isAppAdmin = session.userRole === "admin";
+  const verifiedActiveChurchId = membership || isAppAdmin ? activeChurchId : null;
 
   return {
     authenticated: true,
-    active_church_id: activeChurchId,
-    church_role: session.orgRole ?? membership?.role ?? null,
-    is_app_admin: session.userRole === "admin",
+    active_church_id: verifiedActiveChurchId,
+    church_role: membership?.role ?? (isAppAdmin ? (session.orgRole ?? null) : null),
+    is_app_admin: isAppAdmin,
     runtime: "server",
     session_id: authSession.session.id,
     user_id: authSession.user.id,
@@ -602,7 +604,6 @@ export const createTracerApi = (databaseUrl: string) => {
           for (const task of normalizedTasks) {
             await createTask.fn({
               args: {
-                church_id: churchId,
                 team_id: team.id,
                 title: task.title,
                 target_cycle: targetCycle,

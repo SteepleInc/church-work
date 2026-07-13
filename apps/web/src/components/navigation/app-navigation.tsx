@@ -128,11 +128,7 @@ function AppNavigationBody() {
                 </SidebarMenuItem>
               </>
             ) : memberTeams.length > 0 && activeChurch ? (
-              <TeamNavList
-                churchId={activeChurch.id}
-                currentUserId={currentUserId}
-                teams={memberTeams}
-              />
+              <TeamNavList currentUserId={currentUserId} teams={memberTeams} />
             ) : (
               <SidebarMenuItem>
                 <SidebarMenuButton disabled type="button">

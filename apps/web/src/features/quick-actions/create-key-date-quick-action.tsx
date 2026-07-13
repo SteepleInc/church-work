@@ -100,7 +100,6 @@ function CreateKeyDateForm({
       setFormError(null);
       const name = value.name.trim();
       const result = await createKeyDate({
-        churchId,
         key: uniqueKeyFor(name),
         name,
         schedule,

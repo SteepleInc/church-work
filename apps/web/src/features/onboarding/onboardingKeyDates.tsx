@@ -85,7 +85,7 @@ export function OnboardingKeyDatesReview({ churchId }: { readonly churchId: stri
                 </span>
                 <Button
                   aria-label={`Remove ${keyDate.name}`}
-                  onClick={() => void deleteKeyDate({ churchId, keyDateId: keyDate.id })}
+                  onClick={() => void deleteKeyDate({ keyDateId: keyDate.id })}
                   size="icon-sm"
                   type="button"
                   variant="ghost"

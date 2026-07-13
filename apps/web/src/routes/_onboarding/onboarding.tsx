@@ -442,7 +442,7 @@ function InitialTeamsStepCard(props: {
   const showLoadingTeams = loading && !hasTeams;
 
   const removeTeam = (team: OnboardingTeamCollectionItem) => {
-    void deleteTeam({ churchId: props.churchId, teamId: team.id }).catch((error: unknown) => {
+    void deleteTeam({ teamId: team.id }).catch((error: unknown) => {
       toast.error(error instanceof Error ? error.message : "Could not remove Team.");
     });
   };

@@ -313,8 +313,6 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
   const persist = (fields: Parameters<typeof updateTask>[0]["fields"]) => {
     if (!activeChurch || task.isProjected) return;
     void updateTask({
-      churchId: activeChurch.id,
-      actorUserId: activeChurch.currentUserId,
       taskId: task.id,
       fields,
     });
@@ -336,7 +334,7 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
         break;
     }
 
-    void mutate({ churchId: activeChurch.id, actorUserId: activeChurch.currentUserId, taskId });
+    void mutate({ taskId });
   };
 
   const toMenuTask = (entry: TaskCollectionItem): TaskBoardTask => ({
@@ -419,8 +417,6 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
       return false;
     }
     const result = await createTask({
-      churchId: activeChurch.id,
-      actorUserId: currentUserId,
       title: input.title,
       description: input.description,
       teamId: input.teamId,
@@ -490,8 +486,6 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
   ) => {
     if (!activeChurch) return;
     void updateTask({
-      churchId: activeChurch.id,
-      actorUserId: activeChurch.currentUserId,
       taskId: subTaskId,
       fields,
     });
@@ -499,7 +493,7 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
 
   const handleCreateSubTaskLabel = async (name: string): Promise<string | null> => {
     if (!activeChurch) return null;
-    const result = await createLabel({ churchId: activeChurch.id, name });
+    const result = await createLabel({ name });
     if (!result.ok) {
       toast.error(result.error.message);
       return null;

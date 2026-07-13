@@ -104,7 +104,6 @@ function EditWeekForm({
       const trimmedDescription = value.description.trim();
 
       const result = await updateWeekDetails({
-        churchId: week.churchId,
         cycleId: week.cycleId,
         description: trimmedDescription || null,
         name: trimmedName || null,

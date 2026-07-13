@@ -347,7 +347,7 @@ export function TaskExecutionSurface({
   const transitionTask = (taskId: string, transition: TaskStateTransition) => {
     const mutate =
       transition === "complete" ? completeTask : transition === "cancel" ? cancelTask : reopenTask;
-    void mutate({ churchId, actorUserId: currentUserId, taskId });
+    void mutate({ taskId });
   };
 
   const tasks = tasksCollection.tasksCollection;
@@ -406,7 +406,6 @@ export function TaskExecutionSurface({
       task.cycleId
     ) {
       void adjustProjectedTask({
-        churchId,
         cycleId: task.cycleId,
         fields,
         sourceTemplateOccurrenceKey: task.sourceTemplateOccurrenceKey,
@@ -415,7 +414,7 @@ export function TaskExecutionSurface({
       });
       return;
     }
-    void updateTask({ churchId, actorUserId: currentUserId, taskId, fields });
+    void updateTask({ taskId, fields });
   };
   const isLoading =
     workflows.loading ||
@@ -499,8 +498,6 @@ export function TaskExecutionSurface({
         return;
       }
       void updateTask({
-        churchId,
-        actorUserId: currentUserId,
         taskId: change.taskId,
         fields: { workflowStatusId: change.workflowStatusId },
       });
@@ -707,8 +704,6 @@ export function TaskExecutionSurface({
                       return;
                     }
                     void updateTask({
-                      churchId,
-                      actorUserId: currentUserId,
                       taskId: move.taskId,
                       fields,
                     });
@@ -725,8 +720,6 @@ export function TaskExecutionSurface({
                     if (persistable.length === 1) {
                       const move = persistable[0];
                       void updateTask({
-                        churchId,
-                        actorUserId: currentUserId,
                         taskId: move.taskId,
                         fields: {
                           workflowStatusId: move.workflowStatusId,
@@ -736,8 +729,6 @@ export function TaskExecutionSurface({
                       return;
                     }
                     void updateTasksBatch({
-                      churchId,
-                      actorUserId: currentUserId,
                       updates: persistable.map((move) => ({
                         taskId: move.taskId,
                         fields: {

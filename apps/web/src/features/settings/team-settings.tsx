@@ -147,11 +147,7 @@ function TeamGeneralForm({
     onSubmit: async ({ value }) => {
       const name = value.name.trim();
       if (!canManage || !name || name === team.name) return;
-      await run(
-        "rename",
-        () => renameTeam({ churchId: activeChurch.id, name, teamId: team.id }),
-        "Team renamed.",
-      );
+      await run("rename", () => renameTeam({ name, teamId: team.id }), "Team renamed.");
     },
   });
 
@@ -162,12 +158,7 @@ function TeamGeneralForm({
       if (!canManage || !identifier || identifier === team.identifier) return;
       await run(
         "identifier",
-        () =>
-          setIdentifier({
-            churchId: activeChurch.id,
-            identifier,
-            teamId: team.id,
-          }),
+        () => setIdentifier({ identifier, teamId: team.id }),
         "Team identifier updated.",
       );
     },
@@ -278,7 +269,7 @@ function TeamGeneralForm({
             onClick={() =>
               void run(
                 "archive",
-                () => archiveTeam({ churchId: activeChurch.id, teamId: team.id }),
+                () => archiveTeam({ teamId: team.id }),
                 `Archived Team ${team.name}.`,
               )
             }
@@ -354,12 +345,7 @@ export function TeamMembersPanel({ teamId }: { readonly teamId: string }) {
       const member = membersById.get(value.userId);
       await run(
         "add",
-        () =>
-          addTeamMember({
-            churchId: activeChurch.id,
-            teamId: team.id,
-            userId: value.userId,
-          }),
+        () => addTeamMember({ teamId: team.id, userId: value.userId }),
         `Added ${member ? getUserDisplayName(member) : "member"} to ${team.name}.`,
       );
       formApi.reset();
@@ -485,12 +471,7 @@ export function TeamMembersPanel({ teamId }: { readonly teamId: string }) {
                   onRemove={() =>
                     void run(
                       `remove-${member.id}`,
-                      () =>
-                        removeTeamMember({
-                          churchId: activeChurch.id,
-                          teamId: team.id,
-                          userId: member.id,
-                        }),
+                      () => removeTeamMember({ teamId: team.id, userId: member.id }),
                       `Removed ${getUserDisplayName(member)} from ${team.name}.`,
                     )
                   }

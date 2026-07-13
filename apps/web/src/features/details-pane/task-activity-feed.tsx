@@ -253,13 +253,12 @@ export function TaskActivityFeed(props: ActivityFeedProps) {
     taskId: props.taskEntityId,
   });
   const createComment = useCreateTaskCommentMutation({
-    churchId: props.churchId,
     taskId: props.taskEntityId,
   });
-  const updateComment = useUpdateTaskCommentMutation({ churchId: props.churchId });
-  const deleteComment = useDeleteTaskCommentMutation({ churchId: props.churchId });
-  const subscribeThread = useSubscribeTaskCommentThreadMutation({ churchId: props.churchId });
-  const unsubscribeThread = useUnsubscribeTaskCommentThreadMutation({ churchId: props.churchId });
+  const updateComment = useUpdateTaskCommentMutation();
+  const deleteComment = useDeleteTaskCommentMutation();
+  const subscribeThread = useSubscribeTaskCommentThreadMutation();
+  const unsubscribeThread = useUnsubscribeTaskCommentThreadMutation();
   const moderationViewer = useTaskCommentModerationViewer({
     currentUserId: props.currentUserId,
   });

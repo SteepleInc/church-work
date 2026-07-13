@@ -125,7 +125,6 @@ describe("Task description mention graph integration", () => {
 
       await mustGetMutator(mutators, "tasks.create").fn({
         args: {
-          church_id: churchId,
           team_id: "team_mentions",
           title: "Mentions task",
           description: userMentionDoc(),
@@ -166,7 +165,6 @@ describe("Task description mention graph integration", () => {
       // Re-saving the same description must not duplicate the notification.
       await mustGetMutator(mutators, "tasks.update").fn({
         args: {
-          church_id: churchId,
           task_id: taskId,
           fields: { description: userMentionDoc() },
         },
@@ -187,7 +185,6 @@ describe("Task description mention graph integration", () => {
       // Removing the mention soft-deletes the edge.
       await mustGetMutator(mutators, "tasks.update").fn({
         args: {
-          church_id: churchId,
           task_id: taskId,
           fields: {
             description: JSON.stringify([{ type: "p", children: [{ text: "No mentions" }] }]),
@@ -206,7 +203,6 @@ describe("Task description mention graph integration", () => {
       // mention after removal is a genuinely new mention).
       await mustGetMutator(mutators, "tasks.update").fn({
         args: {
-          church_id: churchId,
           task_id: taskId,
           fields: { description: userMentionDoc() },
         },
@@ -240,7 +236,6 @@ describe("Task description mention graph integration", () => {
       // Target Task that will be mentioned.
       await mustGetMutator(mutators, "tasks.create").fn({
         args: {
-          church_id: churchId,
           team_id: "team_mentions",
           title: "Target task",
           workflow_status_id: "workflowstatus_todo_mentions",
@@ -253,7 +248,6 @@ describe("Task description mention graph integration", () => {
       // Source Task whose description mentions the target.
       await mustGetMutator(mutators, "tasks.create").fn({
         args: {
-          church_id: churchId,
           team_id: "team_mentions",
           title: "Source task",
           description: taskMentionDoc(targetTask.id),
@@ -306,7 +300,6 @@ describe("Task description mention graph integration", () => {
       // Re-saving the same description must not log a duplicate backlink.
       await mustGetMutator(mutators, "tasks.update").fn({
         args: {
-          church_id: churchId,
           task_id: sourceTask.id,
           fields: { description: taskMentionDoc(targetTask.id) },
         },
@@ -336,7 +329,6 @@ describe("Task comment mention graph integration", () => {
   ) => {
     await mustGetMutator(mutators, "tasks.create").fn({
       args: {
-        church_id: churchId,
         team_id: "team_mentions",
         title: "Comment host task",
         workflow_status_id: "workflowstatus_todo_mentions",
@@ -370,7 +362,6 @@ describe("Task comment mention graph integration", () => {
       await mustGetMutator(mutators, "task_comments.create").fn({
         args: {
           body: userMentionDoc(),
-          church_id: churchId,
           parent_comment_id: null,
           task_id: task.id,
         },
@@ -418,7 +409,6 @@ describe("Task comment mention graph integration", () => {
       await mustGetMutator(mutators, "task_comments.update").fn({
         args: {
           body: JSON.stringify([{ type: "p", children: [{ text: "No mentions now" }] }]),
-          church_id: churchId,
           comment_id: comment.id,
         },
         ctx: sessionContext,
@@ -428,7 +418,7 @@ describe("Task comment mention graph integration", () => {
 
       // Re-adding the mention revives the edge.
       await mustGetMutator(mutators, "task_comments.update").fn({
-        args: { body: userMentionDoc(), church_id: churchId, comment_id: comment.id },
+        args: { body: userMentionDoc(), comment_id: comment.id },
         ctx: sessionContext,
         tx,
       });
@@ -436,7 +426,7 @@ describe("Task comment mention graph integration", () => {
 
       // Deleting the comment soft-deletes its mention edges.
       await mustGetMutator(mutators, "task_comments.delete").fn({
-        args: { church_id: churchId, comment_id: comment.id },
+        args: { comment_id: comment.id },
         ctx: sessionContext,
         tx,
       });

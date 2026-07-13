@@ -112,7 +112,7 @@ function LabelSettingsPanel({
                 name={label.name}
                 onSelect={(color) => {
                   if (!churchId) return;
-                  void run(() => updateLabel({ churchId, color, labelId: label.id }));
+                  void run(() => updateLabel({ color, labelId: label.id }));
                 }}
               />
               {editingId === label.id ? (
@@ -122,7 +122,7 @@ function LabelSettingsPanel({
                   onSubmit={(name) => {
                     setEditingId(null);
                     if (!churchId || name === label.name) return;
-                    void run(() => updateLabel({ churchId, labelId: label.id, name }));
+                    void run(() => updateLabel({ labelId: label.id, name }));
                   }}
                 />
               ) : (
@@ -188,7 +188,7 @@ function LabelSettingsPanel({
     setCreating(false);
     const trimmed = name.trim();
     if (!churchId || !trimmed) return;
-    void run(() => createLabel({ churchId, name: trimmed }));
+    void run(() => createLabel({ name: trimmed }));
   };
 
   return (
@@ -243,7 +243,7 @@ function LabelSettingsPanel({
             <LabelRowActions
               onDelete={() => {
                 if (!churchId) return;
-                void run(() => deleteLabel({ churchId, labelId: label.id }));
+                void run(() => deleteLabel({ labelId: label.id }));
               }}
               onRename={() => setEditingId(label.id)}
             />
