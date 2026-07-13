@@ -23,6 +23,9 @@
       "localConnectionString": "postgres://postgres:postgres@127.0.0.1:5434/church_work",
     },
   ],
+  "triggers": {
+    "crons": ["*/15 10-23 * * SUN", "*/15 0-12 * * MON", "15 13 * * MON"],
+  },
   "routes": [
     {
       "pattern": "churchwork.ai",
