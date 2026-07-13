@@ -82,6 +82,17 @@ export function useQuickActionOpeners() {
           dueDate: options.dueDate,
         });
       },
+      // Reopens the create-Task composer fully rehydrated to a saved Task
+      // Draft, in existing-draft (autosave) mode. This is the single shared
+      // opener for Draft surfaces — the Draft card, the sidebar, etc. — so no
+      // caller pokes `createTaskQuickActionStateAtom` directly to enter draft
+      // mode. Draft editing bypasses the Free Plan Task Limit gate: only
+      // converting a Draft into a Task creates a new Task identity.
+      openTaskDraft: (options: { readonly draftId: string }) => {
+        closeBigActions();
+
+        setCreateTaskQuickActionState({ assignTo: null, draftId: options.draftId });
+      },
       openCreateKeyDate: (options: { readonly churchId: string }) => {
         closeBigActions();
 

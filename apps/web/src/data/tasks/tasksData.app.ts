@@ -931,7 +931,7 @@ export function useCreateTaskMutation() {
         zero.mutate(
           mutators.tasks.create({
             assigned_user_id: params.assignedUserId ?? null,
-            church_id: params.churchId,
+            ...(!params.draftId ? { church_id: params.churchId } : {}),
             ...(params.draftId ? { draft_id: params.draftId } : {}),
             description: params.description ?? null,
             due_date: params.dueDate ?? null,
@@ -977,7 +977,6 @@ export function useSaveTaskDraftMutation() {
         zero.mutate(
           mutators.drafts.save_task({
             assigned_user_id: params.assignedUserId ?? null,
-            church_id: params.churchId,
             description: params.description ?? null,
             due_date: params.dueDate ?? null,
             estimate: params.estimate ?? null,
@@ -1017,7 +1016,6 @@ export function useUpdateTaskDraftMutation() {
       () =>
         zero.mutate(
           mutators.drafts.update_task({
-            church_id: params.churchId,
             draft_id: params.draftId,
             fields: {
               assigned_user_id: params.assignedUserId ?? null,

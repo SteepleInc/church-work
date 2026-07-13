@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useSetAtom } from "jotai";
 import { FileTextIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -34,7 +33,7 @@ import {
 } from "@/data/drafts/draftsData.app";
 import { useCurrentOrgOpt } from "@/data/orgs/orgData.app";
 import { DraftCard } from "@/features/drafts/draft-card";
-import { createTaskQuickActionStateAtom } from "@/features/quick-actions/create-task-quick-action";
+import { useQuickActionOpeners } from "@/features/quick-actions/quick-actions-state";
 
 export const Route = createFileRoute("/_org/drafts")({ component: DraftsPage });
 
@@ -46,8 +45,10 @@ function DraftsPage() {
   const discardDraft = useDiscardDraftMutation();
   const discardAll = useDiscardAllDraftsMutation();
   const restoreDrafts = useRestoreDraftsMutation();
-  const openCreateTask = useSetAtom(createTaskQuickActionStateAtom);
+  const { openTaskDraft } = useQuickActionOpeners();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // Card-level discard asks first (matching Linear); the id of the Draft whose
+  // confirmation is showing, or null when none is.
   const [pendingDiscardId, setPendingDiscardId] = useState<string | null>(null);
   const [discardingDraftIds, setDiscardingDraftIds] = useState(() => new Set<string>());
 
@@ -57,7 +58,7 @@ function DraftsPage() {
   async function onDiscardOne(draftId: string) {
     if (!churchId) return;
     setDiscardingDraftIds((ids) => new Set(ids).add(draftId));
-    const result = await discardDraft(churchId, draftId);
+    const result = await discardDraft(draftId);
     if (result.type === "error") {
       setDiscardingDraftIds((ids) => {
         const next = new Set(ids);
@@ -76,7 +77,7 @@ function DraftsPage() {
             next.delete(draftId);
             return next;
           });
-          void restoreDrafts(churchId, [draftId]);
+          void restoreDrafts([draftId]);
         },
       },
     });
@@ -87,7 +88,7 @@ function DraftsPage() {
     const ids = visibleDrafts.map((draft) => draft.draft_id);
     setConfirmOpen(false);
     setDiscardingDraftIds((discardingIds) => new Set([...discardingIds, ...ids]));
-    const result = await discardAll(churchId, ids);
+    const result = await discardAll(ids);
     if (result.type === "error") {
       setDiscardingDraftIds((discardingIds) => {
         const next = new Set(discardingIds);
@@ -106,14 +107,14 @@ function DraftsPage() {
             for (const id of ids) next.delete(id);
             return next;
           });
-          void restoreDrafts(churchId, ids);
+          void restoreDrafts(ids);
         },
       },
     });
   }
 
   function onOpenDraft(draftId: string) {
-    openCreateTask({ assignTo: null, draftId });
+    openTaskDraft({ draftId });
   }
 
   return (
@@ -153,15 +154,15 @@ function DraftsPage() {
                 <FileTextIcon />
               </EmptyMedia>
               <EmptyTitle>No active drafts</EmptyTitle>
-              <EmptyDescription>
-                Start a New Task and choose Save to drafts to keep it for later. Your saved drafts
-                land here, ready to finish whenever you are.
-              </EmptyDescription>
+              <EmptyDescription>Saved drafts will appear here.</EmptyDescription>
             </EmptyHeader>
           </Empty>
         ) : (
           <section className="flex flex-col gap-2">
-            <h2 className="font-medium text-muted-foreground text-sm">Issues</h2>
+            {/* Drafts are grouped by what they'll become — Task Drafts today,
+                Template Drafts later — mirroring Linear's type-grouped Drafts
+                panel in Church Work's domain language. */}
+            <h2 className="font-medium text-muted-foreground text-sm">Tasks</h2>
             {/* A responsive column grid: each column caps at 540px, and the
                 grid packs as many 540px columns as fit, Linear-style. */}
             <div className="grid grid-cols-[repeat(auto-fill,minmax(0,540px))] gap-3">
@@ -185,17 +186,11 @@ function DraftsPage() {
             <AlertDialogMedia>
               <Trash2Icon />
             </AlertDialogMedia>
-            <AlertDialogTitle>
-              {count === 1 ? "Discard this draft?" : `Discard all ${count} drafts?`}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {count === 1
-                ? "This draft leaves your Drafts. You can undo right after."
-                : "Every draft leaves your Drafts. You can undo right after."}
-            </AlertDialogDescription>
+            <AlertDialogTitle>Discard all drafts?</AlertDialogTitle>
+            <AlertDialogDescription>All your drafts will be discarded.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{count === 1 ? "Keep it" : "Keep them"}</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={(event) => {
                 event.preventDefault();
@@ -203,7 +198,7 @@ function DraftsPage() {
               }}
               variant="destructive"
             >
-              {count === 1 ? "Discard draft" : "Discard all"}
+              Discard all
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -221,7 +216,7 @@ function DraftsPage() {
               <Trash2Icon />
             </AlertDialogMedia>
             <AlertDialogTitle>Discard this draft?</AlertDialogTitle>
-            <AlertDialogDescription>Your draft will be deleted.</AlertDialogDescription>
+            <AlertDialogDescription>Your draft will be discarded.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>

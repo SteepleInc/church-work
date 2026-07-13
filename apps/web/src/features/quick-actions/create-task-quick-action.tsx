@@ -69,6 +69,11 @@ import {
   useTaskDraft,
 } from "@/data/drafts/draftsData.app";
 import {
+  normalizeDraftEstimate,
+  normalizeDraftPriority,
+  parseDraftLabelIds,
+} from "@/features/drafts/task-draft-values";
+import {
   useCreateTaskMutation,
   useSaveTaskDraftMutation,
   useUpdateTaskDraftMutation,
@@ -450,7 +455,7 @@ export function CreateTaskQuickAction() {
         assignedUserId: value.assignedUserId,
         workflowStatusId: submitStatus.id,
         dueDate: value.dueDate,
-        parentTaskId: state?.parentTaskId ?? null,
+        parentTaskId: editingTaskDraft?.parent_task_id ?? state?.parentTaskId ?? null,
         labelIds: [...value.labels],
         estimate: value.estimate === "no_estimate" ? null : value.estimate,
         priority: value.priority === "no_priority" ? null : value.priority,
@@ -573,7 +578,7 @@ export function CreateTaskQuickAction() {
     dueDate: value.dueDate,
     estimate: value.estimate === "no_estimate" ? null : value.estimate,
     labelIds: [...value.labels],
-    parentTaskId: state?.parentTaskId ?? null,
+    parentTaskId: editingTaskDraft?.parent_task_id ?? state?.parentTaskId ?? null,
     priority: value.priority === "no_priority" ? null : value.priority,
     teamId: value.teamId,
     title: value.title.trim(),
@@ -643,14 +648,18 @@ export function CreateTaskQuickAction() {
       clearTimeout(autosaveTimerRef.current);
       autosaveTimerRef.current = null;
     }
-    close();
     if (!churchId) return;
-    await discardDraft(churchId, draftId).catch(() => undefined);
+    close();
+    const result = await discardDraft(draftId).catch(() => undefined);
+    if (!result || result.type === "error") {
+      toast.error(result?.error?.message ?? "Could not discard draft.");
+      return;
+    }
     // Discarding is a Soft Delete (CONTEXT.md), so offer the same undo the
     // Drafts page does — closing the dialog shouldn't make the action feel
     // more final than discarding from the list.
     toast.success("Draft discarded.", {
-      action: { label: "Undo", onClick: () => void restoreDrafts(churchId, [draftId]) },
+      action: { label: "Undo", onClick: () => void restoreDrafts([draftId]) },
     });
   };
 
@@ -916,7 +925,11 @@ export function CreateTaskQuickAction() {
                   {(canSaveDraft) =>
                     canSaveDraft ? (
                       <Button
-                        className="rounded-full text-muted-foreground hover:text-foreground"
+                        // Fades in the moment the form turns dirty (and
+                        // unmounts when it reverts to pristine) so the
+                        // affordance always reflects draftable work without
+                        // popping.
+                        className="rounded-full text-muted-foreground motion-safe:fade-in-0 hover:text-foreground motion-safe:animate-in motion-safe:duration-200"
                         loading={savingDraft}
                         onClick={() => void saveDraftAndClose()}
                         size="sm"
@@ -1240,40 +1253,4 @@ export function CreateTaskQuickAction() {
       />
     </>
   );
-}
-
-function parseDraftLabelIds(raw: string | null | undefined): readonly string[] {
-  try {
-    const parsed = JSON.parse(raw ?? "[]");
-    return Array.isArray(parsed)
-      ? parsed.filter((value): value is string => typeof value === "string")
-      : [];
-  } catch {
-    return [];
-  }
-}
-
-function normalizeDraftPriority(value: string | null | undefined): TaskPriority {
-  switch (value) {
-    case "urgent":
-    case "high":
-    case "medium":
-    case "low":
-      return value;
-    default:
-      return "no_priority";
-  }
-}
-
-function normalizeDraftEstimate(value: string | null | undefined): TaskEstimate {
-  switch (value) {
-    case "xs":
-    case "s":
-    case "m":
-    case "l":
-    case "xl":
-      return value;
-    default:
-      return "no_estimate";
-  }
 }
