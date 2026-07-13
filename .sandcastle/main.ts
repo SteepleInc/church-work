@@ -25,7 +25,7 @@
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { execFileSync, execSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { z } from "zod";
 
 // The planner emits its plan as JSON inside <plan> tags; Output.object extracts
@@ -59,6 +59,12 @@ const MAX_REPAIR_ATTEMPTS = Number(process.env.SANDCASTLE_MAX_REPAIR_ATTEMPTS ??
 const CHECK_POLL_INTERVAL_MS = Number(process.env.SANDCASTLE_CHECK_POLL_INTERVAL_MS ?? "30000");
 const CHECK_TIMEOUT_MS = Number(process.env.SANDCASTLE_CHECK_TIMEOUT_MS ?? String(20 * 60 * 1000));
 const MERGE_TIMEOUT_MS = Number(process.env.SANDCASTLE_MERGE_TIMEOUT_MS ?? String(20 * 60 * 1000));
+const BUN_CACHE_DIR = ".sandcastle/bun-cache";
+const POST_PR_REVIEW_COMPLETE_MARKER = "<!-- sandcastle-post-pr-review-complete -->";
+
+// Containers are short-lived, so persist a Linux-only Bun cache on the host.
+// This avoids mixing macOS artifacts into the sandbox while keeping installs warm.
+mkdirSync(BUN_CACHE_DIR, { recursive: true });
 
 const allAroundAgent = () => sandcastle.opencode("openai/gpt-5.6-sol", { variant: "low" });
 
@@ -82,6 +88,10 @@ const sandboxProvider = () =>
         sandboxPath: "/home/agent/.local/share/opencode/account.json",
         readonly: true,
       },
+      {
+        hostPath: BUN_CACHE_DIR,
+        sandboxPath: "/home/agent/.bun/install/cache",
+      },
     ],
   });
 
@@ -91,11 +101,9 @@ const hooks = {
   sandbox: { onSandboxReady: [{ command: "bun install" }] },
 };
 
-// Copy host-only files into the worktree before each sandbox starts.
-// node_modules avoids a full Bun install from scratch; the hook above handles
-// platform-specific binaries and any packages added since the last copy.
-// The env files are gitignored, so worktrees do not receive them automatically.
-const copyToWorktree = ["node_modules", ".env.local", ".env.e2e"];
+// Copy host-only env files into the worktree before each sandbox starts. The
+// dependency cache is mounted separately so node_modules is built for Linux.
+const copyToWorktree = [".env.local", ".env.e2e"];
 
 const acquireSlot = (() => {
   let running = 0;
@@ -320,12 +328,12 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // -------------------------------------------------------------------------
   let stopRun = false;
   const prWorkItems = [
-    ...existingPrIssues.map((entry) => ({ ...entry, skipPostPrReview: true })),
-    ...completedIssues.map((issue) => ({ issue, prUrl: undefined, skipPostPrReview: false })),
+    ...existingPrIssues,
+    ...completedIssues.map((issue) => ({ issue, prUrl: undefined })),
   ];
 
   const preparedPrResults = await Promise.allSettled(
-    prWorkItems.map(async ({ issue, prUrl: existingPrUrl, skipPostPrReview }) => {
+    prWorkItems.map(async ({ issue, prUrl: existingPrUrl }) => {
       const prUrl = existingPrUrl ?? publishIssuePr({ baseBranch: BASE_BRANCH, issue });
       console.log(`  PR ready for ${issue.id}: ${prUrl}`);
 
@@ -334,10 +342,11 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
         throw new Error(`PR branch could not be brought up to date before review: ${prUrl}`);
       }
 
-      if (skipPostPrReview) {
-        console.log(`  Skipping post-PR review for existing PR: ${prUrl}`);
+      if (postPrReviewIsComplete(prUrl)) {
+        console.log(`  Skipping completed post-PR review: ${prUrl}`);
       } else {
         await runPostPrReview({ issue, prUrl });
+        markPostPrReviewComplete({ issue, prUrl });
       }
 
       const readyAfterReview = await ensurePrBranchUpToDate({ issue, prUrl });
@@ -429,7 +438,11 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   }
 }
 
-console.log("\nAll done.");
+if (process.exitCode && process.exitCode !== 0) {
+  console.error("\nSandcastle stopped with errors. See the failures above.");
+} else {
+  console.log("\nAll done.");
+}
 
 function currentBranch() {
   return sh("git branch --show-current").trim();
@@ -508,6 +521,36 @@ function publishIssuePr({
 
 function findIssuePr(issue: z.infer<typeof planSchema>["issues"][number]) {
   return safeSh(`gh pr view ${quote(issue.branch)} --json url --jq .url`).trim() || undefined;
+}
+
+function postPrReviewIsComplete(prUrl: string) {
+  const commentBodies = safeSh(
+    `gh pr view ${quote(prUrl)} --json comments --jq ${quote(".comments[].body")}`,
+  );
+  return commentBodies.includes(POST_PR_REVIEW_COMPLETE_MARKER);
+}
+
+function markPostPrReviewComplete({
+  issue,
+  prUrl,
+}: {
+  issue: z.infer<typeof planSchema>["issues"][number];
+  prUrl: string;
+}) {
+  execFileSync(
+    "gh",
+    [
+      "pr",
+      "comment",
+      prUrl,
+      "--body",
+      [
+        POST_PR_REVIEW_COMPLETE_MARKER,
+        `Sandcastle post-PR review completed for issue #${issue.id}.`,
+      ].join("\n"),
+    ],
+    { encoding: "utf8" },
+  );
 }
 
 function pushIssueBranch(branch: string) {
