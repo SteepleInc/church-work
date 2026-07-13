@@ -63,7 +63,10 @@ test("shows a re-subscribed Church as Paid when canceled history remains", async
   const title = `Paid over-limit Task ${suffix}`;
   await dialog.getByPlaceholder("Task title").fill(title);
   await dialog.getByRole("button", { name: "Create Task" }).click();
-  await expect(dialog).not.toBeVisible();
+  // Zero waits for the server-confirmed mutation result before closing. This
+  // over-limit case counts the 300 seeded Tasks, which can exceed Playwright's
+  // 5-second assertion default on CI even though the mutation succeeds.
+  await expect(dialog).not.toBeVisible({ timeout: 20_000 });
 
   // The seeded usage set can put the new card outside the virtualized viewport.
   // Global Search observes the full Church Task collection, so finding it there
