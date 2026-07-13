@@ -810,18 +810,24 @@ export const maintainCyclesForChurch = Effect.fn("maintainCyclesForChurch")(func
   });
 });
 
+const toMaintenanceInstant = (now: Date | DateTime.Utc | string | undefined): Date => {
+  if (now === undefined) {
+    return new Date();
+  }
+  if (DateTime.isDateTime(now)) {
+    return DateTime.toDateUtc(now);
+  }
+  if (typeof now === "string") {
+    return new Date(now);
+  }
+  return now;
+};
+
 export const runScheduledCycleMaintenance = Effect.fn("runScheduledCycleMaintenance")(function* (
   db: ChurchWorkDb,
   args: { readonly now?: Date | DateTime.Utc | string } = {},
 ) {
-  const maintenanceInstant =
-    args.now === undefined
-      ? new Date()
-      : DateTime.isDateTime(args.now)
-        ? DateTime.toDateUtc(args.now)
-        : typeof args.now === "string"
-          ? new Date(args.now)
-          : args.now;
+  const maintenanceInstant = toMaintenanceInstant(args.now);
   const churches = yield* Effect.tryPromise({
     catch: (cause) => cause,
     try: () =>
@@ -839,42 +845,46 @@ export const runScheduledCycleMaintenance = Effect.fn("runScheduledCycleMaintena
     churches,
     (church) =>
       Effect.gen(function* () {
-        const completedCycleStartDate = church.rollover_maintenance_completed_cycle_start_date;
-        if (completedCycleStartDate) {
-          const [completedCycle] = yield* Effect.tryPromise({
-            catch: (cause) => cause,
-            try: () =>
-              db
-                .select({ ends_at: cycles.ends_at })
-                .from(cycles)
-                .where(
-                  and(
-                    eq(cycles.church_id, church.id),
-                    eq(cycles.start_date, completedCycleStartDate),
-                    isNull(cycles.deleted_at),
-                  ),
-                )
-                .limit(1),
-          });
-          if (
-            !isRolloverMaintenanceDue({
-              completed_cycle_ends_at: completedCycle?.ends_at ?? null,
-              completed_cycle_start_date: completedCycleStartDate,
-              now: maintenanceInstant,
-            })
-          ) {
-            return { churchId: church.id, status: "skipped" as const };
+        const outcome = yield* Effect.gen(function* () {
+          const completedCycleStartDate = church.rollover_maintenance_completed_cycle_start_date;
+          if (completedCycleStartDate) {
+            const [completedCycle] = yield* Effect.tryPromise({
+              catch: (cause) => cause,
+              try: () =>
+                db
+                  .select({ ends_at: cycles.ends_at })
+                  .from(cycles)
+                  .where(
+                    and(
+                      eq(cycles.church_id, church.id),
+                      eq(cycles.start_date, completedCycleStartDate),
+                      isNull(cycles.deleted_at),
+                    ),
+                  )
+                  .limit(1),
+            });
+            if (
+              !isRolloverMaintenanceDue({
+                completed_cycle_ends_at: completedCycle?.ends_at ?? null,
+                completed_cycle_start_date: completedCycleStartDate,
+                now: maintenanceInstant,
+              })
+            ) {
+              return { status: "skipped" as const };
+            }
           }
-        }
 
-        const result = yield* maintainCyclesForChurch(db, {
-          church_id: church.id,
-          church_time_zone: church.church_time_zone,
-          now: maintenanceInstant,
-          rolling_materialization_window_cycles: church.rolling_materialization_window_cycles,
-        });
-        return { churchId: church.id, result, status: "succeeded" as const };
-      }).pipe(Effect.exit),
+          const result = yield* maintainCyclesForChurch(db, {
+            church_id: church.id,
+            church_time_zone: church.church_time_zone,
+            now: maintenanceInstant,
+            rolling_materialization_window_cycles: church.rolling_materialization_window_cycles,
+          });
+          return { result, status: "succeeded" as const };
+        }).pipe(Effect.exit);
+
+        return { churchId: church.id, outcome };
+      }),
     { concurrency: "unbounded" },
   );
   const resultsByChurchId: Record<string, CycleMaintenanceResult> = {};
@@ -882,18 +892,17 @@ export const runScheduledCycleMaintenance = Effect.fn("runScheduledCycleMaintena
   const failures: RolloverMaintenanceFailure[] = [];
   let skipped = 0;
 
-  for (const [index, outcome] of outcomes.entries()) {
-    const church = churches[index];
+  for (const { churchId, outcome } of outcomes) {
     if (Exit.isFailure(outcome)) {
       failures.push({
-        churchId: church?.id ?? "unknown",
+        churchId,
         error: Cause.pretty(outcome.cause),
       });
     } else if (outcome.value.status === "skipped") {
       skipped += 1;
     } else {
-      resultsByChurchId[outcome.value.churchId] = outcome.value.result;
-      maintainedChurchIds.push(outcome.value.churchId);
+      resultsByChurchId[churchId] = outcome.value.result;
+      maintainedChurchIds.push(churchId);
     }
   }
 

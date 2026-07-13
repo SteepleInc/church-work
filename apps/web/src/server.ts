@@ -15,8 +15,7 @@ const applyWorkerEnv = (env: unknown) => {
 };
 
 const serverEntry = createServerEntry({
-  fetch(request: Request, env: unknown) {
-    applyWorkerEnv(env);
+  fetch(request: Request) {
     return handler.fetch(request);
   },
 });
