@@ -85,7 +85,10 @@ function BillingPanel({
   const isPaid = hasPaidEntitlements(subscriptionOpt ?? null);
   const isPastDue = subscriptionOpt?.status === "past_due";
   const graceEndsAt = subscriptionOpt ? paymentGraceEndsAt(subscriptionOpt) : null;
-  const hasStripeCustomer = Boolean(subscriptionOpt?.stripeCustomerId);
+  // A synchronized Subscription proves this Church has billing history. Stripe
+  // customer identifiers remain server-only; Better Auth resolves the customer
+  // from the authorized Organization reference when opening the hosted portal.
+  const hasBillingHistory = subscriptionOpt !== null;
   const cancelScheduledFor =
     isPaid && !isPastDue && subscriptionOpt?.cancelAtPeriodEnd && subscriptionOpt.periodEnd
       ? subscriptionOpt.periodEnd
@@ -184,7 +187,7 @@ function BillingPanel({
         <PastDueAlert
           canManage={canManage}
           fixPayment={
-            canManage && hasStripeCustomer ? (
+            canManage && hasBillingHistory ? (
               <div className="col-start-2 mt-2 flex">
                 <Button
                   disabled={redirecting === "checkout"}
@@ -234,7 +237,7 @@ function BillingPanel({
           actions={
             canManage ? (
               <>
-                {hasStripeCustomer ? portalButton : null}
+                {hasBillingHistory ? portalButton : null}
                 {canUpgrade ? upgradeButton : null}
               </>
             ) : null
@@ -276,7 +279,7 @@ function BillingPanel({
       </SettingsSection>
 
       {canManage ? (
-        hasStripeCustomer ? (
+        hasBillingHistory ? (
           <Alert>
             <HugeiconsIcon icon={InformationCircleIcon} strokeWidth={2} />
             <AlertDescription>

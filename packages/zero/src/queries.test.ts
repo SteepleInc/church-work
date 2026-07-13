@@ -3,6 +3,8 @@ import { describe, expect, test } from "vitest";
 
 import { queries } from "./queries";
 
+import { schema } from "./zero-schema.gen";
+
 import type { ZeroSessionContext } from "./session-context";
 
 const memberContext = {
@@ -20,6 +22,13 @@ const appAdminContext = {
   is_app_admin: true,
   session_id: "session_admin",
   user_id: "user_admin",
+} satisfies ZeroSessionContext;
+
+const ownerContext = {
+  ...memberContext,
+  church_role: "owner",
+  session_id: "session_owner",
+  user_id: "user_owner",
 } satisfies ZeroSessionContext;
 
 const churchScopedQueryNames = [
@@ -63,6 +72,53 @@ const getArgsForQueryName = (name: (typeof churchScopedQueryNames)[number]) =>
     : { church_id: "org_other" };
 
 describe("Zero product queries", () => {
+  test("exposes only member-safe Church billing columns through Zero", () => {
+    expect(Object.keys(schema.tables.subscription.columns).sort()).toEqual([
+      "cancelAt",
+      "cancelAtPeriodEnd",
+      "canceledAt",
+      "endedAt",
+      "graceStartedAt",
+      "id",
+      "periodEnd",
+      "periodStart",
+      "plan",
+      "referenceId",
+      "status",
+    ]);
+    expect(schema.tables.organization.columns).not.toHaveProperty("stripeCustomerId");
+  });
+
+  test("authorizes Church billing state for active members and owners only", () => {
+    for (const ctx of [memberContext, ownerContext]) {
+      expect(() =>
+        mustGetQuery(queries, "subscription.by_church").fn({
+          args: { church_id: "org_member" },
+          ctx,
+        }),
+      ).not.toThrow();
+    }
+
+    expect(() =>
+      mustGetQuery(queries, "subscription.by_church").fn({
+        args: { church_id: "org_other" },
+        ctx: memberContext,
+      }),
+    ).toThrow("Active Church access required.");
+    expect(() =>
+      mustGetQuery(queries, "subscription.by_church").fn({
+        args: { church_id: "org_member" },
+        ctx: { authenticated: false, runtime: "server" },
+      }),
+    ).toThrow("Authentication required.");
+    expect(() =>
+      mustGetQuery(queries, "subscription.admin_by_church").fn({
+        args: { church_id: "org_other" },
+        ctx: appAdminContext,
+      }),
+    ).not.toThrow();
+  });
+
   test("does not throw while the browser is still refreshing active Church context", () => {
     expect(() =>
       mustGetQuery(queries, "teams.by_church").fn({
