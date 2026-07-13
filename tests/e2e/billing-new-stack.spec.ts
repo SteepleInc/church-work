@@ -31,6 +31,7 @@ test("shows a new Church owner the Church-scoped Free Plan", async ({ page }, te
 test("shows a re-subscribed Church as Paid when canceled history remains", async ({
   page,
 }, testInfo) => {
+  test.setTimeout(240_000);
   const suffix = `${Date.now()}-${testInfo.workerIndex}`;
   await startAuthenticatedSession(page, {
     churchName: `E2E Re-subscribed Church ${suffix}`,
@@ -65,8 +66,11 @@ test("shows a re-subscribed Church as Paid when canceled history remains", async
   await dialog.getByRole("button", { name: "Create Task" }).click();
   // Zero waits for the server-confirmed mutation result before closing. This
   // over-limit case counts the 300 seeded Tasks, which can exceed Playwright's
-  // 5-second assertion default on CI even though the mutation succeeds.
-  await expect(dialog).not.toBeVisible({ timeout: 20_000 });
+  // 5-second assertion default on CI even though the mutation succeeds. A
+  // single-worker shard can still take more than a minute to confirm all 300
+  // seeded rows while the rest of this shard is under load, so leave enough
+  // room for the server-confirmed result without racing the test timeout.
+  await expect(dialog).not.toBeVisible({ timeout: 180_000 });
 
   // The seeded usage set can put the new card outside the virtualized viewport.
   // Global Search observes the full Church Task collection, so finding it there
