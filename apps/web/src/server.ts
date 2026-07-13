@@ -1,6 +1,16 @@
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
 
-import { runCloudflareRolloverMaintenance } from "./rollover-maintenance";
+import {
+  runCloudflareRolloverMaintenance,
+  type RolloverMaintenanceEnv,
+} from "./rollover-maintenance";
+
+type ScheduledWorker = Omit<ExportedHandler<Env>, "scheduled"> & {
+  scheduled(
+    controller: ScheduledController,
+    env: RolloverMaintenanceEnv,
+  ): ReturnType<typeof runCloudflareRolloverMaintenance>;
+};
 
 const applyWorkerEnv = (env: unknown) => {
   if (!env || typeof env !== "object") {
@@ -25,11 +35,11 @@ const worker = {
     applyWorkerEnv(env);
     return serverEntry.fetch(request);
   },
-  async scheduled(controller: ScheduledController, env: Env) {
+  async scheduled(controller: ScheduledController, env: RolloverMaintenanceEnv) {
     return runCloudflareRolloverMaintenance(controller, env);
   },
-};
+} satisfies ScheduledWorker;
 
 // Cloudflare ignores a scheduled handler's resolved value, while returning the
 // summary gives high-level tests and other direct callers a stable result seam.
-export default worker as typeof worker & ExportedHandler<Env>;
+export default worker;

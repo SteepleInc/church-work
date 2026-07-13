@@ -128,15 +128,15 @@ describe("Cloudflare scheduled handler", () => {
         workflow_status_id: "workflowstatus_worker_todo",
       });
 
-      const result = await worker.scheduled?.(
-        { cron: "*/15 * * * *", scheduledTime } as ScheduledController,
-        { HYPERDRIVE: { connectionString: harness.connectionString } } as Env,
+      const result = await worker.scheduled(
+        { cron: "*/15 * * * *", noRetry: () => undefined, scheduledTime },
+        { HYPERDRIVE: { connectionString: harness.connectionString } },
       );
 
       expect(result).toMatchObject({ failed: 1, scanned: 3, skipped: 1, succeeded: 1 });
-      expect(result?.failures[0]).toMatchObject({ churchId: failedChurchId });
-      expect(result?.maintainedChurchIds).toEqual([successfulChurchId]);
-      expect(result?.resultsByChurchId[successfulChurchId]?.rolledOverTaskIds).toEqual([
+      expect(result.failures[0]).toMatchObject({ churchId: failedChurchId });
+      expect(result.maintainedChurchIds).toEqual([successfulChurchId]);
+      expect(result.resultsByChurchId[successfulChurchId]?.rolledOverTaskIds).toEqual([
         "task_worker_rollover",
       ]);
 
