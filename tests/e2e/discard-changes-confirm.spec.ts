@@ -37,7 +37,7 @@ test.beforeEach(async ({ page }) => {
   await discardAll.click();
   const confirm = page.getByRole("alertdialog");
   await expect(confirm).toBeVisible();
-  await confirm.getByRole("button", { name: "Discard draft" }).click();
+  await confirm.getByRole("button", { name: "Discard all", exact: true }).click();
   await expect(emptyState).toBeVisible();
   await page.goto("/my-work");
 });

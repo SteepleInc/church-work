@@ -82,6 +82,51 @@ describe("scheduled work", () => {
     ).toBe(true);
   });
 
+  test("isolates Church failures and leaves failed Churches due for retry", async () => {
+    const harness = await startPostgresHarness();
+    const { db } = harness;
+    const successfulChurchId = `${churchId}_isolated_success`;
+    const failedChurchId = `${churchId}_isolated_failure`;
+
+    try {
+      await db.insert(organization).values([
+        {
+          _tag: "org",
+          churchTimeZone: "Pacific/Kiritimati",
+          completedOnboarding: false,
+          id: successfulChurchId,
+          name: "Successful Church",
+          slug: "successful-church",
+        },
+        {
+          _tag: "org",
+          churchTimeZone: "Invalid/Time_Zone",
+          completedOnboarding: false,
+          id: failedChurchId,
+          name: "Failed Church",
+          slug: "failed-church",
+        },
+      ]);
+
+      const firstResult = await Effect.runPromise(runScheduledCycleMaintenance(db, { now }));
+
+      expect(firstResult).toMatchObject({ failed: 1, scanned: 2, skipped: 0, succeeded: 1 });
+      expect(firstResult.failures[0]).toMatchObject({ churchId: failedChurchId });
+      expect(firstResult.maintainedChurchIds).toEqual([successfulChurchId]);
+
+      await db
+        .update(organization)
+        .set({ churchTimeZone: "Etc/GMT+12" })
+        .where(eq(organization.id, failedChurchId));
+      const retryResult = await Effect.runPromise(runScheduledCycleMaintenance(db, { now }));
+
+      expect(retryResult).toMatchObject({ failed: 0, scanned: 2, skipped: 1, succeeded: 1 });
+      expect(retryResult.maintainedChurchIds).toEqual([failedChurchId]);
+    } finally {
+      await harness.stop();
+    }
+  }, 60_000);
+
   test("maintains cycles for a Church before onboarding, rolls unfinished tasks, and projects Template work", async () => {
     const harness = await startPostgresHarness();
     const { db } = harness;

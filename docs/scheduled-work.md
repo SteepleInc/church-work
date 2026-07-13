@@ -17,7 +17,17 @@ It calls `runScheduledCycleMaintenance` from `@church-work/server`, which:
 - Projects Template Tasks into ensured Cycles.
 - Records system Activity rows for created Cycles, rolled Tasks, and projected Template Tasks.
 
-Production hosting for the scheduler is still a deployment-topology decision. Local/dev invocation is the command above, and tests cover the job through a real Postgres harness.
+Production runs from the existing Cloudflare web Worker every 15 minutes from Sunday 10:00 UTC through Monday 12:00 UTC, with a final Monday 13:15 UTC reconciliation run.
+
+To invoke the Cloudflare scheduled handler locally against the Hyperdrive local connection string:
+
+```sh
+cd apps/web
+bun run wrangler dev --test-scheduled
+curl "http://localhost:8787/__scheduled?cron=*/15+10-23+*+*+SUN"
+```
+
+The root command remains useful for directly exercising the Effect service without the Worker runtime.
 
 ## Historical Scheduled/Background Inventory
 
