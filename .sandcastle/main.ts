@@ -4,18 +4,17 @@
 //   Phase 1 (Plan):             An opus agent analyzes open issues, builds a
 //                               dependency graph, and outputs a <plan> JSON
 //                               listing unblocked issues with branch names.
-//   Phase 2 (Execute + Review): For each issue, a sandbox is created via
-//                               createSandbox(). The implementer runs first
-//                               (100 iterations). If it produces commits, a
-//                               reviewer runs in the same sandbox on the same
-//                               branch (1 iteration). All issue pipelines run
-//                               concurrently via Promise.allSettled().
-//   Phase 3 (Publish):          Push completed branches and create/update PRs
-//                               on GitHub. Merging happens through GitHub, not
-//                               by locally merging branches into this checkout.
+//   Phase 2 (Execute + Review): For each issue, a reusable sandbox runs the
+//                               implementer, optional UI builder, modifying
+//                               reviews, and final verifier before the first push. All
+//                               issue pipelines run concurrently.
+//   Phase 3 (Publish):          Push the final reviewed branch once, create or
+//                               update its PR, repair failing CI centrally, and
+//                               enable asynchronous GitHub auto-merge.
 //
-// The outer loop repeats up to MAX_ITERATIONS times so that newly unblocked
-// issues can be picked up after each round of published PRs.
+// By default the run exits after handing a batch to asynchronous auto-merge.
+// Set SANDCASTLE_WAIT_FOR_MERGES=true to wait for the batch and repeat up to
+// MAX_ITERATIONS so newly unblocked issues can be picked up.
 //
 // Usage:
 //   npx tsx .sandcastle/main.ts
@@ -44,6 +43,8 @@ const planSchema = z.object({
   ),
 });
 
+type PlannedIssue = z.infer<typeof planSchema>["issues"][number];
+
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
@@ -58,9 +59,25 @@ const PR_CHECK_REPAIR = process.env.SANDCASTLE_REPAIR_FAILED_CHECKS !== "false";
 const MAX_REPAIR_ATTEMPTS = Number(process.env.SANDCASTLE_MAX_REPAIR_ATTEMPTS ?? "3");
 const CHECK_POLL_INTERVAL_MS = Number(process.env.SANDCASTLE_CHECK_POLL_INTERVAL_MS ?? "30000");
 const CHECK_TIMEOUT_MS = Number(process.env.SANDCASTLE_CHECK_TIMEOUT_MS ?? String(20 * 60 * 1000));
+const WAIT_FOR_MERGES = process.env.SANDCASTLE_WAIT_FOR_MERGES === "true";
 const MERGE_TIMEOUT_MS = Number(process.env.SANDCASTLE_MERGE_TIMEOUT_MS ?? String(20 * 60 * 1000));
 const BUN_CACHE_DIR = ".sandcastle/bun-cache";
-const POST_PR_REVIEW_COMPLETE_MARKER = "<!-- sandcastle-post-pr-review-complete -->";
+const SANDBOX_IMAGE_NAME = process.env.SANDCASTLE_IMAGE_NAME ?? "sandcastle:church-work";
+const SANDBOX_TURBO_CACHE_DIR = "/home/agent/workspace/.turbo/cache";
+const SANDBOX_CAN_RUN_CONTAINER_TESTS = preflightSandbox();
+const PRE_PUBLISH_REVIEW_COMPLETE_MARKER = "<!-- sandcastle-pre-publish-review-complete -->";
+const LEGACY_POST_PR_REVIEW_COMPLETE_MARKER = "<!-- sandcastle-post-pr-review-complete -->";
+
+const LOCAL_VERIFICATION_POLICY = SANDBOX_CAN_RUN_CONTAINER_TESTS
+  ? [
+      "Container-backed tests are available in this sandbox.",
+      "Run targeted checks while iterating; the verify phase owns one final bun check:e2e run.",
+    ].join(" ")
+  : [
+      "Container-backed tests are unavailable in this sandbox.",
+      "Do not run or retry Docker, Testcontainers, Playwright E2E, bun check, or bun check:e2e.",
+      "Defer the full container-backed gate to GitHub CI.",
+    ].join(" ");
 
 // Containers are short-lived, so persist a Linux-only Bun cache on the host.
 // This avoids mixing macOS artifacts into the sandbox while keeping installs warm.
@@ -72,6 +89,11 @@ const uiAgent = () => sandcastle.opencode("anthropic/claude-opus-4-8");
 
 const sandboxProvider = () =>
   docker({
+    imageName: SANDBOX_IMAGE_NAME,
+    env: {
+      SANDCASTLE_CAN_RUN_CONTAINER_TESTS: String(SANDBOX_CAN_RUN_CONTAINER_TESTS),
+      TURBO_CACHE_DIR: SANDBOX_TURBO_CACHE_DIR,
+    },
     mounts: [
       {
         hostPath: "~/.config/opencode",
@@ -98,7 +120,13 @@ const sandboxProvider = () =>
 // Hooks run inside the sandbox before the agent starts each iteration.
 // Bun install ensures the sandbox always has fresh dependencies.
 const hooks = {
-  sandbox: { onSandboxReady: [{ command: "bun install" }] },
+  sandbox: {
+    onSandboxReady: [
+      {
+        command: 'mkdir -p "$TURBO_CACHE_DIR" && bun install --frozen-lockfile',
+      },
+    ],
+  },
 };
 
 // Copy host-only env files into the worktree before each sandbox starts. The
@@ -133,6 +161,68 @@ const acquireSlot = (() => {
     };
   };
 })();
+
+console.log(
+  `Sandbox preflight: container-backed tests ${SANDBOX_CAN_RUN_CONTAINER_TESTS ? "enabled" : "disabled"}; Turbo cache ${SANDBOX_TURBO_CACHE_DIR}.`,
+);
+
+async function runPrePublishReviewAndVerify({
+  issue,
+  sandbox,
+}: {
+  issue: PlannedIssue;
+  sandbox: Awaited<ReturnType<typeof sandcastle.createSandbox>>;
+}) {
+  const commits: Array<{ sha: string }> = [];
+
+  if (issue.needsUi) {
+    const uiReview = await sandbox.run({
+      name: `pre-publish-ui-design-reviewer-${issue.id}`,
+      maxIterations: 3,
+      agent: uiAgent(),
+      promptFile: "./.sandcastle/ui-review-prompt.md",
+      promptArgs: {
+        TASK_ID: issue.id,
+        ISSUE_TITLE: issue.title,
+        BRANCH: issue.branch,
+        UI_BRIEF: issue.uiBrief ?? "Review design quality and UX fit.",
+        VERIFICATION_POLICY: LOCAL_VERIFICATION_POLICY,
+      },
+    });
+    commits.push(...uiReview.commits);
+  }
+
+  const codeReview = await sandbox.run({
+    name: `pre-publish-all-around-code-reviewer-${issue.id}`,
+    maxIterations: 3,
+    agent: allAroundAgent(),
+    promptFile: "./.sandcastle/review-prompt.md",
+    promptArgs: {
+      TASK_ID: issue.id,
+      ISSUE_TITLE: issue.title,
+      BRANCH: issue.branch,
+      VERIFICATION_POLICY: LOCAL_VERIFICATION_POLICY,
+    },
+  });
+  commits.push(...codeReview.commits);
+
+  const verify = await sandbox.run({
+    name: `all-around-verify-fixer-${issue.id}`,
+    maxIterations: 30,
+    agent: allAroundAgent(),
+    promptFile: "./.sandcastle/verify-fix-prompt.md",
+    promptArgs: {
+      TASK_ID: issue.id,
+      ISSUE_TITLE: issue.title,
+      BRANCH: issue.branch,
+      NEEDS_UI: String(issue.needsUi),
+      VERIFICATION_POLICY: LOCAL_VERIFICATION_POLICY,
+    },
+  });
+  commits.push(...verify.commits);
+
+  return commits;
+}
 
 // ---------------------------------------------------------------------------
 // Main loop
@@ -194,11 +284,11 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   }
 
   // -------------------------------------------------------------------------
-  // Phase 2: Execute + Review
+  // Phase 2: Execute + Review + Verify
   //
   // For each issue, create a sandbox via createSandbox() so the implementer
-  // and reviewer share the same sandbox instance per branch. The implementer
-  // runs first; if it produces commits, the reviewer runs in the same sandbox.
+  // and every modifying phase shares one sandbox instance per branch. Reviews
+  // happen before publication so GitHub CI sees the final reviewed commit once.
   //
   // Promise.allSettled means one failing pipeline doesn't cancel the others.
   // -------------------------------------------------------------------------
@@ -228,6 +318,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
               BRANCH: issue.branch,
               NEEDS_UI: String(issue.needsUi),
               UI_BRIEF: issue.uiBrief ?? "No dedicated UI phase requested.",
+              VERIFICATION_POLICY: LOCAL_VERIFICATION_POLICY,
             },
           });
 
@@ -246,26 +337,16 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
                 UI_BRIEF:
                   issue.uiBrief ??
                   "Make the UI excellent and consistent with Church Work's design language.",
+                VERIFICATION_POLICY: LOCAL_VERIFICATION_POLICY,
               },
             });
             commits = [...commits, ...ui.commits];
           }
 
-          const verify = await sandbox.run({
-            name: `all-around-verify-fixer-${issue.id}`,
-            maxIterations: 30,
-            agent: allAroundAgent(),
-            promptFile: "./.sandcastle/verify-fix-prompt.md",
-            promptArgs: {
-              TASK_ID: issue.id,
-              ISSUE_TITLE: issue.title,
-              BRANCH: issue.branch,
-              NEEDS_UI: String(issue.needsUi),
-            },
-          });
-          commits = [...commits, ...verify.commits];
+          const reviewAndVerifyCommits = await runPrePublishReviewAndVerify({ issue, sandbox });
+          commits = [...commits, ...reviewAndVerifyCommits];
 
-          return { ...verify, commits };
+          return { commits };
         } finally {
           await sandbox.close();
         }
@@ -322,9 +403,8 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // -------------------------------------------------------------------------
   // Phase 3: Publish PRs
   //
-  // Keep the whole workflow locally initiated, but move integration/merge into
-  // GitHub. This gives us PR checks, review comments, and normal GitHub merge
-  // semantics instead of a local mega-merge branch.
+  // Push the already-reviewed branch once, let the runner own CI repair, and
+  // hand integration to GitHub auto-merge without waiting on each PR serially.
   // -------------------------------------------------------------------------
   let stopRun = false;
   const prWorkItems = [
@@ -337,39 +417,48 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
       const prUrl = existingPrUrl ?? publishIssuePr({ baseBranch: BASE_BRANCH, issue });
       console.log(`  PR ready for ${issue.id}: ${prUrl}`);
 
-      const readyForReview = await ensurePrBranchUpToDate({ issue, prUrl });
-      if (!readyForReview) {
-        throw new Error(`PR branch could not be brought up to date before review: ${prUrl}`);
+      if (existingPrUrl && !prePublishReviewIsComplete(prUrl)) {
+        await recoverMissingPrePublishReview({ issue, prUrl });
       }
 
-      if (postPrReviewIsComplete(prUrl)) {
-        console.log(`  Skipping completed post-PR review: ${prUrl}`);
-      } else {
-        await runPostPrReview({ issue, prUrl });
-        markPostPrReviewComplete({ issue, prUrl });
-      }
-
-      const readyAfterReview = await ensurePrBranchUpToDate({ issue, prUrl });
-      if (!readyAfterReview) {
-        throw new Error(`PR branch could not be brought up to date after review: ${prUrl}`);
+      const branchUpToDate = await ensurePrBranchUpToDate({ issue, prUrl });
+      if (!branchUpToDate) {
+        throw new Error(`PR branch could not be brought up to date: ${prUrl}`);
       }
 
       let checksReadyToMerge = true;
       if (PR_CHECK_REPAIR) {
         checksReadyToMerge = await repairFailedPrChecks({ issue, prUrl });
       } else if (AUTO_MERGE_PRS) {
-        checksReadyToMerge = checksArePassing(await waitForChecks(prUrl));
+        const checkResult = await waitForChecks(prUrl);
+        checksReadyToMerge =
+          checkResult.status === "merged" ||
+          (checkResult.status === "completed" && checksArePassing(checkResult.checks));
       }
 
       if (!checksReadyToMerge) {
         throw new Error(`PR is not ready to merge after repair attempts: ${prUrl}`);
       }
 
-      return { issue, prUrl };
+      const autoMergeEnabled = AUTO_MERGE_PRS ? enableAutoMerge(prUrl) : false;
+      if (autoMergeEnabled) {
+        console.log(`  GitHub auto-merge enabled for ${prUrl}`);
+      } else if (AUTO_MERGE_PRS) {
+        console.log(`  GitHub auto-merge unavailable; direct merge fallback required: ${prUrl}`);
+      } else {
+        console.log(`  Auto-merge skipped for ${prUrl} because SANDCASTLE_AUTO_MERGE=false`);
+      }
+
+      return {
+        autoMergeEnabled,
+        issue,
+        prUrl,
+      };
     }),
   );
 
   const preparedPrs: Array<{
+    autoMergeEnabled: boolean;
     issue: z.infer<typeof planSchema>["issues"][number];
     prUrl: string;
   }> = [];
@@ -388,60 +477,79 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
     break;
   }
 
-  for (const { issue, prUrl } of preparedPrs) {
-    const branchUpToDate = await ensurePrBranchUpToDate({ issue, prUrl });
-    if (!branchUpToDate) {
-      console.warn(`  PR branch could not be brought up to date with ${BASE_BRANCH}: ${prUrl}`);
-      process.exitCode = 1;
-      stopRun = true;
-      break;
-    }
-
-    const autoMergeEnabled = AUTO_MERGE_PRS ? enableAutoMerge(prUrl) : false;
-    if (autoMergeEnabled) {
-      console.log(`  GitHub auto-merge enabled for ${prUrl}`);
-    } else if (AUTO_MERGE_PRS) {
-      console.log(`  GitHub auto-merge unavailable; will merge ${prUrl} after checks pass.`);
-    } else {
-      console.log(`  Auto-merge skipped for ${prUrl} because SANDCASTLE_AUTO_MERGE=false`);
-    }
-
-    if (AUTO_MERGE_PRS && !autoMergeEnabled) {
-      mergePr(prUrl);
-    } else if (AUTO_MERGE_PRS && autoMergeEnabled) {
-      const merged = await waitForPrMerge(prUrl);
-      if (!merged) {
-        const ready = await ensurePrBranchUpToDate({ issue, prUrl });
-        if (!ready) {
-          console.warn(`  PR is still not mergeable; leaving auto-merge enabled: ${prUrl}`);
-          process.exitCode = 1;
-          stopRun = true;
-          break;
-        } else {
-          console.log(
-            `  Auto-merge did not complete in time; attempting GitHub merge now: ${prUrl}`,
-          );
-          mergePr(prUrl);
-        }
+  for (const { autoMergeEnabled, issue, prUrl } of preparedPrs) {
+    if (AUTO_MERGE_PRS && !autoMergeEnabled && !prIsMerged(prUrl)) {
+      const readyForDirectMerge = await ensurePrBranchUpToDate({ issue, prUrl });
+      if (!readyForDirectMerge) {
+        console.warn(`  Direct merge fallback is not ready: ${prUrl}`);
+        process.exitCode = 1;
+        stopRun = true;
+        break;
       }
-    }
-
-    if (prIsMerged(prUrl)) {
-      refreshBaseBranch();
+      mergePr(prUrl);
     }
   }
 
-  console.log("\nBranches published as GitHub PRs.");
+  console.log("\nBranches published as GitHub PRs and handed off for merge.");
 
   if (stopRun) {
     break;
   }
+
+  if (!WAIT_FOR_MERGES || !AUTO_MERGE_PRS) {
+    console.log(
+      WAIT_FOR_MERGES
+        ? "Merge waiting skipped because SANDCASTLE_AUTO_MERGE=false."
+        : "Auto-merge will continue asynchronously. Re-run Sandcastle after merges to plan newly unblocked work.",
+    );
+    break;
+  }
+
+  const allMerged = await waitForPrBatchMerge(preparedPrs);
+  if (!allMerged) {
+    process.exitCode = 1;
+    break;
+  }
+
+  refreshBaseBranch();
 }
 
 if (process.exitCode && process.exitCode !== 0) {
   console.error("\nSandcastle stopped with errors. See the failures above.");
 } else {
   console.log("\nAll done.");
+}
+
+function preflightSandbox() {
+  const configured = process.env.SANDCASTLE_SANDBOX_CAN_RUN_CONTAINER_TESTS;
+
+  try {
+    const detected = execFileSync(
+      "docker",
+      [
+        "run",
+        "--rm",
+        "--entrypoint",
+        "sh",
+        SANDBOX_IMAGE_NAME,
+        "-c",
+        [
+          `mkdir -p ${quote(SANDBOX_TURBO_CACHE_DIR)}`,
+          `test -w ${quote(SANDBOX_TURBO_CACHE_DIR)} || exit 42`,
+          'if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then printf "true"; else printf "false"; fi',
+        ].join(" && "),
+      ],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 10_000 },
+    );
+    if (configured === "true") return true;
+    if (configured === "false") return false;
+    return detected.trim() === "true";
+  } catch (error) {
+    throw new Error(
+      `Sandbox preflight failed for image ${SANDBOX_IMAGE_NAME}; verify Docker and the sandbox image before running Sandcastle.`,
+      { cause: error },
+    );
+  }
 }
 
 function currentBranch() {
@@ -512,7 +620,9 @@ function publishIssuePr({
         "",
         "Implemented by the local Sandcastle workflow.",
         "",
-        "Merging is intentionally handled by GitHub so this branch gets normal PR checks, review comments, and merge history.",
+        "Merging is intentionally handled by GitHub so this branch gets normal PR checks and merge history after local pre-publication review.",
+        "",
+        PRE_PUBLISH_REVIEW_COMPLETE_MARKER,
       ].join("\n"),
     ],
     { encoding: "utf8" },
@@ -523,34 +633,53 @@ function findIssuePr(issue: z.infer<typeof planSchema>["issues"][number]) {
   return safeSh(`gh pr view ${quote(issue.branch)} --json url --jq .url`).trim() || undefined;
 }
 
-function postPrReviewIsComplete(prUrl: string) {
-  const commentBodies = safeSh(
-    `gh pr view ${quote(prUrl)} --json comments --jq ${quote(".comments[].body")}`,
+function prePublishReviewIsComplete(prUrl: string) {
+  const text = safeSh(
+    `gh pr view ${quote(prUrl)} --json body,comments --jq ${quote('[.body, .comments[].body] | join("\\n")')}`,
   );
-  return commentBodies.includes(POST_PR_REVIEW_COMPLETE_MARKER);
+  return (
+    text.includes(PRE_PUBLISH_REVIEW_COMPLETE_MARKER) ||
+    text.includes(LEGACY_POST_PR_REVIEW_COMPLETE_MARKER)
+  );
 }
 
-function markPostPrReviewComplete({
+function markPrePublishReviewComplete(prUrl: string) {
+  execFileSync("gh", ["pr", "comment", prUrl, "--body", PRE_PUBLISH_REVIEW_COMPLETE_MARKER], {
+    encoding: "utf8",
+  });
+}
+
+async function recoverMissingPrePublishReview({
   issue,
   prUrl,
 }: {
-  issue: z.infer<typeof planSchema>["issues"][number];
+  issue: PlannedIssue;
   prUrl: string;
 }) {
-  execFileSync(
-    "gh",
-    [
-      "pr",
-      "comment",
-      prUrl,
-      "--body",
-      [
-        POST_PR_REVIEW_COMPLETE_MARKER,
-        `Sandcastle post-PR review completed for issue #${issue.id}.`,
-      ].join("\n"),
-    ],
-    { encoding: "utf8" },
-  );
+  console.log(`  Existing PR has no review marker; running one recovery review: ${prUrl}`);
+  const releaseSlot = await acquireSlot();
+
+  try {
+    const sandbox = await sandcastle.createSandbox({
+      branch: issue.branch,
+      sandbox: sandboxProvider(),
+      hooks,
+      copyToWorktree,
+    });
+
+    try {
+      const commits = await runPrePublishReviewAndVerify({ issue, sandbox });
+      if (commits.length > 0) {
+        pushIssueBranch(issue.branch);
+      }
+    } finally {
+      await sandbox.close();
+    }
+
+    markPrePublishReviewComplete(prUrl);
+  } finally {
+    releaseSlot();
+  }
 }
 
 function pushIssueBranch(branch: string) {
@@ -611,8 +740,15 @@ async function ensurePrBranchUpToDate({
         );
         await repairPrConflicts({ issue, prUrl });
 
-        const checks = await waitForChecks(prUrl);
-        const failedChecks = checks.filter(
+        const checkResult = await waitForChecks(prUrl);
+        if (checkResult.status === "merged") {
+          return true;
+        }
+        if (checkResult.status !== "completed") {
+          return false;
+        }
+
+        const failedChecks = checkResult.checks.filter(
           (check) => check.bucket === "fail" || check.conclusion === "failure",
         );
 
@@ -635,8 +771,15 @@ async function ensurePrBranchUpToDate({
     );
     updatePrBranch(prUrl);
 
-    const checks = await waitForChecks(prUrl);
-    const failedChecks = checks.filter(
+    const checkResult = await waitForChecks(prUrl);
+    if (checkResult.status === "merged") {
+      return true;
+    }
+    if (checkResult.status !== "completed") {
+      return false;
+    }
+
+    const failedChecks = checkResult.checks.filter(
       (check) => check.bucket === "fail" || check.conclusion === "failure",
     );
 
@@ -685,6 +828,7 @@ async function repairPrConflicts({
         ISSUE_TITLE: issue.title,
         PR_URL: prUrl,
         TASK_ID: issue.id,
+        VERIFICATION_POLICY: LOCAL_VERIFICATION_POLICY,
       },
     });
   } finally {
@@ -692,48 +836,46 @@ async function repairPrConflicts({
   }
 
   pushIssueBranch(issue.branch);
-  if (AUTO_MERGE_PRS) {
-    enableAutoMerge(prUrl);
-  }
 }
 
 function updatePrBranch(prUrl: string) {
   execFileSync("gh", ["pr", "update-branch", prUrl], { encoding: "utf8" });
 }
 
-async function waitForPrMerge(prUrl: string) {
+async function waitForPrBatchMerge(prs: Array<{ issue: PlannedIssue; prUrl: string }>) {
   const deadline = Date.now() + MERGE_TIMEOUT_MS;
   let pollCount = 0;
 
   while (Date.now() < deadline) {
     pollCount++;
-    const status = getPrMergeStatus(prUrl);
-
-    if (status.state === "MERGED" || Boolean(status.mergedAt)) {
-      console.log(`  PR merged through GitHub: ${prUrl}`);
+    const pendingPrs = prs.filter(({ prUrl }) => !prIsMerged(prUrl));
+    if (pendingPrs.length === 0) {
+      console.log(`  All ${prs.length} PR(s) merged through GitHub.`);
       return true;
     }
 
     console.log(
-      `  Merge poll ${pollCount}: state=${status.state ?? "unknown"}, mergeState=${status.mergeStateStatus ?? "unknown"}, mergeable=${status.mergeable ?? "unknown"}; waiting ${CHECK_POLL_INTERVAL_MS / 1000}s...`,
+      `  Batch merge poll ${pollCount}: ${prs.length - pendingPrs.length}/${prs.length} merged; waiting ${CHECK_POLL_INTERVAL_MS / 1000}s...`,
     );
 
-    if (status.mergeStateStatus === "CLEAN" || status.mergeStateStatus === "HAS_HOOKS") {
-      return false;
-    }
+    for (const { issue, prUrl } of pendingPrs) {
+      const status = getPrMergeStatus(prUrl);
+      if (status.mergeStateStatus !== "BEHIND" && !isConflictedPrStatus(status)) {
+        continue;
+      }
 
-    if (status.mergeStateStatus === "BEHIND") {
-      return false;
-    }
-
-    if (isConflictedPrStatus(status)) {
-      return false;
+      const repaired = await ensurePrBranchUpToDate({ issue, prUrl });
+      if (!repaired) {
+        console.warn(`  PR became blocked while waiting for the batch: ${prUrl}`);
+        return false;
+      }
+      enableAutoMerge(prUrl);
     }
 
     await sleep(CHECK_POLL_INTERVAL_MS);
   }
 
-  console.warn(`  Timed out waiting for PR to merge: ${prUrl}`);
+  console.warn(`  Timed out waiting for the PR batch to merge.`);
   return false;
 }
 
@@ -745,65 +887,6 @@ function getPrMergeStatus(prUrl: string) {
     return {} as PrMergeStatus;
   }
   return JSON.parse(json) as PrMergeStatus;
-}
-
-async function runPostPrReview({
-  issue,
-  prUrl,
-}: {
-  issue: z.infer<typeof planSchema>["issues"][number];
-  prUrl: string;
-}) {
-  console.log(`  Running post-PR review for ${issue.id}: ${prUrl}`);
-
-  const sandbox = await sandcastle.createSandbox({
-    branch: issue.branch,
-    sandbox: sandboxProvider(),
-    hooks,
-    copyToWorktree,
-  });
-
-  try {
-    let reviewCommitCount = 0;
-
-    if (issue.needsUi) {
-      const uiReview = await sandbox.run({
-        name: `post-pr-ui-design-reviewer-${issue.id}`,
-        maxIterations: 3,
-        agent: uiAgent(),
-        promptFile: "./.sandcastle/ui-review-prompt.md",
-        promptArgs: {
-          TASK_ID: issue.id,
-          ISSUE_TITLE: issue.title,
-          BRANCH: issue.branch,
-          PR_URL: prUrl,
-          UI_BRIEF: issue.uiBrief ?? "Review design quality and UX fit.",
-        },
-      });
-      reviewCommitCount += uiReview.commits.length;
-    }
-
-    const codeReview = await sandbox.run({
-      name: `post-pr-all-around-code-reviewer-${issue.id}`,
-      maxIterations: 3,
-      agent: allAroundAgent(),
-      promptFile: "./.sandcastle/review-prompt.md",
-      promptArgs: {
-        TASK_ID: issue.id,
-        ISSUE_TITLE: issue.title,
-        BRANCH: issue.branch,
-        PR_URL: prUrl,
-      },
-    });
-    reviewCommitCount += codeReview.commits.length;
-
-    if (reviewCommitCount > 0) {
-      pushIssueBranch(issue.branch);
-      console.log(`  Post-PR review pushed ${reviewCommitCount} commit(s) to ${prUrl}`);
-    }
-  } finally {
-    await sandbox.close();
-  }
 }
 
 async function repairFailedPrChecks({
@@ -824,14 +907,24 @@ async function repairFailedPrChecks({
     }
 
     console.log(`  Waiting for PR checks (${attempt}/${MAX_REPAIR_ATTEMPTS}): ${prUrl}`);
-    const checks = await waitForChecks(prUrl);
-    const failedChecks = checks.filter(
+    const checkResult = await waitForChecks(prUrl);
+    if (checkResult.status === "merged") {
+      return true;
+    }
+    if (checkResult.status === "conflicted") {
+      continue;
+    }
+    if (checkResult.status === "timed-out") {
+      return false;
+    }
+
+    const failedChecks = checkResult.checks.filter(
       (check) => check.bucket === "fail" || check.conclusion === "failure",
     );
 
     if (failedChecks.length === 0) {
       console.log(`  PR checks are not failing: ${prUrl}`);
-      return checks.length === 0 || checksArePassing(checks);
+      return checksArePassing(checkResult.checks);
     }
 
     console.log(`  ${failedChecks.length} PR check(s) failed; running repair agent.`);
@@ -855,6 +948,7 @@ async function repairFailedPrChecks({
           BRANCH: issue.branch,
           PR_URL: prUrl,
           FAILED_CHECKS_JSON: JSON.stringify(failedChecks, null, 2),
+          VERIFICATION_POLICY: LOCAL_VERIFICATION_POLICY,
         },
       });
     } finally {
@@ -862,9 +956,6 @@ async function repairFailedPrChecks({
     }
 
     pushIssueBranch(issue.branch);
-    if (AUTO_MERGE_PRS) {
-      enableAutoMerge(prUrl);
-    }
   }
 
   console.warn(
@@ -885,12 +976,12 @@ async function waitForChecks(prUrl: string) {
       console.log(
         `  PR is conflicted (mergeState=${status.mergeStateStatus ?? "unknown"}, mergeable=${status.mergeable ?? "unknown"}); stopping check polling: ${prUrl}`,
       );
-      return [];
+      return { status: "conflicted" } as const;
     }
 
     if (prIsMerged(prUrl)) {
       console.log(`  PR already merged; stopping check polling: ${prUrl}`);
-      return [];
+      return { status: "merged" } as const;
     }
 
     const checks = getPrChecks(prUrl);
@@ -912,7 +1003,7 @@ async function waitForChecks(prUrl: string) {
     console.log(`  Check poll ${pollCount}: ${formatCheckSummary(checks)}`);
 
     if (hasFailing || !hasPending) {
-      return checks;
+      return { checks, status: "completed" } as const;
     }
 
     await sleep(CHECK_POLL_INTERVAL_MS);
@@ -921,7 +1012,7 @@ async function waitForChecks(prUrl: string) {
   console.warn(
     `  Timed out waiting for checks; leaving PR for GitHub auto-merge/manual inspection.`,
   );
-  return [];
+  return { status: "timed-out" } as const;
 }
 
 function prIsMerged(prUrl: string) {

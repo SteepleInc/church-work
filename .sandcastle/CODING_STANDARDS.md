@@ -13,19 +13,19 @@ The reviewer agent loads this file during Sandcastle review.
 
 ## Testing
 
-- Run targeted verification before committing.
-- Prefer targeted package/app checks while iterating, `bun check` for initial verification, then `bun check:e2e` before work is considered CI-ready.
+- Builders run targeted verification before committing; the dedicated verify/fixer owns the final local verification pass after modifying reviews.
+- Prefer targeted package/app checks while iterating. Run `bun check:e2e` locally only when the sandbox capability policy says container-backed tests are available.
 - Add/update targeted Playwright E2E coverage for user-visible workflow changes.
-- CI owns the full E2E suite; Sandcastle branches should run the narrowest relevant E2E script.
+- GitHub CI owns container-backed and full E2E verification when the sandbox cannot run it.
 
 ## Sandcastle Workflow
 
-- The local Sandcastle runner publishes completed issue branches as GitHub PRs, runs the final review cycle on the open PR branch, and enables auto-merge by default.
+- The local Sandcastle runner completes modifying review and final local verification before the first push, publishes completed issue branches as GitHub PRs, and enables auto-merge by default.
 - Do not locally merge multiple Sandcastle branches into the caller's checkout.
 - PRs should use `Closes #<issue>` so GitHub closes issues after the PR merge.
-- Post-PR review agents should comment on the PR with concerns before pushing follow-up fixes, even when they fix the concern themselves.
+- The PR body records that pre-publication review completed. Existing PRs without that marker receive one recovery review before merge.
 - If GitHub checks fail, Sandcastle should repair the same PR branch and push follow-up commits rather than opening a replacement PR.
-- Leave review feedback and follow-up context on the PR whenever possible; GitHub is the integration and merge record.
+- The runner is the only branch pusher and CI poller; agents commit and return without waiting on GitHub.
 
 ## Architecture
 

@@ -1,10 +1,10 @@
 # TASK
 
-Review the code changes for issue {{TASK_ID}}: {{ISSUE_TITLE}} on branch `{{BRANCH}}` and improve correctness, clarity, consistency, and maintainability while preserving exact functionality.
-
-PR: {{PR_URL}}
+Review the code changes for issue {{TASK_ID}}: {{ISSUE_TITLE}} on branch `{{BRANCH}}` before publication, and improve correctness, clarity, consistency, and maintainability while preserving exact functionality.
 
 This is the all-around code reviewer. Focus on repo fit, correctness, tests, safety, and maintainability. UI design quality is reviewed separately for UI branches.
+
+{{VERIFICATION_POLICY}}
 
 # CONTEXT
 
@@ -55,11 +55,12 @@ Run `git log {{TARGET_BRANCH}}..{{BRANCH}} --oneline`.
 
 If you find concerns or improvements:
 
-1. Comment on the PR with the specific things you dislike or want changed. Use `gh pr comment {{PR_URL}} --body-file <file>` so the review trail is visible in GitHub.
-2. Make the changes directly on this branch.
-3. Run targeted Bun checks and tests to ensure nothing is broken.
-4. Commit describing the refinements.
+1. Make the changes directly on this branch.
+2. Run the narrowest relevant check only if you changed code. Do not repeat checks already completed at the current commit when no changes are needed.
+3. Commit describing the refinements.
 
-If the code is already clean and well-structured, comment on the PR saying the all-around review found no changes needed.
+If the code is already clean and well-structured, make no commit.
+
+Review directly. Do not invoke the review skill or launch subagents: this is already the dedicated review phase. Do not push the branch, comment on GitHub, wait for CI, or run `bun install`; the runner owns publication.
 
 Once complete, output <promise>COMPLETE</promise>.

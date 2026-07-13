@@ -1,10 +1,10 @@
 # TASK
 
-Review UI design quality for issue {{TASK_ID}}: {{ISSUE_TITLE}} on branch `{{BRANCH}}`.
-
-PR: {{PR_URL}}
+Review UI design quality for issue {{TASK_ID}}: {{ISSUE_TITLE}} on branch `{{BRANCH}}` before publication.
 
 UI brief: {{UI_BRIEF}}
+
+{{VERIFICATION_POLICY}}
 
 # ROLE
 
@@ -31,8 +31,10 @@ Run `git log {{TARGET_BRANCH}}..{{BRANCH}} --oneline`.
 
 Check whether the UI fits nearby Church Work screens and components, uses product domain language, has clear hierarchy/states/affordances, and feels intentionally designed rather than merely functional.
 
-If you find design or UX concerns, first comment on the PR with the specific things you dislike or want changed. Use `gh pr comment {{PR_URL}} --body-file <file>` so the review trail is visible in GitHub. Then make improvements directly on the branch, run targeted checks if practical, and commit with a concise `SANDCASTLE:` message.
+If you find design or UX concerns, make improvements directly on the branch, run the narrowest relevant check only if you changed code, and commit with a concise `SANDCASTLE:` message.
 
-If the UI is already strong, comment on the PR saying the UI review found no changes needed.
+If the UI is already strong, make no commit.
+
+Review directly. Do not invoke review skills or launch subagents: this is already the dedicated UI review phase. Do not push the branch, comment on GitHub, wait for CI, or run `bun install`; the runner owns publication.
 
 Once complete, output <promise>COMPLETE</promise>.

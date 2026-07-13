@@ -33,11 +33,15 @@ Recent commits:
 
 # EXECUTION
 
+{{VERIFICATION_POLICY}}
+
 1. Inspect the existing UI patterns before editing.
 2. Improve layout, hierarchy, empty/loading/error states, affordances, and interaction details.
 3. Preserve the domain language in `CONTEXT.md`.
 4. Keep changes scoped to this issue.
-5. Run targeted checks when practical. The verify/fixer phase owns the final `bun check:e2e` gate.
+5. Run only targeted checks when practical. The verify/fixer phase owns the comprehensive local gate when one is available.
+
+Do not invoke review skills or launch review subagents. Dedicated review phases run later. Do not push the branch, poll GitHub, or wait for CI; the runner owns publication and CI polling. Do not run `bun install` unless you changed dependencies; the runner already installed the workspace.
 
 # COMMIT
 

@@ -45,9 +45,11 @@ If applicable, use RGR to complete the task.
 
 # FEEDBACK LOOPS
 
-Before committing, run the narrowest useful Bun checks. Prefer targeted tests relevant to the changed package or app, then `bun check` for initial verification when practical.
+{{VERIFICATION_POLICY}}
 
-Do not run the full E2E suite here unless the issue specifically requires it; the verify/fixer phase owns final E2E verification.
+Before committing, run only the narrowest useful tests and type checks relevant to the changed package or app. The verify/fixer phase owns the comprehensive local gate when one is available.
+
+Do not invoke review skills or launch review subagents. Dedicated review phases run later. Do not push the branch, poll GitHub, or wait for CI; the runner owns publication and CI polling. Do not run `bun install` unless you changed dependencies; the runner already installed the workspace.
 
 # COMMIT
 
