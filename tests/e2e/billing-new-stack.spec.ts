@@ -73,6 +73,46 @@ test("shows a re-subscribed Church as Paid when canceled history remains", async
   await expect(page.getByText(title, { exact: true }).first()).toBeVisible({ timeout: 20_000 });
 });
 
+test("shows a Free Plan member their Task Usage without billing actions", async ({
+  page,
+}, testInfo) => {
+  const suffix = `${Date.now()}-${testInfo.workerIndex}`;
+  await startAuthenticatedSession(page, {
+    churchName: `E2E Free Member Church ${suffix}`,
+    churchRole: "member",
+    email: `billing-free-member-${suffix}@example.com`,
+    userName: "E2E Billing Member",
+  });
+  await seedTasks(page, {
+    tasks: Array.from({ length: 3 }, (_, index) => ({
+      status: "To Do",
+      title: `Member usage Task ${index + 1}`,
+    })),
+    team: "Worship",
+  });
+
+  await page.goto("/settings/workspace/billing");
+
+  await expect(page.getByRole("heading", { name: "Billing" })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Free Plan", { exact: true }).first()).toBeVisible();
+
+  // Members see live Task Usage against the Free Plan limit on the Billing
+  // screen — this is where they come to understand their limits.
+  const usageMeter = page.getByRole("meter", { name: "Free Plan Task Usage" });
+  await expect(usageMeter).toBeVisible({ timeout: 20_000 });
+  await expect(usageMeter).toHaveAttribute("aria-valuenow", "3");
+  await expect(usageMeter).toHaveAttribute("aria-valuemax", "300");
+  await expect(page.getByText(/of 300 Tasks/).first()).toBeVisible();
+
+  // ...but never any hosted billing actions.
+  await expect(
+    page.getByRole("button", { name: /Upgrade to Paid|Manage billing|Fix payment/ }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText(/Only Church owners and admins can manage the Church Subscription/),
+  ).toBeVisible();
+});
+
 test("shows a grace deadline and recovery action to a past-due owner", async ({
   page,
 }, testInfo) => {

@@ -7,7 +7,11 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { Subscription } from "@church-work/zero";
-import { hasPaidEntitlements, paymentGraceEndsAt } from "@church-work/domain";
+import {
+  FREE_PLAN_TASK_USAGE_NOTICE_THRESHOLD,
+  hasPaidEntitlements,
+  paymentGraceEndsAt,
+} from "@church-work/domain";
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
@@ -22,6 +26,7 @@ import {
   formatBillingDate,
   graceDaysLeft,
 } from "@/features/billing/billing-helpers";
+import { useTaskUsagePolicy } from "@/features/billing/use-task-usage-policy";
 import { SettingsSection } from "@/features/settings/settings-page";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
@@ -244,6 +249,7 @@ function BillingPanel({
           }
           isPaid={isPaid}
           subscriptionOpt={subscriptionOpt}
+          usage={isPaid ? null : <FreePlanUsageMeter />}
         />
       </SettingsSection>
 
@@ -365,10 +371,12 @@ function CurrentPlanRow({
   isPaid,
   subscriptionOpt,
   actions,
+  usage,
 }: {
   readonly isPaid: boolean;
   readonly subscriptionOpt: Subscription | null;
   readonly actions: ReactNode;
+  readonly usage?: ReactNode;
 }) {
   const status = subscriptionOpt?.status ?? null;
   const cancelAtPeriodEnd = Boolean(subscriptionOpt?.cancelAtPeriodEnd);
@@ -377,20 +385,97 @@ function CurrentPlanRow({
   const renewalLine = getRenewalLine({ cancelAtPeriodEnd, isPaid, periodEnd });
 
   return (
-    <div className="flex flex-col justify-between gap-4 py-4 sm:flex-row sm:items-center sm:gap-6">
-      <div className="flex min-w-0 flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-sm">{isPaid ? "Paid Plan" : "Free Plan"}</span>
-          <PlanStatusBadge cancelAtPeriodEnd={cancelAtPeriodEnd} isPaid={isPaid} status={status} />
+    <div className="flex flex-col gap-4 py-4">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center sm:gap-6">
+        <div className="flex min-w-0 flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-sm">{isPaid ? "Paid Plan" : "Free Plan"}</span>
+            <PlanStatusBadge
+              cancelAtPeriodEnd={cancelAtPeriodEnd}
+              isPaid={isPaid}
+              status={status}
+            />
+          </div>
+          <p className="text-muted-foreground text-sm">
+            {isPaid
+              ? `${PAID_PRICE} ${PAID_PRICE_NOTE} · Unlimited usage`
+              : "$0 · Unlimited Users and Teams, up to 300 Tasks in the Active Planning Horizon"}
+          </p>
+          {renewalLine ? <p className="text-muted-foreground text-xs">{renewalLine}</p> : null}
         </div>
-        <p className="text-muted-foreground text-sm">
-          {isPaid
-            ? `${PAID_PRICE} ${PAID_PRICE_NOTE} · Unlimited usage`
-            : "$0 · Unlimited Users and Teams, up to 300 Tasks in the Active Planning Horizon"}
-        </p>
-        {renewalLine ? <p className="text-muted-foreground text-xs">{renewalLine}</p> : null}
+        {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
       </div>
-      {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+      {usage}
+    </div>
+  );
+}
+
+/**
+ * Live Free Plan Task Usage against the Task limit, shown on the Billing screen
+ * to every Church Member — this is where members come to understand their
+ * limits, so the meter appears at any usage, not only once the app-wide notice
+ * threshold is crossed. Read-only: it never carries a payment action, so it is
+ * identical for members and managers. Tones mirror the in-app Task Usage card
+ * and the App Administration summary — quiet primary while there's plenty of
+ * headroom, amber as usage approaches, destructive once creation is paused.
+ */
+function FreePlanUsageMeter() {
+  const policy = useTaskUsagePolicy();
+
+  if (policy.loading) {
+    return (
+      <div className="flex flex-col gap-2 border-border/60 border-t pt-4">
+        <Skeleton className="h-3 w-40" />
+        <Skeleton className="h-1.5 w-full max-w-72 rounded-full" />
+      </div>
+    );
+  }
+
+  const usage = policy.usage;
+  const limit = policy.limit;
+  const atLimit = policy.blocked;
+  const approaching = !atLimit && usage > FREE_PLAN_TASK_USAGE_NOTICE_THRESHOLD;
+  const percent = Math.min(100, Math.round((usage / limit) * 100));
+  const remaining = Math.max(0, limit - usage);
+
+  return (
+    <div className="flex flex-col gap-2 border-border/60 border-t pt-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+        <span className="font-medium text-sm">Task Usage</span>
+        <span
+          className={cn(
+            "text-muted-foreground text-xs tabular-nums",
+            atLimit && "text-destructive",
+          )}
+        >
+          <span className="font-medium">
+            {usage} of {limit}
+          </span>{" "}
+          Tasks
+        </span>
+      </div>
+      <div
+        aria-label="Free Plan Task Usage"
+        aria-valuemax={limit}
+        aria-valuemin={0}
+        aria-valuenow={usage}
+        aria-valuetext={`${usage} of ${limit} Tasks in the Active Planning Horizon`}
+        className="h-1.5 w-full overflow-hidden rounded-full bg-foreground/10"
+        role="meter"
+      >
+        <div
+          className={cn(
+            "h-full rounded-full transition-[width]",
+            atLimit ? "bg-destructive" : approaching ? "bg-amber-500" : "bg-primary/60",
+          )}
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+      <p className={cn("text-muted-foreground text-xs", atLimit && "text-destructive")}>
+        {atLimit
+          ? "Free Plan Task limit reached — Task creation is paused. Existing and scheduled work stays available."
+          : `${remaining} ${remaining === 1 ? "Task" : "Tasks"} remaining before the Free Plan limit. Counts Tasks in the Active Planning Horizon.`}
+      </p>
     </div>
   );
 }
