@@ -1,3 +1,4 @@
+import { resolveChurchSubscription } from "@church-work/domain";
 import { queries } from "@church-work/zero";
 import { useQuery, useZero } from "@rocicorp/zero/react";
 
@@ -12,12 +13,12 @@ export function useChurchSubscription(params: { readonly churchId: string | null
     zero.context?.authenticated === true && zero.context.active_church_id === params.churchId
       ? params.churchId
       : null;
-  const [subscription, result] = useQuery(
+  const [subscriptions, result] = useQuery(
     churchId ? queries.subscription.by_church({ church_id: churchId }) : undefined,
   );
 
   return {
     loading: params.churchId !== null && (churchId === null || result.type !== "complete"),
-    subscriptionOpt: subscription ?? null,
+    subscriptionOpt: resolveChurchSubscription(subscriptions ?? []),
   };
 }

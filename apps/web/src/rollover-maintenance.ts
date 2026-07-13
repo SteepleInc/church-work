@@ -5,7 +5,7 @@ import {
 } from "@church-work/server";
 import { DateTime, Effect } from "effect";
 
-type RolloverMaintenanceEnv = {
+export type RolloverMaintenanceEnv = {
   readonly HYPERDRIVE: { readonly connectionString: string };
 };
 

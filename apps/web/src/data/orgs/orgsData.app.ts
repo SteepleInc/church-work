@@ -2,6 +2,7 @@ import {
   hasPaidEntitlements,
   isTaskCountedForUsage,
   paymentGraceEndsAt,
+  resolveChurchSubscription,
 } from "@church-work/domain";
 import {
   queries,
@@ -138,7 +139,9 @@ const mapOrg = (
   url: org.url ?? null,
   zip: org.zip ?? null,
   billing: toAdminChurchBilling(
-    subscriptions.find((subscription) => subscription.referenceId === org.id) ?? null,
+    resolveChurchSubscription(
+      subscriptions.filter((subscription) => subscription.referenceId === org.id),
+    ),
   ),
 });
 
@@ -197,7 +200,7 @@ export function useAdminOrgData(params: { readonly orgId: string | null }) {
   const [teamRows = []] = useZeroQuery(isAppAdmin ? queries.teams_admin.admin_all() : undefined, {
     enabled: isAppAdmin,
   });
-  const [subscription] = useZeroQuery(
+  const [subscriptions = []] = useZeroQuery(
     isAppAdmin && params.orgId
       ? queries.subscription.admin_by_church({ church_id: params.orgId })
       : undefined,
@@ -229,7 +232,7 @@ export function useAdminOrgData(params: { readonly orgId: string | null }) {
   const org = orgRow
     ? {
         ...mapOrg(orgRow, memberRows, teamRows),
-        billing: toAdminChurchBilling(subscription ?? null, taskUsage),
+        billing: toAdminChurchBilling(resolveChurchSubscription(subscriptions), taskUsage),
       }
     : null;
 

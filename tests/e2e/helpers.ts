@@ -131,6 +131,7 @@ export async function setTestSubscription(
     readonly periodEnd?: number | null;
     readonly status?: string;
     readonly stripeCustomerId?: string | null;
+    readonly historyKey?: string;
   },
 ) {
   const response = await postTestHelperWithRetry(page, "/api/test/subscription", { data: state });
@@ -152,11 +153,17 @@ export async function seedTasks(
     readonly team: string;
   },
 ) {
-  const response = await postTestHelperWithRetry(page, "/api/test/tasks/seed", { data: args });
+  // The test endpoint deliberately caps each request at 50 Tasks. Keep that
+  // production-like guard while allowing scenarios to build larger usage sets.
+  for (let offset = 0; offset < args.tasks.length; offset += 50) {
+    const response = await postTestHelperWithRetry(page, "/api/test/tasks/seed", {
+      data: { ...args, tasks: args.tasks.slice(offset, offset + 50) },
+    });
 
-  test.skip(response.status() === 404, "Task seeding helper is not deployed.");
-  if (!response.ok()) {
-    throw new Error(`Could not seed Tasks: ${response.status()} ${await response.text()}`);
+    test.skip(response.status() === 404, "Task seeding helper is not deployed.");
+    if (!response.ok()) {
+      throw new Error(`Could not seed Tasks: ${response.status()} ${await response.text()}`);
+    }
   }
 }
 
@@ -303,6 +310,11 @@ export async function addTemplateTask(page: Page, title: string, team = "Worship
   await addButton.click();
 
   const titleInput = page.getByPlaceholder("Add task title");
+  // The Tasks step can finish a layout rerender immediately after exposing its
+  // trigger. Retry the idempotent open action when that rerender drops a click.
+  if (!(await titleInput.isVisible().catch(() => false))) {
+    await addButton.click();
+  }
   await expect(titleInput).toBeVisible();
   await titleInput.fill(title);
   await page.getByRole("combobox", { name: "Change team" }).click();

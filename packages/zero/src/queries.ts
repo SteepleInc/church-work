@@ -71,12 +71,12 @@ export const queries = defineQueries({
     admin_by_church: defineChurchWorkQuery(ChurchScopedArgs, ({ args, ctx }) => {
       requireAppAdminSession(ctx);
 
-      return zql.subscription.where("referenceId", args.church_id).one();
+      return zql.subscription.where("referenceId", args.church_id);
     }),
     by_church: defineChurchWorkQuery(ChurchScopedArgs, ({ args, ctx }) => {
       requireActiveChurchAccess(ctx, args.church_id);
 
-      return zql.subscription.where("referenceId", args.church_id).one();
+      return zql.subscription.where("referenceId", args.church_id);
     }),
   },
   demo_items: {

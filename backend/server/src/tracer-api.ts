@@ -88,6 +88,7 @@ type TestSubscriptionState = {
   readonly periodEnd?: number | null;
   readonly status?: string;
   readonly stripeCustomerId?: string | null;
+  readonly historyKey?: string;
 };
 
 const isOptionalEpoch = (value: unknown): value is number | null | undefined =>
@@ -100,6 +101,8 @@ const isTestSubscriptionState = (value: unknown): value is TestSubscriptionState
     (state.cancelAtPeriodEnd === undefined || typeof state.cancelAtPeriodEnd === "boolean") &&
     isOptionalEpoch(state.graceStartedAt) &&
     isOptionalEpoch(state.periodEnd) &&
+    (state.historyKey === undefined ||
+      (typeof state.historyKey === "string" && /^[a-z0-9-]+$/.test(state.historyKey))) &&
     (state.status === undefined ||
       (typeof state.status === "string" && TEST_SUBSCRIPTION_STATUSES.has(state.status))) &&
     (state.stripeCustomerId == null || typeof state.stripeCustomerId === "string")
@@ -365,7 +368,8 @@ export const createTracerApi = (databaseUrl: string) => {
         if (!isTestSubscriptionState(body)) {
           return Response.json({ error: "Invalid subscription state" }, { status: 400 });
         }
-        const id = `e2e-subscription-${activeOrganizationId}`;
+        const historyKey = body.historyKey ? `-${body.historyKey}` : "";
+        const id = `e2e-subscription-${activeOrganizationId}${historyKey}`;
         await db
           .insert(subscription)
           .values({
@@ -377,7 +381,7 @@ export const createTracerApi = (databaseUrl: string) => {
             referenceId: activeOrganizationId,
             status: body.status ?? "active",
             stripeCustomerId: body.stripeCustomerId ?? "cus_e2e",
-            stripeSubscriptionId: `sub_e2e_${activeOrganizationId}`,
+            stripeSubscriptionId: `sub_e2e_${activeOrganizationId}${historyKey}`,
           })
           .onConflictDoUpdate({
             set: {
