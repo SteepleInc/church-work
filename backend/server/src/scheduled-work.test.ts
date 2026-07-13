@@ -498,11 +498,11 @@ describe("scheduled work", () => {
         activityRows.filter((activity) => activity.event_type === "task.template_synced"),
       ).toHaveLength(1);
       expect(
+        activityRows.filter((activity) => activity.event_type === "cycle.created"),
+      ).toHaveLength(1);
+      expect(
         activityRows.filter((activity) => activity.event_type === "task.template_materialized"),
       ).toHaveLength(3);
-      expect(activityRows.filter((activity) => activity.event_type === "cycle.created")).toHaveLength(
-        1,
-      );
       const materializedActivity = activityRows.find(
         (activity) => activity.entity_id === adjustedScheduledTask?.id,
       );
@@ -514,6 +514,14 @@ describe("scheduled work", () => {
         template_task_id: "templatetask_weekly_checklist",
       });
 
+      const [maintainedChurch] = await db
+        .select({
+          completedCycleStartDate: organization.rolloverMaintenanceCompletedCycleStartDate,
+        })
+        .from(organization)
+        .where(eq(organization.id, churchId));
+      expect(maintainedChurch?.completedCycleStartDate).toBe("2026-06-15");
+
       await db
         .update(organization)
         .set({ rolloverMaintenanceCompletedCycleStartDate: null })
@@ -523,14 +531,6 @@ describe("scheduled work", () => {
       expect(retryResult.resultsByChurchId[churchId]?.materializedTaskIds).toEqual([]);
       expect(await db.select().from(tasks).where(eq(tasks.church_id, churchId))).toHaveLength(9);
       expect(await db.select().from(activities)).toHaveLength(activityRows.length);
-
-      const [maintainedChurch] = await db
-        .select({
-          completedCycleStartDate: organization.rolloverMaintenanceCompletedCycleStartDate,
-        })
-        .from(organization)
-        .where(eq(organization.id, churchId));
-      expect(maintainedChurch?.completedCycleStartDate).toBe("2026-06-15");
 
       const secondResult = await Effect.runPromise(runScheduledCycleMaintenance(db, { now }));
       expect(secondResult.maintainedChurchIds).toEqual([]);
