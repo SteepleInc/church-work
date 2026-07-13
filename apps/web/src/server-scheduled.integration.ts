@@ -456,6 +456,33 @@ describe("Cloudflare scheduled handler", () => {
         churches.find((church) => church.id === skippedChurchId)
           ?.rolloverMaintenanceCompletedCycleStartDate,
       ).toBe("2026-06-15");
+
+      const taskStateAfterMaintenance = (
+        await db.select().from(tasks).where(eq(tasks.church_id, successfulChurchId))
+      )
+        .map((task) => ({ cycleId: task.cycle_id, id: task.id, title: task.title }))
+        .sort((left, right) => left.id.localeCompare(right.id));
+      const activityIdsAfterMaintenance = activityRows.map((activity) => activity.id).sort();
+
+      const repeated = await invokeScheduledHandler(
+        harness.connectionString,
+        new Date(scheduledTime).toISOString(),
+      );
+
+      expect(repeated).toMatchObject({ failed: 1, skipped: 2, succeeded: 0 });
+      expect(
+        await db.select().from(cycles).where(eq(cycles.church_id, successfulChurchId)),
+      ).toHaveLength(successfulCycles.length);
+      expect(
+        (await db.select().from(tasks).where(eq(tasks.church_id, successfulChurchId)))
+          .map((task) => ({ cycleId: task.cycle_id, id: task.id, title: task.title }))
+          .sort((left, right) => left.id.localeCompare(right.id)),
+      ).toEqual(taskStateAfterMaintenance);
+      expect(
+        (await db.select().from(activities).where(eq(activities.church_id, successfulChurchId)))
+          .map((activity) => activity.id)
+          .sort(),
+      ).toEqual(activityIdsAfterMaintenance);
     } finally {
       await harness.stop();
     }
