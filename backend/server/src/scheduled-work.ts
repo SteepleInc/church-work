@@ -324,6 +324,7 @@ const materializeLegacyTemplateCycleTasks = async (
         and(
           eq(cycle_adjustments.church_id, args.church_id),
           eq(cycle_adjustments.cycle_id, args.cycle.id),
+          isNull(cycle_adjustments.source_template_schedule_id),
           isNull(cycle_adjustments.deleted_at),
         ),
       );
@@ -335,6 +336,7 @@ const materializeLegacyTemplateCycleTasks = async (
           eq(tasks.church_id, args.church_id),
           eq(tasks.source_template_id, template.id),
           eq(tasks.source_template_cycle_id, args.cycle.id),
+          isNull(tasks.source_template_schedule_id),
           isNull(tasks.deleted_at),
         ),
       );
