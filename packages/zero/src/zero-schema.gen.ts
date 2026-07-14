@@ -993,6 +993,18 @@ const organizationTable = {
       optional: true,
       customType: null as unknown as string,
     },
+    deletedAt: {
+      type: "number",
+      optional: true,
+      customType: null as unknown as number,
+      serverName: "deleted_at",
+    },
+    deletedBy: {
+      type: "string",
+      optional: true,
+      customType: null as unknown as string,
+      serverName: "deleted_by",
+    },
     createdAt: {
       type: "number",
       optional: true,

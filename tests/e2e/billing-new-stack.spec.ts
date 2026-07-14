@@ -121,6 +121,78 @@ test("shows a re-subscribed Church as Paid when canceled history remains", async
   await expect(page.getByRole("button", { name: "Upgrade to Paid" })).not.toBeVisible();
 });
 
+test("restores paid and free Churches without hiding their existing work", async ({
+  page,
+}, testInfo) => {
+  const suffix = `${Date.now()}-${testInfo.workerIndex}`;
+  const churchName = `E2E Restored Church ${suffix}`;
+  const taskTitle = `Preserved restoration Task ${suffix}`;
+  await startAuthenticatedSession(page, {
+    churchName,
+    email: `billing-restoration-${suffix}@example.com`,
+    userName: "E2E Billing Owner",
+  });
+  await seedTasks(page, {
+    tasks: [{ status: "To Do", title: taskTitle }],
+    team: "Worship",
+  });
+  // Stripe has already acknowledged period-end cancellation, so this exercises
+  // the real lifecycle endpoint without making an external Stripe request.
+  await setTestSubscription(page, { cancelAtPeriodEnd: true, status: "active" });
+
+  const churchId = await page.evaluate(async () => {
+    const response = await fetch("/api/auth/get-session");
+    const session = (await response.json()) as { session: { activeOrganizationId: string } };
+    return session.session.activeOrganizationId;
+  });
+
+  const deleteAndRestore = async () => {
+    await page.goto("/settings/workspace/general");
+    await expect(page.getByRole("button", { name: "Delete Church" })).toBeVisible({
+      timeout: 20_000,
+    });
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.getByRole("button", { name: "Delete Church" }).click();
+    await expect(page).toHaveURL(/\/$/, { timeout: 20_000 });
+
+    const restored = await page.evaluate(async (organizationId) => {
+      const restoreResponse = await fetch("/api/auth/church/restore", {
+        body: JSON.stringify({ churchId: organizationId }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      const activateResponse = await fetch("/api/auth/organization/set-active", {
+        body: JSON.stringify({ organizationId }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      return restoreResponse.ok && activateResponse.ok;
+    }, churchId);
+    expect(restored).toBe(true);
+    await page.goto("/our-work");
+    await expect(page.getByText(taskTitle, { exact: true })).toBeVisible({
+      timeout: 20_000,
+    });
+  };
+
+  await deleteAndRestore();
+  await page.goto("/settings/workspace/billing");
+  await expect(page.getByText("Paid Plan", { exact: true }).first()).toBeVisible({
+    timeout: 20_000,
+  });
+  await page.goto("/our-work");
+  await expect(page.getByText(taskTitle, { exact: true })).toBeVisible({ timeout: 20_000 });
+
+  await setTestSubscription(page, { status: "canceled" });
+  await deleteAndRestore();
+  await page.goto("/settings/workspace/billing");
+  await expect(page.getByText("Free Plan", { exact: true }).first()).toBeVisible({
+    timeout: 20_000,
+  });
+  await page.goto("/our-work");
+  await expect(page.getByText(taskTitle, { exact: true })).toBeVisible({ timeout: 20_000 });
+});
+
 test("shows a Free Plan member their Task Usage without billing actions", async ({
   page,
 }, testInfo) => {

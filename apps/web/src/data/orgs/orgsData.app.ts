@@ -38,6 +38,7 @@ export type OrgCollectionItem = {
   readonly billing?: AdminChurchBilling;
   readonly url?: string | null;
   readonly zip?: string | null;
+  readonly deletedAt?: number | null;
 };
 
 export type AdminChurchBilling = {
@@ -97,6 +98,7 @@ export function useUserOrgsCollection() {
     street: org.street ?? null,
     url: org.url ?? null,
     zip: org.zip ?? null,
+    deletedAt: org.deletedAt ? new Date(org.deletedAt).getTime() : null,
   }));
 
   return {
