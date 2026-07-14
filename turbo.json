@@ -1,6 +1,13 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
+  "globalPassThroughEnv": [
+    "DOCKER_HOST",
+    "PLAYWRIGHT_BROWSERS_PATH",
+    "SANDCASTLE_CAN_RUN_CONTAINER_TESTS",
+    "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE",
+    "TESTCONTAINERS_HOST_OVERRIDE"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

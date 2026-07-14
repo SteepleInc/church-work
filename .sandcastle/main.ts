@@ -25,7 +25,13 @@ import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { execFileSync, execSync } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
+import { resolve } from "node:path";
+import { config as loadEnv } from "dotenv";
 import { z } from "zod";
+
+// Sandcastle resolves this file only when it launches providers. Load it here
+// as well because runner configuration and preflight happen before that point.
+loadEnv({ path: ".sandcastle/.env", quiet: true });
 
 // The planner emits its plan as JSON inside <plan> tags; Output.object extracts
 // and validates it against this schema. We use Zod here, but any Standard
@@ -64,14 +70,30 @@ const MERGE_TIMEOUT_MS = Number(process.env.SANDCASTLE_MERGE_TIMEOUT_MS ?? Strin
 const BUN_CACHE_DIR = ".sandcastle/bun-cache";
 const SANDBOX_IMAGE_NAME = process.env.SANDCASTLE_IMAGE_NAME ?? "sandcastle:church-work";
 const SANDBOX_TURBO_CACHE_DIR = "/home/agent/workspace/.turbo/cache";
-const SANDBOX_CAN_RUN_CONTAINER_TESTS = preflightSandbox();
+const HOST_DOCKER_RUN_DIR = "/var/run";
+const SANDBOX_DOCKER_RUN_DIR = "/host/run";
+const SANDBOX_DOCKER_SOCKET = `${SANDBOX_DOCKER_RUN_DIR}/docker.sock`;
+const HOST_DOCKER_SOCKET = "/var/run/docker.sock";
+const HOST_DOCKER_MOUNT_SOURCE = existsSync(HOST_DOCKER_SOCKET)
+  ? HOST_DOCKER_SOCKET
+  : HOST_DOCKER_RUN_DIR;
+const SANDBOX_DOCKER_MOUNT_TARGET = existsSync(HOST_DOCKER_SOCKET)
+  ? SANDBOX_DOCKER_SOCKET
+  : SANDBOX_DOCKER_RUN_DIR;
+const TESTCONTAINERS_HOST_OVERRIDE =
+  process.env.SANDCASTLE_TESTCONTAINERS_HOST_OVERRIDE ??
+  (process.platform === "darwin" || process.platform === "win32"
+    ? "host.docker.internal"
+    : undefined);
+const SANDBOX_CONTAINER_TESTS = preflightSandbox();
+const SANDBOX_CAN_RUN_CONTAINER_TESTS = SANDBOX_CONTAINER_TESTS.available;
 const PRE_PUBLISH_REVIEW_COMPLETE_MARKER = "<!-- sandcastle-pre-publish-review-complete -->";
 const LEGACY_POST_PR_REVIEW_COMPLETE_MARKER = "<!-- sandcastle-post-pr-review-complete -->";
 
 const LOCAL_VERIFICATION_POLICY = SANDBOX_CAN_RUN_CONTAINER_TESTS
   ? [
       "Container-backed tests are available in this sandbox.",
-      "Run targeted checks while iterating; the verify phase owns one final bun check:e2e run.",
+      "Run targeted checks while iterating; the verify phase runs bun check:e2e and the runner enforces the gate again before publication.",
     ].join(" ")
   : [
       "Container-backed tests are unavailable in this sandbox.",
@@ -90,11 +112,32 @@ const uiAgent = () => sandcastle.opencode("anthropic/claude-opus-4-8");
 const sandboxProvider = () =>
   docker({
     imageName: SANDBOX_IMAGE_NAME,
+    // Relabeling a Docker socket (or /var/run on macOS VM-backed runtimes) is unsafe.
+    selinuxLabel: false,
     env: {
       SANDCASTLE_CAN_RUN_CONTAINER_TESTS: String(SANDBOX_CAN_RUN_CONTAINER_TESTS),
       TURBO_CACHE_DIR: SANDBOX_TURBO_CACHE_DIR,
+      ...(SANDBOX_CAN_RUN_CONTAINER_TESTS
+        ? {
+            DOCKER_HOST: `unix://${SANDBOX_DOCKER_SOCKET}`,
+            TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE: "/var/run/docker.sock",
+            ...(TESTCONTAINERS_HOST_OVERRIDE ? { TESTCONTAINERS_HOST_OVERRIDE } : undefined),
+          }
+        : undefined),
     },
+    groups: SANDBOX_CONTAINER_TESTS.available
+      ? [SANDBOX_CONTAINER_TESTS.dockerSocketGid]
+      : undefined,
     mounts: [
+      ...(SANDBOX_CONTAINER_TESTS.available
+        ? [
+            {
+              hostPath: HOST_DOCKER_MOUNT_SOURCE,
+              sandboxPath: SANDBOX_DOCKER_MOUNT_TARGET,
+              readonly: true,
+            },
+          ]
+        : []),
       {
         hostPath: "~/.config/opencode",
         sandboxPath: "/home/agent/.config/opencode",
@@ -221,7 +264,62 @@ async function runPrePublishReviewAndVerify({
   });
   commits.push(...verify.commits);
 
+  runRequiredSandboxGate(issue, sandbox.worktreePath);
+
   return commits;
+}
+
+function runRequiredSandboxGate(issue: PlannedIssue, worktreePath: string) {
+  if (!SANDBOX_CONTAINER_TESTS.available) return;
+
+  assertWorktreeClean(worktreePath, `before the enforced sandbox gate for ${issue.id}`);
+  console.log(`  Running enforced sandbox gate for ${issue.id}: bun check:e2e`);
+  execFileSync(
+    "docker",
+    [
+      "run",
+      "--rm",
+      "--user",
+      `${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}`,
+      "--group-add",
+      String(SANDBOX_CONTAINER_TESTS.dockerSocketGid),
+      "--volume",
+      `${HOST_DOCKER_MOUNT_SOURCE}:${SANDBOX_DOCKER_MOUNT_TARGET}:ro`,
+      "--volume",
+      `${resolve(BUN_CACHE_DIR)}:/home/agent/.bun/install/cache`,
+      "--volume",
+      `${worktreePath}:/home/agent/workspace`,
+      "--env",
+      `DOCKER_HOST=unix://${SANDBOX_DOCKER_SOCKET}`,
+      "--env",
+      "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock",
+      "--env",
+      "SANDCASTLE_CAN_RUN_CONTAINER_TESTS=true",
+      "--env",
+      `TURBO_CACHE_DIR=${SANDBOX_TURBO_CACHE_DIR}`,
+      ...(TESTCONTAINERS_HOST_OVERRIDE
+        ? ["--env", `TESTCONTAINERS_HOST_OVERRIDE=${TESTCONTAINERS_HOST_OVERRIDE}`]
+        : []),
+      "--workdir",
+      "/home/agent/workspace",
+      "--entrypoint",
+      "sh",
+      SANDBOX_IMAGE_NAME,
+      "-c",
+      'mkdir -p "$TURBO_CACHE_DIR" && bun install --frozen-lockfile && bun check:e2e',
+    ],
+    { stdio: "inherit", timeout: CHECK_TIMEOUT_MS },
+  );
+  assertWorktreeClean(worktreePath, `after the enforced sandbox gate for ${issue.id}`);
+}
+
+function assertWorktreeClean(worktreePath: string, context: string) {
+  const status = execFileSync("git", ["-C", worktreePath, "status", "--porcelain"], {
+    encoding: "utf8",
+  }).trim();
+  if (status) {
+    throw new Error(`Sandcastle worktree is not clean ${context}:\n${status}`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -520,11 +618,15 @@ if (process.exitCode && process.exitCode !== 0) {
   console.log("\nAll done.");
 }
 
-function preflightSandbox() {
+type SandboxContainerTestCapability =
+  | { readonly available: false; readonly dockerSocketGid?: undefined }
+  | { readonly available: true; readonly dockerSocketGid: number };
+
+function preflightSandbox(): SandboxContainerTestCapability {
   const configured = process.env.SANDCASTLE_SANDBOX_CAN_RUN_CONTAINER_TESTS;
 
   try {
-    const detected = execFileSync(
+    execFileSync(
       "docker",
       [
         "run",
@@ -536,19 +638,81 @@ function preflightSandbox() {
         [
           `mkdir -p ${quote(SANDBOX_TURBO_CACHE_DIR)}`,
           `test -w ${quote(SANDBOX_TURBO_CACHE_DIR)} || exit 42`,
-          'if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then printf "true"; else printf "false"; fi',
         ].join(" && "),
       ],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 10_000 },
+      { stdio: ["ignore", "ignore", "pipe"], timeout: 10_000 },
     );
-    if (configured === "true") return true;
-    if (configured === "false") return false;
-    return detected.trim() === "true";
   } catch (error) {
     throw new Error(
       `Sandbox preflight failed for image ${SANDBOX_IMAGE_NAME}; verify Docker and the sandbox image before running Sandcastle.`,
       { cause: error },
     );
+  }
+
+  if (configured === "false") return { available: false };
+
+  try {
+    const dockerSocketGidOutput = execFileSync(
+      "docker",
+      [
+        "run",
+        "--rm",
+        "--volume",
+        `${HOST_DOCKER_MOUNT_SOURCE}:${SANDBOX_DOCKER_MOUNT_TARGET}:ro`,
+        "--entrypoint",
+        "stat",
+        SANDBOX_IMAGE_NAME,
+        "-c",
+        "%g",
+        SANDBOX_DOCKER_SOCKET,
+      ],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 10_000 },
+    );
+    const dockerSocketGid = Number(dockerSocketGidOutput.trim());
+    if (!Number.isSafeInteger(dockerSocketGid) || dockerSocketGid < 0) {
+      throw new Error(`Invalid Docker socket GID: ${dockerSocketGidOutput.trim()}`);
+    }
+
+    execFileSync(
+      "docker",
+      [
+        "run",
+        "--rm",
+        "--group-add",
+        String(dockerSocketGid),
+        "--volume",
+        `${HOST_DOCKER_MOUNT_SOURCE}:${SANDBOX_DOCKER_MOUNT_TARGET}:ro`,
+        "--env",
+        `DOCKER_HOST=unix://${SANDBOX_DOCKER_SOCKET}`,
+        "--entrypoint",
+        "sh",
+        SANDBOX_IMAGE_NAME,
+        "-c",
+        [
+          `test -S ${quote(SANDBOX_DOCKER_SOCKET)}`,
+          `test "$(curl --fail --silent --unix-socket ${quote(SANDBOX_DOCKER_SOCKET)} http://localhost/_ping)" = "OK"`,
+          "set -- /ms-playwright/chromium_headless_shell-*/chrome-linux/headless_shell",
+          'test -x "$1"',
+          '"$1" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --dump-dom about:blank >/tmp/sandcastle-chromium-smoke.html',
+          "test -s /tmp/sandcastle-chromium-smoke.html",
+        ].join(" && "),
+      ],
+      { stdio: ["ignore", "ignore", "pipe"], timeout: 30_000 },
+    );
+
+    return { available: true, dockerSocketGid };
+  } catch (error) {
+    if (configured === "true") {
+      throw new Error(
+        `Container-backed tests were required but the ${SANDBOX_IMAGE_NAME} Docker/Playwright smoke test failed. Rebuild the image and verify Docker socket access.`,
+        { cause: error },
+      );
+    }
+
+    console.warn(
+      "Sandbox Docker/Playwright capability probe failed; container-backed tests will remain in GitHub CI. Set SANDCASTLE_SANDBOX_CAN_RUN_CONTAINER_TESTS=true to make this a startup error.",
+    );
+    return { available: false };
   }
 }
 
