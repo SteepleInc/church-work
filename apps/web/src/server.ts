@@ -12,7 +12,7 @@ type ScheduledWorker = Omit<ExportedHandler<Env>, "scheduled"> & {
   ): ReturnType<typeof runCloudflareRolloverMaintenance>;
 };
 
-const applyWorkerEnv = (env: unknown) => {
+export const applyWorkerEnv = (env: unknown) => {
   if (!env || typeof env !== "object") {
     return;
   }
@@ -36,6 +36,7 @@ const worker = {
     return serverEntry.fetch(request);
   },
   async scheduled(controller: ScheduledController, env: RolloverMaintenanceEnv) {
+    applyWorkerEnv(env);
     return runCloudflareRolloverMaintenance(controller, env);
   },
 } satisfies ScheduledWorker;

@@ -47,6 +47,7 @@ describe("Cloudflare Rollover Maintenance", () => {
 
   test("uses the supplied scheduled instant and emits structured failure outcomes", async () => {
     const logs: object[] = [];
+    const failedRuns: object[] = [];
     const scheduledTime = Date.parse("2026-06-22T13:15:00.000Z");
 
     const result = await runCloudflareRolloverMaintenance(
@@ -54,6 +55,7 @@ describe("Cloudflare Rollover Maintenance", () => {
       { HYPERDRIVE: { connectionString: "postgres://hyperdrive" } },
       {
         log: (record) => logs.push(record),
+        recordFailedRun: (attributes) => failedRuns.push(attributes),
         run: async (connectionString, now) => {
           expect(connectionString).toBe("postgres://hyperdrive");
           expect(DateTime.toEpochMillis(now)).toBe(scheduledTime);
@@ -82,8 +84,60 @@ describe("Cloudflare Rollover Maintenance", () => {
           error: "database unavailable",
           event: "rollover_maintenance.church_failed",
         },
-        { metric: "rollover_maintenance.failed_runs", value: 1 },
       ]),
     );
+    expect(failedRuns).toEqual([{ cron: "15 13 * * MON" }]);
+  });
+
+  test("does not record a failed-run metric for a successful invocation", async () => {
+    let failedRuns = 0;
+
+    await runCloudflareRolloverMaintenance(
+      {
+        cron: "*/15 * * * *",
+        scheduledTime: Date.parse("2026-06-22T04:00:00.000Z"),
+      },
+      { HYPERDRIVE: { connectionString: "postgres://hyperdrive" } },
+      {
+        log: () => undefined,
+        recordFailedRun: () => failedRuns++,
+        run: async () => ({
+          failed: 0,
+          failures: [],
+          maintainedChurchIds: ["church-succeeded"],
+          resultsByChurchId: {},
+          scanned: 1,
+          skipped: 0,
+          succeeded: 1,
+        }),
+      },
+    );
+
+    expect(failedRuns).toBe(0);
+  });
+
+  test("records and rethrows unexpected invocation failures", async () => {
+    const logs: object[] = [];
+    const failure = new Error("Hyperdrive unavailable");
+
+    await expect(
+      runCloudflareRolloverMaintenance(
+        {
+          cron: "15 13 * * MON",
+          scheduledTime: Date.parse("2026-06-22T13:15:00.000Z"),
+        },
+        { HYPERDRIVE: { connectionString: "postgres://hyperdrive" } },
+        {
+          log: (record) => logs.push(record),
+          run: async () => Promise.reject(failure),
+        },
+      ),
+    ).rejects.toBe(failure);
+    expect(logs).toContainEqual({
+      cron: "15 13 * * MON",
+      error: "Hyperdrive unavailable",
+      event: "rollover_maintenance.invocation_failed",
+      scheduledTime: "2026-06-22T13:15:00.000Z",
+    });
   });
 });
