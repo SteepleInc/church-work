@@ -4996,7 +4996,7 @@ export const mutators = defineMutators({
       if (!source) throw new Error("Task not found.");
 
       const teamRows = await db
-        .select({ identifier: teams.identifier, next_task_number: teams.next_task_number })
+        .select({ next_task_number: teams.next_task_number })
         .from(teams)
         .where(
           and(

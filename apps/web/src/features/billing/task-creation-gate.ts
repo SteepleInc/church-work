@@ -9,17 +9,10 @@ import { useTaskUsagePolicy } from "@/features/billing/use-task-usage-policy";
 /** One Sonner id so repeated blocked attempts update a single notification. */
 export const TASK_LIMIT_TOAST_ID = "free-plan-task-limit";
 
-/** Minimal shape of an awaited Task mutation result (see MutationResult). */
 type TaskMutationOutcome =
   | { readonly ok: true }
   | { readonly ok: false; readonly error: { readonly message: string } };
 
-/**
- * One voice for the outcome of duplicating a Task, shared by every surface
- * (context menu, Task pane). On success it names the source Task so the copy
- * reads as intentional — mirroring the Template duplicate toast; on failure it
- * surfaces the mutator's own message instead of failing silently.
- */
 export function notifyTaskDuplicated(
   result: TaskMutationOutcome,
   sourceTitle?: string | null,

@@ -70,6 +70,24 @@ async function expandTeamSubnav(teamItem: Locator, teamName: string) {
   await expect(weeksLink).toBeVisible({ timeout: 20_000 });
 }
 
+test("duplicates a Task from its actions", async ({ page }, testInfo) => {
+  const suffix = `${Date.now()}-${testInfo.workerIndex}`;
+  const taskTitle = `Task To Duplicate ${suffix}`;
+
+  await startAuthenticatedSession(page, {
+    churchName: `E2E Task Duplication Church ${suffix}`,
+    email: `task-duplication-${suffix}@example.com`,
+    userName: "E2E Task Duplication Owner",
+  });
+  await page.goto("/our-work");
+  await createTask(page, taskTitle, { team: "Worship" });
+  await taskCard(page, taskTitle).click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Duplicate Task" }).click();
+
+  await expect(page.getByText(`“${taskTitle}” duplicated.`)).toBeVisible();
+  await expect(taskCard(page, taskTitle)).toHaveCount(2);
+});
+
 test("creates, assigns, moves, and preserves Task board state on the local Postgres and Zero stack", async ({
   page,
 }, testInfo) => {
