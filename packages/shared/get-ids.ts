@@ -18,6 +18,7 @@ export const getDraftId = () => getEntityId("draft");
 export const getTaskDraftId = () => getEntityId("taskdraft");
 export const getTaskCommentId = () => getEntityId("taskcomment");
 export const getTaskCommentSubscriptionId = () => getEntityId("taskcommentsubscription");
+export const getSubscriptionId = () => getEntityId("subscription");
 export const getTaskMentionId = () => getEntityId("taskmention");
 export const getNotificationId = () => getEntityId("notification");
 export const getLabelId = () => getEntityId("label");
