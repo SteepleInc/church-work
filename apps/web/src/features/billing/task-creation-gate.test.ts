@@ -34,6 +34,12 @@ describe("Task Usage card fidelity", () => {
     expect(cardSource).toContain("{canManage ? (");
     expect(cardSource).toContain("View Billing");
   });
+
+  it("counts down the remaining headroom while approaching, before creation is paused", () => {
+    expect(cardSource).toContain("remaining");
+    expect(cardSource).toContain("remaining before the Free Plan limit");
+    expect(cardSource).toContain('remaining === 1 ? "Task" : "Tasks"');
+  });
 });
 
 describe("Free Plan Task Limit control gating fidelity", () => {

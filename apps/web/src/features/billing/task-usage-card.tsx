@@ -28,11 +28,16 @@ export function TaskUsageCard() {
   // automatically, so the copy names that rather than reading as a mistake.
   const overLimit = policy.usage > policy.limit;
   const overage = policy.usage - policy.limit;
+  const remaining = Math.max(0, policy.limit - policy.usage);
   const percent = Math.min(100, Math.round((policy.usage / policy.limit) * 100));
 
   // Mirrors PastDueBanner: a polite status while approaching the limit, an
   // alert once Task creation is actually paused.
   const role = atLimit ? "alert" : "status";
+
+  // While approaching, name how much headroom is left so the amber state reads
+  // as a countdown rather than a static notice — mirrors the Billing meter.
+  const approachingCopy = `${remaining} ${remaining === 1 ? "Task" : "Tasks"} remaining before the Free Plan limit — counted Tasks in the Active Planning Horizon.`;
 
   return (
     <aside
@@ -61,7 +66,7 @@ export function TaskUsageCard() {
             {overLimit ? (
               <span className="font-normal text-destructive">
                 {" "}
-                ({overage} over from scheduled work)
+                ({overage} over from scheduled work).
               </span>
             ) : (
               "."
@@ -72,7 +77,7 @@ export function TaskUsageCard() {
               ? canManage
                 ? "Task creation is paused — upgrade to Paid in Church Billing to create more. Existing and scheduled work stays available."
                 : "Task creation is paused — a Church owner or admin can upgrade to Paid. Existing and scheduled work stays available."
-              : "Free Plan Tasks in the Active Planning Horizon."}
+              : approachingCopy}
           </span>
         </p>
         <div
