@@ -3,6 +3,11 @@ import { describe, expect, test } from "bun:test";
 
 import { runCloudflareRolloverMaintenance } from "./rollover-maintenance";
 
+const maintenanceEnv = (writeDataPoint: (dataPoint: object) => void = () => undefined) => ({
+  HYPERDRIVE: { connectionString: "postgres://hyperdrive" },
+  ROLLOVER_METRICS: { writeDataPoint },
+});
+
 describe("Cloudflare Rollover Maintenance", () => {
   test("configures the worldwide Monday boundary window and reconciliation run", async () => {
     const wranglerConfig = await Bun.file(new URL("../wrangler.jsonc", import.meta.url)).text();
@@ -10,6 +15,7 @@ describe("Cloudflare Rollover Maintenance", () => {
     expect(wranglerConfig).toContain('"*/15 10-23 * * SUN"');
     expect(wranglerConfig).toContain('"*/15 0-12 * * MON"');
     expect(wranglerConfig).toContain('"15 13 * * MON"');
+    expect(wranglerConfig).toContain('"binding": "ROLLOVER_METRICS"');
   });
 
   test("preserves controlled instants across whole-hour, half-hour, and quarter-hour boundaries", async () => {
@@ -25,7 +31,7 @@ describe("Cloudflare Rollover Maintenance", () => {
       const scheduledTime = Date.parse(instant);
       await runCloudflareRolloverMaintenance(
         { cron: "*/15 * * * *", scheduledTime },
-        { HYPERDRIVE: { connectionString: "postgres://hyperdrive" } },
+        maintenanceEnv(),
         {
           log: () => undefined,
           run: async (_connectionString, now) => {
@@ -47,13 +53,15 @@ describe("Cloudflare Rollover Maintenance", () => {
 
   test("uses the supplied scheduled instant and emits structured failure outcomes", async () => {
     const logs: object[] = [];
+    const failedRuns: object[] = [];
     const scheduledTime = Date.parse("2026-06-22T13:15:00.000Z");
 
     const result = await runCloudflareRolloverMaintenance(
       { cron: "15 13 * * MON", scheduledTime },
-      { HYPERDRIVE: { connectionString: "postgres://hyperdrive" } },
+      maintenanceEnv(),
       {
         log: (record) => logs.push(record),
+        recordFailedRun: (attributes) => failedRuns.push(attributes),
         run: async (connectionString, now) => {
           expect(connectionString).toBe("postgres://hyperdrive");
           expect(DateTime.toEpochMillis(now)).toBe(scheduledTime);
@@ -70,7 +78,12 @@ describe("Cloudflare Rollover Maintenance", () => {
       },
     );
 
-    expect(result).toMatchObject({ failed: 1, scanned: 3, skipped: 1, succeeded: 1 });
+    expect(result).toMatchObject({
+      failed: 1,
+      scanned: 3,
+      skipped: 1,
+      succeeded: 1,
+    });
     expect(logs).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -82,8 +95,92 @@ describe("Cloudflare Rollover Maintenance", () => {
           error: "database unavailable",
           event: "rollover_maintenance.church_failed",
         },
-        { metric: "rollover_maintenance.failed_runs", value: 1 },
       ]),
     );
+    expect(failedRuns).toEqual([{ cron: "15 13 * * MON" }]);
+  });
+
+  test("does not record a failed-run metric for a successful invocation", async () => {
+    let failedRuns = 0;
+
+    await runCloudflareRolloverMaintenance(
+      {
+        cron: "*/15 * * * *",
+        scheduledTime: Date.parse("2026-06-22T04:00:00.000Z"),
+      },
+      maintenanceEnv(),
+      {
+        log: () => undefined,
+        recordFailedRun: () => failedRuns++,
+        run: async () => ({
+          failed: 0,
+          failures: [],
+          maintainedChurchIds: ["church-succeeded"],
+          resultsByChurchId: {},
+          scanned: 1,
+          skipped: 0,
+          succeeded: 1,
+        }),
+      },
+    );
+
+    expect(failedRuns).toBe(0);
+  });
+
+  test("records and rethrows unexpected invocation failures", async () => {
+    const logs: object[] = [];
+    const failure = new Error("Hyperdrive unavailable");
+
+    await expect(
+      runCloudflareRolloverMaintenance(
+        {
+          cron: "15 13 * * MON",
+          scheduledTime: Date.parse("2026-06-22T13:15:00.000Z"),
+        },
+        maintenanceEnv(),
+        {
+          log: (record) => logs.push(record),
+          run: async () => Promise.reject(failure),
+        },
+      ),
+    ).rejects.toBe(failure);
+    expect(logs).toContainEqual({
+      cron: "15 13 * * MON",
+      error: "Hyperdrive unavailable",
+      event: "rollover_maintenance.invocation_failed",
+      scheduledTime: "2026-06-22T13:15:00.000Z",
+    });
+  });
+
+  test("writes failed runs to the configured metrics dataset", async () => {
+    const dataPoints: object[] = [];
+
+    await runCloudflareRolloverMaintenance(
+      {
+        cron: "15 13 * * MON",
+        scheduledTime: Date.parse("2026-06-22T13:15:00.000Z"),
+      },
+      maintenanceEnv((dataPoint) => dataPoints.push(dataPoint)),
+      {
+        log: () => undefined,
+        run: async () => ({
+          failed: 1,
+          failures: [{ churchId: "church-failed", error: "database unavailable" }],
+          maintainedChurchIds: [],
+          resultsByChurchId: {},
+          scanned: 1,
+          skipped: 0,
+          succeeded: 0,
+        }),
+      },
+    );
+
+    expect(dataPoints).toEqual([
+      {
+        blobs: ["rollover_maintenance.failed_runs"],
+        doubles: [1],
+        indexes: ["15 13 * * MON"],
+      },
+    ]);
   });
 });

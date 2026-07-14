@@ -25,6 +25,7 @@ const recordedAt = new Date("2026-06-01T12:00:00.000Z");
 const successfulChurchId = "org_worker_scheduled_success";
 const failedChurchId = "org_worker_scheduled_failure";
 const skippedChurchId = "org_worker_scheduled_skipped";
+const rolloverMetrics = { writeDataPoint: () => undefined };
 
 const baseEntity = (tag: string) => ({
   _tag: tag,
@@ -37,7 +38,7 @@ const baseEntity = (tag: string) => ({
 const invokeScheduledHandler = (connectionString: string, instant: string, cron = "*/15 * * * *") =>
   worker.scheduled(
     { cron, noRetry: () => undefined, scheduledTime: Date.parse(instant) },
-    { HYPERDRIVE: { connectionString } },
+    { HYPERDRIVE: { connectionString }, ROLLOVER_METRICS: rolloverMetrics },
   );
 
 describe("Cloudflare scheduled handler", () => {
@@ -393,7 +394,10 @@ describe("Cloudflare scheduled handler", () => {
 
       const result = await worker.scheduled(
         { cron: "*/15 * * * *", noRetry: () => undefined, scheduledTime },
-        { HYPERDRIVE: { connectionString: harness.connectionString } },
+        {
+          HYPERDRIVE: { connectionString: harness.connectionString },
+          ROLLOVER_METRICS: rolloverMetrics,
+        },
       );
 
       expect(result).toMatchObject({ failed: 1, scanned: 3, skipped: 1, succeeded: 1 });
