@@ -64,7 +64,19 @@ type AgentServices = {
   readonly db: ChurchWorkDb;
 };
 
-const assertUserTaskCreationAllowed = async (db: ChurchWorkDb, churchId: string) => {
+type TaskCreationDb = Pick<ChurchWorkDb, "select">;
+
+const assertUserTaskCreationAllowed = async (db: TaskCreationDb, churchId: string) => {
+  // The caller's transaction retains this Church row lock until its Task insert
+  // commits, making the subsequent usage check authoritative under concurrency.
+  const [lockedChurch] = await db
+    .select({ id: organization.id })
+    .from(organization)
+    .where(eq(organization.id, churchId))
+    .limit(1)
+    .for("update");
+  if (!lockedChurch) throw new Error("Church not found.");
+
   const now = new Date();
   const subscriptionRows = await db
     .select({
@@ -795,7 +807,6 @@ const runTaskTool = (
         return json({ ok: true, task: toTaskDto(task, team), tool });
       }
       case "create-task": {
-        yield* Effect.promise(() => assertUserTaskCreationAllowed(services.db, churchId));
         const teamId = typeof body.teamId === "string" ? body.teamId : null;
         const statusId = typeof body.workflowStatusId === "string" ? body.workflowStatusId : null;
         let draftId: string | null = null;
@@ -877,12 +888,22 @@ const runTaskTool = (
 
         const inserted = yield* Effect.promise(() =>
           services.db.transaction(async (tx) => {
-            const [insertedTask] = await tx.insert(tasks).values(task).returning();
+            await assertUserTaskCreationAllowed(tx, churchId);
+            const [currentTeam] = await tx
+              .select({ next_task_number: teams.next_task_number })
+              .from(teams)
+              .where(eq(teams.id, team.id))
+              .limit(1);
+            if (!currentTeam) throw new Error("Team not found.");
+            const [insertedTask] = await tx
+              .insert(tasks)
+              .values({ ...task, number: currentTeam.next_task_number })
+              .returning();
             if (!insertedTask) throw new Error("Task was not created.");
 
             await tx
               .update(teams)
-              .set({ next_task_number: team.next_task_number + 1 })
+              .set({ next_task_number: currentTeam.next_task_number + 1 })
               .where(eq(teams.id, team.id));
 
             if (draftId) {
@@ -1651,7 +1672,6 @@ const runTaskTool = (
             .limit(1),
         );
         if (existing) return json({ ok: true, tool, deduped: true, task: toTaskDto(existing) });
-        yield* Effect.promise(() => assertUserTaskCreationAllowed(services.db, churchId));
         const teamId = requireString(body, "teamId");
         const statusId = requireString(body, "workflowStatusId");
         const [team] = yield* Effect.promise(() =>
@@ -1708,14 +1728,24 @@ const runTaskTool = (
           workflow_id: status.workflow_id,
           workflow_status_id: status.id,
         } satisfies typeof tasks.$inferInsert;
-        yield* Effect.promise(() => services.db.insert(tasks).values(row));
-        yield* Effect.promise(() =>
-          services.db
-            .update(teams)
-            .set({ next_task_number: team.next_task_number + 1 })
-            .where(eq(teams.id, teamId)),
+        const createdRow = yield* Effect.promise(() =>
+          services.db.transaction(async (tx) => {
+            await assertUserTaskCreationAllowed(tx, churchId);
+            const [currentTeam] = await tx
+              .select({ next_task_number: teams.next_task_number })
+              .from(teams)
+              .where(eq(teams.id, teamId))
+              .limit(1);
+            if (!currentTeam) throw new Error("Team not found.");
+            await tx.insert(tasks).values({ ...row, number: currentTeam.next_task_number });
+            await tx
+              .update(teams)
+              .set({ next_task_number: currentTeam.next_task_number + 1 })
+              .where(eq(teams.id, teamId));
+            return { ...row, number: currentTeam.next_task_number };
+          }),
         );
-        return json({ ok: true, tool, deduped: false, task: toTaskDto(row, team) });
+        return json({ ok: true, tool, deduped: false, task: toTaskDto(createdRow, team) });
       }
       default:
         return json(

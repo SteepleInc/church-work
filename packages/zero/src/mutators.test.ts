@@ -1123,6 +1123,7 @@ describe("Zero Task mutators", () => {
 
   const createServerTx = (selectResults: Array<unknown>) => {
     const insertCalls: InsertCall[] = [];
+    const lockCalls: Array<"update"> = [];
     const updateCalls: Array<{
       readonly table: unknown;
       readonly set: unknown;
@@ -1151,7 +1152,16 @@ describe("Zero Task mutators", () => {
             // number of joins works.
             const terminal = () => {
               const result = nextSelectResult();
-              return Object.assign(result, { limit: () => result });
+              return Object.assign(result, {
+                limit: () =>
+                  Object.assign(result, {
+                    for: async (mode: "update") => {
+                      lockCalls.push(mode);
+                      selectResults.unshift(await result);
+                      return [{ id: "org_test" }];
+                    },
+                  }),
+              });
             };
             const fromBuilder: {
               leftJoin: () => typeof fromBuilder;
@@ -1174,7 +1184,7 @@ describe("Zero Task mutators", () => {
       location: "server",
     } as never;
 
-    return { insertCalls, tx, updateCalls };
+    return { insertCalls, lockCalls, tx, updateCalls };
   };
 
   // The extra current-value row returned by getTaskWithActivityFields' second
@@ -1192,7 +1202,7 @@ describe("Zero Task mutators", () => {
   };
 
   test("creates Tasks with per-Team numbers, board order, and URL-facing identifiers", async () => {
-    const { insertCalls, tx, updateCalls } = createServerTx([
+    const { insertCalls, lockCalls, tx, updateCalls } = createServerTx([
       [{ status: "active" }],
       [{ id: "workflowstatus_todo", task_state: "todo", workflow_id: "workflow_production" }],
       [{ id: "team_production", identifier: "PRO", next_task_number: 7 }],
@@ -1210,6 +1220,8 @@ describe("Zero Task mutators", () => {
       ctx: signedInContext,
       tx,
     });
+
+    expect(lockCalls).toEqual(["update"]);
 
     const taskInsert = insertCalls.find((call) => call.table === tasks)?.values as {
       readonly board_order: string;
