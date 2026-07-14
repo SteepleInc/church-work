@@ -40,7 +40,7 @@ import {
   useWorkflowStatusesCollection,
   useWorkflowsCollection,
 } from "@/data/workflows/workflowsData.app";
-import { useTaskCreationGate } from "@/features/billing/task-creation-gate";
+import { notifyTaskDuplicated, useTaskCreationGate } from "@/features/billing/task-creation-gate";
 import { useQuickActionOpeners } from "@/features/quick-actions/quick-actions-state";
 import {
   getHiddenBoardColumns,
@@ -50,7 +50,6 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { useAtom } from "jotai";
 import { useMemo, useState, type ReactNode } from "react";
-import { toast } from "sonner";
 
 import { mapTaskFilterValuesForZero } from "@/components/tasks/task-filters";
 import { FilterKeys } from "@/shared/global-state";
@@ -586,8 +585,9 @@ export function TaskExecutionSurface({
         taskCreationGate.notify();
         return;
       }
+      const sourceTitle = boardTasks.find((candidate) => candidate.id === taskId)?.title;
       const result = await duplicateTask({ taskId });
-      if (result.ok) toast.success("Task duplicated");
+      notifyTaskDuplicated(result, sourceTitle);
     },
     onAssignTask: sharedSurfaceProps.onAssignTask,
     onChangeTaskStatus: sharedSurfaceProps.onChangeTaskStatus,

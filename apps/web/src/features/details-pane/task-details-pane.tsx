@@ -47,7 +47,7 @@ import {
 } from "@/components/editor/description-value";
 import { DetailsShell } from "@/components/details-pane/details-shell";
 import { useQuickActionOpeners } from "@/features/quick-actions/quick-actions-state";
-import { useTaskCreationGate } from "@/features/billing/task-creation-gate";
+import { notifyTaskDuplicated, useTaskCreationGate } from "@/features/billing/task-creation-gate";
 import {
   AssigneeAvatar,
   AssigneeComboboxSelector,
@@ -541,7 +541,7 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
                 return;
               }
               const result = await duplicateTask({ taskId });
-              if (result.ok) toast.success("Task duplicated");
+              notifyTaskDuplicated(result, task.title);
             }}
             onTransitionTask={(change) => transitionTask(change.taskId, change.transition)}
             rowState={cardState}

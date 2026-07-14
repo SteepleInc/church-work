@@ -3,6 +3,7 @@ import {
   CalendarDays,
   CircleCheck,
   Copy,
+  CopyPlus,
   FileText,
   Hash,
   Link as LinkIcon,
@@ -111,6 +112,12 @@ export type TaskContextMenuProps = {
   }) => void | Promise<void>;
   readonly onTransitionTask?: (change: TaskTransitionChange) => void | Promise<void>;
   readonly onDuplicateTask?: (taskId: string) => void | Promise<void>;
+  /**
+   * When set, the Free Plan Task Limit is reached: the Duplicate item reads as
+   * disabled (dimmed, aria-disabled) but stays interactive so its role-aware
+   * tooltip explains why and a click raises the shared limit notification —
+   * matching every other blocked Task-creation control (see AddTaskColumnButton).
+   */
   readonly duplicateDisabledReason?: string;
   readonly onOpenTask?: (taskIdentifier: string) => void;
   /** Builds the absolute URL copied by "Copy link" for a Task Identifier. */
@@ -382,11 +389,18 @@ export function TaskContextMenu({
           <>
             <ContextMenuSeparator />
             <ContextMenuItem
-              disabled={Boolean(duplicateDisabledReason)}
+              aria-disabled={duplicateDisabledReason ? true : undefined}
+              className={duplicateDisabledReason ? "cursor-not-allowed opacity-50" : undefined}
+              // At the Free Plan Task Limit the item stays interactive (aria-
+              // disabled, dimmed) so its role-aware `title` explains why and a
+              // click raises the shared limit notification via the parent's
+              // gate — matching every other blocked creation control. When
+              // allowed it files a fresh copy into the same Team and column.
+              closeOnClick={!duplicateDisabledReason}
               onClick={() => void onDuplicateTask(task.id)}
               title={duplicateDisabledReason}
             >
-              <Copy />
+              <CopyPlus />
               Duplicate Task
             </ContextMenuItem>
           </>
