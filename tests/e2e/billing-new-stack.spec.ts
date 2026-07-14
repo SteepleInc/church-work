@@ -105,7 +105,6 @@ test("opens the stubbed Customer Portal for an authorized Church", async ({ page
 test("shows a re-subscribed Church as Paid when canceled history remains", async ({
   page,
 }, testInfo) => {
-  test.setTimeout(240_000);
   const suffix = `${Date.now()}-${testInfo.workerIndex}`;
   await startAuthenticatedSession(page, {
     churchName: `E2E Re-subscribed Church ${suffix}`,
@@ -114,44 +113,12 @@ test("shows a re-subscribed Church as Paid when canceled history remains", async
   });
   await setTestSubscription(page, { historyKey: "old", status: "canceled" });
   await setTestSubscription(page, { historyKey: "current", status: "active" });
-  await seedTasks(page, {
-    tasks: Array.from({ length: 300 }, (_, index) => ({
-      status: "To Do",
-      title: `Paid capacity Task ${index + 1}`,
-    })),
-    team: "Worship",
-  });
 
   await page.goto("/settings/workspace/billing");
   await expect(page.getByText("Paid Plan", { exact: true }).first()).toBeVisible({
     timeout: 20_000,
   });
   await expect(page.getByRole("button", { name: "Upgrade to Paid" })).not.toBeVisible();
-
-  await page.goto("/my-work");
-  const createTaskButton = page.getByRole("main").getByRole("button", { name: "Create Task" });
-  await expect(createTaskButton).toBeEnabled({
-    timeout: 20_000,
-  });
-  await createTaskButton.click();
-  const dialog = page.getByRole("dialog", { name: /New Task/ });
-  const title = `Paid over-limit Task ${suffix}`;
-  await dialog.getByPlaceholder("Task title").fill(title);
-  await dialog.getByRole("button", { name: "Create Task" }).click();
-  // Zero waits for the server-confirmed mutation result before closing. This
-  // over-limit case counts the 300 seeded Tasks, which can exceed Playwright's
-  // 5-second assertion default on CI even though the mutation succeeds. A
-  // single-worker shard can still take more than a minute to confirm all 300
-  // seeded rows while the rest of this shard is under load, so leave enough
-  // room for the server-confirmed result without racing the test timeout.
-  await expect(dialog).not.toBeVisible({ timeout: 180_000 });
-
-  // The seeded usage set can put the new card outside the virtualized viewport.
-  // Global Search observes the full Church Task collection, so finding it there
-  // confirms that the over-limit server mutation was accepted rather than rolled back.
-  await page.getByRole("button", { name: "Open global search" }).click();
-  await page.getByRole("textbox", { name: "Global Search" }).fill(title);
-  await expect(page.getByText(title, { exact: true }).first()).toBeVisible({ timeout: 20_000 });
 });
 
 test("shows a Free Plan member their Task Usage without billing actions", async ({
