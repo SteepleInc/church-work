@@ -16,6 +16,12 @@
       "service": "church-work-tail-worker",
     },
   ],
+  "analytics_engine_datasets": [
+    {
+      "binding": "ROLLOVER_METRICS",
+      "dataset": "church_work_rollover_metrics",
+    },
+  ],
   "hyperdrive": [
     {
       "binding": "HYPERDRIVE",

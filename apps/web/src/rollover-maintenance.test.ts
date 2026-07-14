@@ -3,6 +3,11 @@ import { describe, expect, test } from "bun:test";
 
 import { runCloudflareRolloverMaintenance } from "./rollover-maintenance";
 
+const maintenanceEnv = (writeDataPoint: (dataPoint: object) => void = () => undefined) => ({
+  HYPERDRIVE: { connectionString: "postgres://hyperdrive" },
+  ROLLOVER_METRICS: { writeDataPoint },
+});
+
 describe("Cloudflare Rollover Maintenance", () => {
   test("configures the worldwide Monday boundary window and reconciliation run", async () => {
     const wranglerConfig = await Bun.file(new URL("../wrangler.jsonc", import.meta.url)).text();
@@ -10,6 +15,7 @@ describe("Cloudflare Rollover Maintenance", () => {
     expect(wranglerConfig).toContain('"*/15 10-23 * * SUN"');
     expect(wranglerConfig).toContain('"*/15 0-12 * * MON"');
     expect(wranglerConfig).toContain('"15 13 * * MON"');
+    expect(wranglerConfig).toContain('"binding": "ROLLOVER_METRICS"');
   });
 
   test("preserves controlled instants across whole-hour, half-hour, and quarter-hour boundaries", async () => {
@@ -25,7 +31,7 @@ describe("Cloudflare Rollover Maintenance", () => {
       const scheduledTime = Date.parse(instant);
       await runCloudflareRolloverMaintenance(
         { cron: "*/15 * * * *", scheduledTime },
-        { HYPERDRIVE: { connectionString: "postgres://hyperdrive" } },
+        maintenanceEnv(),
         {
           log: () => undefined,
           run: async (_connectionString, now) => {
@@ -52,7 +58,7 @@ describe("Cloudflare Rollover Maintenance", () => {
 
     const result = await runCloudflareRolloverMaintenance(
       { cron: "15 13 * * MON", scheduledTime },
-      { HYPERDRIVE: { connectionString: "postgres://hyperdrive" } },
+      maintenanceEnv(),
       {
         log: (record) => logs.push(record),
         recordFailedRun: (attributes) => failedRuns.push(attributes),
@@ -72,7 +78,12 @@ describe("Cloudflare Rollover Maintenance", () => {
       },
     );
 
-    expect(result).toMatchObject({ failed: 1, scanned: 3, skipped: 1, succeeded: 1 });
+    expect(result).toMatchObject({
+      failed: 1,
+      scanned: 3,
+      skipped: 1,
+      succeeded: 1,
+    });
     expect(logs).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -97,7 +108,7 @@ describe("Cloudflare Rollover Maintenance", () => {
         cron: "*/15 * * * *",
         scheduledTime: Date.parse("2026-06-22T04:00:00.000Z"),
       },
-      { HYPERDRIVE: { connectionString: "postgres://hyperdrive" } },
+      maintenanceEnv(),
       {
         log: () => undefined,
         recordFailedRun: () => failedRuns++,
@@ -126,7 +137,7 @@ describe("Cloudflare Rollover Maintenance", () => {
           cron: "15 13 * * MON",
           scheduledTime: Date.parse("2026-06-22T13:15:00.000Z"),
         },
-        { HYPERDRIVE: { connectionString: "postgres://hyperdrive" } },
+        maintenanceEnv(),
         {
           log: (record) => logs.push(record),
           run: async () => Promise.reject(failure),
@@ -139,5 +150,37 @@ describe("Cloudflare Rollover Maintenance", () => {
       event: "rollover_maintenance.invocation_failed",
       scheduledTime: "2026-06-22T13:15:00.000Z",
     });
+  });
+
+  test("writes failed runs to the configured metrics dataset", async () => {
+    const dataPoints: object[] = [];
+
+    await runCloudflareRolloverMaintenance(
+      {
+        cron: "15 13 * * MON",
+        scheduledTime: Date.parse("2026-06-22T13:15:00.000Z"),
+      },
+      maintenanceEnv((dataPoint) => dataPoints.push(dataPoint)),
+      {
+        log: () => undefined,
+        run: async () => ({
+          failed: 1,
+          failures: [{ churchId: "church-failed", error: "database unavailable" }],
+          maintainedChurchIds: [],
+          resultsByChurchId: {},
+          scanned: 1,
+          skipped: 0,
+          succeeded: 0,
+        }),
+      },
+    );
+
+    expect(dataPoints).toEqual([
+      {
+        blobs: ["rollover_maintenance.failed_runs"],
+        doubles: [1],
+        indexes: ["15 13 * * MON"],
+      },
+    ]);
   });
 });

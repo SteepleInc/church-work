@@ -4,11 +4,17 @@ import {
   type ScheduledCycleMaintenanceResult,
 } from "@church-work/server";
 import { loggerLayer, traceSpan, withTraceSpan } from "@church-work/tracing";
-import { metrics } from "@opentelemetry/api";
 import { DateTime, Effect } from "effect";
 
 export type RolloverMaintenanceEnv = {
   readonly HYPERDRIVE: { readonly connectionString: string };
+  readonly ROLLOVER_METRICS: {
+    writeDataPoint(dataPoint: {
+      readonly blobs: readonly string[];
+      readonly doubles: readonly number[];
+      readonly indexes: readonly string[];
+    }): void;
+  };
 };
 
 type RolloverMaintenanceDependencies = {
@@ -19,12 +25,6 @@ type RolloverMaintenanceDependencies = {
     now: DateTime.Utc,
   ) => Promise<ScheduledCycleMaintenanceResult>;
 };
-
-const failedRunCounter = metrics
-  .getMeter("church-work.worker")
-  .createCounter("rollover_maintenance.failed_runs", {
-    description: "Rollover Maintenance invocations in which one or more Churches failed",
-  });
 
 const runWithHyperdrive = async (connectionString: string, now: DateTime.Utc) => {
   const { db, pool } = createDb(connectionString);
@@ -51,7 +51,12 @@ export const runCloudflareRolloverMaintenance = async (
   const log = dependencies.log ?? console.log;
   const recordFailedRun =
     dependencies.recordFailedRun ??
-    ((attributes: { readonly cron: string }) => failedRunCounter.add(1, attributes));
+    ((attributes: { readonly cron: string }) =>
+      env.ROLLOVER_METRICS.writeDataPoint({
+        blobs: ["rollover_maintenance.failed_runs"],
+        doubles: [1],
+        indexes: [attributes.cron],
+      }));
 
   return traceSpan("rollover_maintenance.run", async (span) => {
     span.setAttribute("rollover_maintenance.cron", controller.cron);
