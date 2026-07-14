@@ -40,8 +40,8 @@ export function useTaskCreationGate() {
     toast.error(TASK_LIMIT_TITLE, {
       id: TASK_LIMIT_TOAST_ID,
       description: canManage
-        ? `This Church has ${FREE_PLAN_TASK_LIMIT} or more planned Tasks. Upgrade to Paid in Church Billing to create more — existing work stays available.`
-        : `This Church has ${FREE_PLAN_TASK_LIMIT} or more planned Tasks. A Church owner or admin can upgrade to Paid — existing work stays available.`,
+        ? `This Church has ${FREE_PLAN_TASK_LIMIT} or more counted Tasks in the Active Planning Horizon. Upgrade to Paid in Church Billing to create more — existing and scheduled work stays available.`
+        : `This Church has ${FREE_PLAN_TASK_LIMIT} or more counted Tasks in the Active Planning Horizon. A Church owner or admin can upgrade to Paid — existing and scheduled work stays available.`,
       ...(canManage
         ? {
             action: {

@@ -273,6 +273,7 @@ function TaskUsageValue({
   }
 
   const atLimit = taskUsage >= FREE_PLAN_TASK_LIMIT;
+  const overLimit = taskUsage > FREE_PLAN_TASK_LIMIT;
   const approaching = taskUsage > FREE_PLAN_TASK_USAGE_NOTICE_THRESHOLD;
   const percent = Math.min(100, Math.round((taskUsage / FREE_PLAN_TASK_LIMIT) * 100));
 
@@ -282,12 +283,21 @@ function TaskUsageValue({
         {taskUsage} of {FREE_PLAN_TASK_LIMIT}
         {atLimit ? <span className="text-destructive"> — Task creation paused</span> : null}
       </span>
+      {overLimit ? (
+        <span className="text-destructive text-xs">
+          {taskUsage - FREE_PLAN_TASK_LIMIT} over the limit from scheduled Template materialization.
+        </span>
+      ) : null}
       <div
         aria-label="Free Plan Task Usage"
         aria-valuemax={FREE_PLAN_TASK_LIMIT}
         aria-valuemin={0}
-        aria-valuenow={taskUsage}
-        aria-valuetext={`${taskUsage} of ${FREE_PLAN_TASK_LIMIT} Tasks`}
+        aria-valuenow={Math.min(taskUsage, FREE_PLAN_TASK_LIMIT)}
+        aria-valuetext={
+          overLimit
+            ? `${taskUsage} of ${FREE_PLAN_TASK_LIMIT} Tasks — ${taskUsage - FREE_PLAN_TASK_LIMIT} over from scheduled work`
+            : `${taskUsage} of ${FREE_PLAN_TASK_LIMIT} Tasks`
+        }
         className="h-1 w-full max-w-56 overflow-hidden rounded-full bg-foreground/10"
         role="meter"
       >

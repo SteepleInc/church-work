@@ -1,5 +1,11 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalPassThroughEnv": [
+    "DOCKER_HOST",
+    "PLAYWRIGHT_BROWSERS_PATH",
+    "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE",
+    "TESTCONTAINERS_HOST_OVERRIDE"
+  ],
   "ui": "tui",
   "globalPassThroughEnv": [
     "DOCKER_HOST",

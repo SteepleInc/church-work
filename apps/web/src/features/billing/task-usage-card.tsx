@@ -23,11 +23,21 @@ export function TaskUsageCard() {
 
   const canManage = canManageSubscription(policy.church.role);
   const atLimit = policy.blocked;
+  // Above the limit means scheduled Template materialization raised actual Task
+  // Usage past 300 — creation is still paused, but the extra work arrived
+  // automatically, so the copy names that rather than reading as a mistake.
+  const overLimit = policy.usage > policy.limit;
+  const overage = policy.usage - policy.limit;
+  const remaining = Math.max(0, policy.limit - policy.usage);
   const percent = Math.min(100, Math.round((policy.usage / policy.limit) * 100));
 
   // Mirrors PastDueBanner: a polite status while approaching the limit, an
   // alert once Task creation is actually paused.
   const role = atLimit ? "alert" : "status";
+
+  // While approaching, name how much headroom is left so the amber state reads
+  // as a countdown rather than a static notice — mirrors the Billing meter.
+  const approachingCopy = `${remaining} ${remaining === 1 ? "Task" : "Tasks"} remaining before the Free Plan limit — counted Tasks in the Active Planning Horizon.`;
 
   return (
     <aside
@@ -53,21 +63,33 @@ export function TaskUsageCard() {
             <span className={cn("tabular-nums", atLimit && "text-destructive")}>
               {policy.usage} of {policy.limit}
             </span>
-            .
+            {overLimit ? (
+              <span className="font-normal text-destructive">
+                {" "}
+                ({overage} over from scheduled work).
+              </span>
+            ) : (
+              "."
+            )}
           </span>{" "}
           <span className="text-muted-foreground">
             {atLimit
               ? canManage
                 ? "Task creation is paused — upgrade to Paid in Church Billing to create more. Existing and scheduled work stays available."
                 : "Task creation is paused — a Church owner or admin can upgrade to Paid. Existing and scheduled work stays available."
-              : "Free Plan Tasks in the Active Planning Horizon."}
+              : approachingCopy}
           </span>
         </p>
         <div
           aria-label="Free Plan Task Usage"
           aria-valuemax={policy.limit}
           aria-valuemin={0}
-          aria-valuenow={policy.usage}
+          aria-valuenow={Math.min(policy.usage, policy.limit)}
+          aria-valuetext={
+            overLimit
+              ? `${policy.usage} of ${policy.limit} Tasks — ${overage} over from scheduled work`
+              : `${policy.usage} of ${policy.limit} Tasks`
+          }
           className="h-1 w-full max-w-72 overflow-hidden rounded-full bg-foreground/10"
           role="meter"
         >

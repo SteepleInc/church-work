@@ -7,6 +7,7 @@ import {
   activities,
   member,
   notifications,
+  organization,
   task_comments,
   task_mentions,
   tasks,
@@ -67,6 +68,14 @@ const taskMentionDoc = (targetTaskId: string) =>
   });
 
 const seedChurch = async (db: Awaited<ReturnType<typeof startPostgresHarness>>["db"]) => {
+  await db.insert(organization).values({
+    _tag: "org",
+    churchTimeZone: "UTC",
+    completedOnboarding: true,
+    id: churchId,
+    name: "Mentions Church",
+    slug: "mentions-church",
+  });
   await db.insert(teams).values({
     ...baseEntity("team"),
     church_id: churchId,

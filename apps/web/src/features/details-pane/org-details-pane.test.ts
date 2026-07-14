@@ -30,8 +30,12 @@ describe("org details pane", () => {
     // common Free-with-no-subscription case.
     expect(orgDetailsPaneSource).toContain("if (value == null) return null;");
     expect(orgDetailsPaneSource).toContain(
-      "aria-valuetext={`${taskUsage} of ${FREE_PLAN_TASK_LIMIT} Tasks`}",
+      "aria-valuenow={Math.min(taskUsage, FREE_PLAN_TASK_LIMIT)}",
     );
+    expect(orgDetailsPaneSource).toContain(
+      "over the limit from scheduled Template materialization",
+    );
+    expect(orgDetailsPaneSource).toContain("over from scheduled work");
     expect(orgDetailsPaneSource).toContain("FREE_PLAN_TASK_LIMIT");
     expect(orgDetailsPaneSource).toContain("Payment Grace Period runs through");
     expect(orgDetailsPaneSource).not.toContain("Customer Portal");

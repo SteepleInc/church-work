@@ -482,6 +482,8 @@ function FreePlanUsageMeter() {
   const usage = policy.usage;
   const limit = policy.limit;
   const atLimit = policy.blocked;
+  const overLimit = usage > limit;
+  const overage = usage - limit;
   const approaching = !atLimit && usage > FREE_PLAN_TASK_USAGE_NOTICE_THRESHOLD;
   const percent = Math.min(100, Math.round((usage / limit) * 100));
   const remaining = Math.max(0, limit - usage);
@@ -512,7 +514,11 @@ function FreePlanUsageMeter() {
         aria-valuemax={limit}
         aria-valuemin={0}
         aria-valuenow={Math.min(usage, limit)}
-        aria-valuetext={`${usage} of ${limit} Tasks in the Active Planning Horizon`}
+        aria-valuetext={
+          overLimit
+            ? `${usage} of ${limit} Tasks in the Active Planning Horizon — ${overage} over from scheduled work`
+            : `${usage} of ${limit} Tasks in the Active Planning Horizon`
+        }
         className="h-1.5 w-full max-w-72 overflow-hidden rounded-full bg-foreground/10"
         role="meter"
       >
@@ -531,9 +537,11 @@ function FreePlanUsageMeter() {
           atLimit && "text-destructive",
         )}
       >
-        {atLimit
-          ? "Free Plan Task limit reached — Task creation is paused. Existing and scheduled work stays available."
-          : `${remaining} ${remaining === 1 ? "Task" : "Tasks"} remaining before the Free Plan limit. Counts Tasks in the Active Planning Horizon.`}
+        {overLimit
+          ? `Free Plan Task limit reached — Task creation is paused. ${overage} ${overage === 1 ? "Task is" : "Tasks are"} over the limit from scheduled Template materialization; existing and scheduled work stays available.`
+          : atLimit
+            ? "Free Plan Task limit reached — Task creation is paused. Existing and scheduled work stays available."
+            : `${remaining} ${remaining === 1 ? "Task" : "Tasks"} remaining before the Free Plan limit. Counts Tasks in the Active Planning Horizon.`}
       </p>
     </div>
   );

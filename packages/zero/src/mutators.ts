@@ -13,6 +13,7 @@ import {
   generateTeamIdentifier,
   isTaskCountedForUsage,
   isUserTaskCreationBlocked,
+  FREE_PLAN_TASK_LIMIT,
   FREE_PLAN_TASK_LIMIT_ERROR,
   getLabelColorForName,
   getTeamColorForName,
@@ -706,6 +707,17 @@ const assertUserTaskCreationAllowed = async (
   db: ServerTx["dbTransaction"]["wrappedTransaction"],
   churchId: string,
 ) => {
+  // Serialize every user-initiated Task identity creation for this Church.
+  // The surrounding Zero transaction holds this row lock through the insert,
+  // so the usage count cannot be stale when concurrent creations proceed.
+  const [lockedChurch] = await db
+    .select({ id: organization.id })
+    .from(organization)
+    .where(eq(organization.id, churchId))
+    .limit(1)
+    .for("no key update");
+  if (!lockedChurch) throw new Error("Church not found.");
+
   const now = new Date();
   const subscriptionRows = await db
     .select({
@@ -725,7 +737,7 @@ const assertUserTaskCreationAllowed = async (
   const subscriptionRow = resolveChurchSubscription(subscriptionRows);
   if (
     subscriptionRow &&
-    !isUserTaskCreationBlocked({ usage: 300, subscription: subscriptionRow, now })
+    !isUserTaskCreationBlocked({ usage: FREE_PLAN_TASK_LIMIT, subscription: subscriptionRow, now })
   )
     return;
 
