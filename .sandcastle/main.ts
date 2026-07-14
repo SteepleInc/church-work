@@ -12,9 +12,9 @@
 //                               update its PR, repair failing CI centrally, and
 //                               enable asynchronous GitHub auto-merge.
 //
-// By default the run exits after handing a batch to asynchronous auto-merge.
-// Set SANDCASTLE_WAIT_FOR_MERGES=true to wait for the batch and repeat up to
-// MAX_ITERATIONS so newly unblocked issues can be picked up.
+// By default the runner waits for each PR batch and repeats up to MAX_ITERATIONS
+// so newly unblocked or transiently failed issues can be picked up. Set
+// SANDCASTLE_WAIT_FOR_MERGES=false for a one-batch asynchronous handoff.
 //
 // Usage:
 //   npx tsx .sandcastle/main.ts
@@ -59,7 +59,7 @@ const PR_CHECK_REPAIR = process.env.SANDCASTLE_REPAIR_FAILED_CHECKS !== "false";
 const MAX_REPAIR_ATTEMPTS = Number(process.env.SANDCASTLE_MAX_REPAIR_ATTEMPTS ?? "3");
 const CHECK_POLL_INTERVAL_MS = Number(process.env.SANDCASTLE_CHECK_POLL_INTERVAL_MS ?? "30000");
 const CHECK_TIMEOUT_MS = Number(process.env.SANDCASTLE_CHECK_TIMEOUT_MS ?? String(20 * 60 * 1000));
-const WAIT_FOR_MERGES = process.env.SANDCASTLE_WAIT_FOR_MERGES === "true";
+const WAIT_FOR_MERGES = process.env.SANDCASTLE_WAIT_FOR_MERGES !== "false";
 const MERGE_TIMEOUT_MS = Number(process.env.SANDCASTLE_MERGE_TIMEOUT_MS ?? String(20 * 60 * 1000));
 const BUN_CACHE_DIR = ".sandcastle/bun-cache";
 const SANDBOX_IMAGE_NAME = process.env.SANDCASTLE_IMAGE_NAME ?? "sandcastle:church-work";
