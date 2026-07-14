@@ -58,6 +58,19 @@ Production infrastructure issues should account for at least:
 - `VITE_ZERO_CACHE_URL`, using `/zero` if the production app proxies same-origin traffic to `zero-cache`.
 - `ZERO_UPSTREAM_DB`, `ZERO_CVR_DB`, `ZERO_CHANGE_DB`, `ZERO_QUERY_URL`, `ZERO_MUTATE_URL`, `ZERO_APP_ID`, `ZERO_ADMIN_PASSWORD`, and sizing knobs such as `ZERO_UPSTREAM_MAX_CONNS` and `ZERO_NUM_SYNC_WORKERS`.
 - Email and integration secrets already modeled in env handling, such as `RESEND_API_KEY`, `CHURCH_INVITATION_EMAIL_FROM`, and `GOOGLE_PLACES_API_KEY` when those features are enabled in production.
+- `STRIPE_SECRET_KEY` as a live `sk_live_…` Worker secret, `STRIPE_WEBHOOK_SECRET` from the production Better Auth webhook endpoint, and `STRIPE_PAID_WEEKLY_PRICE_ID` for the sole live Paid Price. Production auth startup rejects missing, test, stub, or malformed values.
+
+### Stripe billing deployment check
+
+Create one active, per-unit, licensed recurring Price in Stripe for **$19.99 USD**, every **one week**, with **inclusive** tax behavior. Add Price metadata `church_work_scope=church`; Better Auth uses the active Organization ID as the Church-scoped subscription reference. Configure Stripe's Customer Portal for payment methods, invoices, cancellation at period end, and subscription resumption. Register the production Better Auth Stripe webhook endpoint and subscribe it to the subscription and invoice events required by `@better-auth/stripe`.
+
+Store the three values above as deployment secrets/configuration, then run this pre-deploy check with production credentials:
+
+```bash
+bun stripe:verify-paid-price
+```
+
+The command retrieves (but does not mutate) the configured Stripe Price and fails unless all purchasable-price invariants match Church Work's Paid Plan. After deployment, smoke-test Checkout from a Free Church, confirm the return remains pending before webhook synchronization, then test Customer Portal payment recovery and cancellation-at-period-end. Never use the live Stripe account in automated tests; the E2E harness stubs hosted navigation and authoritative state transitions at the application boundary.
 
 ## Migration And Runbook Implications
 

@@ -28,6 +28,72 @@ test("shows a new Church owner the Church-scoped Free Plan", async ({ page }, te
   await expect(page.getByText("No active Church selected.")).not.toBeVisible();
 });
 
+test("starts stubbed Checkout and keeps the return pending until webhook state arrives", async ({
+  page,
+}, testInfo) => {
+  const suffix = `${Date.now()}-${testInfo.workerIndex}`;
+  await startAuthenticatedSession(page, {
+    churchName: `E2E Checkout Church ${suffix}`,
+    email: `billing-checkout-${suffix}@example.com`,
+    userName: "E2E Billing Owner",
+  });
+  let checkoutRequest: Record<string, unknown> | undefined;
+  await page.route("**/api/auth/subscription/upgrade", async (route) => {
+    checkoutRequest = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({
+      contentType: "application/json",
+      json: { redirect: true, url: `${page.url().split("/settings")[0]}/hosted-checkout-stub` },
+    });
+  });
+  await page.route("**/hosted-checkout-stub", (route) =>
+    route.fulfill({ body: "Stubbed Stripe Checkout", contentType: "text/html" }),
+  );
+
+  await page.goto("/settings/workspace/billing");
+  await page.getByRole("button", { name: "Upgrade to Paid" }).first().click();
+  await expect(page).toHaveURL(/hosted-checkout-stub/);
+  expect(checkoutRequest).toMatchObject({
+    customerType: "organization",
+    plan: "paid",
+  });
+
+  await page.goto("/settings/workspace/billing?checkout=complete");
+  await expect(page.getByText("Checkout complete — Paid activation pending")).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(page.getByText("Free Plan", { exact: true }).first()).toBeVisible();
+
+  await setTestSubscription(page, { status: "active" });
+  await page.reload();
+  await expect(page.getByText("Paid Plan active")).toBeVisible({ timeout: 20_000 });
+});
+
+test("opens the stubbed Customer Portal for an authorized Church", async ({ page }, testInfo) => {
+  const suffix = `${Date.now()}-${testInfo.workerIndex}`;
+  await startAuthenticatedSession(page, {
+    churchName: `E2E Portal Church ${suffix}`,
+    email: `billing-portal-${suffix}@example.com`,
+    userName: "E2E Billing Owner",
+  });
+  await setTestSubscription(page, { status: "active" });
+  let portalRequest: Record<string, unknown> | undefined;
+  await page.route("**/api/auth/subscription/billing-portal", async (route) => {
+    portalRequest = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({
+      contentType: "application/json",
+      json: { redirect: true, url: `${page.url().split("/settings")[0]}/hosted-portal-stub` },
+    });
+  });
+  await page.route("**/hosted-portal-stub", (route) =>
+    route.fulfill({ body: "Stubbed Stripe Customer Portal", contentType: "text/html" }),
+  );
+
+  await page.goto("/settings/workspace/billing");
+  await page.getByRole("button", { name: "Manage billing" }).click();
+  await expect(page).toHaveURL(/hosted-portal-stub/);
+  expect(portalRequest).toMatchObject({ customerType: "organization" });
+});
+
 test("shows a re-subscribed Church as Paid when canceled history remains", async ({
   page,
 }, testInfo) => {

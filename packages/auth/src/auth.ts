@@ -37,6 +37,7 @@ import { Resend } from "resend";
 import Stripe from "stripe";
 
 import { clearOrgForOnboarding, completeOnboarding } from "./plugins";
+import { resolveStripeBillingConfig } from "./stripe-config";
 
 const appName = "Church Work";
 const defaultEmailFrom = "Church Work <auth@churchwork.ai>";
@@ -211,6 +212,7 @@ export const createAuthOptions = (
   db: ChurchWorkDb,
   otpStore: LocalOtpStore = createLocalOtpStore(),
 ) => {
+  const stripeConfig = resolveStripeBillingConfig(process.env);
   const options = {
     advanced: {
       ...getProductionCookieConfig(),
@@ -368,8 +370,8 @@ export const createAuthOptions = (
       }),
       stripe({
         organization: { enabled: true },
-        stripeClient: new Stripe(process.env.STRIPE_SECRET_KEY ?? "sk_test_church_work_stub"),
-        stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? "whsec_church_work_stub",
+        stripeClient: new Stripe(stripeConfig.secretKey),
+        stripeWebhookSecret: stripeConfig.webhookSecret,
         subscription: {
           authorizeReference: async ({ referenceId, user: requestingUser }) => {
             const [membership] = await db
@@ -404,8 +406,7 @@ export const createAuthOptions = (
           plans: [
             {
               name: "paid",
-              priceId:
-                process.env.STRIPE_PAID_WEEKLY_PRICE_ID ?? "price_church_work_paid_weekly_stub",
+              priceId: stripeConfig.paidWeeklyPriceId,
             },
           ],
         },

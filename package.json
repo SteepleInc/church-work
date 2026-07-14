@@ -60,6 +60,7 @@
     "db:migrate": "turbo -F @church-work/db db:migrate --ui=stream",
     "db:nuke": "bun scripts/nuke-local-db.ts",
     "scheduled:cycle-maintenance": "turbo -F @church-work/server scheduled:cycle-maintenance",
+    "stripe:verify-paid-price": "bun packages/auth/src/verify-stripe-paid-price.ts",
     "test:cli": "turbo -F @church-work/cli test:cli",
     "test:e2e": "bun --env-file=.env.e2e playwright test --workers=1",
     "test:e2e:onboarding": "bun --env-file=.env.e2e playwright test tests/e2e/onboarding-new-stack.spec.ts --workers=1",
