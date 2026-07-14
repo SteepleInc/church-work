@@ -10,6 +10,7 @@ import {
   getOrgId,
   getOrgUserId,
   getSessionId,
+  getSubscriptionId,
   getUserId,
   getVerificationId,
 } from "@church-work/shared/get-ids";
@@ -132,6 +133,7 @@ const modelIds = {
   member: getOrgUserId,
   organization: getOrgId,
   session: getSessionId,
+  subscription: getSubscriptionId,
   user: getUserId,
   verification: getVerificationId,
 } satisfies Record<string, () => string>;
@@ -450,9 +452,10 @@ export const createAuthOptions = (
           onSubscriptionComplete: async ({ subscription: completedSubscription }) => {
             await keepDeletedChurchOutOfRenewal(completedSubscription);
           },
-          onSubscriptionUpdate: async ({ subscription: updatedSubscription }) => {
+          onSubscriptionUpdate: async ({ event, subscription: updatedSubscription }) => {
             await keepDeletedChurchOutOfRenewal(updatedSubscription);
-            const graceStartedAt = updatedSubscription.status === "past_due" ? new Date() : null;
+            const graceStartedAt =
+              updatedSubscription.status === "past_due" ? new Date(event.created * 1000) : null;
 
             if (updatedSubscription.status === "past_due") {
               await db
