@@ -358,7 +358,10 @@ test("enforces every visible Free Plan threshold and removes the gate for Paid",
 
   await setTestSubscription(page, { status: "active" });
   await page.reload();
-  await expect(usageCard).toHaveCount(0, { timeout: 20_000 });
+  await expect(page.getByRole("alert", { name: "Task Usage" })).toHaveCount(0, {
+    timeout: 20_000,
+  });
+  await expect(createTask).toBeVisible({ timeout: 20_000 });
   await expect(createTask).not.toHaveAttribute("aria-disabled", "true");
 });
 
