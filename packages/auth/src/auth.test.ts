@@ -158,6 +158,35 @@ describe("Better Auth Postgres foundation", () => {
       expect(scheduleAtPeriodEnd).toHaveBeenCalledOnce();
       expect(scheduleAtPeriodEnd).toHaveBeenCalledWith("sub_lifecycle");
       await expect(
+        db
+          .select({ cancelAtPeriodEnd: subscription.cancelAtPeriodEnd })
+          .from(subscription)
+          .where(eq(subscription.id, "subscription_lifecycle")),
+      ).resolves.toEqual([{ cancelAtPeriodEnd: true }]);
+
+      const hostedBillingRequest = (path: string, body: Record<string, unknown>) =>
+        auth.handler(
+          new Request(`http://localhost:3000/api/auth${path}`, {
+            body: JSON.stringify({
+              customerType: "organization",
+              referenceId: churchId,
+              ...body,
+            }),
+            headers: {
+              "content-type": "application/json",
+              cookie: `better-auth.session_token=${sessionCookie}`,
+            },
+            method: "POST",
+          }),
+        );
+
+      expect((await hostedBillingRequest("/subscription/upgrade", { plan: "paid" })).status).toBe(
+        401,
+      );
+      expect(
+        (await hostedBillingRequest("/subscription/billing-portal", { returnUrl: "/" })).status,
+      ).toBe(401);
+      await expect(
         db.select().from(subscription).where(eq(subscription.referenceId, churchId)),
       ).resolves.toHaveLength(1);
       await expect(
