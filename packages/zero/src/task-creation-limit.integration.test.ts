@@ -103,27 +103,27 @@ async function seedChurch(db: Harness["db"], usage: number) {
   }
 }
 
-const createArgs = (kind: "standard" | "draft" | "subtask") => ({
-  ...(kind === "draft" ? { draft_id: "draft_limit" } : {}),
+const createArgs = (kind: "standard" | "draft" | "subtask", draftId = "draft_limit") => ({
+  ...(kind === "draft" ? { draft_id: draftId } : {}),
   ...(kind === "subtask" ? { parent_task_id: "task_atomic_seed_0" } : {}),
   team_id: teamId,
   title: `${kind} creation`,
   workflow_status_id: statusId,
 });
 
-async function seedDraft(db: Harness["db"]) {
+async function seedDraft(db: Harness["db"], draftId = "draft_limit") {
   await db.insert(drafts).values({
     ...baseEntity("draft"),
     church_id: churchId,
-    id: "draft_limit",
+    id: draftId,
     kind: "task",
     owner_user_id: userId,
   });
   await db.insert(task_drafts).values({
     ...baseEntity("taskdraft"),
     church_id: churchId,
-    draft_id: "draft_limit",
-    id: "taskdraft_limit",
+    draft_id: draftId,
+    id: `task${draftId}`,
     owner_user_id: userId,
   });
 }
@@ -141,18 +141,17 @@ const invokeCreate = (db: Harness["db"], args: ReturnType<typeof createArgs>) =>
   );
 
 describe("Free Plan Task creation integration", () => {
-  test("allows only one of two concurrent creations at 299 counted Tasks", async () => {
+  test("allows only one of two concurrent creation paths at 299 counted Tasks", async () => {
     const harness = await startPostgresHarness();
     const { db } = harness;
 
     try {
       await seedChurch(db, FREE_PLAN_TASK_LIMIT - 1);
-
-      const createTask = (title: string) => invokeCreate(db, { ...createArgs("standard"), title });
+      await seedDraft(db);
 
       const results = await Promise.allSettled([
-        createTask("Concurrent Task A"),
-        createTask("Concurrent Task B"),
+        invokeCreate(db, createArgs("standard")),
+        invokeCreate(db, createArgs("draft")),
       ]);
 
       expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
@@ -165,7 +164,9 @@ describe("Free Plan Task creation integration", () => {
       const persistedTasks = await db.select().from(tasks).where(eq(tasks.church_id, churchId));
       expect(persistedTasks).toHaveLength(FREE_PLAN_TASK_LIMIT);
       expect(
-        persistedTasks.filter((task) => task.title.startsWith("Concurrent Task")),
+        persistedTasks.filter((task) =>
+          ["standard creation", "draft creation"].includes(task.title),
+        ),
       ).toHaveLength(1);
     } finally {
       await harness.stop();
@@ -183,14 +184,16 @@ describe("Free Plan Task creation integration", () => {
         if (kind === "draft") await seedDraft(db);
         await expect(invokeCreate(db, createArgs(kind))).resolves.toBeUndefined();
 
-        await expect(invokeCreate(db, createArgs(kind))).rejects.toThrow(
+        const atLimitDraftId = "draft_limit_at_limit";
+        if (kind === "draft") await seedDraft(db, atLimitDraftId);
+        await expect(invokeCreate(db, createArgs(kind, atLimitDraftId))).rejects.toThrow(
           FREE_PLAN_TASK_LIMIT_ERROR,
         );
 
         await db.delete(tasks).where(eq(tasks.title, `${kind} creation`));
         if (kind === "draft") {
-          await db.delete(task_drafts).where(eq(task_drafts.id, "taskdraft_limit"));
-          await db.delete(drafts).where(eq(drafts.id, "draft_limit"));
+          await db.delete(task_drafts).where(eq(task_drafts.church_id, churchId));
+          await db.delete(drafts).where(eq(drafts.church_id, churchId));
         }
       }
     } finally {
