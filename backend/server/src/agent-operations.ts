@@ -4,6 +4,7 @@ import {
   churchNotFoundResponse,
   currentUserResponse,
   formatTaskIdentifier,
+  FREE_PLAN_TASK_LIMIT,
   FREE_PLAN_TASK_LIMIT_ERROR,
   isTaskCountedForUsage,
   isUserTaskCreationBlocked,
@@ -96,7 +97,7 @@ const assertUserTaskCreationAllowed = async (db: TaskCreationDb, churchId: strin
   const subscriptionRow = resolveChurchSubscription(subscriptionRows);
   if (
     subscriptionRow &&
-    !isUserTaskCreationBlocked({ usage: 300, subscription: subscriptionRow, now })
+    !isUserTaskCreationBlocked({ usage: FREE_PLAN_TASK_LIMIT, subscription: subscriptionRow, now })
   )
     return;
 
