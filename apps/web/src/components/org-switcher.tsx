@@ -4,6 +4,7 @@ import { useHotkey, useHotkeySequence } from "@tanstack/react-hotkeys";
 import { useNavigate } from "@tanstack/react-router";
 import { LogOutIcon } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { CheckCircleIcon } from "@/components/icons/checkCircleIcon";
 import { ChevronDownIcon } from "@/components/icons/chevronDownIcon";
@@ -50,7 +51,9 @@ export function OrgSwitcher() {
   const { createOrg } = useCreateOrg();
   const { setOpenMobile } = useSidebar();
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const filteredOrgs = getFilteredOrgSwitcherItems({ orgs: orgsCollection, search });
+  const activeOrgs = orgsCollection.filter((org) => !org.deletedAt);
+  const deletedOrgs = orgsCollection.filter((org) => org.deletedAt);
+  const filteredOrgs = getFilteredOrgSwitcherItems({ orgs: activeOrgs, search });
 
   const goToSettings = () => {
     setOpenMobile(false);
@@ -157,6 +160,18 @@ export function OrgSwitcher() {
                       <OrgDropdownItem key={org.id} org={org} />
                     ))}
 
+                    {deletedOrgs.length > 0 ? (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel className="text-muted-foreground text-xs">
+                          Deleted Churches
+                        </DropdownMenuLabel>
+                        {deletedOrgs.map((org) => (
+                          <RestoreOrgDropdownItem key={org.id} org={org} />
+                        ))}
+                      </>
+                    ) : null}
+
                     <DropdownMenuSeparator />
 
                     <DropdownMenuLabel className="text-muted-foreground text-xs">
@@ -184,6 +199,30 @@ export function OrgSwitcher() {
         </DropdownMenu>
       </SidebarMenuItem>
     </SidebarMenu>
+  );
+}
+
+function RestoreOrgDropdownItem({ org }: { readonly org: OrgCollectionItem }) {
+  const [isRestoring, setIsRestoring] = useState(false);
+
+  return (
+    <DropdownMenuItemWithLoading
+      loading={isRestoring}
+      onClick={async () => {
+        setIsRestoring(true);
+        const result = await authClient.restoreChurch(org.id);
+        if (result.error) {
+          toast.error(result.error.message ?? "Could not restore Church.");
+          setIsRestoring(false);
+          return;
+        }
+        toast.success(`${org.name} restored with all existing work.`);
+        window.location.reload();
+      }}
+    >
+      <ChurchAvatar name={org.name} size="sm" />
+      <span className="flex-1">Restore {org.name}</span>
+    </DropdownMenuItemWithLoading>
   );
 }
 

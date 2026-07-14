@@ -175,6 +175,8 @@ export const organization = pgTable(
     latitude: doublePrecision("latitude"),
     longitude: doublePrecision("longitude"),
     size: text("size"),
+    deletedAt: utcTimestamp("deleted_at"),
+    deletedBy: text("deleted_by"),
     createdAt: utcTimestamp("created_at").notNull().defaultNow(),
     updatedAt: utcTimestamp("updated_at")
       .notNull()

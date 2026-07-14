@@ -15,7 +15,7 @@ import {
 } from "@church-work/shared/get-ids";
 import { apiKey } from "@better-auth/api-key";
 import { stripe } from "@better-auth/stripe";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { BetterAuthOptions } from "better-auth";
 import { betterAuth } from "better-auth/minimal";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -36,7 +36,12 @@ import type { ChurchWorkDb } from "@church-work/db";
 import { Resend } from "resend";
 import Stripe from "stripe";
 
-import { clearOrgForOnboarding, completeOnboarding } from "./plugins";
+import {
+  churchLifecycle,
+  clearOrgForOnboarding,
+  completeOnboarding,
+  type ChurchSubscriptionCancellation,
+} from "./plugins";
 import { resolveStripeBillingConfig } from "./stripe-config";
 
 const appName = "Church Work";
@@ -157,7 +162,7 @@ export const enrichNewSession = async (db: ChurchWorkDb, newSession: SessionCrea
     })
     .from(member)
     .leftJoin(organizationTable, eq(member.organizationId, organizationTable.id))
-    .where(eq(member.userId, newSession.userId))
+    .where(and(eq(member.userId, newSession.userId), isNull(organizationTable.deletedAt)))
     .limit(1);
 
   return {
@@ -189,14 +194,21 @@ export const enrichActiveOrganizationSession = async (
     .select({
       completedOnboarding: organizationTable.completedOnboarding,
       organizationRole: member.role,
+      deletedAt: organizationTable.deletedAt,
     })
     .from(member)
     .leftJoin(organizationTable, eq(member.organizationId, organizationTable.id))
     .where(and(eq(member.userId, userId), eq(member.organizationId, activeOrganizationId)))
     .limit(1);
 
-  if (!membership) {
-    return updatedSession;
+  if (!membership || membership.deletedAt) {
+    return {
+      ...updatedSession,
+      activeOrganizationId: null,
+      orgCompletedOnboarding: null,
+      orgRole: null,
+      orgType: null,
+    };
   }
 
   return {
@@ -211,8 +223,15 @@ export const enrichActiveOrganizationSession = async (
 export const createAuthOptions = (
   db: ChurchWorkDb,
   otpStore: LocalOtpStore = createLocalOtpStore(),
+  cancellation?: ChurchSubscriptionCancellation,
 ) => {
   const stripeConfig = resolveStripeBillingConfig(process.env);
+  const stripeClient = new Stripe(stripeConfig.secretKey);
+  const subscriptionCancellation = cancellation ?? {
+    scheduleAtPeriodEnd: async (stripeSubscriptionId: string) => {
+      await stripeClient.subscriptions.update(stripeSubscriptionId, { cancel_at_period_end: true });
+    },
+  };
   const options = {
     advanced: {
       ...getProductionCookieConfig(),
@@ -257,6 +276,7 @@ export const createAuthOptions = (
     plugins: [
       completeOnboarding(),
       clearOrgForOnboarding(),
+      churchLifecycle(db, subscriptionCancellation),
       emailOTP({
         expiresIn: 15 * 60,
         sendVerificationOTP: async (data) => {
@@ -322,6 +342,8 @@ export const createAuthOptions = (
                 type: "boolean",
               },
               countryCode: { input: true, required: false, type: "string" },
+              deletedAt: { input: false, required: false, type: "date" },
+              deletedBy: { input: false, required: false, type: "string" },
               latitude: { input: true, required: false, type: "number" },
               longitude: { input: true, required: false, type: "number" },
               rollingMaterializationWindowCycles: {
@@ -370,7 +392,7 @@ export const createAuthOptions = (
       }),
       stripe({
         organization: { enabled: true },
-        stripeClient: new Stripe(stripeConfig.secretKey),
+        stripeClient,
         stripeWebhookSecret: stripeConfig.webhookSecret,
         subscription: {
           authorizeReference: async ({ referenceId, user: requestingUser }) => {

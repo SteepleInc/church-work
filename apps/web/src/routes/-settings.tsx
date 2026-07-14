@@ -270,6 +270,7 @@ function SettingsChurchForm({
   readonly refetchSession: () => Promise<unknown>;
 }) {
   const [churchError, setChurchError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const canUpdate = canUpdateChurchSettings(activeChurch.role);
 
   const form = useAppForm({
@@ -474,6 +475,42 @@ function SettingsChurchForm({
           label="Workspace ID"
         />
       </SettingsSection>
+
+      {activeChurch.role === "owner" ? (
+        <SettingsSection card title="Delete Church">
+          <SettingsFieldRow
+            control={
+              <Button
+                loading={isDeleting}
+                onClick={async () => {
+                  if (
+                    !window.confirm(
+                      "Delete this Church? Its subscription will stop renewing at the end of the paid period. All Church work is preserved for restoration.",
+                    )
+                  ) {
+                    return;
+                  }
+                  setIsDeleting(true);
+                  const result = await authClient.deleteChurch(activeChurch.id);
+                  if (result.error) {
+                    setChurchError(result.error.message ?? "Could not delete Church.");
+                    setIsDeleting(false);
+                    return;
+                  }
+                  toast.success("Church deleted. Its work remains available if restored.");
+                  window.location.assign("/");
+                }}
+                type="button"
+                variant="destructive"
+              >
+                Delete Church
+              </Button>
+            }
+            description="Schedules Paid cancellation at period end and preserves all Church data and billing history."
+            label="Delete this Church"
+          />
+        </SettingsSection>
+      ) : null}
 
       {!canUpdate ? (
         <Alert>

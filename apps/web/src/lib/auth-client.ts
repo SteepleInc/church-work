@@ -43,6 +43,33 @@ const clearOrgForOnboardingClient = () =>
     },
   }) satisfies BetterAuthClientPlugin;
 
+const churchLifecycleClient = () =>
+  ({
+    atomListeners: [
+      {
+        matcher: (path: string) => path.startsWith("/church/"),
+        signal: "$sessionSignal",
+      },
+    ],
+    getActions: ($fetch) => ({
+      deleteChurch: async (churchId: string) =>
+        await $fetch<{ status: boolean }>("/church/delete", {
+          body: { churchId },
+          method: "POST",
+        }),
+      restoreChurch: async (churchId: string) =>
+        await $fetch<{ status: boolean }>("/church/restore", {
+          body: { churchId },
+          method: "POST",
+        }),
+    }),
+    id: "church-lifecycle",
+    pathMethods: {
+      "/church/delete": "POST",
+      "/church/restore": "POST",
+    },
+  }) satisfies BetterAuthClientPlugin;
+
 export const authClient = createAuthClient({
   baseURL: typeof window === "undefined" ? undefined : window.location.origin,
   fetchOptions: {
@@ -54,6 +81,7 @@ export const authClient = createAuthClient({
     adminClient(),
     completeOnboardingClient(),
     clearOrgForOnboardingClient(),
+    churchLifecycleClient(),
     organizationClient({
       teams: { enabled: true },
       schema: inferOrgAdditionalFields<ChurchWorkAuth>(),
