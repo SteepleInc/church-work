@@ -121,6 +121,7 @@ describe("Cloudflare scheduled handler", () => {
     const churchId = "org_time_zone_boundary";
     const currentCycleId = "cycle_time_zone_current";
     const oldBoundary = "2026-06-22T04:00:00.000Z";
+    const afterOldBoundary = "2026-06-22T05:00:00.000Z";
     const recalculatedBoundary = "2026-06-22T07:00:00.000Z";
 
     try {
@@ -200,6 +201,12 @@ describe("Cloudflare scheduled handler", () => {
         workflow_status_id: "workflowstatus_time_zone_todo",
       });
 
+      const [cycleBeforeTimeZoneChange] = await db
+        .select()
+        .from(cycles)
+        .where(eq(cycles.id, currentCycleId));
+      expect(cycleBeforeTimeZoneChange?.ends_at.toISOString()).toBe(oldBoundary);
+
       await db
         .update(organization)
         .set({ churchTimeZone: "America/Los_Angeles" })
@@ -224,7 +231,7 @@ describe("Cloudflare scheduled handler", () => {
         "2026-06-15",
       );
 
-      const snapshot = async () => {
+      const snapshotChurchState = async () => {
         const [church] = await db.select().from(organization).where(eq(organization.id, churchId));
         const churchCycles = await db.select().from(cycles).where(eq(cycles.church_id, churchId));
         const churchTasks = await db.select().from(tasks).where(eq(tasks.church_id, churchId));
@@ -242,13 +249,10 @@ describe("Cloudflare scheduled handler", () => {
         };
       };
 
-      const beforeOldBoundaryInterval = await snapshot();
-      const skipped = await invokeScheduledHandler(
-        harness.connectionString,
-        "2026-06-22T05:00:00.000Z",
-      );
+      const beforeDeferredMaintenance = await snapshotChurchState();
+      const skipped = await invokeScheduledHandler(harness.connectionString, afterOldBoundary);
       expect(skipped.maintainedChurchIds).not.toContain(churchId);
-      expect(await snapshot()).toEqual(beforeOldBoundaryInterval);
+      expect(await snapshotChurchState()).toEqual(beforeDeferredMaintenance);
 
       const maintained = await invokeScheduledHandler(
         harness.connectionString,
@@ -258,16 +262,16 @@ describe("Cloudflare scheduled handler", () => {
       expect(maintained.resultsByChurchId[churchId]?.rolledOverTaskIds).toEqual([
         "task_time_zone_rollover",
       ]);
-      const afterRecalculatedBoundary = await snapshot();
+      const afterRecalculatedBoundary = await snapshotChurchState();
       expect(afterRecalculatedBoundary.checkpoint).toBe("2026-06-22");
       expect(afterRecalculatedBoundary.tasks[0]?.cycleId).not.toBe(currentCycleId);
       expect(afterRecalculatedBoundary.activityIds.length).toBeGreaterThan(
-        beforeOldBoundaryInterval.activityIds.length,
+        beforeDeferredMaintenance.activityIds.length,
       );
 
       const repeated = await invokeScheduledHandler(harness.connectionString, recalculatedBoundary);
       expect(repeated.maintainedChurchIds).not.toContain(churchId);
-      expect(await snapshot()).toEqual(afterRecalculatedBoundary);
+      expect(await snapshotChurchState()).toEqual(afterRecalculatedBoundary);
     } finally {
       await harness.stop();
     }
