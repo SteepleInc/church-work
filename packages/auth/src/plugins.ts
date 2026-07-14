@@ -66,10 +66,18 @@ export const churchLifecycle = (db: ChurchWorkDb, cancellation: ChurchSubscripti
           if (session.session.activeOrganizationId === churchId) {
             const updatedSession = await ctx.context.internalAdapter.updateSession(
               session.session.token,
-              { activeOrganizationId: null, orgCompletedOnboarding: null, orgRole: null },
+              {
+                activeOrganizationId: null,
+                orgCompletedOnboarding: null,
+                orgRole: null,
+                orgType: null,
+              },
             );
-            if (updatedSession)
-              await setSessionCookie(ctx, { session: updatedSession, user: session.user });
+            if (!updatedSession) {
+              throw ctx.error("INTERNAL_SERVER_ERROR", { message: "Failed to update session" });
+            }
+
+            await setSessionCookie(ctx, { session: updatedSession, user: session.user });
           }
 
           return ctx.json({ status: true });
