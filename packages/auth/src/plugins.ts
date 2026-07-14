@@ -38,29 +38,34 @@ export const churchLifecycle = (db: ChurchWorkDb, cancellation: ChurchSubscripti
           if (!church) throw ctx.error("NOT_FOUND", { message: "Church not found" });
 
           if (!church.deletedAt) {
-            const activeSubscriptions = await db
-              .select({
-                cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
-                stripeSubscriptionId: subscription.stripeSubscriptionId,
-              })
-              .from(subscription)
-              .where(
-                and(
-                  eq(subscription.referenceId, churchId),
-                  inArray(subscription.status, ["active", "trialing", "past_due"]),
-                ),
-              );
-
-            for (const current of activeSubscriptions) {
-              if (current.stripeSubscriptionId && !current.cancelAtPeriodEnd) {
-                await cancellation.scheduleAtPeriodEnd(current.stripeSubscriptionId);
-              }
-            }
-
             await db
               .update(organization)
               .set({ deletedAt: new Date(), deletedBy: session.user.id })
               .where(and(eq(organization.id, churchId), isNull(organization.deletedAt)));
+          }
+
+          const activeSubscriptions = await db
+            .select({
+              cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+              id: subscription.id,
+              stripeSubscriptionId: subscription.stripeSubscriptionId,
+            })
+            .from(subscription)
+            .where(
+              and(
+                eq(subscription.referenceId, churchId),
+                inArray(subscription.status, ["active", "trialing", "past_due"]),
+              ),
+            );
+
+          for (const current of activeSubscriptions) {
+            if (current.stripeSubscriptionId && !current.cancelAtPeriodEnd) {
+              await cancellation.scheduleAtPeriodEnd(current.stripeSubscriptionId);
+              await db
+                .update(subscription)
+                .set({ cancelAtPeriodEnd: true })
+                .where(eq(subscription.id, current.id));
+            }
           }
 
           if (session.session.activeOrganizationId === churchId) {

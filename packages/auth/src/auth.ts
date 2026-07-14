@@ -15,7 +15,7 @@ import {
 } from "@church-work/shared/get-ids";
 import { apiKey } from "@better-auth/api-key";
 import { stripe } from "@better-auth/stripe";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import type { BetterAuthOptions } from "better-auth";
 import { betterAuth } from "better-auth/minimal";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -232,6 +232,40 @@ export const createAuthOptions = (
       await stripeClient.subscriptions.update(stripeSubscriptionId, { cancel_at_period_end: true });
     },
   };
+  const keepDeletedChurchOutOfRenewal = async (updatedSubscription: {
+    cancelAtPeriodEnd?: boolean | null;
+    id: string;
+    referenceId: string;
+    status: string;
+    stripeSubscriptionId?: string | null;
+  }) => {
+    if (
+      updatedSubscription.cancelAtPeriodEnd ||
+      !updatedSubscription.stripeSubscriptionId ||
+      !["active", "trialing", "past_due"].includes(updatedSubscription.status)
+    ) {
+      return;
+    }
+
+    const [deletedChurch] = await db
+      .select({ id: organizationTable.id })
+      .from(organizationTable)
+      .where(
+        and(
+          eq(organizationTable.id, updatedSubscription.referenceId),
+          isNotNull(organizationTable.deletedAt),
+        ),
+      )
+      .limit(1);
+
+    if (!deletedChurch) return;
+
+    await subscriptionCancellation.scheduleAtPeriodEnd(updatedSubscription.stripeSubscriptionId);
+    await db
+      .update(subscription)
+      .set({ cancelAtPeriodEnd: true })
+      .where(eq(subscription.id, updatedSubscription.id));
+  };
   const options = {
     advanced: {
       ...getProductionCookieConfig(),
@@ -399,8 +433,13 @@ export const createAuthOptions = (
             const [membership] = await db
               .select({ role: member.role })
               .from(member)
+              .innerJoin(organizationTable, eq(member.organizationId, organizationTable.id))
               .where(
-                and(eq(member.organizationId, referenceId), eq(member.userId, requestingUser.id)),
+                and(
+                  eq(member.organizationId, referenceId),
+                  eq(member.userId, requestingUser.id),
+                  isNull(organizationTable.deletedAt),
+                ),
               )
               .limit(1);
 
@@ -408,7 +447,11 @@ export const createAuthOptions = (
           },
           enabled: true,
           getCheckoutSessionParams: () => ({ params: { automatic_tax: { enabled: true } } }),
+          onSubscriptionComplete: async ({ subscription: completedSubscription }) => {
+            await keepDeletedChurchOutOfRenewal(completedSubscription);
+          },
           onSubscriptionUpdate: async ({ subscription: updatedSubscription }) => {
+            await keepDeletedChurchOutOfRenewal(updatedSubscription);
             const graceStartedAt = updatedSubscription.status === "past_due" ? new Date() : null;
 
             if (updatedSubscription.status === "past_due") {

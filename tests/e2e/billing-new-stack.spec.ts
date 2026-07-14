@@ -155,6 +155,30 @@ test("restores paid and free Churches without hiding their existing work", async
     await page.getByRole("button", { name: "Delete Church" }).click();
     await expect(page).toHaveURL(/\/$/, { timeout: 20_000 });
 
+    await page.goto("/settings/workspace/billing");
+    await expect(page.getByText("No active Church selected.")).toBeVisible({ timeout: 20_000 });
+    await expect(
+      page.getByRole("button", { name: /Upgrade to Paid|Manage billing|Fix payment/ }),
+    ).toHaveCount(0);
+
+    const deletedBillingStatuses = await page.evaluate(async (organizationId) => {
+      const request = (path: string, body: Record<string, unknown>) =>
+        fetch(`/api/auth/subscription/${path}`, {
+          body: JSON.stringify({
+            customerType: "organization",
+            referenceId: organizationId,
+            ...body,
+          }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        });
+      return Promise.all([
+        request("upgrade", { plan: "paid" }).then((response) => response.status),
+        request("billing-portal", { returnUrl: "/" }).then((response) => response.status),
+      ]);
+    }, churchId);
+    expect(deletedBillingStatuses).toEqual([401, 401]);
+
     const restored = await page.evaluate(async (organizationId) => {
       const restoreResponse = await fetch("/api/auth/church/restore", {
         body: JSON.stringify({ churchId: organizationId }),
