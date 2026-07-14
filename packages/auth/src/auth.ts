@@ -461,7 +461,7 @@ export const createAuthOptions = (
               await db
                 .update(subscription)
                 .set({
-                  graceStartedAt: sql`coalesce(${subscription.graceStartedAt}, ${graceStartedAt})`,
+                  graceStartedAt: sql`least(coalesce(${subscription.graceStartedAt}, ${graceStartedAt}), ${graceStartedAt})`,
                 })
                 .where(eq(subscription.id, updatedSubscription.id));
             } else if (updatedSubscription.status === "active") {

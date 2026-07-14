@@ -25,6 +25,21 @@ type WebhookState = {
   readonly type?: "created" | "deleted" | "updated";
 };
 
+const subscriptionEventType = (state: WebhookState) => {
+  if (state.type === "deleted" || state.status === "canceled") {
+    return "customer.subscription.deleted" as const;
+  }
+
+  if (
+    state.type === "created" ||
+    (state.status === "active" && state.subscriptionId === undefined)
+  ) {
+    return "customer.subscription.created" as const;
+  }
+
+  return "customer.subscription.updated" as const;
+};
+
 const subscriptionEvent = (state: WebhookState) => {
   const stripeSubscriptionId = state.subscriptionId ?? "sub_authoritative";
   return {
@@ -62,13 +77,7 @@ const subscriptionEvent = (state: WebhookState) => {
     object: "event",
     pending_webhooks: 1,
     request: null,
-    type:
-      state.type === "deleted" || state.status === "canceled"
-        ? "customer.subscription.deleted"
-        : state.type === "created" ||
-            (state.status === "active" && state.subscriptionId === undefined)
-          ? "customer.subscription.created"
-          : "customer.subscription.updated",
+    type: subscriptionEventType(state),
   } as const;
 };
 
@@ -155,6 +164,19 @@ describe("authoritative Stripe webhook lifecycle", () => {
         subscriptionId: "sub_authoritative",
       });
       expect(retry.current?.graceStartedAt).toEqual(new Date(firstFailureAt * 1000));
+
+      // An older first-failure event arriving after a retry must move grace to
+      // the authoritative Stripe timestamp instead of extending the period.
+      const earlierFailureAt = firstFailureAt - DAY_SECONDS;
+      const outOfOrderFirstFailure = await deliver({
+        created: earlierFailureAt,
+        id: "evt_delayed_first_failure",
+        status: "past_due",
+        subscriptionId: "sub_authoritative",
+      });
+      expect(outOfOrderFirstFailure.current?.graceStartedAt).toEqual(
+        new Date(earlierFailureAt * 1000),
+      );
 
       const recovered = await deliver({
         created: firstFailureAt + 6 * DAY_SECONDS,
