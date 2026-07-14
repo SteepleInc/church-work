@@ -115,6 +115,164 @@ describe("Cloudflare scheduled handler", () => {
     }
   }, 60_000);
 
+  test("defers maintenance after a Time Zone change until the recalculated persisted Cycle boundary", async () => {
+    const harness = await startPostgresHarness();
+    const { db } = harness;
+    const churchId = "org_time_zone_boundary";
+    const currentCycleId = "cycle_time_zone_current";
+    const oldBoundary = "2026-06-22T04:00:00.000Z";
+    const recalculatedBoundary = "2026-06-22T07:00:00.000Z";
+
+    try {
+      const currentCycle = buildCycleForLocalDate({
+        churchTimeZone: "America/New_York",
+        localDate: "2026-06-16",
+      });
+      await db.insert(organization).values({
+        _tag: "org",
+        churchTimeZone: "America/New_York",
+        completedOnboarding: true,
+        id: churchId,
+        name: "Time Zone Boundary Church",
+        slug: "time-zone-boundary-church",
+      });
+      await db.insert(cycles).values({
+        ...baseEntity("cycle"),
+        ...currentCycle,
+        church_id: churchId,
+        id: currentCycleId,
+      });
+
+      const initialMaintenance = await invokeScheduledHandler(
+        harness.connectionString,
+        "2026-06-18T12:00:00.000Z",
+      );
+      expect(initialMaintenance.maintainedChurchIds).toContain(churchId);
+      const [churchAfterInitialMaintenance] = await db
+        .select()
+        .from(organization)
+        .where(eq(organization.id, churchId));
+      expect(churchAfterInitialMaintenance?.rolloverMaintenanceCompletedCycleStartDate).toBe(
+        "2026-06-15",
+      );
+
+      await db.insert(teams).values({
+        ...baseEntity("team"),
+        church_id: churchId,
+        color: "blue",
+        id: "team_time_zone_boundary",
+        identifier: "TZ",
+        name: "Time Zone Team",
+        next_task_number: 2,
+        previous_identifiers: "[]",
+        sort_order: 0,
+      });
+      await db.insert(workflows).values({
+        ...baseEntity("workflow"),
+        church_id: churchId,
+        id: "workflow_time_zone_boundary",
+        name: "Time Zone Workflow",
+        team_id: "team_time_zone_boundary",
+      });
+      await db.insert(workflow_statuses).values({
+        ...baseEntity("workflowstatus"),
+        church_id: churchId,
+        id: "workflowstatus_time_zone_todo",
+        key: "todo",
+        name: "To Do",
+        sort_order: 0,
+        task_state: "todo",
+        workflow_id: "workflow_time_zone_boundary",
+      });
+      await db.insert(tasks).values({
+        ...baseEntity("task"),
+        board_order: "a0",
+        church_id: churchId,
+        cycle_id: currentCycleId,
+        id: "task_time_zone_rollover",
+        label_ids: "[]",
+        number: 1,
+        previous_identifiers: "[]",
+        task_state: "todo",
+        team_id: "team_time_zone_boundary",
+        title: "Wait for the recalculated boundary",
+        workflow_id: "workflow_time_zone_boundary",
+        workflow_status_id: "workflowstatus_time_zone_todo",
+      });
+
+      await db
+        .update(organization)
+        .set({ churchTimeZone: "America/Los_Angeles" })
+        .where(eq(organization.id, churchId));
+      await adjustChurchCyclesForTimeZone(db, {
+        church_id: churchId,
+        newChurchTimeZone: "America/Los_Angeles",
+        now: new Date("2026-06-18T12:00:00.000Z"),
+      });
+
+      const [recalculatedCycle] = await db
+        .select()
+        .from(cycles)
+        .where(eq(cycles.id, currentCycleId));
+      expect(recalculatedCycle?.ends_at.toISOString()).toBe(recalculatedBoundary);
+      expect(Date.parse(recalculatedBoundary)).toBeGreaterThan(Date.parse(oldBoundary));
+      const [churchAfterTimeZoneChange] = await db
+        .select()
+        .from(organization)
+        .where(eq(organization.id, churchId));
+      expect(churchAfterTimeZoneChange?.rolloverMaintenanceCompletedCycleStartDate).toBe(
+        "2026-06-15",
+      );
+
+      const snapshot = async () => {
+        const [church] = await db.select().from(organization).where(eq(organization.id, churchId));
+        const churchCycles = await db.select().from(cycles).where(eq(cycles.church_id, churchId));
+        const churchTasks = await db.select().from(tasks).where(eq(tasks.church_id, churchId));
+        const churchActivities = await db
+          .select()
+          .from(activities)
+          .where(eq(activities.church_id, churchId));
+        return {
+          activityIds: churchActivities.map(({ id }) => id).sort(),
+          checkpoint: church?.rolloverMaintenanceCompletedCycleStartDate,
+          cycleIds: churchCycles.map(({ id }) => id).sort(),
+          tasks: churchTasks
+            .map(({ cycle_id, id }) => ({ cycleId: cycle_id, id }))
+            .sort((left, right) => left.id.localeCompare(right.id)),
+        };
+      };
+
+      const beforeOldBoundaryInterval = await snapshot();
+      const skipped = await invokeScheduledHandler(
+        harness.connectionString,
+        "2026-06-22T05:00:00.000Z",
+      );
+      expect(skipped.maintainedChurchIds).not.toContain(churchId);
+      expect(await snapshot()).toEqual(beforeOldBoundaryInterval);
+
+      const maintained = await invokeScheduledHandler(
+        harness.connectionString,
+        recalculatedBoundary,
+      );
+      expect(maintained.maintainedChurchIds).toContain(churchId);
+      expect(maintained.resultsByChurchId[churchId]?.rolledOverTaskIds).toEqual([
+        "task_time_zone_rollover",
+      ]);
+      const afterRecalculatedBoundary = await snapshot();
+      expect(afterRecalculatedBoundary.checkpoint).toBe("2026-06-22");
+      expect(afterRecalculatedBoundary.tasks[0]?.cycleId).not.toBe(currentCycleId);
+      expect(afterRecalculatedBoundary.activityIds.length).toBeGreaterThan(
+        beforeOldBoundaryInterval.activityIds.length,
+      );
+
+      const repeated = await invokeScheduledHandler(harness.connectionString, recalculatedBoundary);
+      expect(repeated.maintainedChurchIds).not.toContain(churchId);
+      expect(await snapshot()).toEqual(afterRecalculatedBoundary);
+    } finally {
+      await harness.stop();
+    }
+  }, 60_000);
+
   test("reconciles missed and first-deployment Churches and honors recalculated Time Zone boundaries", async () => {
     const harness = await startPostgresHarness();
     const { db } = harness;
