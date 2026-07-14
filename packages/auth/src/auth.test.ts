@@ -157,6 +157,12 @@ describe("Better Auth Postgres foundation", () => {
       expect((await lifecycleRequest("/church/delete")).status).toBe(200);
       expect(scheduleAtPeriodEnd).toHaveBeenCalledOnce();
       expect(scheduleAtPeriodEnd).toHaveBeenCalledWith("sub_lifecycle");
+      await expect(
+        db
+          .select({ cancelAtPeriodEnd: subscription.cancelAtPeriodEnd })
+          .from(subscription)
+          .where(eq(subscription.id, "subscription_lifecycle")),
+      ).resolves.toEqual([{ cancelAtPeriodEnd: true }]);
 
       const hostedBillingRequest = (path: string, body: Record<string, unknown>) =>
         auth.handler(
