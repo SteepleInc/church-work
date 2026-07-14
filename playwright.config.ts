@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const onboardingStackE2e = process.env.CHURCH_WORK_E2E_ONBOARDING_STACK === "1";
+const sandcastleContainerE2e = process.env.SANDCASTLE_CAN_RUN_CONTAINER_TESTS === "true";
 
 process.env.CHURCH_WORK_E2E_READY = "1";
 process.env.CHURCH_WORK_E2E_SKIP_REASON = "";
@@ -66,6 +67,9 @@ export default defineConfig({
   reporter: "list",
   use: {
     baseURL,
+    ...(sandcastleContainerE2e
+      ? { launchOptions: { args: ["--disable-dev-shm-usage"] } }
+      : undefined),
     trace: "on-first-retry",
   },
   projects: [

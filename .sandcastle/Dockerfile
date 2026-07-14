@@ -14,6 +14,14 @@ ENV BUN_INSTALL=/usr/local/bun
 ENV PATH=/usr/local/bun/bin:$PATH
 RUN curl -fsSL https://bun.sh/install | bash -s -- bun-v1.3.13
 
+# Keep the browser version aligned with @playwright/test in package.json. Install
+# a native browser and its Linux dependencies instead of using the Playwright
+# Docker image, which is amd64-only on the local ARM64 runner.
+ARG PLAYWRIGHT_VERSION=1.60.0
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN npx --yes playwright@${PLAYWRIGHT_VERSION} install --with-deps chromium \
+  && chmod -R a+rX ${PLAYWRIGHT_BROWSERS_PATH}
+
 # Install GitHub CLI
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
   | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
