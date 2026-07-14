@@ -352,7 +352,6 @@ test("enforces every visible Free Plan threshold and removes the gate for Paid",
     timeout: 20_000,
   });
   await setTestSubscription(page, { status: "canceled" });
-  await page.reload();
   await expect(page.getByRole("meter", { name: "Free Plan Task Usage" })).toHaveAttribute(
     "aria-valuetext",
     "301 of 300 Tasks — 1 over from scheduled work",
