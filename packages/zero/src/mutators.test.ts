@@ -1123,7 +1123,7 @@ describe("Zero Task mutators", () => {
 
   const createServerTx = (selectResults: Array<unknown>) => {
     const insertCalls: InsertCall[] = [];
-    const lockCalls: Array<"update"> = [];
+    const lockCalls: Array<"no key update"> = [];
     const updateCalls: Array<{
       readonly table: unknown;
       readonly set: unknown;
@@ -1155,7 +1155,7 @@ describe("Zero Task mutators", () => {
               return Object.assign(result, {
                 limit: () =>
                   Object.assign(result, {
-                    for: async (mode: "update") => {
+                    for: async (mode: "no key update") => {
                       lockCalls.push(mode);
                       selectResults.unshift(await result);
                       return [{ id: "org_test" }];
@@ -1221,7 +1221,7 @@ describe("Zero Task mutators", () => {
       tx,
     });
 
-    expect(lockCalls).toEqual(["update"]);
+    expect(lockCalls).toEqual(["no key update"]);
 
     const taskInsert = insertCalls.find((call) => call.table === tasks)?.values as {
       readonly board_order: string;

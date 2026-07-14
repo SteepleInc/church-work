@@ -74,7 +74,7 @@ const assertUserTaskCreationAllowed = async (db: TaskCreationDb, churchId: strin
     .from(organization)
     .where(eq(organization.id, churchId))
     .limit(1)
-    .for("update");
+    .for("no key update");
   if (!lockedChurch) throw new Error("Church not found.");
 
   const now = new Date();
