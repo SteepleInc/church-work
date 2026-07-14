@@ -315,3 +315,108 @@ test("shows an expired grace warning without payment actions to a member", async
     page.getByRole("button", { name: /Fix payment|Manage billing|Upgrade to Paid/ }),
   ).toHaveCount(0);
 });
+
+test("enforces every visible Free Plan threshold and removes the gate for Paid", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(180_000);
+  const suffix = `${Date.now()}-${testInfo.workerIndex}`;
+  const seedCount = async (count: number, offset: number) =>
+    seedTasks(page, {
+      tasks: Array.from({ length: count }, (_, index) => ({
+        status: "To Do",
+        title: `Limit Task ${offset + index + 1}`,
+      })),
+      team: "Worship",
+    });
+
+  await startAuthenticatedSession(page, {
+    churchName: `E2E Task Limit Church ${suffix}`,
+    email: `task-limit-${suffix}@example.com`,
+    userName: "E2E Task Limit Owner",
+  });
+  await seedCount(200, 0);
+  await page.goto("/our-work");
+  const usageCard = page.locator('aside[aria-label="Task Usage"]');
+  await expect(usageCard).toHaveCount(0);
+
+  await seedCount(1, 200);
+  await expect(usageCard).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("meter", { name: "Free Plan Task Usage" })).toHaveAttribute(
+    "aria-valuenow",
+    "201",
+  );
+
+  await seedCount(98, 201);
+  const createTask = page.getByRole("button", { name: "Create Task" }).first();
+  await expect(createTask).not.toHaveAttribute("aria-disabled", "true", { timeout: 20_000 });
+
+  await seedCount(1, 299);
+  await expect(createTask).toHaveAttribute("aria-disabled", "true", { timeout: 20_000 });
+  await createTask.hover();
+  await expect(page.getByText(/upgrade to Paid in Church Billing/).first()).toBeVisible();
+  await expect(page.getByRole("dialog", { name: /New Task/ })).toHaveCount(0);
+  await page.keyboard.press("c");
+  await expect(page.getByText("Free Plan Task Limit reached", { exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: /New Task/ })).toHaveCount(0);
+
+  // Paid creation can cross the Free threshold. Returning to Free then proves
+  // the same externally visible overage state produced by scheduled work.
+  await setTestSubscription(page, { status: "active" });
+  await seedCount(1, 300);
+  // Wait for Zero to expose the paid-only Task before switching back to Free.
+  // The seed endpoint commits before CDC has necessarily reached the browser.
+  await expect(page.getByText("Limit Task 301", { exact: true })).toBeVisible({
+    timeout: 20_000,
+  });
+  await setTestSubscription(page, { status: "canceled" });
+  await expect(page.getByRole("meter", { name: "Free Plan Task Usage" })).toHaveAttribute(
+    "aria-valuetext",
+    "301 of 300 Tasks — 1 over from scheduled work",
+    { timeout: 20_000 },
+  );
+  await expect(page.getByText("301 of 300")).toBeVisible();
+  await expect(page.getByText(/1 over from scheduled work/)).toBeVisible();
+
+  await setTestSubscription(page, { status: "active" });
+  await page.reload();
+  await expect(page.getByRole("alert", { name: "Task Usage" })).toHaveCount(0, {
+    timeout: 20_000,
+  });
+  await expect(createTask).toBeVisible({ timeout: 20_000 });
+  await expect(createTask).not.toHaveAttribute("aria-disabled", "true");
+});
+
+test("gives members role-appropriate guidance at the Free Plan Task Limit", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(180_000);
+  const suffix = `${Date.now()}-${testInfo.workerIndex}`;
+  await startAuthenticatedSession(page, {
+    churchName: `E2E Member Task Limit Church ${suffix}`,
+    churchRole: "member",
+    email: `member-task-limit-${suffix}@example.com`,
+    userName: "E2E Task Limit Member",
+  });
+  await seedTasks(page, {
+    tasks: Array.from({ length: 300 }, (_, index) => ({
+      status: "To Do",
+      title: `Member Limit Task ${index + 1}`,
+    })),
+    team: "Worship",
+  });
+  await page.goto("/settings/workspace/billing");
+  await expect(page.getByRole("meter", { name: "Free Plan Task Usage" })).toHaveAttribute(
+    "aria-valuenow",
+    "300",
+    { timeout: 20_000 },
+  );
+  await page.goto("/our-work");
+
+  const createTask = page.getByRole("button", { name: "Create Task" }).first();
+  await expect(createTask).toHaveAttribute("aria-disabled", "true", { timeout: 20_000 });
+  await createTask.hover();
+  await expect(page.getByText(/a Church owner or admin can upgrade/).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "View Billing" })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: /New Task/ })).toHaveCount(0);
+});
