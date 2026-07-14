@@ -27,6 +27,7 @@ import {
   useMaterializeProjectedTemplateTaskMutation,
   useCancelTaskMutation,
   useCompleteTaskMutation,
+  useDuplicateTaskMutation,
   useReopenTaskMutation,
   useTasksCollection,
   useUpdateTaskMutation,
@@ -49,6 +50,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { useAtom } from "jotai";
 import { useMemo, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 
 import { mapTaskFilterValuesForZero } from "@/components/tasks/task-filters";
 import { FilterKeys } from "@/shared/global-state";
@@ -343,6 +345,7 @@ export function TaskExecutionSurface({
   const completeTask = useCompleteTaskMutation();
   const cancelTask = useCancelTaskMutation();
   const reopenTask = useReopenTaskMutation();
+  const duplicateTask = useDuplicateTaskMutation();
 
   const transitionTask = (taskId: string, transition: TaskStateTransition) => {
     const mutate =
@@ -577,6 +580,15 @@ export function TaskExecutionSurface({
     memberTeamIds: currentUserTeamIds,
     currentUserId,
     teamMemberIdsByTeamId,
+    duplicateDisabledReason: taskCreationGate.blocked ? taskCreationGate.message : undefined,
+    onDuplicateTask: async (taskId) => {
+      if (taskCreationGate.blocked) {
+        taskCreationGate.notify();
+        return;
+      }
+      const result = await duplicateTask({ taskId });
+      if (result.ok) toast.success("Task duplicated");
+    },
     onAssignTask: sharedSurfaceProps.onAssignTask,
     onChangeTaskStatus: sharedSurfaceProps.onChangeTaskStatus,
     onChangeTaskLabels: sharedSurfaceProps.onChangeTaskLabels,

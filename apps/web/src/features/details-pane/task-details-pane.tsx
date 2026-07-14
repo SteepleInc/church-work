@@ -18,6 +18,7 @@ import {
   useCancelTaskMutation,
   useCompleteTaskMutation,
   useCreateTaskMutation,
+  useDuplicateTaskMutation,
   useMaterializeProjectedTemplateTaskMutation,
   useReopenTaskMutation,
   useTasksCollection,
@@ -46,6 +47,7 @@ import {
 } from "@/components/editor/description-value";
 import { DetailsShell } from "@/components/details-pane/details-shell";
 import { useQuickActionOpeners } from "@/features/quick-actions/quick-actions-state";
+import { useTaskCreationGate } from "@/features/billing/task-creation-gate";
 import {
   AssigneeAvatar,
   AssigneeComboboxSelector,
@@ -135,12 +137,14 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
   const cycles = useCyclesCollection({ churchId, currentUserId });
   const updateTask = useUpdateTaskMutation();
   const createTask = useCreateTaskMutation();
+  const duplicateTask = useDuplicateTaskMutation();
   const createLabel = useCreateLabelMutation();
   const materializeProjectedTask = useMaterializeProjectedTemplateTaskMutation();
   const completeTask = useCompleteTaskMutation();
   const cancelTask = useCancelTaskMutation();
   const reopenTask = useReopenTaskMutation();
   const { openCreateTask } = useQuickActionOpeners();
+  const taskCreationGate = useTaskCreationGate();
 
   const team = teams.teamsCollection.find((candidate) => candidate.id === task?.teamId) ?? null;
   const loading = orgLoading || taskLoading;
@@ -519,6 +523,9 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
             currentUserId={currentUserId}
             labelOptions={labels.labelsCollection}
             memberTeamIds={memberTeamIds}
+            duplicateDisabledReason={
+              taskCreationGate.blocked ? taskCreationGate.message : undefined
+            }
             onAssignTask={(change) => persist({ assignedUserId: change.assignedUserId })}
             onChangeTaskDueDate={(change) => persist({ dueDate: change.dueDate })}
             onChangeTaskEstimate={(change) => persist({ estimate: change.estimate })}
@@ -528,6 +535,14 @@ export function TaskDetailsPane({ identifier }: { readonly identifier: string })
               persist({ teamId: change.teamId, labelIds: change.labelIds })
             }
             onOpenTask={(taskIdentifier) => changeDetailsPaneId(taskIdentifier).forceNav()}
+            onDuplicateTask={async (taskId) => {
+              if (taskCreationGate.blocked) {
+                taskCreationGate.notify();
+                return;
+              }
+              const result = await duplicateTask({ taskId });
+              if (result.ok) toast.success("Task duplicated");
+            }}
             onTransitionTask={(change) => transitionTask(change.taskId, change.transition)}
             rowState={cardState}
             targetTaskIds={[task.id]}

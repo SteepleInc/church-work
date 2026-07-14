@@ -110,6 +110,8 @@ export type TaskContextMenuProps = {
     readonly labelIds: readonly string[];
   }) => void | Promise<void>;
   readonly onTransitionTask?: (change: TaskTransitionChange) => void | Promise<void>;
+  readonly onDuplicateTask?: (taskId: string) => void | Promise<void>;
+  readonly duplicateDisabledReason?: string;
   readonly onOpenTask?: (taskIdentifier: string) => void;
   /** Builds the absolute URL copied by "Copy link" for a Task Identifier. */
   readonly buildTaskUrl?: (taskIdentifier: string) => string;
@@ -163,6 +165,8 @@ export function TaskContextMenu({
   onChangeTaskDueDate,
   onChangeTaskTeam,
   onTransitionTask,
+  onDuplicateTask,
+  duplicateDisabledReason,
   onOpenTask,
   buildTaskUrl,
 }: TaskContextMenuProps) {
@@ -371,6 +375,20 @@ export function TaskContextMenu({
                 </ContextMenuItem>
               </ContextMenuSubContent>
             </ContextMenuSub>
+          </>
+        ) : null}
+
+        {!isProjected && onDuplicateTask ? (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem
+              disabled={Boolean(duplicateDisabledReason)}
+              onClick={() => void onDuplicateTask(task.id)}
+              title={duplicateDisabledReason}
+            >
+              <Copy />
+              Duplicate Task
+            </ContextMenuItem>
           </>
         ) : null}
 
