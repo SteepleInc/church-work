@@ -63,6 +63,10 @@ const AUTO_MERGE_PRS = process.env.SANDCASTLE_AUTO_MERGE !== "false";
 const BASE_BRANCH = process.env.SANDCASTLE_BASE_BRANCH ?? defaultBranch() ?? currentBranch();
 const PR_CHECK_REPAIR = process.env.SANDCASTLE_REPAIR_FAILED_CHECKS !== "false";
 const MAX_REPAIR_ATTEMPTS = Number(process.env.SANDCASTLE_MAX_REPAIR_ATTEMPTS ?? "3");
+const MAX_LOCAL_GATE_REPAIR_ATTEMPTS = nonNegativeIntegerEnv(
+  "SANDCASTLE_MAX_LOCAL_GATE_REPAIR_ATTEMPTS",
+  2,
+);
 const CHECK_POLL_INTERVAL_MS = Number(process.env.SANDCASTLE_CHECK_POLL_INTERVAL_MS ?? "30000");
 const CHECK_TIMEOUT_MS = Number(process.env.SANDCASTLE_CHECK_TIMEOUT_MS ?? String(20 * 60 * 1000));
 const WAIT_FOR_MERGES = process.env.SANDCASTLE_WAIT_FOR_MERGES !== "false";
@@ -259,19 +263,63 @@ async function runPrePublishReviewAndVerify({
       ISSUE_TITLE: issue.title,
       BRANCH: issue.branch,
       NEEDS_UI: String(issue.needsUi),
+      GATE_CONTEXT: "No prior runner-enforced gate failure.",
       VERIFICATION_POLICY: LOCAL_VERIFICATION_POLICY,
     },
   });
   commits.push(...verify.commits);
 
-  runRequiredSandboxGate(issue, sandbox.worktreePath);
+  const gateRepairCommits = await runRequiredSandboxGate({ issue, sandbox });
+  commits.push(...gateRepairCommits);
 
   return commits;
 }
 
-function runRequiredSandboxGate(issue: PlannedIssue, worktreePath: string) {
-  if (!SANDBOX_CONTAINER_TESTS.available) return;
+async function runRequiredSandboxGate({
+  issue,
+  sandbox,
+}: {
+  readonly issue: PlannedIssue;
+  readonly sandbox: Awaited<ReturnType<typeof sandcastle.createSandbox>>;
+}) {
+  const commits: Array<{ sha: string }> = [];
+  if (!SANDBOX_CONTAINER_TESTS.available) return commits;
 
+  for (let repairAttempt = 0; ; repairAttempt++) {
+    try {
+      executeSandboxGate(issue, sandbox.worktreePath);
+      return commits;
+    } catch (error) {
+      if (repairAttempt >= MAX_LOCAL_GATE_REPAIR_ATTEMPTS) throw error;
+
+      const attempt = repairAttempt + 1;
+      console.warn(
+        `  Enforced sandbox gate failed for ${issue.id}; launching repair ${attempt}/${MAX_LOCAL_GATE_REPAIR_ATTEMPTS}.`,
+      );
+      const repair = await sandbox.run({
+        name: `sandbox-gate-repair-${issue.id}-${attempt}`,
+        maxIterations: 30,
+        agent: allAroundAgent(),
+        promptFile: "./.sandcastle/verify-fix-prompt.md",
+        promptArgs: {
+          TASK_ID: issue.id,
+          ISSUE_TITLE: issue.title,
+          BRANCH: issue.branch,
+          NEEDS_UI: String(issue.needsUi),
+          GATE_CONTEXT: [
+            "The runner-enforced `bun check:e2e` gate failed after the previous verifier completed.",
+            "Reproduce the failing test output, fix every scoped failure, and rerun the comprehensive gate until it passes.",
+            `Runner error: ${String(error)}`,
+          ].join(" "),
+          VERIFICATION_POLICY: LOCAL_VERIFICATION_POLICY,
+        },
+      });
+      commits.push(...repair.commits);
+    }
+  }
+}
+
+function executeSandboxGate(issue: PlannedIssue, worktreePath: string) {
   assertWorktreeClean(worktreePath, `before the enforced sandbox gate for ${issue.id}`);
   console.log(`  Running enforced sandbox gate for ${issue.id}: bun check:e2e`);
   execFileSync(
@@ -306,7 +354,7 @@ function runRequiredSandboxGate(issue: PlannedIssue, worktreePath: string) {
       "sh",
       SANDBOX_IMAGE_NAME,
       "-c",
-      'mkdir -p "$TURBO_CACHE_DIR" && bun install --frozen-lockfile && bun check:e2e',
+      'mkdir -p "$TURBO_CACHE_DIR" && bun install --frozen-lockfile && bun run check:e2e -- --env-mode=loose',
     ],
     { stdio: "inherit", timeout: CHECK_TIMEOUT_MS },
   );
@@ -621,6 +669,14 @@ if (process.exitCode && process.exitCode !== 0) {
 type SandboxContainerTestCapability =
   | { readonly available: false; readonly dockerSocketGid?: undefined }
   | { readonly available: true; readonly dockerSocketGid: number };
+
+function nonNegativeIntegerEnv(name: string, fallback: number) {
+  const value = process.env[name] === undefined ? fallback : Number(process.env[name]);
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error(`${name} must be a non-negative integer.`);
+  }
+  return value;
+}
 
 function preflightSandbox(): SandboxContainerTestCapability {
   const configured = process.env.SANDCASTLE_SANDBOX_CAN_RUN_CONTAINER_TESTS;

@@ -16,6 +16,10 @@ Own tests and test data, type errors, lint/format issues, integration bugs, and 
 
 {{VERIFICATION_POLICY}}
 
+# RUNNER GATE CONTEXT
+
+{{GATE_CONTEXT}}
+
 # REQUIRED PROCESS
 
 1. Understand the branch diff by running targeted commands yourself. Start with:
@@ -25,7 +29,7 @@ Own tests and test data, type errors, lint/format issues, integration bugs, and 
 
    Do not dump the full branch diff into context for large branches.
 
-2. Run targeted verification while iterating. Run the comprehensive local gate exactly once and only when the capability policy above says it is available.
+2. Run targeted verification while iterating. Run the comprehensive local gate when the capability policy above says it is available. If it fails, fix every failure and rerun it until it passes. Do not stop after fixing only the first formatting, type, unit, integration, or E2E failure.
 
 3. If the branch changes a user-visible browser workflow, add or update the narrowest useful Playwright E2E coverage. Then run the matching targeted E2E script when possible:
    - `bun run test:e2e:onboarding`
