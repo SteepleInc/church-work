@@ -2,6 +2,7 @@ import {
   Alert02Icon,
   CheckmarkCircle02Icon,
   InformationCircleIcon,
+  SquareLockCheck01Icon,
   Tick02Icon,
   Time04Icon,
 } from "@hugeicons/core-free-icons";
@@ -248,6 +249,18 @@ function BillingPanel({
             ) : null
           }
           isPaid={isPaid}
+          redirectNote={
+            canManage && (canUpgrade || hasBillingHistory) ? (
+              <HostedRedirectNote
+                label={
+                  hasBillingHistory
+                    ? "Payment, invoices, and plan changes open in Stripe's secure hosted page."
+                    : "Checkout opens on Stripe's secure hosted page — no card details are stored in Church Work."
+                }
+                redirecting={redirecting !== null}
+              />
+            ) : null
+          }
           subscriptionOpt={subscriptionOpt}
           usage={isPaid ? null : <FreePlanUsageMeter />}
         />
@@ -371,11 +384,13 @@ function CurrentPlanRow({
   isPaid,
   subscriptionOpt,
   actions,
+  redirectNote,
   usage,
 }: {
   readonly isPaid: boolean;
   readonly subscriptionOpt: Subscription | null;
   readonly actions: ReactNode;
+  readonly redirectNote?: ReactNode;
   readonly usage?: ReactNode;
 }) {
   const status = subscriptionOpt?.status ?? null;
@@ -386,7 +401,7 @@ function CurrentPlanRow({
 
   return (
     <div className="flex flex-col gap-4 py-4">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center sm:gap-6">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start sm:gap-6">
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex items-center gap-2">
             <span className="font-medium text-sm">{isPaid ? "Paid Plan" : "Free Plan"}</span>
@@ -403,10 +418,43 @@ function CurrentPlanRow({
           </p>
           {renewalLine ? <p className="text-muted-foreground text-xs">{renewalLine}</p> : null}
         </div>
-        {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+        {actions ? (
+          <div className="flex shrink-0 flex-col items-stretch gap-1.5 sm:items-end">
+            <div className="flex items-center gap-2">{actions}</div>
+            {redirectNote}
+          </div>
+        ) : null}
       </div>
       {usage}
     </div>
+  );
+}
+
+/**
+ * A quiet reassurance that the hosted Checkout and Customer Portal open on
+ * Stripe's own secure page — the moment a User leaves Church Work for the
+ * operational control plane. While a redirect is in flight it becomes a live
+ * status so the external hop never feels like an unexplained jump.
+ */
+function HostedRedirectNote({
+  label,
+  redirecting,
+}: {
+  readonly label: string;
+  readonly redirecting: boolean;
+}) {
+  return (
+    <p
+      className="flex items-center gap-1.5 text-muted-foreground text-xs sm:justify-end sm:text-right"
+      role={redirecting ? "status" : undefined}
+    >
+      <HugeiconsIcon
+        className="size-3.5 shrink-0 text-foreground/50"
+        icon={SquareLockCheck01Icon}
+        strokeWidth={2}
+      />
+      <span className="text-balance">{redirecting ? "Opening Stripe…" : label}</span>
+    </p>
   );
 }
 
