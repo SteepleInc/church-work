@@ -70,7 +70,7 @@ Store the three values above as deployment secrets/configuration, then run this 
 bun stripe:verify-paid-price
 ```
 
-The command retrieves (but does not mutate) the configured Stripe Price and fails unless all purchasable-price invariants match Church Work's Paid Plan. After deployment, smoke-test Checkout from a Free Church, confirm the return remains pending before webhook synchronization, then test Customer Portal payment recovery and cancellation-at-period-end. Never use the live Stripe account in automated tests; the E2E harness stubs hosted navigation and authoritative state transitions at the application boundary.
+The command retrieves (but does not mutate) the configured Stripe Price and fails unless it belongs to the live Stripe account and all purchasable-price invariants match Church Work's Paid Plan. After deployment, smoke-test Checkout from a Free Church, confirm the return remains pending before webhook synchronization, then test Customer Portal payment recovery and cancellation-at-period-end. Never use the live Stripe account in automated tests; the E2E harness stubs hosted navigation and authoritative state transitions at the application boundary.
 
 ## Migration And Runbook Implications
 

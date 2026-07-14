@@ -54,4 +54,19 @@ describe("Stripe billing configuration", () => {
       webhookSecret: "whsec_live",
     });
   });
+
+  test("does not reject valid values only because their generated suffix contains test", () => {
+    expect(
+      resolveStripeBillingConfig({
+        NODE_ENV: "production",
+        STRIPE_PAID_WEEKLY_PRICE_ID: "price_contest_weekly",
+        STRIPE_SECRET_KEY: "sk_live_latest_secret",
+        STRIPE_WEBHOOK_SECRET: "whsec_contest_secret",
+      }),
+    ).toEqual({
+      paidWeeklyPriceId: "price_contest_weekly",
+      secretKey: "sk_live_latest_secret",
+      webhookSecret: "whsec_contest_secret",
+    });
+  });
 });

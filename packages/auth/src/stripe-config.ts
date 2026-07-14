@@ -28,7 +28,7 @@ const productionValue = (
     throw new Error(`${name} is required for production Stripe billing.`);
   }
 
-  if (!value.startsWith(expectedPrefix) || value.includes("stub") || value.includes("test")) {
+  if (!value.startsWith(expectedPrefix) || value.includes("stub")) {
     throw new Error(
       `${name} is invalid for production Stripe billing; expected a live ${expectedPrefix} value.`,
     );

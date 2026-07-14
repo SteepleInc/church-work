@@ -8,6 +8,7 @@ type PaidPrice = Pick<
   | "billing_scheme"
   | "currency"
   | "id"
+  | "livemode"
   | "metadata"
   | "recurring"
   | "tax_behavior"
@@ -17,6 +18,7 @@ type PaidPrice = Pick<
 export const paidPriceConfigurationErrors = (price: PaidPrice): string[] => {
   const checks: ReadonlyArray<readonly [boolean, string]> = [
     [price.active, "Price must be active"],
+    [price.livemode, "Price must belong to the live Stripe account"],
     [price.billing_scheme === "per_unit", "Price must use per-unit billing"],
     [price.currency === "usd", "Price currency must be USD"],
     [price.unit_amount === 1_999, "Price amount must be $19.99"],

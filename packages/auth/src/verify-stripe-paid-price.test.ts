@@ -8,6 +8,7 @@ const validPrice = {
   billing_scheme: "per_unit",
   currency: "usd",
   id: "price_live_weekly",
+  livemode: true,
   metadata: { church_work_scope: "church" },
   recurring: { interval: "week", interval_count: 1, usage_type: "licensed" },
   tax_behavior: "inclusive",
@@ -34,6 +35,7 @@ describe("Stripe Paid Price deployment check", () => {
         active: false,
         billing_scheme: "tiered",
         currency: "eur",
+        livemode: false,
         metadata: {},
         recurring: {
           ...validPrice.recurring,
@@ -48,6 +50,7 @@ describe("Stripe Paid Price deployment check", () => {
       }),
     ).toEqual([
       "Price must be active",
+      "Price must belong to the live Stripe account",
       "Price must use per-unit billing",
       "Price currency must be USD",
       "Price amount must be $19.99",
