@@ -50,6 +50,11 @@ test("starts stubbed Checkout and keeps the return pending until webhook state a
   );
 
   await page.goto("/settings/workspace/billing");
+  await expect(
+    page.getByText(
+      "Checkout opens on Stripe's secure hosted page — no card details are stored in Church Work.",
+    ),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Upgrade to Paid" }).first().click();
   await expect(page).toHaveURL(/hosted-checkout-stub/);
   expect(checkoutRequest).toMatchObject({
@@ -89,6 +94,9 @@ test("opens the stubbed Customer Portal for an authorized Church", async ({ page
   );
 
   await page.goto("/settings/workspace/billing");
+  await expect(
+    page.getByText("Payment, invoices, and plan changes open in Stripe's secure hosted page."),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Manage billing" }).click();
   await expect(page).toHaveURL(/hosted-portal-stub/);
   expect(portalRequest).toMatchObject({ customerType: "organization" });
