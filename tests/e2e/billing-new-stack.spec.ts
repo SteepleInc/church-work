@@ -109,7 +109,12 @@ test("shows a Free Plan member their Task Usage without billing actions", async 
   await expect(usageMeter).toBeVisible({ timeout: 20_000 });
   await expect(usageMeter).toHaveAttribute("aria-valuenow", "3");
   await expect(usageMeter).toHaveAttribute("aria-valuemax", "300");
+  await expect(usageMeter).toHaveAttribute(
+    "aria-valuetext",
+    "3 of 300 Tasks in the Active Planning Horizon",
+  );
   await expect(page.getByText(/of 300 Tasks/).first()).toBeVisible();
+  await expect(page.getByText(/297 Tasks remaining before the Free Plan limit/)).toBeVisible();
 
   // ...but never any hosted billing actions.
   await expect(
