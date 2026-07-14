@@ -273,6 +273,7 @@ function TaskUsageValue({
   }
 
   const atLimit = taskUsage >= FREE_PLAN_TASK_LIMIT;
+  const overLimit = taskUsage > FREE_PLAN_TASK_LIMIT;
   const approaching = taskUsage > FREE_PLAN_TASK_USAGE_NOTICE_THRESHOLD;
   const percent = Math.min(100, Math.round((taskUsage / FREE_PLAN_TASK_LIMIT) * 100));
 
@@ -282,6 +283,11 @@ function TaskUsageValue({
         {taskUsage} of {FREE_PLAN_TASK_LIMIT}
         {atLimit ? <span className="text-destructive"> — Task creation paused</span> : null}
       </span>
+      {overLimit ? (
+        <span className="text-destructive text-xs">
+          {taskUsage - FREE_PLAN_TASK_LIMIT} over the limit from scheduled Template materialization.
+        </span>
+      ) : null}
       <div
         aria-label="Free Plan Task Usage"
         aria-valuemax={FREE_PLAN_TASK_LIMIT}
