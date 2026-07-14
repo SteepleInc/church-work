@@ -346,6 +346,11 @@ test("enforces every visible Free Plan threshold and removes the gate for Paid",
   // the same externally visible overage state produced by scheduled work.
   await setTestSubscription(page, { status: "active" });
   await seedCount(1, 300);
+  // Wait for Zero to expose the paid-only Task before switching back to Free.
+  // The seed endpoint commits before CDC has necessarily reached the browser.
+  await expect(page.getByText("Limit Task 301", { exact: true })).toBeVisible({
+    timeout: 20_000,
+  });
   await setTestSubscription(page, { status: "canceled" });
   await page.reload();
   await expect(page.getByRole("meter", { name: "Free Plan Task Usage" })).toHaveAttribute(
