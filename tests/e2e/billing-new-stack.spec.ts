@@ -380,8 +380,13 @@ test("gives members role-appropriate guidance at the Free Plan Task Limit", asyn
     })),
     team: "Worship",
   });
+  await page.goto("/settings/workspace/billing");
+  await expect(page.getByRole("meter", { name: "Free Plan Task Usage" })).toHaveAttribute(
+    "aria-valuenow",
+    "300",
+    { timeout: 20_000 },
+  );
   await page.goto("/our-work");
-  await page.reload();
 
   const createTask = page.getByRole("button", { name: "Create Task" }).first();
   await expect(createTask).toHaveAttribute("aria-disabled", "true", { timeout: 20_000 });
