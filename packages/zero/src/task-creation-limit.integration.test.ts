@@ -270,9 +270,37 @@ describe("Free Plan Task creation integration", () => {
     const harness = await startPostgresHarness();
     try {
       await seedChurch(harness.db, 1);
+      await harness.db.insert(organization).values({
+        _tag: "org",
+        churchTimeZone: "UTC",
+        completedOnboarding: true,
+        id: "org_other_church",
+        name: "Other Church",
+        slug: "other-church",
+      });
+      await harness.db.insert(tasks).values({
+        ...baseEntity("task"),
+        board_order: "a000",
+        church_id: "org_other_church",
+        cycle_id: null,
+        due_date: null,
+        id: "task_from_another_church",
+        label_ids: "[]",
+        number: 999,
+        previous_identifiers: "[]",
+        task_state: "todo",
+        team_id: teamId,
+        title: "Other Church Task",
+        workflow_id: workflowId,
+        workflow_status_id: statusId,
+      });
+
       await expect(invokeDuplicate(harness.db, "task_from_another_church")).rejects.toThrow(
         "Task not found.",
       );
+      await expect(
+        harness.db.select().from(tasks).where(eq(tasks.church_id, churchId)),
+      ).resolves.toHaveLength(1);
     } finally {
       await harness.stop();
     }
