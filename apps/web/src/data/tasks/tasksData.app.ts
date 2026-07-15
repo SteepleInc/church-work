@@ -957,9 +957,7 @@ export function useDuplicateTaskMutation() {
   const zero = useZero();
 
   return (params: { readonly taskId: string }) =>
-    zeroMutationResult<{
-      readonly tasks: readonly { readonly id: string; readonly identifier: string }[];
-    }>(
+    zeroMutationResult<void>(
       () => zero.mutate(mutators.tasks.duplicate({ task_id: params.taskId })),
       "Could not duplicate Task.",
     );

@@ -13,13 +13,7 @@ type TaskMutationOutcome =
   | { readonly ok: true }
   | { readonly ok: false; readonly error: { readonly message: string } };
 
-/**
- * Feedback for a Task duplication attempt, in Church Work's standard toast
- * voice: on success it names the source Task in curly quotes and confirms a
- * fresh copy now exists (matching the app-wide `“…” <verb>.` pattern used by
- * created/updated/saved toasts); on failure it surfaces the mutator message
- * instead of failing silently.
- */
+/** Shows consistent success or failure feedback after Task duplication. */
 export function notifyTaskDuplicated(
   result: TaskMutationOutcome,
   sourceTitle?: string | null,
@@ -51,7 +45,8 @@ export function taskLimitMessage(canManage: boolean): string {
 /**
  * The one Free Plan Task Limit seam for every user-initiated control that
  * would create a new Task identity: standard creation, Task Draft conversion,
- * Subtask creation, and user materialization of a projected Template Task.
+ * Subtask creation, duplication, and user materialization of a projected
+ * Template Task.
  *
  * `blocked` disables the control, `message` is its explanatory tooltip, and
  * `notify` raises the Sonner notification used by keyboard shortcuts and
