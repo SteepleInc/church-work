@@ -953,6 +953,16 @@ export function useCreateTaskMutation() {
   };
 }
 
+export function useDuplicateTaskMutation() {
+  const zero = useZero();
+
+  return (params: { readonly taskId: string }) =>
+    zeroMutationResult<void>(
+      () => zero.mutate(mutators.tasks.duplicate({ task_id: params.taskId })),
+      "Could not duplicate Task.",
+    );
+}
+
 export function useSaveTaskDraftMutation() {
   const zero = useZero();
 

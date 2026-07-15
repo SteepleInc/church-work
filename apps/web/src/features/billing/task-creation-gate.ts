@@ -9,6 +9,26 @@ import { useTaskUsagePolicy } from "@/features/billing/use-task-usage-policy";
 /** One Sonner id so repeated blocked attempts update a single notification. */
 export const TASK_LIMIT_TOAST_ID = "free-plan-task-limit";
 
+type TaskMutationOutcome =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly error: { readonly message: string } };
+
+/** Shows consistent success or failure feedback after Task duplication. */
+export function notifyTaskDuplicated(
+  result: TaskMutationOutcome,
+  sourceTitle?: string | null,
+): void {
+  if (!result.ok) {
+    toast.error(result.error.message);
+    return;
+  }
+
+  const trimmed = sourceTitle?.trim();
+  toast.success(trimmed ? `“${trimmed}” duplicated.` : "Task duplicated.", {
+    description: "A new copy was added to this Team.",
+  });
+}
+
 export const TASK_LIMIT_TITLE = "Free Plan Task Limit reached";
 
 /**
@@ -25,7 +45,8 @@ export function taskLimitMessage(canManage: boolean): string {
 /**
  * The one Free Plan Task Limit seam for every user-initiated control that
  * would create a new Task identity: standard creation, Task Draft conversion,
- * Subtask creation, and user materialization of a projected Template Task.
+ * Subtask creation, duplication, and user materialization of a projected
+ * Template Task.
  *
  * `blocked` disables the control, `message` is its explanatory tooltip, and
  * `notify` raises the Sonner notification used by keyboard shortcuts and

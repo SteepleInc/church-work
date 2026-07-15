@@ -27,6 +27,7 @@ import {
   useMaterializeProjectedTemplateTaskMutation,
   useCancelTaskMutation,
   useCompleteTaskMutation,
+  useDuplicateTaskMutation,
   useReopenTaskMutation,
   useTasksCollection,
   useUpdateTaskMutation,
@@ -39,7 +40,7 @@ import {
   useWorkflowStatusesCollection,
   useWorkflowsCollection,
 } from "@/data/workflows/workflowsData.app";
-import { useTaskCreationGate } from "@/features/billing/task-creation-gate";
+import { notifyTaskDuplicated, useTaskCreationGate } from "@/features/billing/task-creation-gate";
 import { useQuickActionOpeners } from "@/features/quick-actions/quick-actions-state";
 import {
   getHiddenBoardColumns,
@@ -343,6 +344,7 @@ export function TaskExecutionSurface({
   const completeTask = useCompleteTaskMutation();
   const cancelTask = useCancelTaskMutation();
   const reopenTask = useReopenTaskMutation();
+  const duplicateTask = useDuplicateTaskMutation();
 
   const transitionTask = (taskId: string, transition: TaskStateTransition) => {
     const mutate =
@@ -577,6 +579,16 @@ export function TaskExecutionSurface({
     memberTeamIds: currentUserTeamIds,
     currentUserId,
     teamMemberIdsByTeamId,
+    duplicateDisabledReason: taskCreationGate.blocked ? taskCreationGate.message : undefined,
+    onDuplicateTask: async (taskId) => {
+      if (taskCreationGate.blocked) {
+        taskCreationGate.notify();
+        return;
+      }
+      const sourceTitle = boardTasks.find((candidate) => candidate.id === taskId)?.title;
+      const result = await duplicateTask({ taskId });
+      notifyTaskDuplicated(result, sourceTitle);
+    },
     onAssignTask: sharedSurfaceProps.onAssignTask,
     onChangeTaskStatus: sharedSurfaceProps.onChangeTaskStatus,
     onChangeTaskLabels: sharedSurfaceProps.onChangeTaskLabels,

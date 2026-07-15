@@ -3,6 +3,7 @@ import {
   CalendarDays,
   CircleCheck,
   Copy,
+  CopyPlus,
   FileText,
   Hash,
   Link as LinkIcon,
@@ -110,6 +111,8 @@ export type TaskContextMenuProps = {
     readonly labelIds: readonly string[];
   }) => void | Promise<void>;
   readonly onTransitionTask?: (change: TaskTransitionChange) => void | Promise<void>;
+  readonly onDuplicateTask?: (taskId: string) => void | Promise<void>;
+  readonly duplicateDisabledReason?: string;
   readonly onOpenTask?: (taskIdentifier: string) => void;
   /** Builds the absolute URL copied by "Copy link" for a Task Identifier. */
   readonly buildTaskUrl?: (taskIdentifier: string) => string;
@@ -163,6 +166,8 @@ export function TaskContextMenu({
   onChangeTaskDueDate,
   onChangeTaskTeam,
   onTransitionTask,
+  onDuplicateTask,
+  duplicateDisabledReason,
   onOpenTask,
   buildTaskUrl,
 }: TaskContextMenuProps) {
@@ -371,6 +376,32 @@ export function TaskContextMenu({
                 </ContextMenuItem>
               </ContextMenuSubContent>
             </ContextMenuSub>
+          </>
+        ) : null}
+
+        {!isProjected && onDuplicateTask ? (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem
+              aria-disabled={duplicateDisabledReason ? true : undefined}
+              className={duplicateDisabledReason ? "cursor-not-allowed opacity-50" : undefined}
+              closeOnClick={!duplicateDisabledReason}
+              onClick={() => void onDuplicateTask(task.id)}
+              title={duplicateDisabledReason}
+            >
+              <CopyPlus />
+              Duplicate Task
+              {duplicateDisabledReason ? (
+                // At the Free Plan Task Limit the row stays interactive (a click
+                // raises the shared notification) but reads as blocked: this
+                // trailing chip states the reason inline so the dimmed row is
+                // self-explanatory without waiting for the hover tooltip, while
+                // `title` still carries the full role-aware guidance.
+                <ContextMenuShortcut className="tracking-normal">
+                  Free Plan limit
+                </ContextMenuShortcut>
+              ) : null}
+            </ContextMenuItem>
           </>
         ) : null}
 

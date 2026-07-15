@@ -211,6 +211,7 @@ const CreateTaskArgs = toZeroSchema(
     workflow_status_id: Schema.String,
   }),
 );
+const DuplicateTaskArgs = toZeroSchema(Schema.Struct({ task_id: Schema.String }));
 const TaskDraftFieldsArg = Schema.Struct({
   assigned_user_id: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
   description: Schema.optional(Schema.Union([Schema.String, Schema.Null])),
@@ -4977,6 +4978,99 @@ export const mutators = defineMutators({
             ),
           );
       }
+    }),
+    duplicate: defineChurchWorkMutator(DuplicateTaskArgs, async ({ args, ctx, tx }) => {
+      const db = serverDb(tx);
+      if (!db) return;
+
+      const { churchId, session } = requireSessionActiveChurch(ctx);
+      await assertUserTaskCreationAllowed(db, churchId);
+
+      const sourceRows = await db
+        .select()
+        .from(tasks)
+        .where(
+          and(eq(tasks.id, args.task_id), eq(tasks.church_id, churchId), isNull(tasks.deleted_at)),
+        );
+      const source = sourceRows[0];
+      if (!source) throw new Error("Task not found.");
+
+      const teamRows = await db
+        .select({ next_task_number: teams.next_task_number })
+        .from(teams)
+        .where(
+          and(
+            eq(teams.id, source.team_id),
+            eq(teams.church_id, churchId),
+            isNull(teams.deleted_at),
+          ),
+        );
+      const team = teamRows[0];
+      if (!team) throw new Error("Team not found.");
+
+      const boardRows = (await db
+        .select({ board_order: tasks.board_order })
+        .from(tasks)
+        .where(
+          and(eq(tasks.workflow_status_id, source.workflow_status_id), isNull(tasks.deleted_at)),
+        )) as Array<{ readonly board_order: string }>;
+      const boardOrder = appendBoardOrderKey(
+        boardRows.reduce<string | null>(
+          (max, task) => (max === null || task.board_order > max ? task.board_order : max),
+          null,
+        ),
+      );
+      const now = new Date();
+      const taskId = getTaskId();
+      await db.insert(tasks).values({
+        _tag: "task",
+        assigned_user_id: source.assigned_user_id,
+        board_order: boardOrder,
+        church_id: churchId,
+        created_at: now,
+        created_by: session.user_id,
+        created_by_user_id: session.user_id,
+        cycle_id: source.cycle_id,
+        description: source.description,
+        due_date: source.due_date,
+        estimate: source.estimate,
+        priority: source.priority,
+        finished_at: source.task_state === "done" ? now : null,
+        id: taskId,
+        label_ids: source.label_ids,
+        number: team.next_task_number,
+        parent_task_id: source.parent_task_id,
+        previous_identifiers: "[]",
+        source_template_cycle_id: null,
+        source_template_id: null,
+        source_template_sync_enabled: false,
+        source_template_task_id: null,
+        task_state: source.task_state,
+        team_id: source.team_id,
+        title: source.title,
+        updated_at: now,
+        updated_by: session.user_id,
+        workflow_id: source.workflow_id,
+        workflow_status_id: source.workflow_status_id,
+      });
+      await db
+        .update(teams)
+        .set({
+          next_task_number: team.next_task_number + 1,
+          updated_at: now,
+          updated_by: session.user_id,
+        })
+        .where(eq(teams.id, source.team_id));
+      await writeActivity(db, {
+        actor_id: session.user_id,
+        church_id: churchId,
+        cycle_id: source.cycle_id,
+        entity_id: taskId,
+        entity_type: "task",
+        event_type: "task.created",
+        metadata: { duplicated_from_task_id: source.id, team_id: source.team_id },
+        occurred_at: now,
+      });
     }),
     update: defineChurchWorkMutator(UpdateTaskArgs, async ({ args, ctx, tx }) => {
       const db = serverDb(tx);

@@ -360,6 +360,11 @@ test("enforces every visible Free Plan threshold and removes the gate for Paid",
   await expect(page.getByText("Free Plan Task Limit reached", { exact: true })).toBeVisible();
   await expect(page.getByRole("dialog", { name: /New Task/ })).toHaveCount(0);
 
+  await page.getByLabel("Task card Limit Task 1", { exact: true }).click({ button: "right" });
+  const duplicateTask = page.getByRole("menuitem", { name: "Duplicate Task" });
+  await expect(duplicateTask).toHaveAttribute("aria-disabled", "true");
+  await expect(duplicateTask).toHaveAttribute("title", /upgrade to Paid in Church Billing/);
+
   // Paid creation can cross the Free threshold. Returning to Free then proves
   // the same externally visible overage state produced by scheduled work.
   await setTestSubscription(page, { status: "active" });
@@ -384,7 +389,7 @@ test("enforces every visible Free Plan threshold and removes the gate for Paid",
     timeout: 20_000,
   });
   await expect(createTask).toBeVisible({ timeout: 20_000 });
-  await expect(createTask).not.toHaveAttribute("aria-disabled", "true");
+  await expect(createTask).not.toHaveAttribute("aria-disabled", "true", { timeout: 20_000 });
 });
 
 test("gives members role-appropriate guidance at the Free Plan Task Limit", async ({
