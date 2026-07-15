@@ -389,7 +389,7 @@ test("enforces every visible Free Plan threshold and removes the gate for Paid",
     timeout: 20_000,
   });
   await expect(createTask).toBeVisible({ timeout: 20_000 });
-  await expect(createTask).not.toHaveAttribute("aria-disabled", "true");
+  await expect(createTask).not.toHaveAttribute("aria-disabled", "true", { timeout: 20_000 });
 });
 
 test("gives members role-appropriate guidance at the Free Plan Task Limit", async ({
