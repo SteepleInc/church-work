@@ -13,16 +13,25 @@ type TaskMutationOutcome =
   | { readonly ok: true }
   | { readonly ok: false; readonly error: { readonly message: string } };
 
+/**
+ * Feedback for a Task duplication attempt, in the shared duplicate voice: on
+ * success it names the source Task (mirroring the Template duplicate toast) and
+ * confirms a fresh copy now exists; on failure it surfaces the mutator message
+ * instead of failing silently.
+ */
 export function notifyTaskDuplicated(
   result: TaskMutationOutcome,
   sourceTitle?: string | null,
 ): void {
-  if (result.ok) {
-    const trimmed = sourceTitle?.trim();
-    toast.success(trimmed ? `“${trimmed}” duplicated.` : "Task duplicated.");
+  if (!result.ok) {
+    toast.error(result.error.message);
     return;
   }
-  toast.error(result.error.message);
+
+  const trimmed = sourceTitle?.trim();
+  toast.success(trimmed ? `“${trimmed}” duplicated.` : "Task duplicated.", {
+    description: "A new copy was added to this Team.",
+  });
 }
 
 export const TASK_LIMIT_TITLE = "Free Plan Task Limit reached";

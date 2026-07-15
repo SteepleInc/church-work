@@ -391,6 +391,16 @@ export function TaskContextMenu({
             >
               <CopyPlus />
               Duplicate Task
+              {duplicateDisabledReason ? (
+                // At the Free Plan Task Limit the row stays interactive (a click
+                // raises the shared notification) but reads as blocked: this
+                // trailing chip states the reason inline so the dimmed row is
+                // self-explanatory without waiting for the hover tooltip, while
+                // `title` still carries the full role-aware guidance.
+                <ContextMenuShortcut className="tracking-normal">
+                  Free Plan limit
+                </ContextMenuShortcut>
+              ) : null}
             </ContextMenuItem>
           </>
         ) : null}
