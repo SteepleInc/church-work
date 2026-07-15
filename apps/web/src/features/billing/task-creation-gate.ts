@@ -14,9 +14,10 @@ type TaskMutationOutcome =
   | { readonly ok: false; readonly error: { readonly message: string } };
 
 /**
- * Feedback for a Task duplication attempt, in the shared duplicate voice: on
- * success it names the source Task (mirroring the Template duplicate toast) and
- * confirms a fresh copy now exists; on failure it surfaces the mutator message
+ * Feedback for a Task duplication attempt, in Church Work's standard toast
+ * voice: on success it names the source Task in curly quotes and confirms a
+ * fresh copy now exists (matching the app-wide `“…” <verb>.` pattern used by
+ * created/updated/saved toasts); on failure it surfaces the mutator message
  * instead of failing silently.
  */
 export function notifyTaskDuplicated(
